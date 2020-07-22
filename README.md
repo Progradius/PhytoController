@@ -173,6 +173,7 @@ cd phyto-controller/
 * Enable the sensors that you possess by setting their fields to "enabled" (in initial configuration, only the DS18B20 is active.)
 
 5 - Wire the components:
+
 **WARNING! Be careful with sensor voltage while wiring it, some of them exist in 5v or 3.3v versions.**
 
 **Order yours wisely (3.3v version should be prefered) and wire them properly).**
