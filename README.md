@@ -49,10 +49,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![PhytoController UI Screenshot][grafana screenshot]](images/screenshot.png)
-[![PhytoController UI Screenshot][grafana screenshot]](images/web_gui.png)
-
-
+ [![PhytoController Grafana UI][product-screenshot]](/images/screenshot.png)
 
 
 ### Built With
@@ -66,9 +63,10 @@
 
 <!-- GETTING STARTED -->
 ## Getting Started
+This project aims to automate and log a handfull of things, to visualize the data on Grafana, and to configure the ESP32 with a web gui
 
 To get a local copy up and running follow these simple steps.
-You will need an esp32 of your choice, the common prototyping stuff a bunch of sensors and a spare machine running your prefered OS
+You will need an ESP32 of your choice, the common prototyping stuff a bunch of sensors and a spare machine running your prefered OS
 
 ### Prerequisites
 ##### You need to have experience with handling electronics and electricity, some part of the project use high voltage and current and could be dangerous if handled with insufficient knowledge.
