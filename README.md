@@ -11,16 +11,16 @@
 <br />
 <p align="center">
   <a href="https://github.com/progradius/phyto-controller">
-  <img src="images/logo.png" alt="Logo" width="150">
+  <img src="images/logo.png" alt="Logo" width="300">
   </a>
   <h3 align="center">PhytoController</h3>
   <p align="center">
-  ESP32 based application, enabling full control of your greenhouse - WIP
+  ESP32 based application, enabling full control of your greenhouse
   <br />
   <a href="https://github.com/Progradius/phyto-controller/wiki"><strong>Explore the docs.</strong></a>
   <br />
   <br />
-  <a href="https://github.com/progradius/phyto-controller">View Demo</a>
+  <a href="https://github.com/Progradius/phyto-controller/wiki/Project-Features">View Features</a>
   .
   <a href="https://github.com/Progradius/phyto-controller/labels/bug">PhytoController Bug</a>
   .
@@ -69,14 +69,16 @@ To get a local copy up and running follow these simple steps.
 You will need an ESP32 of your choice, the common prototyping stuff a bunch of sensors and a spare machine running your prefered OS
 
 ### Prerequisites
-##### You need to have experience with handling electronics and electricity, some part of the project use high voltage and current and could be dangerous if handled with insufficient knowledge.
-##### If you are not confident, skip the relay part of the project or seek help and documentation.
+**You need to have experience with handling electronics and electricity, some part of the project use high voltage and current and could be dangerous if handled with insufficient knowledge.**
+
+**If you are not confident, skip the relay part of the project or seek help and documentation.**
 
 To harness the full power of this project, gather the following stuff:
 * ESP32
 * USB cable + 5v outlet
 * A  bunch of Dupont wire
 * A host machine to run influxdb and grafana
+* A 5v relay board (with 8 modules)
 * BME280  (temp/hygro/pressure)
 * DS18B20 (temp)
 * TSL2591 (lux and ir)
@@ -144,37 +146,42 @@ With the previously created database and credentials, use the official Documenta
 
 #### Install ampy:
 ampy is a python tool enabling you to communicate with the microcontroller using the serial port.
+
 Install ampy following the official documentation for your choosen OS: [Documentation](https://github.com/scientifichackers/ampy)
 
 ### 2 - ESP32 instructions
 
  1 - Flash micropython firmware on your ESP32
-  * Check micropython's documentation and flash a firmware built with ESP-IDF v3.x.[ESP32-Documentation](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html)
+ 
+  * Check micropython's documentation and flash a firmware built with ESP-IDF v3.x
+  * [ESP32-Documentation](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html)
   * [Micropython for Generic ESP32 Module](https://micropython.org/download/esp32/)
 
- 1 - Clone the phyto-controller repository on the host machine
+ 2 - Clone the phyto-controller repository on the host machine
  ```sh
  git clone https://github.com/progradius/phyto-controller.git
  ```
- 2 - cd into the newly created directory
+ 3 - cd into the newly created directory
  ```sh
 cd phyto-controller/ 
 ```
-3 - Open param.json and configure it:
+4 - Open param.json and configure it:
 
 * Enter your wifi credentials
 * Enter your influxdb credentials
 * Check the defaults GPIO pins and modify them to fit your board if necessary
-* Enable the sensors that you possess by setting their fields to "enabled" (for now only the DS18B20 is active by default)
+* Enable the sensors that you possess by setting their fields to "enabled" (in initial configuration, only the DS18B20 is active.)
 
-4 - Wire the components:
-##### WARNING! Be careful with sensor voltage will wiring it, some of them exist in 5v or 3.3v versions. 
-##### Order yours wisely (3.3v version should be prefered) and wire them properly).
-##### Respect the choosen GPIO set in param.json, relays board are handling high voltages so please be extra careful.
+5 - Wire the components:
+**WARNING! Be careful with sensor voltage while wiring it, some of them exist in 5v or 3.3v versions.**
 
-5 - Connect the ESP32 to the host machine
+**Order yours wisely (3.3v version should be prefered) and wire them properly).**
 
-6 - Use ampy to upload the project's files:
+**Respect the choosen GPIO set in param.json, relays board are handling high voltages so please be extra careful.**
+
+6 - Connect the ESP32 to the host machine
+
+7 - Use ampy to upload the project's files:
 ```sh
 ampy --port /dev/ttyUSB0 put boot.py
 ampy --port /dev/ttyUSB0 put main.py
@@ -185,12 +192,13 @@ ampy --port /dev/ttyUSB0 put model
 ampy --port /dev/ttyUSB0 put lib
 ```
 
-7 - Reboot
+8 - Reboot
 
  <!-- USAGE EXAMPLES -->
 ## Usage
 
 This project is able to:
+
 * Monitor various metrics and showcase them into Grafana
 * Handle two daily timer outlets
 * Handle two cyclic timers outlets
@@ -211,7 +219,9 @@ This project is able to:
  <!-- CONTRIBUTING -->
 ## Contributing
 
- Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+ Contributions are what make the open source community such an amazing place to be learn, inspire, and create. 
+ 
+ Any contributions you make are **greatly appreciated**.
 
  1. Fork the Project
  2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
@@ -231,8 +241,7 @@ This project is able to:
  <!-- CONTACT -->
 ## Contact
 
- Progradius -
- progradius@protonmail.com
+ Progradius - progradius@protonmail.com
 
  Project Link: [https://github.com/progradius/phyto-controller](https://github.com/progradius/phyto-controller)
 
@@ -241,8 +250,8 @@ This project is able to:
  <!-- ACKNOWLEDGEMENTS -->
 ## Acknowledgements
 
- * [BME280 robert-hh's MicroPython Library](https://github.com/robert-hh/BME280)
- * [TSL2591 jfischer's MicroPython Library](https://github.com/jfischer/micropython-tsl2591)
+* [BME280 robert-hh's MicroPython Library](https://github.com/robert-hh/BME280)
+* [TSL2591 jfischer's MicroPython Library](https://github.com/jfischer/micropython-tsl2591)
 * [VEML6075 neliogodoi's Micropython Library](https://github.com/neliogodoi/MicroPython-VEML6075)
 * [HCSR04 rcs1975's MicroPython Library](https://github.com/rsc1975/micropython-hcsr04)
 * [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
