@@ -17,12 +17,12 @@
   <p align="center">
   ESP32 based application, enabling full control of your greenhouse - WIP
   <br />
-  <a href="https://github.com/progradius/phyto-controller"><strong>Explore the docs.</strong></a>
+  <a href="https://github.com/Progradius/phyto-controller/wiki"><strong>Explore the docs.</strong></a>
   <br />
   <br />
   <a href="https://github.com/progradius/phyto-controller">View Demo</a>
   .
-  <a href="https://github.com/progradius/phyto-controller/issues">PhytoController Bug</a>
+  <a href="https://github.com/Progradius/phyto-controller/labels/bug">PhytoController Bug</a>
   .
   <a href="https://github.com/progradius/phyto-controller/issues">Request Feature</a>
   </p>
@@ -49,7 +49,8 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Product Name Screen Shot][product-screenshot]](images/screenshot.jpg)
+[![PhytoController UI Screenshot][grafana screenshot]](images/screenshot.jpg)
+
 
 
 ### Built With
@@ -147,6 +148,10 @@ Install ampy following the official documentation for your choosen OS: [Document
 
 ### 2 - ESP32 instructions
 
+ 1 - Flash micropython firmware on your ESP32
+  * Check micropython's documentation and flash a firmware built with ESP-IDF v3.x.[ESP32-Documentation](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html)
+  * [Micropython for Generic ESP32 Module](https://micropython.org/download/esp32/)
+
  1 - Clone the phyto-controller repository on the host machine
  ```sh
  git clone https://github.com/progradius/phyto-controller.git
@@ -190,8 +195,9 @@ This project is able to:
 * Handle two daily timer outlets
 * Handle two cyclic timers outlets
 * Handle a centrifugal motor and set his speed according to temperature
+* Provides a websocket based web UI
 
- _For more examples, please refer to the [Documentation](https://example.com)_
+ _For more examples, please refer to the [Documentation](https://github.com/Progradius/phyto-controller/wiki)_
 
 
 
