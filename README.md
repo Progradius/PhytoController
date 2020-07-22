@@ -49,7 +49,9 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![PhytoController UI Screenshot][grafana screenshot]](images/screenshot.jpg)
+[![PhytoController UI Screenshot][grafana screenshot]](images/screenshot.png)
+[![PhytoController UI Screenshot][grafana screenshot]](images/web_gui.png)
+
 
 
 
