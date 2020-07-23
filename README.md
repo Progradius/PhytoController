@@ -63,10 +63,10 @@
 
 <!-- GETTING STARTED -->
 ## Getting Started
-This project aims to automate and log a handfull of things, to visualize the data on Grafana, and to configure the ESP32 with a web gui
+This project aims to automate and log a handful of things, to visualize the data on Grafana, and to configure the ESP32 with a web GUI
 
 To get a local copy up and running follow these simple steps.
-You will need an ESP32 of your choice, the common prototyping stuff a bunch of sensors and a spare machine running your prefered OS
+You will need an ESP32 of your choice, the common prototyping stuff a bunch of sensors and a spare machine running your preferred OS
 
 ### Prerequisites
 **You need to have experience with handling electronics and electricity, some part of the project use high voltage and current and could be dangerous if handled with insufficient knowledge.**
@@ -79,9 +79,9 @@ To harness the full power of this project, gather the following stuff:
 * A  bunch of Dupont wire
 * A host machine to run influxdb and grafana
 * A 5v relay board (with 8 modules)
-* BME280  (temp/hygro/pressure)
-* DS18B20 (temp)
-* TSL2591 (lux and ir)
+* BME280  (temp/hygro/pressure sensor)
+* DS18B20 (temp sensor)
+* TSL2591 (lux and ir sensor)
 * VEML6075 (UV sensor)
 * HCSR04 (ultrasonic distance sensor)
 
@@ -91,7 +91,7 @@ To harness the full power of this project, gather the following stuff:
  
 ### 1 - Host instructions
 Install the following packages on host machine
-(Raspberry Pi based example, see your OS documentation for more accurate informations)
+(Raspberry Pi based example, see your OS documentation for more accurate information)
 
 #### Grafana
 
@@ -169,6 +169,8 @@ cd phyto-controller/
 ```
 4 - Open param.json and configure it:
 
+[Detailed BreakDown of param.json](https://github.com/Progradius/phyto-controller/wiki/Configuration-File)
+
 * Enter your wifi credentials
 * Enter your influxdb credentials
 * Check the defaults GPIO pins and modify them to fit your board if necessary
@@ -178,9 +180,9 @@ cd phyto-controller/
 
 **WARNING! Be careful with sensor voltage while wiring it, some of them exist in 5v or 3.3v versions.**
 
-**Order yours wisely (3.3v version should be prefered when available) and wire them properly.**
+**Order yours wisely (3.3v version should be preferred when available) and wire them properly.**
 
-**Respect the choosen GPIO set in param.json, relays board are handling high voltages so please be extra careful.**
+**Respect the chosen GPIO set in param.json, relays board are handling high voltages so please be extra careful.**
 
 6 - Connect the ESP32 to the host machine
 
