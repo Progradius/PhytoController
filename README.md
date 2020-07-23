@@ -20,6 +20,8 @@
   <a href="https://github.com/Progradius/phyto-controller/wiki"><strong>Explore the docs.</strong></a>
   <br />
   <br />
+  <a href="https://www.youtube.com/watch?v=rAdMIOjdiVc&feature=youtu.be">View Demo</a>
+  .
   <a href="https://github.com/Progradius/phyto-controller/wiki/Project-Features">View Features</a>
   .
   <a href="https://github.com/Progradius/phyto-controller/labels/bug">PhytoController Bug</a>
