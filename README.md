@@ -86,10 +86,12 @@ To harness the full power of this project, gather the following stuff:
 * HCSR04 (ultrasonic distance sensor)
 
 ### Installation
+
+ [In Depth Tutorial HERE](https://github.com/Progradius/phyto-controller/wiki/In-Depth-Tutorial)
  
 ### 1 - Host instructions
 Install the following packages on host machine
-(Raspberry pi based example, see your OS documentation for more accurate informations)
+(Raspberry Pi based example, see your OS documentation for more accurate informations)
 
 #### Grafana
 
@@ -176,7 +178,7 @@ cd phyto-controller/
 
 **WARNING! Be careful with sensor voltage while wiring it, some of them exist in 5v or 3.3v versions.**
 
-**Order yours wisely (3.3v version should be prefered) and wire them properly).**
+**Order yours wisely (3.3v version should be prefered when available) and wire them properly.**
 
 **Respect the choosen GPIO set in param.json, relays board are handling high voltages so please be extra careful.**
 
