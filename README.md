@@ -161,13 +161,13 @@ Install ampy following the official documentation for your choosen OS: [Document
   * [ESP32-Documentation](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html)
   * [Micropython for Generic ESP32 Module](https://micropython.org/download/esp32/)
 
- 2 - Clone the phyto-controller repository on the host machine
+ 2 - Clone the PhytoController repository on the host machine
  ```sh
- git clone https://github.com/progradius/phyto-controller.git
+ git clone https://github.com/progradius/PhytoController.git
  ```
  3 - cd into the newly created directory
  ```sh
-cd phyto-controller/ 
+cd PhytoController/ 
 ```
 4 - Open param.json and configure it:
 
