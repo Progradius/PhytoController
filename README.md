@@ -10,23 +10,23 @@
 <!-- PROJECT LOGO -->
 <br />
 <p align="center">
-  <a href="https://github.com/progradius/phyto-controller">
+  <a href="https://github.com/progradius/PhytoController">
   <img src="images/logo.png" alt="Logo" width="300">
   </a>
   <h3 align="center">PhytoController</h3>
   <p align="center">
   ESP32 based application, enabling full control of your greenhouse
   <br />
-  <a href="https://github.com/Progradius/phyto-controller/wiki"><strong>Explore the docs.</strong></a>
+  <a href="https://github.com/Progradius/PhytoController/wiki"><strong>Explore the docs.</strong></a>
   <br />
   <br />
   <a href="https://www.youtube.com/watch?v=rAdMIOjdiVc&feature=youtu.be">View Demo</a>
   .
-  <a href="https://github.com/Progradius/phyto-controller/wiki/Project-Features">View Features</a>
+  <a href="https://github.com/Progradius/PhytoController/wiki/Project-Features">View Features</a>
   .
-  <a href="https://github.com/Progradius/phyto-controller/labels/bug">PhytoController Bug</a>
+  <a href="https://github.com/Progradius/PhytoController/labels/bug">PhytoController Bug</a>
   .
-  <a href="https://github.com/progradius/phyto-controller/issues">Request Feature</a>
+  <a href="https://github.com/progradius/PhytoController/issues">Request Feature</a>
   </p>
   </p>
 
@@ -89,7 +89,7 @@ To harness the full power of this project, gather the following stuff:
 
 ### Installation
 
- [In Depth Tutorial HERE](https://github.com/Progradius/phyto-controller/wiki/In-Depth-Tutorial)
+ [In Depth Tutorial HERE](https://github.com/Progradius/PhytoController/wiki/In-Depth-Tutorial)
  
 ### 1 - Host instructions
 Install the following packages on host machine
@@ -171,7 +171,7 @@ cd phyto-controller/
 ```
 4 - Open param.json and configure it:
 
-[Detailed BreakDown of param.json](https://github.com/Progradius/phyto-controller/wiki/Configuration-File)
+[Detailed BreakDown of param.json](https://github.com/Progradius/PhytoController/wiki/Configuration-File)
 
 * Enter your wifi credentials
 * Enter your influxdb credentials
@@ -212,14 +212,14 @@ This project is able to:
 * Handle a centrifugal motor and set his speed according to temperature
 * Provides a websocket based web UI
 
- _For more examples, please refer to the [Documentation](https://github.com/Progradius/phyto-controller/wiki)_
+ _For more examples, please refer to the [Documentation](https://github.com/Progradius/PhytoController/wiki)_
 
 
 
  <!-- ROADMAP -->
 ## Roadmap
 
- See the [open issues](https://github.com/progradius/phyto-controller/issues) for a list of proposed features (and known issues).
+ See the [open issues](https://github.com/progradius/PhytoController/issues) for a list of proposed features (and known issues).
 
 
 
@@ -250,7 +250,7 @@ This project is able to:
 
  Progradius - progradius@protonmail.com
 
- Project Link: [https://github.com/progradius/phyto-controller](https://github.com/progradius/phyto-controller)
+ Project Link: [https://github.com/progradius/PhytoController](https://github.com/progradius/phyto-controller)
 
 
 
@@ -269,16 +269,16 @@ This project is able to:
 
  <!-- MARKDOWN LINKS & IMAGES -->
  <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
- [contributors-shield]: https://img.shields.io/github/contributors/progradius/Phyto-controller.svg?style=flat-square
- [contributors-url]: https://github.com/progradius/Phyto-controller/graphs/contributors
- [forks-shield]: https://img.shields.io/github/forks/progradius/Phyto-controller.svg?style=flat-square
- [forks-url]: https://github.com/progradius/Phyto-controller/network/members
- [stars-shield]: https://img.shields.io/github/stars/progradius/Phyto-controller.svg?style=flat-square
- [stars-url]: https://github.com/progradius/Phyto-controller/stargazers
- [issues-shield]: https://img.shields.io/github/issues/progradius/Phyto-controller.svg?style=flat-square
- [issues-url]: https://github.com/progradius/Phyto-controller/issues
- [license-shield]: https://img.shields.io/github/license/progradius/Phyto-controller.svg?style=flat-square
- [license-url]: https://github.com/progradius/Phyto-controller/blob/master/LICENSE.txt
+ [contributors-shield]: https://img.shields.io/github/contributors/progradius/phytocontroller.svg?style=flat-square
+ [contributors-url]: https://github.com/progradius/phytocontroller/graphs/contributors
+ [forks-shield]: https://img.shields.io/github/forks/progradius/phytocontroller.svg?style=flat-square
+ [forks-url]: https://github.com/progradius/phytocontroller/network/members
+ [stars-shield]: https://img.shields.io/github/stars/progradius/phytocontroller.svg?style=flat-square
+ [stars-url]: https://github.com/progradius/phytocontroller/stargazers
+ [issues-shield]: https://img.shields.io/github/issues/progradius/phytocontroller.svg?style=flat-square
+ [issues-url]: https://github.com/progradius/phytocontroller/issues
+ [license-shield]: https://img.shields.io/github/license/progradius/phytocontroller.svg?style=flat-square
+ [license-url]: https://github.com/progradius/phytocontroller/blob/master/LICENSE.txt
  [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=flat-square&logo=linkedin&colorB=555
  [linkedin-url]: https://linkedin.com/in/
  [product-screenshot]: images/screenshot.png
