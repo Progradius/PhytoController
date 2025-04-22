@@ -1,0 +1,35 @@
+{ "==LifeCycle_Configuration==": "",
+  "growth_stage": "veg",
+
+  "==DailyTimer_Configuration==": "",
+  "dailytimer1_start_hour": 17,"dailytimer1_start_minute": 0,
+  "dailytimer1_stop_hour": 11, "dailytimer1_stop_minute": 0,
+
+  "dailytimer2_start_hour": 17,"dailytimer2_start_minute": 0,
+  "dailytimer2_stop_hour": 11, "dailytimer2_stop_minute": 0,
+
+  "==CyclicTimer_Configuration==": "",
+  "cyclic1_period_minutes": 2, "cyclic1_action_duration_seconds": 30,
+  "cyclic2_period_minutes": 60, "cyclic2_action_duration_seconds": 30,
+
+  "==Wifi_and_Influx_Configuration==": "",
+  "wifi_ssid": "", "wifi_password": "",
+  "influx_db_name":  "", "influx_db_user": "",
+  "influx_db_password": "", "influx_db_host": "",
+
+  "==Sensor_Related_Pin_Configuration==": "",
+  "i2c_sda":21, "i2c_scl":22, "ds18_pin": 23, "hcsr_trigger_pin": 26, "hcsr_echo_pin": 27,
+
+  "==Timer_Driven_Components_Configuration==": "",
+  "light1_pin": 17, "light2_pin": 18,
+  "cyclic1_pin": 5,   "cyclic2_pin": 16,
+
+  "==Motor_and_Temperature_Configuration==": "",
+  "motor_pin1": 32, "motor_pin2": 33, "motor_pin3": 14, "motor_pin4": 25,
+  "motor_mode": "auto", "motor_user_speed": 2,
+  "target_temp": 24, "hysteresis": 2, "min_speed": 1, "max_speed": 4,
+
+  "==Sensor_States_Configuration==": "",
+  "bme_state": "disabled", "ds18_state": "enabled", "veml_state": "disabled", "vl53_state": "disabled",
+  "mlx_state": "disabled", "tsl_state": "disabled", "hcsr_state": "disabled"
+}

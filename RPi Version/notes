@@ -1,0 +1,131 @@
+pour le module network manager nmcli à installer:
+sudo apt-get install network-manager
+
+Activer OneWire via raspi-config ou en ajoutant dans /boot/config.txt :
+
+dtoverlay=w1-gpio
+
+
+prompt potentiel:
+
+Prompt pour l’évolution du projet "PhytoController"
+
+    🎯 Objectif :
+
+Je souhaite faire évoluer mon projet PhytoController, actuellement basé sur ESP32 + MicroPython, en un projet modulaire, maintenable et extensible, tournant sur Raspberry Pi avec Python 3.
+
+    🧠 Contexte du projet :
+
+PhytoController est un système de pilotage environnemental destiné à contrôler des cycles de lumière, d’arrosage ou de ventilation, selon des plages horaires (daily timers), des cycles périodiques (cyclic timers), ou des conditions environnementales (ex. température ambiante).
+
+Le projet est composé :
+
+    D’un contrôleur asynchrone principal (PuppetMaster)
+
+    De composants physiques reliés à des GPIO (relais, moteur pas-à-pas)
+
+    De capteurs I2C (BME280, DS18B20, TSL2591, etc.)
+
+    D’une interface web simple pour la configuration
+
+    D’un backend JSON (param.json) permettant de configurer l’ensemble du système
+
+    D’un enregistrement de données vers InfluxDB
+
+Le projet a déjà été porté de MicroPython vers Python 3 sur Raspberry Pi avec :
+
+    conversion des modules (Pin → RPi.GPIO ou gpiozero, I2C → busio, etc.)
+
+    adaptation du serveur et de la logique asynchrone
+
+    intégration de librairies capteurs en Python standard
+
+    ✅ Ce que j’ai :
+
+    Un fichier param.json décrivant tous les paramètres de configuration, y compris les GPIO
+
+    Une structure modulaire du projet (avec des dossiers controller/, model/, web/, sensor/, etc.)
+
+    Des handlers pour tous mes capteurs
+
+    Une base web avec HTML/CSS Bootstrap pour la configuration
+
+    ❌ Ce que je n’ai pas encore fait, mais que je souhaite :
+
+    Rendre l’interface Web réactive et moderne
+
+        Passer à Flask, FastAPI ou autre serveur Python asynchrone
+
+        Ajouter une API RESTful pour interagir avec les paramètres du système
+
+        Ajouter une interface Web dynamique (ex. React/Vue ou simple fetch + JS)
+
+    Remplacer le param.json par une base SQLite ou une structure persistante plus robuste
+
+        Avec un ORM léger comme SQLModel, Peewee ou SQLite brut
+
+        Pouvoir stocker un historique de mesures (T, H, P, etc.)
+
+    Gérer les GPIO via une abstraction plus propre
+
+        Utiliser gpiozero ou RPi.GPIO avec des classes orientées objet
+
+        Simuler les entrées en mode debug (headless ou test unitaires)
+
+    Faire une intégration via MQTT pour publier les valeurs des capteurs
+
+        Connexion à un broker MQTT (Mosquitto ou autre)
+
+        Format JSON : topic /phyto/sensors/temp avec payload { "value": 27.3 }
+
+    Dockeriser l’ensemble du projet
+
+        Pour standardiser le déploiement sur différents Raspberry Pi
+
+        Avoir un conteneur Python 3 avec les bonnes dépendances (I2C, flask, etc.)
+
+        Isoler les volumes de log, paramètres et sauvegardes
+
+    Ajouter un mécanisme de supervision ou de notification
+
+        Ex : envoi email ou webhook si la température dépasse un seuil
+
+        Intégration avec Grafana/Prometheus/MQTT
+
+🛠️ Ce que je veux que tu fasses :
+
+    Analyse en profondeur le projet existant (structure, architecture, interactions entre modules)
+
+    Propose-moi une roadmap technique claire pour intégrer l'un des axes d’évolution ci-dessus (ex : Flask + SQLite + API REST)
+
+    Donne-moi le squelette du code refactoré, avec les nouveaux points d’entrée, les dépendances nécessaires, les modules à créer/modifier
+
+    Si je choisis l’option API REST, donne-moi :
+
+        les routes nécessaires (GET /status, POST /config, etc.)
+
+        la structure de la réponse JSON
+
+        les fichiers Python à créer
+
+        les dépendances (flask, flask-cors, uvicorn, etc.)
+
+    Propose-moi des tests unitaires ou d’intégration à prévoir
+
+    Optionnel : propose-moi une intégration CI/CD minimale (GitHub Actions, pre-commit, tests)
+
+📦 Infos techniques :
+
+    Matériel cible : Raspberry Pi 4B / Zero W
+
+    OS : Raspberry Pi OS Lite / Bookworm
+
+    Python : 3.9+
+
+    InfluxDB v1.x
+
+    Projet clonable depuis GitHub (structure modulaire et complète)
+
+    Capteurs I2C sur /dev/i2c-1
+
+
