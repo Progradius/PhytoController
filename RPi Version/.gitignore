@@ -67,7 +67,6 @@ venv.bak/
 *.log
 
 # Paramètres locaux & secrets
-param.json
 *.env
 
 # MicroPython precompiled files (si présents)

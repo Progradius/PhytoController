@@ -1,75 +1,58 @@
 # controller/components/heater_control.py
-# Author: Progradius (added)
+# Author: Progradius (adapted)
 # License: AGPL 3.0
 
 import asyncio
 from datetime import datetime
 
+from ui.pretty_console import info, warning
+
+# controller/components/heater_control.py
+
 async def heat_control(
+    *,
     heater_component,
-    parameters,
     sensor_handler,
+    parameters,
     sampling_time: int = 60
 ):
     """
     Pilote le chauffage via hystérésis :
-      • Choisit plage jour/nuit selon DailyTimers
-      • Si T < T_min - offset → ON
-      • Si T > T_max + offset → OFF
+      ◦ Choisit plage jour/nuit selon horaire DailyTimer
+      ◦ Si T < T_min - offset  → ON
+      ◦ Si T > T_max + offset  → OFF
     """
-    from function import convert_time_to_minutes
-
-    # on récupère les horaires jour/nuit depuis les DailyTimers
-    dt1_start = convert_time_to_minutes(
-        parameters.get_dailytimer1_start_hour(),
-        parameters.get_dailytimer1_start_minute()
-    )
-    dt1_stop = convert_time_to_minutes(
-        parameters.get_dailytimer1_stop_hour(),
-        parameters.get_dailytimer1_stop_minute()
-    )
-    dt2_start = convert_time_to_minutes(
-        parameters.get_dailytimer2_start_hour(),
-        parameters.get_dailytimer2_start_minute()
-    )
-    dt2_stop = convert_time_to_minutes(
-        parameters.get_dailytimer2_stop_hour(),
-        parameters.get_dailytimer2_stop_minute()
-    )
-
-    offset = parameters.get_hysteresis_offset()
+    from datetime import datetime
+    from ui.pretty_console import info, warning
 
     while True:
-        now_m = convert_time_to_minutes(
-            datetime.now().hour,
-            datetime.now().minute
-        )
+        now_h = datetime.now().hour
 
-        # déterminer si on est en période "jour" ou "nuit"
-        if dt1_start <= now_m <= dt1_stop:
-            t_min = parameters.get_target_temp_min_day() - offset
-            t_max = parameters.get_target_temp_max_day() + offset
-            period = "day"
-        elif dt2_start <= now_m <= dt2_stop:
-            t_min = parameters.get_target_temp_min_night() - offset
-            t_max = parameters.get_target_temp_max_night() + offset
-            period = "night"
+        # on récupère les consignes jour/nuit
+        if (   parameters.get_dailytimer1_start_hour() * 60
+            + parameters.get_dailytimer1_start_minute()
+            <= datetime.now().hour * 60 + datetime.now().minute
+            <= parameters.get_dailytimer1_stop_hour()  * 60
+            + parameters.get_dailytimer1_stop_minute()):
+            # période « jour » selon DailyTimer #1
+            t_min = parameters.get_target_temp_min_day()  - parameters.get_hysteresis_offset()
+            t_max = parameters.get_target_temp_max_day()  + parameters.get_hysteresis_offset()
         else:
-            # si hors de ces plages, on reste dans la dernière période
-            # ou on pourrait définir un comportement par défaut
-            t_min = parameters.get_target_temp_min_day() - offset
-            t_max = parameters.get_target_temp_max_day() + offset
-            period = "day"
+            # période « nuit »
+            t_min = parameters.get_target_temp_min_night() - parameters.get_hysteresis_offset()
+            t_max = parameters.get_target_temp_max_night() + parameters.get_hysteresis_offset()
 
         temp = sensor_handler.get_sensor_value("BME280T")
         if temp is None:
-            heater_component.set_state(0)
+            warning("Chauffage – lecture T ambiante échouée")
         else:
-            # hystérésis : allume si T < t_min, éteint si T > t_max
+            info(f"Chauffage – T={temp:.1f}°C, plage [{t_min:.1f};{t_max:.1f}]")
             if temp < t_min:
                 heater_component.set_state(1)
+                info("Chauffage ON")
             elif temp > t_max:
                 heater_component.set_state(0)
-            # sinon on conserve l'état
+                info("Chauffage OFF")
+            # sinon on conserve l’état courant
 
         await asyncio.sleep(sampling_time)

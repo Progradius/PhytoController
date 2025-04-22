@@ -84,7 +84,7 @@ class Parameter:
         self.target_temp_max_day    = int(temps["target_temp_max_day"])
         self.target_temp_min_night  = int(temps["target_temp_min_night"])
         self.target_temp_max_night  = int(temps["target_temp_max_night"])
-        self.hysteresis_offset     = int(temps["hysteresis_offset"])
+        self.hysteresis_offset      = float(temps["hysteresis_offset"])
         
         # ――― Heater Settings ―――――――――――――――――――――――――――――――――――――
         heater = p.get("Heater_Settings", {})
@@ -327,8 +327,9 @@ class Parameter:
     def get_heater_pin(self) -> int:
         return self.heater_pin
 
+        
     def set_hysteresis_offset(self, v):
-        self.hysteresis_offset = int(v)
+        self.hysteresis_offset = float(v)
 
     def set_heater_enabled(self, val):
         # attend "enabled" / "disabled" ou bool
@@ -541,8 +542,9 @@ class Parameter:
     def set_heater_pin(self, pin: int) -> None:
         self.heater_pin = int(pin)
         
-    def get_hysteresis_offset(self) -> int:
-        return self.hysteresis_offset
+    def get_hysteresis_offset(self) -> float:
+       """Décalage d'hystérésis (°C) autour des consignes jour/nuit."""
+       return self.hysteresis_offset
     
     def get_heater_enabled(self) -> bool:
         return getattr(self, "heater_enabled", False)

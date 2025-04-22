@@ -36,7 +36,7 @@
         "host_machine_address": "192.168.1.15",
         "host_machine_state": "online",
         "wifi_ssid": "Livebox-E650_EXT",
-        "wifi_password": "",
+        "wifi_password": "oPMekD7sHqcAuyzLZm",
         "influx_db_port": "8086",
         "influx_db_name": "lab",
         "influx_db_user": "grafana",
