@@ -24,7 +24,7 @@
     },
     "Network_Settings": {
         "host_machine_address": "192.168.1.15",
-        "host_machine_state": "offline",
+        "host_machine_state": "online",
         "wifi_ssid": "Livebox-E650_EXT",
         "wifi_password": "oPMekD7sHqcAuyzLZm",
         "influx_db_port": "8086",
@@ -60,7 +60,7 @@
         "ds18b20_state": "enabled",
         "veml6075_state": "disabled",
         "vl53L0x_state": "disabled",
-        "mlx90614_state": "disabled",
+        "mlx90614_state": "enabled",
         "tsl2591_state": "disabled",
         "hcsr04_state": "disabled"
     }

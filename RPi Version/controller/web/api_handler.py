@@ -1,16 +1,16 @@
 # controller/api.py
 # Author : Progradius (adapted)
-# License: AGPL‑3.0
+# License: AGPL-3.0
 """
-Mini‑REST API HTTP (très simple GET) pour modifier certains paramètres à
+Mini-REST API HTTP (très simple GET) pour modifier certains paramètres à
 la volée et fournir des données JSON aux pages web / à une appli externe.
 
-‣ /temperature   → JSON températures (BME + 1‑Wire)
+‣ /temperature   → JSON températures (BME + 1-Wire)
 ‣ /hygrometry    → JSON hygrométrie
 ‣ /pressure      → JSON pression
 ‣ /status        → état global du contrôleur
 ‣ Configuration DailyTimer et CyclicTimer via requêtes GET
-   (paramètres query‑string)
+   (paramètres query-string)
 
 Le module se contente de parser la *première ligne* de la requête reçue
 (par le serveur HTTP) ; il n''implémente **ni** gestion POST
@@ -69,13 +69,13 @@ class API:
         path   = parsed.path
         q      = parse_qs(parsed.query)
 
-        # ─────── Config via query‑string ──────────────────────
+        # ─────── Config via query-string ──────────────────────
         if "dt1start" in q and "dt1stop" in q:
             self._configure_dailytimer(q)
         if "period" in q and "duration" in q:
             self._configure_cyclic(q)
 
-        # ─────── End‑points JSON ──────────────────────────────
+        # ─────── End-points JSON ──────────────────────────────
         if path == "/temperature":
             await self._send_json(self._temperature_json())
 
@@ -153,10 +153,10 @@ class API:
         return data
 
     def _hygrometry_json(self) -> dict:
-        return {"BME280HR": self._sensors.bme.get_bme_hygro()} if self._sensors.bme else {}
+        return {"BME280H": self._sensors.bme.get_bme_hygro()} if self._sensors.bme else {}
 
     def _pressure_json(self) -> dict:
-        return {"BME280PR": self._sensors.bme.get_bme_pressure()} if self._sensors.bme else {}
+        return {"BME280P": self._sensors.bme.get_bme_pressure()} if self._sensors.bme else {}
 
     def _system_state_json(self) -> dict:
         st = self._controller_state
@@ -177,13 +177,13 @@ class API:
     #                      OUTBOUND / HTTP helpers
     # ==================================================================
     async def _send_json(self, payload: dict | None):
-        body = json.dumps(payload or {}).encode("utf‑8")
+        body = json.dumps(payload or {}).encode("utf-8")
         headers = (
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: application/json\r\n"
             f"Content-Length: {len(body)}\r\n"
             "Connection: close\r\n\r\n"
-        ).encode("utf‑8")
+        ).encode("utf-8")
         self._writer.write(headers + body)
         await self._writer.drain()
 

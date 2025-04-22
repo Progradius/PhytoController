@@ -26,12 +26,39 @@ class Parameter:
         self._refresh_from_json()          # charge toutes les valeurs
 
         # Dictionnaire normalisé des capteurs exploités dans l'app
+        # ─── Capteurs regroupés par « measurement » InfluxDB ──────────────────
         self.sensor_dict = {
-            "air":   ["DS18B#1", "DS18B#2", "DS18B#3",
-                      "BME280T", "BME280H", "BME280P"],
-            "light": ["TSL-LUX", "TSL-IR",
-                      "VEML-UVA", "VEML-UVB", "VEML-UVINDEX"],
+            # ――― AIR : climat ambiant ―――
+            "air": [
+                "BME280T", "BME280H", "BME280P",     # Température, HR, pression
+                "DS18B#1", "DS18B#2",                # Sondes 1‑Wire « air »
+                "MLX-AMB"                            # Température ambiante IR
+            ],
+
+            # ――― WATER : eau / substrat ―――
+            "water": [
+                "DS18B#3"                            # Sonde d’eau (ou substrat)
+            ],
+
+            # ――― LIGHT : éclairage / UV ―――
+            "light": [
+                "TSL-LUX", "TSL-IR",                 # Lux‑mètre + IR
+                "VEML-UVA", "VEML-UVB", "VEML-UVINDEX"
+            ],
+
+            # ――― DISTANCE : mesures de distance ―――
+            "distance": [
+                "VL53-DIST",                         # ToF (mm)
+                "HCSR-DIST"                          # Ultrason (cm)
+            ],
+
+            # ――― IR_OBJECT : température infrarouge d’objet ―――
+            "ir_object": [
+                "MLX-OBJ"                            # Température objet IR
+            ]
         }
+
+
 
     # -------------------------------------------------------------------
     #                     lecture complète depuis le JSON

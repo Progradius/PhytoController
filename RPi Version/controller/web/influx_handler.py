@@ -1,11 +1,11 @@
 # controller/web/influx_handler.py
 # Author : Progradius (adapted)
-# License: AGPL‑3.0
+# License: AGPL-3.0
 """
 Envoi périodique des mesures capteurs vers InfluxDB (v1.*) via l’API HTTP.
 
 ‣ URL construite dynamiquement à partir de *param.json*
-‣ Log soigné (Pretty‑Console)
+‣ Log soigné (Pretty-Console)
 ‣ Gestion mémoire explicite (gc.collect) après chaque rafraichissement
 """
 

@@ -88,7 +88,7 @@ class PuppetMaster:
         # ── Flux InfluxDB ────────────────────────────────────
         if self.parameters.get_host_machine_state() == "online":
             info("InfluxDB : envoi périodique activé (delay 60 s)")
-            loop.create_task(write_sensor_values(sampling_delay=60))
+            loop.create_task(write_sensor_values(period=60))
         else:
             warning("InfluxDB : hôte hors-ligne - export désactivé")
 
