@@ -48,8 +48,8 @@ class Parameter:
 
             # ――― DISTANCE : mesures de distance ―――
             "distance": [
-                "VL53-DIST",                         # ToF (mm)
-                "HCSR-DIST"                          # Ultrason (cm)
+                "VL53L0X",                         # ToF (mm)
+                "HCSR04"                          # Ultrason (cm)
             ],
 
             # ――― IR_OBJECT : température infrarouge d’objet ―――

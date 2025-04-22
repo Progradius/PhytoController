@@ -1,6 +1,6 @@
 ﻿# controller/web/pages.py
 # Author: Progradius (adapted)
-# License: AGPL‑3.0
+# License: AGPL'3.0
 # -------------------------------------------------------------
 #  Génère les pages HTML (aucune logique réseau ici)
 # -------------------------------------------------------------
@@ -64,14 +64,14 @@ def main_page(controller_status) -> str:
 
   <div class="col-md-6">
     <h1>System Settings</h1><hr>
-    <div class="mainwrap"><h1>DailyTimer #1</h1><hr>
-      <h2>Start time: {start}</h2><h2>Stop time: {stop}</h2></div>
+    <div class="mainwrap"><h1>DailyTimer #1</h1><hr>
+      <h2>Start time: {start}</h2><h2>Stop time: {stop}</h2></div>
 
-    <div class="mainwrap"><h1>Cyclic #1</h1><hr>
-      <h2>Action duration: {dur}s</h2><h2>Period: {period} min</h2></div>
+    <div class="mainwrap"><h1>Cyclic #1</h1><hr>
+      <h2>Action duration: {dur}s</h2><h2>Period: {period} min</h2></div>
 
-    <div class="mainwrap"><h1>Component #1</h1><hr><h2>State: {state}</h2></div>
-    <div class="mainwrap"><h1>Component #2</h1><hr><h2>State: {state}</h2></div>
+    <div class="mainwrap"><h1>Component #1</h1><hr><h2>State: {state}</h2></div>
+    <div class="mainwrap"><h1>Component #2</h1><hr><h2>State: {state}</h2></div>
   </div>
 </div>
 {html_footer}"""
@@ -84,7 +84,7 @@ def main_page(controller_status) -> str:
 def conf_page(parameters) -> str:
     """
     Renvoie le formulaire HTML de configuration.
-    Les champs sont pré‑remplis à partir de `parameters`.
+    Les champs sont pré'remplis à partir de `parameters`.
     """
 
     # DailyTimer #1
@@ -162,7 +162,7 @@ def conf_page(parameters) -> str:
       <!-- DailyTimer #1 -->
       <div class="col-md-6">
         <div class="formwrap">
-          <h1>DailyTimer #1</h1><hr>
+          <h1>DailyTimer #1</h1><hr>
           <form method="get">
             <h2>Start</h2><input type="hour" name="dt1start" value="{dt1_start}">
             <h2>Stop</h2><input type="hour" name="dt1stop"  value="{dt1_stop}">
@@ -174,7 +174,7 @@ def conf_page(parameters) -> str:
       <!-- DailyTimer #2 -->
       <div class="col-md-6">
         <div class="formwrap">
-          <h1>DailyTimer #2</h1><hr>
+          <h1>DailyTimer #2</h1><hr>
           <form method="get">
             <h2>Start</h2><input type="hour" name="dt2start" value="{dt2_start}">
             <h2>Stop</h2><input type="hour" name="dt2stop"  value="{dt2_stop}">
@@ -189,10 +189,10 @@ def conf_page(parameters) -> str:
       <!-- Cyclic #1 -->
       <div class="col-md-6">
         <div class="formwrap">
-          <h1>Cyclic #1</h1><hr>
+          <h1>Cyclic #1</h1><hr>
           <form method="get">
-            <h2>Period (min)</h2><input type="number" name="period"   value="{c1_period}">
-            <h2>Duration (sec)</h2><input type="number" name="duration" value="{c1_dur}">
+            <h2>Period (min)</h2><input type="number" name="period"   value="{c1_period}">
+            <h2>Duration (sec)</h2><input type="number" name="duration" value="{c1_dur}">
             <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
           </form>
         </div>
@@ -200,10 +200,10 @@ def conf_page(parameters) -> str:
       <!-- Cyclic #2 -->
       <div class="col-md-6">
         <div class="formwrap">
-          <h1>Cyclic #2</h1><hr>
+          <h1>Cyclic #2</h1><hr>
           <form method="get">
-            <h2>Period (min)</h2><input type="number" name="period2"  value="{c2_period}">
-            <h2>Duration (sec)</h2><input type="number" name="duration2"value="{c2_dur}">
+            <h2>Period (min)</h2><input type="number" name="period2"  value="{c2_period}">
+            <h2>Duration (sec)</h2><input type="number" name="duration2"value="{c2_dur}">
             <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
           </form>
         </div>
@@ -214,7 +214,7 @@ def conf_page(parameters) -> str:
     <div class="row">
       <div class="col-md-6">
         <div class="formwrap">
-          <h1>Growth Stage</h1><hr>
+          <h1>Growth Stage</h1><hr>
           <form method="get">
             <h2>Stage</h2><input type="text" name="stage" value="{stage}">
             <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
@@ -247,8 +247,8 @@ def conf_page(parameters) -> str:
           <h1>Network Settings</h1><hr>
           <form method="get">
             <h2>Host (IP)</h2><input type="text" name="host" value="{host}">
-            <h2>Wi‑Fi SSID</h2><input type="text" name="wifi_ssid" value="{wifi_ssid}">
-            <h2>Wi‑Fi Password</h2><input type="text" name="wifi_password" value="{wifi_pw}">
+            <h2>Wi'Fi SSID</h2><input type="text" name="wifi_ssid" value="{wifi_ssid}">
+            <h2>Wi'Fi Password</h2><input type="text" name="wifi_password" value="{wifi_pw}">
             <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
           </form>
         </div>
@@ -284,7 +284,7 @@ def monitor_page(sensor_handler) -> str:
     def _fmt(val, unit):
         return f"{val:.1f}&nbsp;{unit}" if isinstance(val, (int, float)) else val
 
-    # BME280
+    # ── BME280 ────────────────────────────────────────────────────────
     t = sensor_handler.get_sensor_value("BME280T") or "―"
     h = sensor_handler.get_sensor_value("BME280H") or "―"
     p = sensor_handler.get_sensor_value("BME280P") or "―"
@@ -292,17 +292,18 @@ def monitor_page(sensor_handler) -> str:
     # DS18B20
     ds = [sensor_handler.get_sensor_value(f"DS18B#{i}") or "―" for i in (1,2,3)]
 
-    # MLX90614 objet
-    mlx_o = sensor_handler.get_sensor_value("MLX") or "―"
+    # ── MLX90614 ────────────────────────────────────────────────────
+    mlx_amb = sensor_handler.get_sensor_value("MLX-AMB") or "―"
+    mlx_obj = sensor_handler.get_sensor_value("MLX-OBJ") or "―"
 
-    # VL53L0X
-    tof = sensor_handler.get_sensor_value("VL53") or "―"
+    # ── VL53L0X ─────────────────────────────────────────────────────
+    tof = sensor_handler.get_sensor_value("VL53L0X") or "―"
 
-    # TSL2591 lux
+    # ── TSL2591 ─────────────────────────────────────────────────────
     lux = sensor_handler.get_sensor_value("TSL-LUX") or "―"
 
-    # HC‑SR04 distance
-    us = sensor_handler.get_sensor_value("HCSR") or "―"
+    # ── HC‑SR04 ─────────────────────────────────────────────────────
+    us = sensor_handler.get_sensor_value("HCSR04") or "―"
 
     return f"""{html_header}
 <div class="container-fluid">
@@ -312,18 +313,22 @@ def monitor_page(sensor_handler) -> str:
   <p><a href="conf">System Configuration</a></p><br><br>
 
   <div class="row">
+    <!-- BME280 -->
     <div class="col-md-6">
       <h1>BME280</h1><hr>
       <div class="mainwrap"><h1>Temp</h1><hr><h2>{_fmt(t,'°C')}</h2></div>
       <div class="mainwrap"><h1>Humid</h1><hr><h2>{_fmt(h,'%')}</h2></div>
       <div class="mainwrap"><h1>Pres</h1><hr><h2>{_fmt(p,'hPa')}</h2></div>
     </div>
+
+    <!-- Other Sensors -->
     <div class="col-md-6">
       <h1>Other Sensors</h1><hr>
       <div class="mainwrap"><h1>DS18 #1</h1><hr><h2>{_fmt(ds[0],'°C')}</h2></div>
       <div class="mainwrap"><h1>DS18 #2</h1><hr><h2>{_fmt(ds[1],'°C')}</h2></div>
       <div class="mainwrap"><h1>DS18 #3</h1><hr><h2>{_fmt(ds[2],'°C')}</h2></div>
-      <div class="mainwrap"><h1>MLX Obj</h1><hr><h2>{_fmt(mlx_o,'°C')}</h2></div>
+      <div class="mainwrap"><h1>MLX Amb</h1><hr><h2>{_fmt(mlx_amb,'°C')}</h2></div>
+      <div class="mainwrap"><h1>MLX Obj</h1><hr><h2>{_fmt(mlx_obj,'°C')}</h2></div>
       <div class="mainwrap"><h1>ToF (mm)</h1><hr><h2>{tof}</h2></div>
       <div class="mainwrap"><h1>Lux</h1><hr><h2>{lux}</h2></div>
       <div class="mainwrap"><h1>US (cm)</h1><hr><h2>{us}</h2></div>

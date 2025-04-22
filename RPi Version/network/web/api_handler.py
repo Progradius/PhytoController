@@ -14,7 +14,7 @@ la volée et fournir des données JSON aux pages web / à une appli externe.
 
 Le module se contente de parser la *première ligne* de la requête reçue
 (par le serveur HTTP) ; il n''implémente **ni** gestion POST
-**ni** authentification – à compléter selon vos besoins.
+**ni** authentification - à compléter selon vos besoins.
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ class API:
             self._params.set_cyclic1_action_duration_seconds(duration)
             parameter_handler.write_current_parameters_to_json(self._params)
 
-            info(f"CyclicTimer mis à jour : période {period} min – action {duration} s")
+            info(f"CyclicTimer mis à jour : période {period} min - action {duration} s")
         except Exception as exc:
             warning(f"CyclicTimer : paramètres invalides ({exc})")
 
@@ -129,7 +129,7 @@ class API:
     @staticmethod
     def _split_hhmm(txt: str) -> tuple[int, int]:
         """
-        Convertit 'hh:mm' (ou 'hh%3Amm') en tuple (h, m) ints – lève ValueError si fail.
+        Convertit 'hh:mm' (ou 'hh%3Amm') en tuple (h, m) ints - lève ValueError si fail.
         """
         txt = txt.replace("%3A", ":")
         m = re.fullmatch(r"(\d{1,2}):(\d{1,2})", txt)
