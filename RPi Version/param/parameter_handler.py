@@ -166,6 +166,7 @@ def update_current_parameters_from_json(parameters) -> None:
         parameters.set_target_temp_max_day(  temps["target_temp_max_day"])
         parameters.set_target_temp_min_night(temps["target_temp_min_night"])
         parameters.set_target_temp_max_night(temps["target_temp_max_night"])
+        parameters.set_hysteresis_offset(temps["hysteresis_offset"])
 
         net = data["Network_Settings"]
         parameters.set_host_machine_address(net["host_machine_address"])
@@ -187,7 +188,7 @@ def update_current_parameters_from_json(parameters) -> None:
         parameters.set_dailytimer2_pin(gpio["dailytimer2_pin"])
         parameters.set_cyclic1_pin(gpio["cyclic1_pin"])
         parameters.set_cyclic2_pin(gpio["cyclic2_pin"])
-        parameters.set_heater_pin(gpio["GPIO_Settings"]["heater_pin"])
+        parameters.set_heater_pin(gpio["heater_pin"])
         parameters.set_motor_pin1(gpio["motor_pin1"])
         parameters.set_motor_pin2(gpio["motor_pin2"])
         parameters.set_motor_pin3(gpio["motor_pin3"])
