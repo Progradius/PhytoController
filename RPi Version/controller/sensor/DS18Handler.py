@@ -1,39 +1,68 @@
+# controller/sensor/DS18Handler.py
 # Author: Progradius (adapted)
 # License: AGPL 3.0
 
-from w1thermsensor import W1ThermSensor, Sensor, Unit, NoSensorFoundError
+import glob
 
+try:
+    from w1thermsensor import W1ThermSensor, Unit, NoSensorFoundError
+    _USE_W1TS = True
+except ModuleNotFoundError:
+    _USE_W1TS = False
 
 class DS18Handler:
     """
-    Handler pour les capteurs DS18B20 via le bus OneWire (w1).
-    Compatible avec la lib `w1thermsensor` sur Raspberry Pi.
+    Handler pour DS18B20 :
+    - Si la lib w1thermsensor est installée, on l'utilise.
+    - Sinon, on lit dans /sys/bus/w1/devices/.
     """
 
+    SYSFS_BASE = "/sys/bus/w1/devices/28-*"
+
     def __init__(self):
-        try:
-            self.ds18_sensors = W1ThermSensor.get_available_sensors(Sensor.DS18B20)
-        except NoSensorFoundError:
-            print("Aucun capteur DS18B20 détecté.")
-            self.ds18_sensors = []
+        if _USE_W1TS:
+            try:
+                self.sensors = W1ThermSensor.get_available_sensors()
+            except NoSensorFoundError:
+                print("⚠️ Aucun DS18B20 détecté via w1thermsensor.")
+                self.sensors = []
+        else:
+            # Recherche des dossiers 28-xxxx sur le bus 1-Wire
+            self.device_folders = glob.glob(self.SYSFS_BASE)
+            if not self.device_folders:
+                print("⚠️ Aucun DS18B20 détecté dans sysfs.")
 
     def get_address_list(self):
-        try:
-            return [sensor.id for sensor in self.ds18_sensors]
-        except Exception as e:
-            print("Erreur lors de la lecture des adresses DS18B20 :", e)
-            return []
+        if _USE_W1TS:
+            return [sensor.id for sensor in self.sensors]
+        else:
+            return [f.split("/")[-1] for f in self.device_folders]
 
     def get_ds18_temp(self, sensor_number):
-        try:
-            index = sensor_number - 1
-            if index < 0 or index >= len(self.ds18_sensors):
-                print(f"Numéro de capteur invalide : {sensor_number}")
+        idx = sensor_number - 1
+        if _USE_W1TS:
+            if idx<0 or idx>=len(self.sensors):
+                print(f"⚠️ Capteur DS18#{sensor_number} invalide.")
                 return None
-
-            sensor = self.ds18_sensors[index]
-            temp = sensor.get_temperature(Unit.CELSIUS)
-            return temp
-        except Exception as e:
-            print(f"Erreur lecture DS18B20 #{sensor_number} :", e)
-            return None
+            try:
+                return round(self.sensors[idx].get_temperature(Unit.CELSIUS), 2)
+            except Exception as e:
+                print(f"Erreur lecture DS18#{sensor_number} via w1thermsensor :", e)
+                return None
+        else:
+            if idx<0 or idx>=len(self.device_folders):
+                print(f"⚠️ Capteur DS18#{sensor_number} invalide.")
+                return None
+            # Lecture sysfs
+            path = self.device_folders[idx] + "/w1_slave"
+            try:
+                lines = open(path).read().splitlines()
+                if lines[0].endswith("YES"):
+                    temp_str = lines[1].split("t=")[1]
+                    return round(int(temp_str)/1000.0, 2)
+                else:
+                    print(f"⚠️ CRC invalide pour DS18#{sensor_number}.")
+                    return None
+            except Exception as e:
+                print(f"Erreur lecture DS18#{sensor_number} via sysfs :", e)
+                return None

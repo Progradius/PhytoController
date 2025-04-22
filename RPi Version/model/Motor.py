@@ -1,16 +1,16 @@
+# model/Motor.py
 # Author: Progradius
 # License: AGPL 3.0
 
 import RPi.GPIO as GPIO
 
-# Configuration globale (doit être appelée une seule fois dans ton app, si ce n’est pas déjà fait ailleurs)
+# Configuration globale (appelée une seule fois, p. ex. dans main.py)
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
 class Motor:
     """
-    Classe représentant un moteur contrôlé par 4 broches GPIO.
-    Utilise la bibliothèque RPi.GPIO.
+    Classe représentant un moteur piloté par 4 broches GPIO.
     """
 
     def __init__(self, pin1, pin2, pin3, pin4):
@@ -19,9 +19,8 @@ class Motor:
         self.pin3 = pin3
         self.pin4 = pin4
 
-        for pin in [self.pin1, self.pin2, self.pin3, self.pin4]:
-            GPIO.setup(pin, GPIO.OUT)
-            GPIO.output(pin, GPIO.LOW)
+        for pin in (self.pin1, self.pin2, self.pin3, self.pin4):
+            GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
 
     # Setters
     def set_pin1_value(self, value):
@@ -36,8 +35,24 @@ class Motor:
     def set_pin4_value(self, value):
         GPIO.output(self.pin4, GPIO.HIGH if value else GPIO.LOW)
 
-    # Getter vitesse moteur simulée (à adapter selon ton vrai usage moteur)
+    # Getter simulant la vitesse du moteur en fonction de la broche activée
     def get_motor_speed(self):
+        """
+        Retourne un int de 0 à 4 correspondant à la broche active :
+         - 1 si pin1 active
+         - 2 si pin2 active
+         - 3 si pin3 active
+         - 4 si pin4 active
+         - 0 si aucune pin ou plusieurs pins actives
+        """
+        # On vérifie chacune des broches en priorité
         if GPIO.input(self.pin1):
             return 1
-        if GPIO.input(self.pin2):
+        elif GPIO.input(self.pin2):
+            return 2
+        elif GPIO.input(self.pin3):
+            return 3
+        elif GPIO.input(self.pin4):
+            return 4
+        else:
+            return 0

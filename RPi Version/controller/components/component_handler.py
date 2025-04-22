@@ -3,7 +3,7 @@
 
 def toggle_state(component):
     """
-    Inverse l’état d’un composant :
+    Inverse l'état d'un composant :
     - Si le GPIO est à 0 (OFF), le met à 1 (ON)
     - Si le GPIO est à 1 (ON), le met à 0 (OFF)
     """

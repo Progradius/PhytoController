@@ -26,7 +26,7 @@ db_query = f"{influx_db_host}/write?" + urlencode({
 
 def write_influx_data(measurement, field_name, sensor_data):
     """
-    Écrit une donnée dans InfluxDB via l’API HTTP.
+    Écrit une donnée dans InfluxDB via l'API HTTP.
     """
     resp_data = f"{measurement} {field_name}={sensor_data}"
     formatted = f"Measurement: {measurement} Field Name: {field_name} Value = {sensor_data}"

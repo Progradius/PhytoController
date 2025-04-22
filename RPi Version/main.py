@@ -1,77 +1,99 @@
+# main.py
 # Author: Progradius
-# License: AGPL 3.0
+# License: AGPL-3.0
 
-# Standard library
-import gc
+# ──────────────  Standard  ───────────────────────────────────
 import asyncio
+import gc
 
-# Custom modules
-from function import set_ntp_time, check_ram_usage
-from controller.ControllerStatus import ControllerStatus
+# ──────────────  Helpers système  ────────────────────────────
+from function                 import (motor_all_pin_down_at_boot,
+                                       set_ntp_time,
+                                       check_ram_usage)
 from controller.network_handler import do_connect, is_host_connected
-from controller.PuppetMaster import PuppetMaster
-from controller.parameter_handler import update_one_parameter, update_current_parameters_from_json
-from controller.components.MotorHandler import MotorHandler
-from model.DailyTimer import DailyTimer
-from model.CyclicTimer import CyclicTimer
-from model.Parameter import Parameter
-from model.Component import Component
-from controller.parameter_handler import read_parameters_from_json
-from controller.function import motor_all_pin_down_at_boot
 
-# Equivalent de boot.py : désactivation des moteurs
+# ──────────────  Modèles / Contrôleurs  ──────────────────────
+from model.Parameter           import Parameter
+from controller.SensorHandler  import SensorHandler
+from controller.ControllerStatus import ControllerStatus
+from controller.PuppetMaster   import PuppetMaster
+
+from model.Component           import Component
+from model.DailyTimer          import DailyTimer
+from model.CyclicTimer         import CyclicTimer
+from controller.components.MotorHandler import MotorHandler
+
+from controller.parameter_handler import (read_parameters_from_json,
+                                          update_one_parameter,
+                                          update_current_parameters_from_json)
+
+# ──────────────────────────────────────────────────────────────
+#                      INITIALISATION
+# ──────────────────────────────────────────────────────────────
+
+# (1) sécurité : toutes les sorties moteur à l'état bas
 motor_all_pin_down_at_boot()
 
-# Étape 1 : Connexion réseau
-do_connect()
+# (2) connexion Wi-Fi (NetworkManager)
+try:
+    do_connect()
+except Exception as e:
+    print("⚠️  Connexion Wi-Fi échouée :", e)
 
-# Étape 2 : Synchronisation de l’heure
-set_ntp_time()
+# (3) synchronisation NTP (optionnelle)
+try:
+    set_ntp_time()
+except Exception as e:
+    print("⚠️  Impossible de régler l'heure :", e)
 
-# Étape 3 : Initialisation des paramètres
-gc.collect()
+# (4) paramètres
 parameters = Parameter()
+gc.collect()
 
-# Étape 4 : Vérification de l'état du serveur distant
+# (5) état du serveur hôte
 if is_host_connected() == "offline":
-    update_one_parameter(section="Network_Settings", key="host_machine_state", value="offline")
-update_current_parameters_from_json(parameters=parameters)
+    update_one_parameter("Network_Settings", "host_machine_state", "offline")
+update_current_parameters_from_json(parameters)
 
-# Étape 5 : Déclaration des composants physiques
-light1 = Component(pin=parameters.get_dailytimer1_pin())
-light2 = Component(pin=parameters.get_dailytimer2_pin())
-cyclic_outlet1 = Component(pin=parameters.get_cyclic1_pin())
-cyclic_outlet2 = Component(pin=parameters.get_cyclic2_pin())
-motor_handler = MotorHandler(parameters=parameters)
+# (6) composants physiques
+light1         = Component(pin=parameters.get_dailytimer1_pin())
+light2         = Component(pin=parameters.get_dailytimer2_pin())
+cyclic_out1    = Component(pin=parameters.get_cyclic1_pin())
+cyclic_out2    = Component(pin=parameters.get_cyclic2_pin())
+motor_handler  = MotorHandler(parameters)
 
-# Étape 6 : Déclaration des timers
-dailytimer1 = DailyTimer(component=light1, timer_id="1")
-dailytimer2 = DailyTimer(component=light2, timer_id="2")
-cyclic_timer1 = CyclicTimer(component=cyclic_outlet1, timer_id="1")
-cyclic_timer2 = CyclicTimer(component=cyclic_outlet2, timer_id="2")
+# (7) timers
+dailytimer1    = DailyTimer(component=light1,  timer_id="1")
+dailytimer2    = DailyTimer(component=light2,  timer_id="2")
+cyclic_timer1  = CyclicTimer(component=cyclic_out1, timer_id="1")
+cyclic_timer2  = CyclicTimer(component=cyclic_out2, timer_id="2")
 
-# Étape 7 : Contrôleur de statut
-controller_status = ControllerStatus(parameters=parameters, component=light1)
+# (8) bus capteurs
+sensor_handler = SensorHandler(parameters=parameters)
 
-# Étape 8 : Orchestrateur principal
+# (9) état global du contrôleur
+controller_status = ControllerStatus(parameters=parameters,
+                                     component =light1)
+
+# (10) orchestrateur
 puppet_master = PuppetMaster(
-    parameters=parameters,
-    controller_status=controller_status,
-    dailytimer1=dailytimer1,
-    dailytimer2=dailytimer2,
-    cyclic_timer1=cyclic_timer1,
-    cyclic_timer2=cyclic_timer2,
-    motor_handler=motor_handler
+    parameters       = parameters,
+    controller_status= controller_status,
+    dailytimer1      = dailytimer1,
+    dailytimer2      = dailytimer2,
+    cyclic_timer1    = cyclic_timer1,
+    cyclic_timer2    = cyclic_timer2,
+    motor_handler    = motor_handler,
+    sensor_handler   = sensor_handler
 )
 
-# Étape 9 : Infos système
-gc.collect()
+# info RAM au démarrage
 check_ram_usage()
 
-# Étape 10 : Boucle principale asynchrone
+# ──────────────────────────────────────────────────────────────
+#                     BOUCLE PRINCIPALE
+# ──────────────────────────────────────────────────────────────
 try:
     asyncio.run(puppet_master.main_loop())
 except KeyboardInterrupt:
-    print("Arrêt du programme.")
-finally:
-    asyncio.get_event_loop().close()
+    print("🛑 Arrêt demandé par l'utilisateur.")

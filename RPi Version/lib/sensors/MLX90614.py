@@ -1,63 +1,69 @@
-"""
-MicroPython MLX90614 IR temperature sensor driver
-https://github.com/mcauser/micropython-mlx90614
-MIT License
-Copyright (c) 2016 Mike Causer
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-"""
+# lib/sensors/MLX90614.py
+# Adapté pour Python 3 sur Raspberry Pi
+# Author: Progradius (adapté)
+# License: AGPL 3.0
 
-import ustruct
+import struct
 
-_REGISTER_TA = const(0x06)  # ambient
-_REGISTER_TOBJ1 = const(0x07)  # object
-_REGISTER_TOBJ2 = const(0x08)  # object2
-
+# Registres
+_REGISTER_TA    = 0x06  # température ambiante
+_REGISTER_TOBJ1 = 0x07  # température objet
+_REGISTER_TOBJ2 = 0x08  # deuxième thermopile optionnel
 
 class MLX90614:
-    def __init__(self, i2c, address=0x5a):
-        self.i2c = i2c
-        self.address = address
-        _config1 = i2c.readfrom_mem(address, 0x25, 2)
-        _dz = ustruct.unpack('<H', _config1)[0] & (1 << 6)
-        self.dual_zone = True if _dz else False
+    """
+    Driver MLX90614 pour Raspberry Pi (smbus2).
+    Expose read_ambient_temp(), read_object_temp(), read_object2_temp().
+    """
 
-    def read16(self, register):
-        data = self.i2c.readfrom_mem(self.address, register, 2)
-        return ustruct.unpack('<H', data)[0]
+    def __init__(self, i2c_bus, address=0x5A):
+        """
+        i2c_bus : instance smbus2.SMBus(1)
+        address : adresse I2C du capteur (0x5A par défaut)
+        """
+        self._i2c    = i2c_bus
+        self._addr   = address
 
-    def read_temp(self, register):
-        temp = self.read16(register)
-        # apply measurement resolution (0.02 degrees per LSB)
-        temp *= .02
-        # Kelvin to Celcius
-        temp -= 273.15
-        return temp
+        # Lecture du registre CONFIG1 pour détecter dual-zone
+        raw = self._i2c.read_i2c_block_data(self._addr, 0x25, 2)
+        cfg1 = struct.unpack('<H', bytes(raw))[0]
+        self.dual_zone = bool(cfg1 & (1 << 6))
+
+    def _read16(self, register):
+        """
+        Lit 2 octets LSB/MSB au registre donné et renvoie un entier 16 bits.
+        """
+        data = self._i2c.read_i2c_block_data(self._addr, register, 2)
+        return struct.unpack('<H', bytes(data))[0]
+
+    def _read_temp(self, register):
+        """
+        Retourne la température (°C) lue au registre donné :
+        (raw * 0.02) - 273.15
+        """
+        raw = self._read16(register)
+        temp = raw * 0.02      # résolution 0.02 °C/LSB
+        return round(temp - 273.15, 2)
 
     def read_ambient_temp(self):
-        return self.read_temp(_REGISTER_TA)
+        """
+        Température ambiante (°C).
+        """
+        return self._read_temp(_REGISTER_TA)
 
     def read_object_temp(self):
-        return self.read_temp(_REGISTER_TOBJ1)
+        """
+        Température de l'objet mesuré (°C).
+        """
+        return self._read_temp(_REGISTER_TOBJ1)
 
     def read_object2_temp(self):
-        if self.dual_zone:
-            return self.read_temp(_REGISTER_TOBJ2)
-        else:
-            raise RuntimeError("Device only has one thermopile")
+        """
+        Température du second thermopile, si dual-zone.
+        """
+        if not self.dual_zone:
+            raise RuntimeError("MLX90614: pas de second thermopile disponible")
+        return self._read_temp(_REGISTER_TOBJ2)
 
     @property
     def ambient_temp(self):

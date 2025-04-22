@@ -1,43 +1,62 @@
-"""
- Version: 0.0.1
- Author: Nelio Goncalves Godoi
- E-mail: neliogodoi@yahoo.com.br
- Last Update: 22/09/2019
- Based on the work by author ladyada (2018) for Adafruit Industries
-	(https://github.com/adafruit/Adafruit_CircuitPython_VEML6075)
-"""
+# lib/sensors/VEML6075.py
+# Version: adapté pour Python 3 sur Raspberry Pi
+# Author: Progradius (adapté)
+# License: AGPL 3.0
 
+import struct
 import time
-from ustruct import unpack
 
-_VEML6075_ADDR = const(0x10)
+# Adresse I2C du capteur
+_VEML6075_ADDR = 0x10
 
-_REG_CONF    = const(0x00)
-_REG_UVA     = const(0x07)
-_REG_DARK    = const(0x08)  # check is true?
-_REG_UVB     = const(0x09)
-_REG_UVCOMP1 = const(0x0A)
-_REG_UVCOMP2 = const(0x0B)
-_REV_ID      = const(0x0C)
+# Registres du VEML6075
+_REG_CONF    = 0x00
+_REG_UVA     = 0x07
+_REG_DARK    = 0x08  # non utilisé ici
+_REG_UVB     = 0x09
+_REG_UVCOMP1 = 0x0A
+_REG_UVCOMP2 = 0x0B
+_REV_ID      = 0x0C
 
-# Valid constants for UV Integration Time
-_VEML6075_UV_IT = { 50: 0x00, 100: 0x01, 200: 0x02, 400: 0x03, 800: 0x04 }
+# Constantes valides pour le temps d'intégration (ms → code bits)
+_VEML6075_UV_IT = {
+    50:  0x00,
+    100: 0x01,
+    200: 0x02,
+    400: 0x03,
+    800: 0x04
+}
 
-class VEML6075(object):
 
-    def __init__(
-        self,
-        i2c,
-        integration_time= 50,
-        high_dynamic= True,
-        uva_a_coef= 2.22,
-        uva_b_coef= 1.33,
-        uvb_c_coef= 2.95,
-        uvb_d_coef= 1.74,
-        uva_response= 0.001461,
-        uvb_response= 0.002591 ):
+class VEML6075:
+    """
+    Driver VEML6075 pour Raspberry Pi (smbus2).
+    usage:
+        import smbus2
+        bus = smbus2.SMBus(1)
+        sensor = VEML6075(bus, integration_time=100, high_dynamic=True)
+        uva = sensor.uva
+        uvb = sensor.uvb
+        uv_index = sensor.uv_index
+    """
 
-        # Set coefficients
+    def __init__(self,
+                 i2c,
+                 integration_time=50,
+                 high_dynamic=True,
+                 uva_a_coef=2.22,
+                 uva_b_coef=1.33,
+                 uvb_c_coef=2.95,
+                 uvb_d_coef=1.74,
+                 uva_response=0.001461,
+                 uvb_response=0.002591):
+        """
+        i2c: instance smbus2.SMBus(1)
+        integration_time: 50,100,200,400 ou 800 (ms)
+        high_dynamic: True pour extended dynamic range
+        coefficients: calibration UVA/UVB selon datasheet
+        """
+        self._i2c = i2c
         self._addr = _VEML6075_ADDR
         self._a = uva_a_coef
         self._b = uva_b_coef
@@ -45,80 +64,101 @@ class VEML6075(object):
         self._d = uvb_d_coef
         self._uvaresp = uva_response
         self._uvbresp = uvb_response
-        self._uvacalc = self._uvbcalc = None
-        # Init I2C
-        self._i2c = i2c
-        # read ID!
+        self._uvacalc = None
+        self._uvbcalc = None
+
+        # Vérification de l'ID du capteur
         veml_id = self._read_register(_REV_ID)
         if veml_id != 0x26:
-            raise RuntimeError("Incorrect VEML6075 ID 0x%02X" % veml_id)
-        # shut down
+            raise RuntimeError(f"Incorrect VEML6075 ID 0x{veml_id:02X}")
+
+        # Shutdown (bit0 = 1)
         self._write_register(_REG_CONF, 0x01)
-        # Set integration time
+
+        # Réglage du temps d'intégration
         self.integration_time = integration_time
-        # enable
+
+        # Activation et dynamic range
         conf = self._read_register(_REG_CONF)
         if high_dynamic:
             conf |= 0x08
-        conf &= ~0x01  # Power on
+        conf &= ~0x01  # clear shutdown bit = power on
         self._write_register(_REG_CONF, conf)
 
+    def _read_register(self, register):
+        """
+        Lit 2 octets (LSB, MSB) et renvoie un entier 16 bits.
+        """
+        data = self._i2c.read_i2c_block_data(self._addr, register, 2)
+        # data[0]=LSB, data[1]=MSB
+        return data[0] | (data[1] << 8)
+
+    def _write_register(self, register, value):
+        """
+        Écrit 2 octets (LSB, MSB) dans un registre.
+        """
+        lsb = value & 0xFF
+        msb = (value >> 8) & 0xFF
+        self._i2c.write_i2c_block_data(self._addr, register, [lsb, msb])
+
     def _take_reading(self):
-        """Perform a full reading and calculation of all UV calibrated values"""
+        """
+        Lit les registres UVA, UVB et compensation, puis calcule les valeurs calibrées.
+        """
         time.sleep(0.1)
         uva = self._read_register(_REG_UVA)
         uvb = self._read_register(_REG_UVB)
-        #dark = self._read_register(_REG_DARK)
         uvcomp1 = self._read_register(_REG_UVCOMP1)
         uvcomp2 = self._read_register(_REG_UVCOMP2)
-        # Equasion 1 & 2 in App note, without 'golden sample' calibration
+
         self._uvacalc = uva - (self._a * uvcomp1) - (self._b * uvcomp2)
         self._uvbcalc = uvb - (self._c * uvcomp1) - (self._d * uvcomp2)
-    #print("UVA = %d, UVB = %d, UVcomp1 = %d, UVcomp2 = %d, Dark = %d" %
-    #      (uva, uvb, uvcomp1, uvcomp2, dark))
 
     @property
     def uva(self):
-        """The calibrated UVA reading, in 'counts' over the sample period"""
+        """
+        Lecture calibrée UVA (counts).
+        """
         self._take_reading()
         return self._uvacalc
 
     @property
     def uvb(self):
-        """The calibrated UVB reading, in 'counts' over the sample period"""
+        """
+        Lecture calibrée UVB (counts).
+        """
         self._take_reading()
         return self._uvbcalc
 
     @property
     def uv_index(self):
-        """The calculated UV Index"""
+        """
+        Calcul de l'indice UV à partir des lectures calibrées.
+        """
         self._take_reading()
-        return ((self._uvacalc * self._uvaresp) + (self._uvbcalc * self._uvbresp)) / 2
+        return ((self._uvacalc * self._uvaresp) +
+                (self._uvbcalc * self._uvbresp)) / 2
 
     @property
     def integration_time(self):
-        """The amount of time the VEML is sampling data for, in millis.
-        Valid times are 50, 100, 200, 400 or 800ms"""
-        key = (self._read_register(_REG_CONF) >> 4) & 0x7
-        for k, val in enumerate(_VEML6075_UV_IT):
-            if key == k:
-                return val
+        """
+        Temps d'intégration en millisecondes (50,100,200,400,800).
+        """
+        conf = self._read_register(_REG_CONF)
+        key = (conf >> 4) & 0x07  # bits 4:6
+        times = list(_VEML6075_UV_IT.keys())
+        if 0 <= key < len(times):
+            return times[key]
         raise RuntimeError("Invalid integration time")
 
     @integration_time.setter
     def integration_time(self, val):
-        if not val in _VEML6075_UV_IT.keys():
+        """
+        Définit le temps d'intégration (doit être dans _VEML6075_UV_IT).
+        """
+        if val not in _VEML6075_UV_IT:
             raise RuntimeError("Invalid integration time")
         conf = self._read_register(_REG_CONF)
-        conf &= ~ 0b01110000 # mask off bits 4:6
-        conf |= _VEML6075_UV_IT[val] << 4
+        conf &= ~0b01110000        # masque bits 4:6
+        conf |= (_VEML6075_UV_IT[val] << 4)
         self._write_register(_REG_CONF, conf)
-
-    def _read_register(self, register):
-        """Read a 16-bit value from the `register` location"""
-        result = unpack('BB', self._i2c.readfrom_mem(self._addr, register, 2))
-        return ( (result[1] << 8) | result[0] )
-
-    def _write_register(self, register, value):
-        """Write a 16-bit value to the `register` location"""
-        self._i2c.writeto_mem(self._addr, register, bytes([value, value >> 8]))

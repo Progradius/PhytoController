@@ -1,75 +1,78 @@
-import machine, time
-from machine import Pin
+# lib/sensors/HCSR04.py
+# Adapté pour Python 3 sur Raspberry Pi
+# Author: Progradius (adapté)
+# License: AGPL 3.0
 
-__version__ = '0.2.0'
-__author__ = 'Roberto Sánchez'
-__license__ = "Apache License 2.0. https://www.apache.org/licenses/LICENSE-2.0"
+import RPi.GPIO as GPIO
+import time
 
 class HCSR04:
     """
-    Driver to use the untrasonic sensor HC-SR04.
-    The sensor range is between 2cm and 4m.
-    The timeouts received listening to echo pin are converted to OSError('Out of range')
+    Driver HC-SR04 pour Raspberry Pi utilisant RPi.GPIO.
+    Mesure la distance via un pulse trigger/echo.
     """
-    # echo_timeout_us is based in chip range limit (400cm)
+
     def __init__(self, trigger_pin, echo_pin, echo_timeout_us=500*2*30):
         """
-        trigger_pin: Output pin to send pulses
-        echo_pin: Readonly pin to measure the distance. The pin should be protected with 1k resistor
-        echo_timeout_us: Timeout in microseconds to listen to echo pin.
-        By default is based in sensor limit range (4m)
+        trigger_pin      : GPIO BCM du trigger (output)
+        echo_pin         : GPIO BCM de l’echo   (input)
+        echo_timeout_us  : timeout en µs (microsecondes)
         """
-        self.echo_timeout_us = echo_timeout_us
-        # Init trigger pin (out)
-        self.trigger = Pin(trigger_pin, mode=Pin.OUT, pull=None)
-        self.trigger.value(0)
+        self.trigger_pin      = trigger_pin
+        self.echo_pin         = echo_pin
+        # Convertit le timeout en secondes
+        self.timeout_s        = echo_timeout_us / 1_000_000.0
 
-        # Init echo pin (in)
-        self.echo = Pin(echo_pin, mode=Pin.IN, pull=None)
+        # Initialisation RPi.GPIO
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.trigger_pin, GPIO.OUT, initial=GPIO.LOW)
+        GPIO.setup(self.echo_pin,    GPIO.IN)
+
+        # Laisser le capteur se stabiliser
+        time.sleep(0.05)
 
     def _send_pulse_and_wait(self):
         """
-        Send the pulse to trigger and listen on echo pin.
-        We use the method `machine.time_pulse_us()` to get the microseconds until the echo is received.
+        Envoie l’impulsion et mesure la durée du signal echo en secondes.
+        Lève OSError('Out of range') si timeout dépassé.
         """
-        self.trigger.value(0) # Stabilize the sensor
-        time.sleep_us(5)
-        self.trigger.value(1)
-        # Send a 10us pulse.
-        time.sleep_us(10)
-        self.trigger.value(0)
-        try:
-            pulse_time = machine.time_pulse_us(self.echo, 1, self.echo_timeout_us)
-            return pulse_time
-        except OSError as ex:
-            if ex.args[0] == 110: # 110 = ETIMEDOUT
+        # --- Envoi de la pulse de 10µs sur trigger ---
+        GPIO.output(self.trigger_pin, GPIO.HIGH)
+        time.sleep(0.00001)  # 10 µs
+        GPIO.output(self.trigger_pin, GPIO.LOW)
+
+        # --- Attente front montant sur echo ---
+        start = time.perf_counter()
+        while GPIO.input(self.echo_pin) == 0:
+            if (time.perf_counter() - start) > self.timeout_s:
                 raise OSError('Out of range')
-            raise ex
+        pulse_start = time.perf_counter()
 
-    def distance_mm(self):
-        """
-        Get the distance in milimeters without floating point operations.
-        """
-        pulse_time = self._send_pulse_and_wait()
+        # --- Attente front descendant sur echo ---
+        while GPIO.input(self.echo_pin) == 1:
+            if (time.perf_counter() - pulse_start) > self.timeout_s:
+                raise OSError('Out of range')
+        pulse_end = time.perf_counter()
 
-        # To calculate the distance we get the pulse_time and divide it by 2
-        # (the pulse walk the distance twice) and by 29.1 becasue
-        # the sound speed on air (343.2 m/s), that It's equivalent to
-        # 0.34320 mm/us that is 1mm each 2.91us
-        # pulse_time // 2 // 2.91 -> pulse_time // 5.82 -> pulse_time * 100 // 582
-        mm = pulse_time * 100 // 582
-        return mm
+        return pulse_end - pulse_start  # durée en secondes
 
     def distance_cm(self):
         """
-        Get the distance in centimeters with floating point operations.
-        It returns a float
+        Calcule la distance en centimètres (float).
+        vitesse du son ≈ 34300 cm/s.
         """
         pulse_time = self._send_pulse_and_wait()
+        # distance = (vitesse * temps) / 2
+        return (pulse_time * 34300) / 2
 
-        # To calculate the distance we get the pulse_time and divide it by 2
-        # (the pulse walk the distance twice) and by 29.1 becasue
-        # the sound speed on air (343.2 m/s), that It's equivalent to
-        # 0.034320 cm/us that is 1cm each 29.1us
-        cms = (pulse_time / 2) / 29.1
-        return cms
+    def distance_mm(self):
+        """
+        Calcule la distance en millimètres (int).
+        """
+        return int(self.distance_cm() * 10)
+
+    def cleanup(self):
+        """
+        Nettoyage des GPIO (à appeler en sortie de programme).
+        """
+        GPIO.cleanup((self.trigger_pin, self.echo_pin))
