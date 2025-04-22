@@ -31,7 +31,7 @@
     },
     "Heater_Settings": {
         "enabled": "enabled"
-    },
+      },
     "Network_Settings": {
         "host_machine_address": "192.168.1.15",
         "host_machine_state": "online",
