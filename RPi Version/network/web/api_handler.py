@@ -24,8 +24,8 @@ import json
 import re
 from urllib.parse import parse_qs, urlparse
 
-from controller import parameter_handler
-from controller.SensorController import SensorController
+from controllers import parameter_handler
+from controllers.SensorController import SensorController
 from ui.pretty_console import info, warning, error
 
 

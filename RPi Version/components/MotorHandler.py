@@ -10,7 +10,7 @@ import asyncio
 from time import sleep
 
 from model.Motor                 import Motor
-from controller.SensorController     import SensorController
+from controllers.SensorController     import SensorController
 from ui import pretty_console as ui
 
 

@@ -19,7 +19,7 @@ import requests
 
 from ui.pretty_console import info, warning, error
 from model.Parameter          import Parameter
-from controller.SensorController import SensorController
+from controllers.SensorController import SensorController
 
 
 # ───────────────────────────────────────────────────────────────

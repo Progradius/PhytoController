@@ -22,9 +22,9 @@ from network.network_handler    import do_connect, is_host_connected
 
 # ───────────  Modèles / Contrôleurs  ─────────────────────────
 from model.Parameter               import Parameter
-from controller.SensorController      import SensorController
-from controller.SystemStatus   import SystemStatus
-from controller.PuppetMaster       import PuppetMaster
+from controllers.SensorController      import SensorController
+from controllers.SystemStatus   import SystemStatus
+from controllers.PuppetMaster       import PuppetMaster
 
 from model.Component               import Component
 from model.DailyTimer              import DailyTimer
