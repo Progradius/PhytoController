@@ -25,7 +25,7 @@ import re
 from urllib.parse import parse_qs, urlparse
 
 from controller import parameter_handler
-from sensorController import SensorController
+from controller.SensorController import SensorController
 from ui.pretty_console import info, warning, error
 
 
