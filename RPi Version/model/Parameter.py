@@ -85,6 +85,13 @@ class Parameter:
         self.target_temp_min_night  = int(temps["target_temp_min_night"])
         self.target_temp_max_night  = int(temps["target_temp_max_night"])
         self.hysteresis_offset     = int(temps["hysteresis_offset"])
+        
+        # ――― Heater Settings ―――――――――――――――――――――――――――――――――――――
+        heater = p.get("Heater_Settings", {})
+        self.heater_pin     = int(heater.get("heater_pin", 0))
+        # stocke True si "enabled", False sinon
+        self.heater_enabled = heater.get("heater_enabled", "disabled").lower() == "enabled"
+        
         # ――― Réseau ―――
         net = p["Network_Settings"]
         self.host_machine_address = net["host_machine_address"]
@@ -323,6 +330,13 @@ class Parameter:
     def set_hysteresis_offset(self, v):
         self.hysteresis_offset = int(v)
 
+    def set_heater_enabled(self, val):
+        # attend "enabled" / "disabled" ou bool
+        if isinstance(val, str):
+            self.heater_enabled = (val.lower() == "enabled")
+        else:
+            self.heater_enabled = bool(val)
+
     # Getters
     def get_dailytimer1_start_hour(self):
         return self.dailytimer1_start_hour
@@ -529,3 +543,6 @@ class Parameter:
         
     def get_hysteresis_offset(self) -> int:
         return self.hysteresis_offset
+    
+    def get_heater_enabled(self) -> bool:
+        return getattr(self, "heater_enabled", False)

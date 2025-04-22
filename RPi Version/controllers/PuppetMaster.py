@@ -8,13 +8,13 @@
 import asyncio
 
 # ─── Modules interne ─────────────────────────────────────────
-from network.web.influx_handler            import write_sensor_values
-from components.dailytimer_handler         import timer_daily
-from components                            import cyclic_timer_handler
-from components.MotorHandler               import temp_control
-from components.heater_control             import heat_control
-from network.web.server                    import Server
-from ui.pretty_console                     import info, warning, error
+from network.web.influx_handler      import write_sensor_values
+from components.dailytimer_handler   import timer_daily
+from components                      import cyclic_timer_handler
+from components.MotorHandler         import temp_control
+from components.heater_control       import heat_control
+from network.web.server              import Server
+from ui.pretty_console               import info, warning, error
 
 # ------------------------------------------------------------
 class PuppetMaster:
@@ -94,12 +94,13 @@ class PuppetMaster:
 
         # ── Contrôle du chauffage ────────────────────────────
         info("Démarrage du contrôle chauffage")
+        # appel corrigé : arguments positionnels dans l'ordre attendu
         loop.create_task(
             heat_control(
-                heater_component=self.heater,
-                sensor_handler=self.sensor_handler,
-                parameters=self.parameters,
-                sampling_time=30,
+                self.heater,
+                self.parameters,
+                self.sensor_handler,
+                30,
             )
         )
 

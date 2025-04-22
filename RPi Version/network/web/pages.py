@@ -118,7 +118,7 @@ def conf_page(parameters) -> str:
     influx_user = parameters.get_influx_db_user()
     influx_pw   = parameters.get_influx_db_password()
 
-    # --- Temperature Settings (nouveau bloc) ---
+    # --- Temperature Settings (nouveau bloc)
     tmin_day   = parameters.get_target_temp_min_day()
     tmax_day   = parameters.get_target_temp_max_day()
     tmin_night = parameters.get_target_temp_min_night()
@@ -138,8 +138,8 @@ def conf_page(parameters) -> str:
       <div class="col-md-6"><div class="formwrap">
         <h1>DailyTimer #1</h1><hr>
         <form method="get">
-          <h2>Start</h2><input type="hour"   name="dt1start" value="{dt1_start}">
-          <h2>Stop</h2><input  type="hour"   name="dt1stop"  value="{dt1_stop}">
+          <h2>Start</h2><input type="hour" name="dt1start" value="{dt1_start}">
+          <h2>Stop</h2><input type="hour"  name="dt1stop"  value="{dt1_stop}">
           <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
         </form>
       </div></div>
@@ -148,8 +148,8 @@ def conf_page(parameters) -> str:
       <div class="col-md-6"><div class="formwrap">
         <h1>DailyTimer #2</h1><hr>
         <form method="get">
-          <h2>Start</h2><input type="hour"   name="dt2start" value="{dt2_start}">
-          <h2>Stop</h2><input  type="hour"   name="dt2stop"  value="{dt2_stop}">
+          <h2>Start</h2><input type="hour" name="dt2start" value="{dt2_start}">
+          <h2>Stop</h2><input type="hour"  name="dt2stop"  value="{dt2_stop}">
           <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
         </form>
       </div></div>
@@ -160,8 +160,8 @@ def conf_page(parameters) -> str:
       <div class="col-md-6"><div class="formwrap">
         <h1>Cyclic #1</h1><hr>
         <form method="get">
-          <h2>Period (min)</h2><input type="number"   name="period"   value="{c1_period}">
-          <h2>Duration (sec)</h2><input type="number"   name="duration" value="{c1_dur}">
+          <h2>Period (min)</h2><input type="number" name="period"   value="{c1_period}">
+          <h2>Duration (sec)</h2><input type="number" name="duration" value="{c1_dur}">
           <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
         </form>
       </div></div>
@@ -170,8 +170,8 @@ def conf_page(parameters) -> str:
       <div class="col-md-6"><div class="formwrap">
         <h1>Cyclic #2</h1><hr>
         <form method="get">
-          <h2>Period (min)</h2><input type="number"   name="period2"  value="{c2_period}">
-          <h2>Duration (sec)</h2><input type="number"   name="duration2"value="{c2_dur}">
+          <h2>Period (min)</h2><input type="number" name="period2"   value="{c2_period}">
+          <h2>Duration (sec)</h2><input type="number" name="duration2" value="{c2_dur}">
           <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
         </form>
       </div></div>
@@ -182,7 +182,7 @@ def conf_page(parameters) -> str:
       <div class="col-md-6"><div class="formwrap">
         <h1>Growth Stage</h1><hr>
         <form method="get">
-          <h2>Stage</h2><input type="text"   name="stage"      value="{stage}">
+          <h2>Stage</h2><input type="text" name="stage" value="{stage}">
           <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
         </form>
       </div></div>
@@ -194,10 +194,10 @@ def conf_page(parameters) -> str:
           <h2>Mode</h2>
           <select name="motor_mode">
             <option value="manual" {"selected" if m_mode=="manual" else ""}>Manual</option>
-            <option value="auto"   {"selected" if m_mode=="auto" else ""}>Auto</option>
+            <option value="auto"   {"selected" if m_mode=="auto"   else ""}>Auto</option>
           </select>
-          <h2>User Speed</h2><input type="number" name="speed"       value="{m_speed}" min="0" max="4">
-          <h2>Target Temp (°C)</h2><input type="number" name="target_temp"  value="{target}">
+          <h2>User Speed</h2><input type="number" name="speed"      value="{m_speed}" min="0" max="4">
+          <h2>Target Temp (°C)</h2><input type="number" name="target_temp" value="{target}">
           <h2>Hysteresis</h2><input type="number" name="hysteresis"   value="{hyst}">
           <h2>Min Speed</h2><input type="number" name="min_speed"    value="{min_sp}" min="0" max="4">
           <h2>Max Speed</h2><input type="number" name="max_speed"    value="{max_sp}" min="0" max="4">
@@ -211,8 +211,8 @@ def conf_page(parameters) -> str:
       <div class="col-md-6"><div class="formwrap">
         <h1>Network Settings</h1><hr>
         <form method="get">
-          <h2>Host (IP)</h2><input type="text" name="host"          value="{host}">
-          <h2>Wi‑Fi SSID</h2><input type="text" name="wifi_ssid"    value="{wifi_ssid}">
+          <h2>Host (IP)</h2><input type="text"   name="host"           value="{host}">
+          <h2>Wi‑Fi SSID</h2><input type="text"   name="wifi_ssid"     value="{wifi_ssid}">
           <h2>Wi‑Fi Password</h2><input type="text" name="wifi_password" value="{wifi_pw}">
           <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
         </form>
@@ -252,12 +252,27 @@ def conf_page(parameters) -> str:
           <input type="number" name="target_temp_max_night" value="{tmax_night}" step="0.5">
 
           <!-- Offset d’hystérésis -->
-          <h2>Hysteresis Offset (°C)</h2>
-          <input type="number" name="hysteresis_offset"    value="{offset}"      step="0.1">
+          <h2>Hysteresis Offset (°C)</h2><input type="number" name="hysteresis_offset" value="{offset}" step="0.1">
 
-          <div class="div_center">
-            <input class="button_base" type="submit" value="Save">
-          </div>
+          <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
+        </form>
+      </div></div>
+    </div>
+
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- Heater Control -->
+    <div class="row">
+      <div class="col-md-12"><div class="formwrap">
+        <h1>Heater Control</h1><hr>
+        <p>Le chauffage est piloté automatiquement selon les plages jour/nuit et l’hystérésis.</p>
+        <form method="get">
+          <h2>Activation</h2>
+          <select name="heater_enabled">
+            <option value="enabled"  {"selected" if parameters.get_heater_enabled()   else ""}>Enabled</option>
+            <option value="disabled" {"selected" if not parameters.get_heater_enabled() else ""}>Disabled</option>
+          </select>
+          <h2>GPIO Pin</h2><input type="number" name="heater_pin" value="{parameters.get_heater_pin()}" min="0">
+          <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
         </form>
       </div></div>
     </div>
