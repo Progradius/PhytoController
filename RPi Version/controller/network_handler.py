@@ -1,63 +1,82 @@
 # controller/network_handler.py
-# Author: Progradius (adapted)
-# License: AGPL 3.0
+# Author : Progradius (adapted)
+# License: AGPL-3.0
+# -------------------------------------------------------------
+#  Gestion réseau : connexion Wi-Fi & test reachabilité hôte
+# -------------------------------------------------------------
+
+from __future__ import annotations
 
 import os
 import subprocess
-import sys
-import time
+from pathlib import Path
+
+from controller.ui.pretty_console import (
+    info, success, warning, error, action
+)
 from controller.parameter_handler import read_parameters_from_json
 
-parameters = read_parameters_from_json()
+# ──────────────────────────────────────────────────────────────
+#  Paramètres réseau depuis param.json
+# ──────────────────────────────────────────────────────────────
+_param = read_parameters_from_json()
+_NET   = _param["Network_Settings"]
 
-def do_connect():
-    """
-    Connexion au Wi-Fi via nmcli.
-    Vous devez lancer ce script avec sudo (root) pour que nmcli 
-    puisse piloter la radio et les connexions.
-    """
-    ssid     = parameters["Network_Settings"]["wifi_ssid"]
-    password = parameters["Network_Settings"]["wifi_password"]
+SSID      = _NET["wifi_ssid"]
+PASSWORD  = _NET["wifi_password"]
+HOST_ADDR = _NET["host_machine_address"]
 
-    print(f"Tentative de connexion au Wi-Fi SSID : {ssid}")
+# ──────────────────────────────────────────────────────────────
+#  Connexion Wi-Fi
+# ──────────────────────────────────────────────────────────────
+def do_connect() -> None:
+    """
+    Active la radio Wi-Fi (nmcli) puis tente de se connecter sur SSID/PASS.
+    Nécessite les droits root, sinon on avertit l'utilisateur.
+    """
+    action(f"Tentative de connexion au Wi-Fi SSID : '{SSID}'")
 
     if os.geteuid() != 0:
-        print("⚠️  Vous n'êtes pas en root : exécutez 'sudo python3 main.py'")
+        warning("Exécutez le script en root pour activer le Wi-Fi :"
+                "  sudo python3 main.py")
         return
 
     try:
-        # Active la radio Wi-Fi
+        # Active la radio
         subprocess.run(["nmcli", "radio", "wifi", "on"], check=True)
 
-        # Connexion au réseau
-        subprocess.run([
-            "nmcli", "device", "wifi",
-            "connect", ssid, "password", password
-        ], check=True)
-
-        print("✅ Connexion Wi-Fi réussie.")
-
-    except subprocess.CalledProcessError as e:
-        print("❌ Erreur de connexion Wi-Fi :", e)
-
-
-def is_host_connected():
-    """
-    Vérifie si le host est joignable en pingant une fois avec timeout 1 s.
-    """
-    host = parameters["Network_Settings"]["host_machine_address"]
-    try:
-        result = subprocess.run(
-            ["ping", "-c", "1", "-W", "1", host],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+        # Se connecte
+        subprocess.run(
+            ["nmcli", "device", "wifi", "connect", SSID, "password", PASSWORD],
+            check=True
         )
-        if result.returncode == 0:
-            print("Host activé (ping OK).")
+
+        success("Connexion Wi-Fi réussie ✅")
+
+    except subprocess.CalledProcessError as exc:
+        error(f"Erreur de connexion Wi-Fi : {exc}")
+
+# ──────────────────────────────────────────────────────────────
+#  Test de présence du serveur distant
+# ──────────────────────────────────────────────────────────────
+def is_host_connected() -> str:
+    """
+    Ping (1 paquet, timeout 1 s) ; renvoie « online/offline ».
+    """
+    info(f"Ping vers {HOST_ADDR} …")
+    try:
+        ret = subprocess.run(
+            ["ping", "-c", "1", "-W", "1", HOST_ADDR],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ).returncode
+
+        if ret == 0:
+            success("Hôte joignable 🎯")
             return "online"
-        else:
-            print("Host désactivé (ping KO).")
-            return "offline"
-    except Exception as e:
-        print("❌ Erreur lors du ping :", e)
+
+        warning("Hôte injoignable")
+        return "offline"
+
+    except Exception as exc:
+        error(f"Erreur ping : {exc}")
         return "offline"

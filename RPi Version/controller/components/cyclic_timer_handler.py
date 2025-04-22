@@ -1,28 +1,44 @@
-# Author: Progradius
-# License: AGPL 3.0
+# controller/components/cyclic_timer_handler.py
+# Author : Progradius (adapted)
+# Licence : AGPL‑3.0
+"""
+Gestion asynchrone d'un timer cyclique :
+  - Attend la « période » (en minutes)
+  - Active le composant pendant « action_duration » (en secondes)
+  - Boucle indéfiniment
+"""
 
 import asyncio
 from datetime import datetime
+
 from function import convert_minute_to_seconds
+from controller.ui import pretty_console as ui
 
 
 async def timer_cylic(cyclic_timer):
     """
-    Timer cyclique asynchrone :
-    - attend un délai = période
-    - active le composant pour une durée = action_duration
+    Timer cyclique (coroutine) - `cyclic_timer` est une instance de `CyclicTimer`
+    contenant :
+        • .timer_id          - identifiant lisible
+        • .component         - instance de Component
+        • .get_period()      - période   (minutes)
+        • .get_action_duration() - durée (secondes)
     """
+    tid = cyclic_timer.timer_id
+    comp = cyclic_timer.component
+
+    # Boucle infinie
     while True:
-        # Attendre la période définie
+        # ── Attente de la prochaine période ───────────────────
         await asyncio.sleep(convert_minute_to_seconds(cyclic_timer.get_period()))
 
-        now = datetime.now()
-        print(f"CyclicTimer #{cyclic_timer.timer_id} - Activation à {now.hour}:{now.minute}:{now.second}")
-        cyclic_timer.component.set_state(0)
+        now = datetime.now().strftime("%H:%M:%S")
+        ui.box(f"CyclicTimer #{tid}   ↦  ACTIVATION   {now}", color="cyan")
+        comp.set_state(0)            # ON (ou LOW selon ton câblage)
 
-        # Durée d'activation
+        # ── Maintien à l'état ON pendant la durée demandée ────
         await asyncio.sleep(cyclic_timer.get_action_duration())
 
-        now = datetime.now()
-        print(f"CyclicTimer #{cyclic_timer.timer_id} - Désactivation à {now.hour}:{now.minute}:{now.second}")
-        cyclic_timer.component.set_state(1)
+        now = datetime.now().strftime("%H:%M:%S")
+        ui.box(f"CyclicTimer #{tid}   ↦  DESACTIVATION   {now}", color="yellow")
+        comp.set_state(1)            # OFF (ou HIGH)

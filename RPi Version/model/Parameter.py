@@ -1,87 +1,148 @@
-# Author: Progradius
-# License: AGPL 3.0
+# model/Parameter.py
+# Author : Progradius (adapted)
+# License : AGPL‑3.0
+# ------------------------------------------------------------------
+#  Accès / mise‑à‑jour des paramètres   (JSON ⇆ objet Python)
+# ------------------------------------------------------------------
+"""
+Cette classe encapsule **param.json**
+
+• À l'instanciation, toutes les valeurs sont lues depuis le fichier  
+• Des getters et setters (très nombreux) donnent accès à chaque champ  
+• `_refresh_from_json()` peut être rappelé pour recharger le fichier  
+• Quelques alias pratiques (ex. `get_dailytimer1_start()`) simplifient
+  l'usage dans `pages.py` et ailleurs  
+• Des *setters génériques* (`set_stage`, `set_period_minutes`, …) sont
+  utilisés par le serveur HTTP pour appliquer à chaud les changements
+  envoyés depuis l'interface web.
+"""
 
 from controller.parameter_handler import read_parameters_from_json
 
 
 class Parameter:
-    """
-    Class used to represent program parameters, allowing you to access/modify them
-    """
+    # ────────────────────────── init / refresh ──────────────────────────
+    def __init__(self) -> None:
+        self._refresh_from_json()          # charge toutes les valeurs
 
-    def __init__(self):
-        # Get parameters from JSON
-        self.param_json = read_parameters_from_json()
+        # Dictionnaire normalisé des capteurs exploités dans l'app
+        self.sensor_dict = {
+            "air":   ["DS18B#1", "DS18B#2", "DS18B#3",
+                      "BME280T", "BME280H", "BME280P"],
+            "light": ["TSL-LUX", "TSL-IR",
+                      "VEML-UVA", "VEML-UVB", "VEML-UVINDEX"],
+        }
 
-        # Growth stage
-        self.growth_stage = self.param_json["life_period"]["stage"]
+    # -------------------------------------------------------------------
+    #                     lecture complète depuis le JSON
+    # -------------------------------------------------------------------
+    def _refresh_from_json(self) -> None:
+        p = read_parameters_from_json()  # dict brut
 
-        # Dailytimer #1
-        self.dailytimer1_start_hour = int(self.param_json["DailyTimer1_Settings"]["start_hour"])
-        self.dailytimer1_start_minute = int(self.param_json["DailyTimer1_Settings"]["start_minute"])
-        self.dailytimer1_stop_hour = int(self.param_json["DailyTimer1_Settings"]["stop_hour"])
-        self.dailytimer1_stop_minute = int(self.param_json["DailyTimer1_Settings"]["stop_minute"])
+        # ――― Etape de croissance ―――――――――――――――――――――――――――――――――
+        self.growth_stage = p["life_period"]["stage"]
 
-        # Dailytimer #2
-        self.dailytimer2_start_hour = int(self.param_json["DailyTimer2_Settings"]["start_hour"])
-        self.dailytimer2_start_minute = int(self.param_json["DailyTimer2_Settings"]["start_minute"])
-        self.dailytimer2_stop_hour = int(self.param_json["DailyTimer2_Settings"]["stop_hour"])
-        self.dailytimer2_stop_minute = int(self.param_json["DailyTimer2_Settings"]["stop_minute"])
+        # ――― DailyTimer 1 ――――――――――――――――――――――――――――――――――――――
+        dt1 = p["DailyTimer1_Settings"]
+        self.dailytimer1_start_hour   = int(dt1["start_hour"])
+        self.dailytimer1_start_minute = int(dt1["start_minute"])
+        self.dailytimer1_stop_hour    = int(dt1["stop_hour"])
+        self.dailytimer1_stop_minute  = int(dt1["stop_minute"])
 
-        # Cyclic #1
-        self.cyclic1_period_minutes = int(self.param_json["Cyclic1_Settings"]["period_minutes"])
-        self.cyclic1_action_duration_seconds = int(self.param_json["Cyclic1_Settings"]["action_duration_seconds"])
+        # ――― DailyTimer 2 ――――――――――――――――――――――――――――――――――――――
+        dt2 = p["DailyTimer2_Settings"]
+        self.dailytimer2_start_hour   = int(dt2["start_hour"])
+        self.dailytimer2_start_minute = int(dt2["start_minute"])
+        self.dailytimer2_stop_hour    = int(dt2["stop_hour"])
+        self.dailytimer2_stop_minute  = int(dt2["stop_minute"])
 
-        # Cyclic #2
-        self.cyclic2_period_minutes = int(self.param_json["Cyclic2_Settings"]["period_minutes"])
-        self.cyclic2_action_duration_seconds = int(self.param_json["Cyclic2_Settings"]["action_duration_seconds"])
+        # ――― Cyclic 1 ――――――――――――――――――――――――――――――――――――――――――
+        cy1 = p["Cyclic1_Settings"]
+        self.cyclic1_period_minutes           = int(cy1["period_minutes"])
+        self.cyclic1_action_duration_seconds  = int(cy1["action_duration_seconds"])
 
-        # Host Machine
-        self.host_machine_address = self.param_json["Network_Settings"]["host_machine_address"]
-        self.host_machine_state = self.param_json["Network_Settings"]["host_machine_state"]
-        # Wifi Parameters
-        self.wifi_ssid = self.param_json["Network_Settings"]["wifi_ssid"]
-        self.wifi_password = self.param_json["Network_Settings"]["wifi_password"]
-        # InfluxDB Parameters
-        self.influx_db_port = self.param_json["Network_Settings"]["influx_db_port"]
-        self.influx_db_user = self.param_json["Network_Settings"]["influx_db_user"]
-        self.influx_db_password = self.param_json["Network_Settings"]["influx_db_password"]
-        self.influx_db_name = self.param_json["Network_Settings"]["influx_db_name"]
+        # ――― Cyclic 2 ――――――――――――――――――――――――――――――――――――――――――
+        cy2 = p["Cyclic2_Settings"]
+        self.cyclic2_period_minutes           = int(cy2["period_minutes"])
+        self.cyclic2_action_duration_seconds  = int(cy2["action_duration_seconds"])
 
-        # Hardware GPIO:
-        self.i2c_sda = self.param_json["GPIO_Settings"]["i2c_sda"]
-        self.i2c_scl = self.param_json["GPIO_Settings"]["i2c_scl"]
-        self.ds18_pin = self.param_json["GPIO_Settings"]["ds18_pin"]
-        self.hcsr_trigger_pin = self.param_json["GPIO_Settings"]["hcsr_trigger_pin"]
-        self.hcsr_echo_pin = self.param_json["GPIO_Settings"]["hcsr_echo_pin"]
-        self.dailytimer1_pin = self.param_json["GPIO_Settings"]["dailytimer1_pin"]
-        self.dailytimer2_pin = self.param_json["GPIO_Settings"]["dailytimer2_pin"]
-        self.cyclic1_pin = self.param_json["GPIO_Settings"]["cyclic1_pin"]
-        self.cyclic2_pin = self.param_json["GPIO_Settings"]["cyclic2_pin"]
-        self.motor_pin1 = self.param_json["GPIO_Settings"]["motor_pin1"]
-        self.motor_pin2 = self.param_json["GPIO_Settings"]["motor_pin2"]
-        self.motor_pin3 = self.param_json["GPIO_Settings"]["motor_pin3"]
-        self.motor_pin4 = self.param_json["GPIO_Settings"]["motor_pin4"]
-        # Motor settings
-        self.motor_mode = self.param_json["Motor_Settings"]["motor_mode"]
-        self.motor_user_speed = self.param_json["Motor_Settings"]["motor_user_speed"]
-        self.target_temp = self.param_json["Motor_Settings"]["target_temp"]
-        self.hysteresis = self.param_json["Motor_Settings"]["hysteresis"]
-        self.motor_min_speed = self.param_json["Motor_Settings"]["min_speed"]
-        self.motor_max_speed = self.param_json["Motor_Settings"]["max_speed"]
-        # Sensors State:
-        self.bme_state = self.param_json["Sensor_State"]["bme280_state"]
-        self.ds18_state = self.param_json["Sensor_State"]["ds18b20_state"]
-        self.veml_state = self.param_json["Sensor_State"]["veml6075_state"]
-        self.vl53_state = self.param_json["Sensor_State"]["vl53L0x_state"]
-        self.mlx_state = self.param_json["Sensor_State"]["mlx90614_state"]
-        self.tsl_state = self.param_json["Sensor_State"]["tsl2591_state"]
-        self.hcsr_state = self.param_json["Sensor_State"]["hcsr04_state"]
+        # ――― Réseau ―――――――――――――――――――――――――――――――――――――――――――
+        net = p["Network_Settings"]
+        self.host_machine_address = net["host_machine_address"]
+        self.host_machine_state   = net["host_machine_state"]
+        self.wifi_ssid            = net["wifi_ssid"]
+        self.wifi_password        = net["wifi_password"]
+        self.influx_db_port       = net["influx_db_port"]
+        self.influx_db_name       = net["influx_db_name"]
+        self.influx_db_user       = net["influx_db_user"]
+        self.influx_db_password   = net["influx_db_password"]
 
-        # Sensor Dictionary, normalized names
-        self.sensor_dict = {"air": ["DS18B#1", "DS18B#2", "DS18B#3", "BME280T", "BME280H", "BME280P"],
-                            "light": ["TSL-LUX", "TSL-IR", "VEML-UVA", "VEML-UVB", "VEML-UVINDEX"]}
+        # ――― GPIO ―――――――――――――――――――――――――――――――――――――――――――――――
+        g = p["GPIO_Settings"]
+        (self.i2c_sda, self.i2c_scl,
+         self.ds18_pin,
+         self.hcsr_trigger_pin, self.hcsr_echo_pin,
+         self.dailytimer1_pin, self.dailytimer2_pin,
+         self.cyclic1_pin,    self.cyclic2_pin,
+         self.motor_pin1, self.motor_pin2,
+         self.motor_pin3, self.motor_pin4) = (
+            g["i2c_sda"],  g["i2c_scl"],
+            g["ds18_pin"],
+            g["hcsr_trigger_pin"], g["hcsr_echo_pin"],
+            g["dailytimer1_pin"],  g["dailytimer2_pin"],
+            g["cyclic1_pin"],      g["cyclic2_pin"],
+            g["motor_pin1"], g["motor_pin2"],
+            g["motor_pin3"], g["motor_pin4"]
+        )
 
+        # ――― Moteur ――――――――――――――――――――――――――――――――――――――――――――
+        m = p["Motor_Settings"]
+        self.motor_mode       = m["motor_mode"]
+        self.motor_user_speed = m["motor_user_speed"]
+        self.target_temp      = m["target_temp"]
+        self.hysteresis       = m["hysteresis"]
+        self.motor_min_speed  = m["min_speed"]
+        self.motor_max_speed  = m["max_speed"]
+
+        # ――― Capteurs ――――――――――――――――――――――――――――――――――――――――――
+        s = p["Sensor_State"]
+        (self.bme_state, self.ds18_state, self.veml_state,
+         self.vl53_state, self.mlx_state, self.tsl_state,
+         self.hcsr_state) = (
+            s["bme280_state"],  s["ds18b20_state"], s["veml6075_state"],
+            s["vl53L0x_state"], s["mlx90614_state"], s["tsl2591_state"],
+            s["hcsr04_state"]
+        )
+
+    # ===================================================================
+    #                          ALIAS PRATIQUES
+    # ===================================================================
+    _fmt = staticmethod(lambda h, m: f"{int(h):02d}:{int(m):02d}")
+
+    def get_dailytimer1_start(self): return self._fmt(
+        self.dailytimer1_start_hour, self.dailytimer1_start_minute)
+
+    def get_dailytimer1_stop(self):  return self._fmt(
+        self.dailytimer1_stop_hour,  self.dailytimer1_stop_minute)
+
+    get_cyclic1_period   = lambda self: self.cyclic1_period_minutes
+    get_cyclic1_duration = lambda self: self.cyclic1_action_duration_seconds
+    get_life_stage       = lambda self: self.growth_stage
+
+    # ===================================================================
+    #         SETTERS « généraux » utilisés par l'interface HTTP
+    # ===================================================================
+    # (Le serveur appelle `set_<clé>` dynamiquement)
+    def set_stage(self, v):            self.set_growth_stage(v)
+    def set_period_minutes(self, v):   self.set_cyclic1_period_minutes(int(v))
+    def set_action_duration_seconds(self, v):
+        self.set_cyclic1_action_duration_seconds(int(v))
+
+    # pour dt1start/dt1stop → split HH:MM effectué côté serveur
+    def set_start_hour(self, v):  self.set_dailytimer1_start_hour(int(v))
+    def set_start_minute(self, v):self.set_dailytimer1_start_minute(int(v))
+    def set_stop_hour(self, v):   self.set_dailytimer1_stop_hour(int(v))
+    def set_stop_minute(self, v): self.set_dailytimer1_stop_minute(int(v))
     # Setters
     def set_dailytimer1_start_hour(self, start_hour):
         self.dailytimer1_start_hour = start_hour

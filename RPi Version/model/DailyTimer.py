@@ -1,82 +1,78 @@
-# Author: Progradius
-# License: AGPL 3.0
+# controller/components/DailyTimer.py
+# Author : Progradius (adapted)
+# License : AGPL‑3.0
+# -------------------------------------------------------------
+#  Minuteur journalier : active un composant entre deux horaires
+# -------------------------------------------------------------
 
 from datetime import datetime
-from function import convert_time_to_minutes
-from controller.parameter_handler import read_parameters_from_json
+from function                       import convert_time_to_minutes
+from controller.parameter_handler   import read_parameters_from_json
+from controller.ui.pretty_console   import info, warning, clock, action
 
 
 class DailyTimer:
     """
-    Représente un minuteur journalier, active un composant entre deux horaires donnés.
+    Active/désactive *component* entre deux horaires (HH:MM) stockés
+    dans ``param.json``.  
+    • `timer_id` ∈ {1,2,…} → lit la section *DailyTimer{N}_Settings*.
     """
 
-    def __init__(self, component, timer_id):
-        param = read_parameters_from_json()
-        dailytimer_key = f"DailyTimer{timer_id}_Settings"
-
+    def __init__(self, component, timer_id: int):
         self.component = component
-        self.timer_id = timer_id
+        self.timer_id  = int(timer_id)
 
-        self.start_hour = param[dailytimer_key]["start_hour"]
-        self.start_minute = param[dailytimer_key]["start_minute"]
-        self.stop_hour = param[dailytimer_key]["stop_hour"]
-        self.stop_minute = param[dailytimer_key]["stop_minute"]
+        param           = read_parameters_from_json()
+        key             = f"DailyTimer{self.timer_id}_Settings"
 
-    def get_component_state(self):
-        return self.component.get_state()
+        self.start_hour   = param[key]["start_hour"]
+        self.start_minute = param[key]["start_minute"]
+        self.stop_hour    = param[key]["stop_hour"]
+        self.stop_minute  = param[key]["stop_minute"]
 
-    def get_start_hour(self):
-        return self.start_hour
+        info(f"DailyTimer #{self.timer_id} chargé :"
+             f" {self.start_hour:02d}:{self.start_minute:02d}"
+             f" → {self.stop_hour:02d}:{self.stop_minute:02d}")
 
-    def get_start_minute(self):
-        return self.start_minute
+    # ────────────────────────── getters & setters ─────────────
+    def get_component_state(self): return self.component.get_state()
 
-    def get_stop_hour(self):
-        return self.stop_hour
+    def set_start_time(self, h: int, m: int):
+        self.start_hour, self.start_minute = h, m
 
-    def get_stop_minute(self):
-        return self.stop_minute
+    def set_stop_time(self, h: int, m: int):
+        self.stop_hour, self.stop_minute = h, m
 
-    # Setters
-    def set_start_time(self, start_hour, start_minute):
-        self.start_hour = start_hour
-        self.start_minute = start_minute
-
-    def set_stop_time(self, stop_hour, stop_minute):
-        self.stop_hour = stop_hour
-        self.stop_minute = stop_minute
-
-    def toggle_state_daily(self):
+    # ────────────────────────── logique principale ────────────
+    def toggle_state_daily(self) -> None:
         """
-        Active ou désactive le composant en fonction de l’heure courante et des horaires configurés.
+        À appeler périodiquement : met le GPIO ON ou OFF selon l'heure.
+        Gère le cas d'une plage « à cheval » sur minuit (ex 22 h → 06 h).
         """
+        start = convert_time_to_minutes(self.start_hour, self.start_minute)
+        stop  = convert_time_to_minutes(self.stop_hour,  self.stop_minute)
 
-        start_time = convert_time_to_minutes(self.start_hour, self.start_minute)
-        end_time = convert_time_to_minutes(self.stop_hour, self.stop_minute)
+        now   = datetime.now()
+        now_m = convert_time_to_minutes(now.hour, now.minute)
 
-        now = datetime.now()
-        current_time_minute = convert_time_to_minutes(now.hour, now.minute)
+        # --- la période chevauche‑t‑elle minuit ? -------------
+        active = (
+            start <= now_m <= stop   if start <= stop
+            else  now_m >= start or now_m <= stop
+        )
 
-        if start_time <= end_time:
-            is_active = start_time <= current_time_minute <= end_time
-        else:
-            # Cas où le timer chevauche minuit (ex: 22h à 6h)
-            is_active = current_time_minute >= start_time or current_time_minute <= end_time
-
-        if is_active:
-            print("On Period")
-            print("Next off period in " + str(end_time - current_time_minute) + " minutes")
-            if self.component.get_state() == 1:
+        # --- calcul temps restant -----------------------------
+        if active:
+            mins_left = (stop - now_m) % 1440
+            clock(f"DailyTimer #{self.timer_id} : ON — arrêt dans {mins_left} min")
+            if self.component.get_state():        # déjà OFF → activer
+                action(f"Activation du composant (GPIO {self.component.pin})")
                 self.component.set_state(0)
-                print(f"Enabling component at: {now.hour}:{now.minute}:{now.second}")
-            else:
-                print("Component already ON")
         else:
-            print("Off Period")
-            print("Next on period in " + str(start_time - current_time_minute) + " minutes")
-            if self.component.get_state() == 0:
+            mins_left = (start - now_m) % 1440
+            clock(f"DailyTimer #{self.timer_id} : OFF — mise en marche dans {mins_left} min")
+            if not self.component.get_state():    # déjà ON → désactiver
+                action(f"Désactivation du composant (GPIO {self.component.pin})")
                 self.component.set_state(1)
-                print(f"Stopping component at: {now.hour}:{now.minute}:{now.second}")
             else:
-                print("Component already OFF")
+                warning("Composant déjà à l'état OFF")

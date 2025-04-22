@@ -1,15 +1,23 @@
-# Author: Progradius
-# License: AGPL 3.0
+# controller/components/toggle_state.py
+# Author : Progradius (adapted)
+# Licence : AGPL‑3.0
+"""
+Petite fonction utilitaire qui inverse l'état GPIO d'un composant et
+l'affiche joliment dans la console.
+"""
 
-def toggle_state(component):
+from controller.ui import pretty_console as ui
+
+
+def toggle_state(component) -> None:
     """
-    Inverse l'état d'un composant :
-    - Si le GPIO est à 0 (OFF), le met à 1 (ON)
-    - Si le GPIO est à 1 (ON), le met à 0 (OFF)
+    Inverse l'état d'un composant :
+
+    • Si le GPIO est à 0 (OFF)  → le bascule à 1 (ON)  
+    • Si le GPIO est à 1 (ON)   → le bascule à 0 (OFF)
     """
-    if component.get_state() == 0:
-        component.set_state(1)
-        print("Toggling state: ON")
-    else:
-        component.set_state(0)
-        print("Toggling state: OFF")
+    new_state = 1 if component.get_state() == 0 else 0
+    component.set_state(new_state)
+
+    txt = "ON" if new_state else "OFF"
+    ui.action(f"Toggling component → {txt}")

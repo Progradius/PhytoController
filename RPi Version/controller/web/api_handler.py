@@ -1,132 +1,196 @@
-# Author: Progradius
-# License: AGPL 3.0
+# controller/api.py
+# Author : Progradius (adapted)
+# License: AGPL‑3.0
+"""
+Mini‑REST API HTTP (très simple GET) pour modifier certains paramètres à
+la volée et fournir des données JSON aux pages web / à une appli externe.
 
-import re
+‣ /temperature   → JSON températures (BME + 1‑Wire)
+‣ /hygrometry    → JSON hygrométrie
+‣ /pressure      → JSON pression
+‣ /status        → état global du contrôleur
+‣ Configuration DailyTimer et CyclicTimer via requêtes GET
+   (paramètres query‑string)
+
+Le module se contente de parser la *première ligne* de la requête reçue
+(par le serveur HTTP) ; il n''implémente **ni** gestion POST
+**ni** authentification – à compléter selon vos besoins.
+"""
+
+from __future__ import annotations
+
+import asyncio
 import json
+import re
+from urllib.parse import parse_qs, urlparse
+
 from controller import parameter_handler
 from controller.SensorHandler import SensorHandler
+from controller.ui.pretty_console import info, warning, error
 
 
 class API:
-    def __init__(self, writer, response, controller_status, parameters):
-        self.controller_status = controller_status
-        self.response = response
-        self.parameters = parameters
-        self.sensor_handler = SensorHandler(self.parameters)
-        self.writer = writer
+    """
+    Chaque connexion HTTP instancie un objet **API** chargé de :
+      ‣ parser l''URL reçue,
+      ‣ éventuellement mettre à jour la configuration,
+      ‣ retourner la réponse adéquate (HTML déjà construit par le serveur
+        ou JSON généré ici).
+    """
 
-    async def api_manager(self):
+    # ------------------------------------------------------------------
+    def __init__(self,
+                 writer: asyncio.StreamWriter,
+                 request_line: str,
+                 controller_status,
+                 parameters):
+        self._writer           = writer
+        self._request_line     = request_line      # ex : "GET /status HTTP/1.1"
+        self._controller_state = controller_status
+        self._params           = parameters
+        self._sensors          = SensorHandler(parameters)
+
+    # ------------------------------------------------------------------
+    async def handle(self):
         """
-        Gère les routes API et déclenche les fonctions appropriées.
+        Route la requête et écrit la réponse HTTP sur `self._writer`.
         """
-        response = str(self.response)
-
-        if 'dt1start' in response and 'dt1stop' in response:
-            self.dailytimer_configuration()
-
-        if 'period' in response and 'duration' in response:
-            self.cyclic_configuration()
-
-        if response.startswith('GET /temperature'):
-            await self.writer.write("HTTP/1.0 200 OK\r\n\r\n" + self.temperature_json() + "\r\n")
-
-        elif response.startswith('GET /hygrometry'):
-            await self.writer.write("HTTP/1.0 200 OK\r\n\r\n" + self.hygrometry_json() + "\r\n")
-
-        elif response.startswith('GET /status'):
-            await self.writer.write("HTTP/1.0 200 OK\r\n\r\n" + self.system_state_json() + "\r\n")
-
-    def dailytimer_configuration(self):
         try:
-            # Start time
-            start_match = re.search(r'dt1start=(\d+)%3A(\d+)', self.response)
-            stop_match = re.search(r'dt1stop=(\d+)%3A(\d+)', self.response)
+            method, raw_path, _ = self._request_line.split()
+        except ValueError:
+            await self._http_error(400, "Bad request")
+            return
 
-            if not start_match or not stop_match:
-                print("Invalid time format in request")
-                return
+        if method != "GET":
+            await self._http_error(405, "Method not allowed")
+            return
 
-            dailytimer_start_hour = int(start_match.group(1))
-            dailytimer_start_minute = int(start_match.group(2))
-            dailytimer_stop_hour = int(stop_match.group(1))
-            dailytimer_stop_minute = int(stop_match.group(2))
+        parsed = urlparse(raw_path)
+        path   = parsed.path
+        q      = parse_qs(parsed.query)
 
-            start_time = dailytimer_start_hour * 60 + dailytimer_start_minute
-            stop_time = dailytimer_stop_hour * 60 + dailytimer_stop_minute
+        # ─────── Config via query‑string ──────────────────────
+        if "dt1start" in q and "dt1stop" in q:
+            self._configure_dailytimer(q)
+        if "period" in q and "duration" in q:
+            self._configure_cyclic(q)
 
-            if not (0 <= start_time <= 1440):
-                print("Incorrect start time, defaulting to 00:00")
-                dailytimer_start_hour = 0
-                dailytimer_start_minute = 0
+        # ─────── End‑points JSON ──────────────────────────────
+        if path == "/temperature":
+            await self._send_json(self._temperature_json())
 
-            if not (0 <= stop_time <= 1440):
-                print("Incorrect stop time, defaulting to 01:00")
-                dailytimer_stop_hour = 1
-                dailytimer_stop_minute = 0
+        elif path == "/hygrometry":
+            await self._send_json(self._hygrometry_json())
 
-            print(f"Choosen start time: {dailytimer_start_hour}:{dailytimer_start_minute}")
-            print(f"Choosen stop time: {dailytimer_stop_hour}:{dailytimer_stop_minute}")
+        elif path == "/pressure":
+            await self._send_json(self._pressure_json())
 
-            self.parameters.set_dailytimer1_start_hour(dailytimer_start_hour)
-            self.parameters.set_dailytimer1_start_minute(dailytimer_start_minute)
-            self.parameters.set_dailytimer1_stop_hour(dailytimer_stop_hour)
-            self.parameters.set_dailytimer1_stop_minute(dailytimer_stop_minute)
+        elif path == "/status":
+            await self._send_json(self._system_state_json())
 
-            parameter_handler.write_current_parameters_to_json(self.parameters)
+        else:                      # route inconnue → 404
+            await self._http_error(404, "Not found")
 
-        except Exception as e:
-            print("Error during DT parsing:", e)
-
-    def cyclic_configuration(self):
+    # ==================================================================
+    #                         CONFIGURATION
+    # ==================================================================
+    def _configure_dailytimer(self, qdict):
+        """Met à jour l''heure de début / fin du DailyTimer #1."""
         try:
-            period_match = re.search(r'period=(\d+)', self.response)
-            duration_match = re.search(r'duration=(\d+)', self.response)
+            sh, sm = self._split_hhmm(qdict["dt1start"][0])
+            eh, em = self._split_hhmm(qdict["dt1stop"][0])
 
-            if not period_match or not duration_match:
-                print("Invalid cyclic params")
-                return
+            self._params.set_dailytimer1_start_hour(sh)
+            self._params.set_dailytimer1_start_minute(sm)
+            self._params.set_dailytimer1_stop_hour(eh)
+            self._params.set_dailytimer1_stop_minute(em)
 
-            period = int(period_match.group(1))
-            duration = int(duration_match.group(1))
+            parameter_handler.write_current_parameters_to_json(self._params)
+            info(f"DailyTimer mis à jour : {sh:02d}:{sm:02d} → {eh:02d}:{em:02d}")
+        except Exception as exc:
+            warning(f"DailyTimer: format invalide ({exc})")
 
-            self.parameters.set_cyclic1_period_minutes(period)
-            self.parameters.set_cyclic1_action_duration_seconds(duration)
+    # ------------------------------------------------------------------
+    def _configure_cyclic(self, qdict):
+        """Met à jour la période et la durée du CyclicTimer #1."""
+        try:
+            period   = int(qdict["period"][0])
+            duration = int(qdict["duration"][0])
 
-            parameter_handler.write_current_parameters_to_json(self.parameters)
+            self._params.set_cyclic1_period_minutes(period)
+            self._params.set_cyclic1_action_duration_seconds(duration)
+            parameter_handler.write_current_parameters_to_json(self._params)
 
-            print(f"Choosen period: {period}")
-            print(f"Choosen duration: {duration}")
+            info(f"CyclicTimer mis à jour : période {period} min – action {duration} s")
+        except Exception as exc:
+            warning(f"CyclicTimer : paramètres invalides ({exc})")
 
-        except Exception as e:
-            print("Error while writing cyclic parameters:", e)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _split_hhmm(txt: str) -> tuple[int, int]:
+        """
+        Convertit 'hh:mm' (ou 'hh%3Amm') en tuple (h, m) ints – lève ValueError si fail.
+        """
+        txt = txt.replace("%3A", ":")
+        m = re.fullmatch(r"(\d{1,2}):(\d{1,2})", txt)
+        if not m:
+            raise ValueError("HH:MM attendu")
+        h, m_ = map(int, m.groups())
+        if not (0 <= h < 24 and 0 <= m_ < 60):
+            raise ValueError("plage horaire invalide")
+        return h, m_
 
-    def temperature_json(self):
-        temperature = {}
-        if self.sensor_handler.bme:
-            temperature["BME280"] = self.sensor_handler.bme.get_bme_temp()
-        if self.sensor_handler.ds18:
-            temperature["DS18#1"] = self.sensor_handler.ds18.get_ds18_temp(1)
-            temperature["DS18#2"] = self.sensor_handler.ds18.get_ds18_temp(2)
-            temperature["DS18#3"] = self.sensor_handler.ds18.get_ds18_temp(3)
-        return json.dumps(temperature)
+    # ==================================================================
+    #                           JSON
+    # ==================================================================
+    def _temperature_json(self) -> dict:
+        data = {}
+        if self._sensors.bme:
+            data["BME280"] = self._sensors.bme.get_bme_temp()
+        if self._sensors.ds18:
+            for idx in (1, 2, 3):
+                data[f"DS18#{idx}"] = self._sensors.ds18.get_ds18_temp(idx)
+        return data
 
-    def hygrometry_json(self):
-        if self.sensor_handler.bme:
-            hygrometry = {"BME280HR": self.sensor_handler.bme.get_bme_hygro()}
-            return json.dumps(hygrometry)
+    def _hygrometry_json(self) -> dict:
+        return {"BME280HR": self._sensors.bme.get_bme_hygro()} if self._sensors.bme else {}
 
-    def pressure_json(self):
-        if self.sensor_handler.bme:
-            pressure = {"BME280PR": self.sensor_handler.bme.get_bme_pressure()}
-            return json.dumps(pressure)
+    def _pressure_json(self) -> dict:
+        return {"BME280PR": self._sensors.bme.get_bme_pressure()} if self._sensors.bme else {}
 
-    def system_state_json(self):
-        system_state = {
-            "component_state": self.controller_status.get_component_state(),
-            "motor_speed": self.controller_status.get_motor_speed(),
-            "dailytimer1_start_time": self.controller_status.get_dailytimer_current_start_time(),
-            "dailytimer_stop_time": self.controller_status.get_dailytimer_current_stop_time(),
-            "cyclic_duration": self.controller_status.get_cyclic_duration(),
-            "cyclic_period": self.controller_status.get_cyclic_period()
+    def _system_state_json(self) -> dict:
+        st = self._controller_state
+        return {
+            "component_state": st.get_component_state(),
+            "motor_speed":     st.get_motor_speed(),
+            "dailytimer1": {
+                "start": st.get_dailytimer_current_start_time(),
+                "stop":  st.get_dailytimer_current_stop_time(),
+            },
+            "cyclic": {
+                "period":   st.get_cyclic_period(),
+                "duration": st.get_cyclic_duration(),
+            }
         }
-        return json.dumps(system_state)
+
+    # ==================================================================
+    #                      OUTBOUND / HTTP helpers
+    # ==================================================================
+    async def _send_json(self, payload: dict | None):
+        body = json.dumps(payload or {}).encode("utf‑8")
+        headers = (
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            "Connection: close\r\n\r\n"
+        ).encode("utf‑8")
+        self._writer.write(headers + body)
+        await self._writer.drain()
+
+    # ------------------------------------------------------------------
+    async def _http_error(self, code: int, msg: str):
+        body = f"{code} {msg}".encode()
+        hdr  = f"HTTP/1.1 {code} {msg}\r\nContent-Length: {len(body)}\r\n\r\n".encode()
+        self._writer.write(hdr + body)
+        await self._writer.drain()
+        error(f"API → {code} {msg}")

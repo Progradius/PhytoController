@@ -1,40 +1,45 @@
-# Author: Progradius
-# License: AGPL 3.0
+# controller/model/Component.py
+# Author : Progradius (adapted)
+# License : AGPL-3.0
+# -------------------------------------------------------------
+#  Abstraction d'un composant commandé par une sortie GPIO
+# -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
+from controller.ui.pretty_console import action, info
 
-# Configuration globale du mode BCM (une seule fois dans l’app)
+# ─────────────────────────── init GPIO global ─────────────────
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
 class Component:
     """
-    Représente un composant connecté à un GPIO du Raspberry Pi.
-    Utilise RPi.GPIO pour contrôler une sortie.
+    Petite sur-couche autour de *RPi.GPIO* :
+
+    • `pin` (BCM) mémorisé dans l'attr. public **pin**  
+    • `set_state(value)`   →  1 = HIGH, 0 = LOW  
+    • `get_state()`        →  lit l'état actuel
     """
 
-    def __init__(self, pin):
-        self.pin_number = pin
-        GPIO.setup(self.pin_number, GPIO.OUT)
-        # Par défaut on l'active (équivalent à .value(1))
-        GPIO.output(self.pin_number, GPIO.HIGH)
+    def __init__(self, pin: int):
+        self.pin: int = pin                       # rendu public pour DailyTimer
+        GPIO.setup(self.pin, GPIO.OUT)
 
-    # Setters
-    def set_state(self, value):
-        """
-        Définit l’état du GPIO : 1 = HIGH, 0 = LOW
-        """
-        GPIO.output(self.pin_number, GPIO.HIGH if value else GPIO.LOW)
+        # Par défaut composant désactivé (niveau HIGH avec relais actif niveau bas)
+        GPIO.output(self.pin, GPIO.HIGH)
+        info(f"Component initialisé sur GPIO {self.pin} (état HIGH)")
 
-    # Getters
-    def get_pin(self):
+    # ───────────────────────── setters / getters ──────────────
+    def set_state(self, value: int) -> None:
         """
-        Retourne le numéro de pin GPIO (BCM)
+        Force l'état de la broche :
+          • 0 → LOW   (généralement *ON* si relais actif bas)
+          • 1 → HIGH  (généralement *OFF*)
         """
-        return self.pin_number
+        GPIO.output(self.pin, GPIO.LOW if value == 0 else GPIO.HIGH)
+        state_txt = "LOW (ON)" if value == 0 else "HIGH (OFF)"
+        action(f"GPIO {self.pin} ← {state_txt}")
 
-    def get_state(self):
-        """
-        Retourne l'état actuel de la broche GPIO (0 ou 1)
-        """
-        return GPIO.input(self.pin_number)
+    def get_state(self) -> int:
+        """Retourne 0 (LOW) ou 1 (HIGH)."""
+        return GPIO.input(self.pin)

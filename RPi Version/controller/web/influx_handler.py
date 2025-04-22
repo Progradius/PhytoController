@@ -1,58 +1,76 @@
-# Author: Progradius
-# License: AGPL 3.0
+# controller/web/influx_handler.py
+# Author : Progradius (adapted)
+# License: AGPL‑3.0
+"""
+Envoi périodique des mesures capteurs vers InfluxDB (v1.*) via l’API HTTP.
+
+‣ URL construite dynamiquement à partir de *param.json*
+‣ Log soigné (Pretty‑Console)
+‣ Gestion mémoire explicite (gc.collect) après chaque rafraichissement
+"""
+
+from __future__ import annotations
 
 import asyncio
-import requests
 import gc
 from urllib.parse import urlencode
-from model.Parameter import Parameter
+
+import requests
+
+from controller.ui.pretty_console import info, warning, error
+from model.Parameter          import Parameter
 from controller.SensorHandler import SensorHandler
 
-# Initialisation des paramètres
-parameters = Parameter()
-sensor_handler = SensorHandler(parameters=parameters)
 
-influx_db_host = f"http://{parameters.get_host_machine_address()}:{parameters.get_influx_db_port()}"
-influx_db_name = parameters.get_influx_db_name()
-influx_db_user = parameters.get_influx_db_user()
-influx_db_password = parameters.get_influx_db_password()
+# ───────────────────────────────────────────────────────────────
+#  Initialisation unique
+# ───────────────────────────────────────────────────────────────
+_params         = Parameter()
+_sensor_handler = SensorHandler(parameters=_params)
 
-# Construction de l'URL complète avec credentials (InfluxDB v1.x)
-db_query = f"{influx_db_host}/write?" + urlencode({
-    "db": influx_db_name,
-    "u": influx_db_user,
-    "p": influx_db_password
+_influx_host = f"http://{_params.get_host_machine_address()}:{_params.get_influx_db_port()}"
+_query_base  = _influx_host + "/write?" + urlencode({
+    "db": _params.get_influx_db_name(),
+    "u" : _params.get_influx_db_user(),
+    "p" : _params.get_influx_db_password()
 })
 
-def write_influx_data(measurement, field_name, sensor_data):
+info(f"InfluxDB → {_query_base}")
+
+
+# ───────────────────────────────────────────────────────────────
+#  Fonctions
+# ───────────────────────────────────────────────────────────────
+def _send_point(measurement: str, field: str, value):
     """
-    Écrit une donnée dans InfluxDB via l'API HTTP.
+    Format *ligne protocole* Influx et POSTe la donnée.
     """
-    resp_data = f"{measurement} {field_name}={sensor_data}"
-    formatted = f"Measurement: {measurement} Field Name: {field_name} Value = {sensor_data}"
+    if value is None:
+        warning(f"{field}: valeur None ignorée")
+        return
+
+    payload = f"{measurement} {field}={value}"
+    info(f"[{measurement}] {field} = {value}")
 
     try:
-        print(formatted)
-        resp = requests.post(db_query, data=resp_data)
-        print(f"response: {resp.status_code}")
-        if resp.status_code == 204:
-            print("OK")
-        else:
-            print("ERROR")
-    except Exception as e:
-        print(f"Error sending data to InfluxDB: {e}")
-    finally:
-        gc.collect()
+        r = requests.post(_query_base, data=payload, timeout=4)
+        if r.status_code == 204:
+            return                        # OK (Influx renvoie 204 No Content)
+        warning(f"InfluxDB HTTP {r.status_code}: {r.text.strip()}")
+    except requests.RequestException as exc:
+        error(f"POST InfluxDB : {exc}")
 
-async def write_sensor_values(sampling_delay=60):
+
+# ----------------------------------------------------------------
+async def write_sensor_values(period: int = 60):
     """
-    Envoie périodiquement les données des capteurs à InfluxDB.
+    Coroutine principale : boucle infinie toutes les *period* secondes.
     """
     while True:
-        sensor_dict = sensor_handler.sensor_dict
-        for measurement, sensors in sensor_dict.items():
-            for sensor_name in sensors:
-                value = sensor_handler.get_sensor_value(sensor_name)
-                write_influx_data(measurement, sensor_name, value)
+        for meas, sensors in _sensor_handler.sensor_dict.items():
+            for name in sensors:
+                val = _sensor_handler.get_sensor_value(name)
+                _send_point(meas, name, val)
+
         gc.collect()
-        await asyncio.sleep(sampling_delay)
+        await asyncio.sleep(period)

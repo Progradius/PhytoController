@@ -1,48 +1,70 @@
 # controller/sensor/MLX90614Handler.py
-# Author: Progradius
-# License: AGPL 3.0
+# Author : Progradius (adapted)
+# License: AGPL-3.0
+"""
+Handler pour le capteur infrarouge MLX90614.
+Expose :
+    • get_ambient_temp()  -> température ambiante (°C | None)
+    • get_object_temp()   -> température objet    (°C | None)
+"""
+
+from controller.ui import pretty_console as pc
+
 
 class MLX90614Handler:
     """
-    Handler pour le capteur IR MLX90614.
-    Fournit get_ambient_temp() et get_object_temp().
+    Encapsulation haut-niveau du driver ``lib.sensors.MLX90614``.
     """
 
+    ADDR = 0x5A  # adresse I²C par défaut
+
+    # ------------------------------------------------------------------
+    # Initialisation
+    # ------------------------------------------------------------------
     def __init__(self, i2c):
         """
-        i2c : instance smbus2.SMBus(1)
+        Parameters
+        ----------
+        i2c : smbus2.SMBus
+            Instance ouverte sur /dev/i2c-1.
         """
         from lib.sensors.MLX90614 import MLX90614
+
         self.available = False
         try:
-            self.mlx = MLX90614(i2c, address=0x5A)
+            self.mlx = MLX90614(i2c, address=self.ADDR)
             self.available = True
-        except Exception as e:
-            print("⚠️ Erreur init MLX90614 :", e)
+            pc.success("MLX90614 initialisé")
+        except Exception as exc:
+            pc.error(f"Impossible d’initialiser le MLX90614 : {exc}")
             self.mlx = None
 
+    # ------------------------------------------------------------------
+    # Mesures
+    # ------------------------------------------------------------------
     def get_ambient_temp(self):
-        """
-        Retourne la température ambiante (°C) ou None si erreur.
-        """
+        """Température ambiante en °C, ou None si lecture impossible."""
         if not self.available:
-            print("⚠️ MLX90614 indisponible (ambiante)")
+            pc.warning("MLX90614 non disponible (ambiante)")
             return None
         try:
-            return self.mlx.read_ambient_temp()
-        except Exception as e:
-            print("Erreur lecture MLX90614 (ambiante) :", e)
+            value = self.mlx.read_ambient_temp()
+            pc.info(f"MLX90614 ambiant : {value:.2f} °C")
+            return value
+        except Exception as exc:
+            pc.error(f"Lecture ambiante MLX90614 échouée : {exc}")
             return None
 
+    # ------------------------------------------------------------------
     def get_object_temp(self):
-        """
-        Retourne la température de l'objet (°C) ou None si erreur.
-        """
+        """Température objet en °C, ou None si lecture impossible."""
         if not self.available:
-            print("⚠️ MLX90614 indisponible (objet)")
+            pc.warning("MLX90614 non disponible (objet)")
             return None
         try:
-            return self.mlx.read_object_temp()
-        except Exception as e:
-            print("Erreur lecture MLX90614 (objet) :", e)
+            value = self.mlx.read_object_temp()
+            pc.info(f"MLX90614 objet : {value:.2f} °C")
+            return value
+        except Exception as exc:
+            pc.error(f"Lecture objet MLX90614 échouée : {exc}")
             return None
