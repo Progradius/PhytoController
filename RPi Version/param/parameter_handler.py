@@ -76,7 +76,11 @@ def write_current_parameters_to_json(parameters) -> None:
                 "target_temp_min_day":    parameters.get_target_temp_min_day(),
                 "target_temp_max_day":    parameters.get_target_temp_max_day(),
                 "target_temp_min_night":  parameters.get_target_temp_min_night(),
-                "target_temp_max_night":  parameters.get_target_temp_max_night()
+                "target_temp_max_night":  parameters.get_target_temp_max_night(),
+                "hysteresis_offset"     : parameters.get_hysteresis_offset()
+            },
+            "Heater_Settings": {
+                "enabled": parameters.get_heater_enabled()
             },
             "Network_Settings": {
                 "host_machine_address": parameters.get_host_machine_address(),
@@ -167,6 +171,9 @@ def update_current_parameters_from_json(parameters) -> None:
         parameters.set_target_temp_min_night(temps["target_temp_min_night"])
         parameters.set_target_temp_max_night(temps["target_temp_max_night"])
         parameters.set_hysteresis_offset(temps["hysteresis_offset"])
+        
+        heater = data.get("Heater_Settings", {})
+        parameters.set_heater_enabled( heater.get("enabled", "disabled") )
 
         net = data["Network_Settings"]
         parameters.set_host_machine_address(net["host_machine_address"])

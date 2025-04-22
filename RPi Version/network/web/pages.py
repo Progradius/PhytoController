@@ -124,6 +124,9 @@ def conf_page(parameters) -> str:
     tmin_night = parameters.get_target_temp_min_night()
     tmax_night = parameters.get_target_temp_max_night()
     offset     = parameters.get_hysteresis_offset()
+    
+    heater_enabled = parameters.get_heater_enabled()
+    heater_pin     = parameters.get_heater_pin()
 
     return f"""{html_header}
 <section id="conf">
@@ -258,21 +261,24 @@ def conf_page(parameters) -> str:
         </form>
       </div></div>
     </div>
-
+    
     <!-- ─────────────────────────────────────────────────────── -->
     <!-- Heater Control -->
     <div class="row">
       <div class="col-md-12"><div class="formwrap">
         <h1>Heater Control</h1><hr>
-        <p>Le chauffage est piloté automatiquement selon les plages jour/nuit et l’hystérésis.</p>
+        <p>Le chauffage est piloté automatiquement selon les plages jour/nuit et l’hystérésis, mais vous pouvez l’activer ou le désactiver manuellement :</p>
         <form method="get">
           <h2>Activation</h2>
           <select name="heater_enabled">
-            <option value="enabled"  {"selected" if parameters.get_heater_enabled()   else ""}>Enabled</option>
-            <option value="disabled" {"selected" if not parameters.get_heater_enabled() else ""}>Disabled</option>
+            <option value="enabled"  {"selected" if heater_enabled=="enabled"  else ""}>Enabled</option>
+            <option value="disabled" {"selected" if heater_enabled=="disabled" else ""}>Disabled</option>
           </select>
-          <h2>GPIO Pin</h2><input type="number" name="heater_pin" value="{parameters.get_heater_pin()}" min="0">
-          <div class="div_center"><input class="button_base" type="submit" value="Save"></div>
+          <h2>GPIO Pin</h2>
+          <input type="number" name="heater_pin" value="{heater_pin}">
+          <div class="div_center">
+            <input class="button_base" type="submit" value="Save">
+          </div>
         </form>
       </div></div>
     </div>

@@ -331,12 +331,8 @@ class Parameter:
     def set_hysteresis_offset(self, v):
         self.hysteresis_offset = float(v)
 
-    def set_heater_enabled(self, val):
-        # attend "enabled" / "disabled" ou bool
-        if isinstance(val, str):
-            self.heater_enabled = (val.lower() == "enabled")
-        else:
-            self.heater_enabled = bool(val)
+    def get_heater_enabled(self) -> str: 
+        return self.heater_enabled
 
     # Getters
     def get_dailytimer1_start_hour(self):

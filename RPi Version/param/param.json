@@ -27,11 +27,11 @@
         "target_temp_max_day": 25,
         "target_temp_min_night": 19,
         "target_temp_max_night": 25,
-        "hysteresis_offset": 2
+        "hysteresis_offset": 2.0
     },
     "Heater_Settings": {
-        "enabled": "enabled"
-      },
+        "enabled": false
+    },
     "Network_Settings": {
         "host_machine_address": "192.168.1.15",
         "host_machine_state": "online",
