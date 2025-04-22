@@ -1,8 +1,8 @@
 # controller/web/server.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL‑3.0
 # -------------------------------------------------------------
-#  Serveur HTTP ultra‑léger basé sur asyncio + Pretty‑Console
+#  Serveur HTTP ultra‑léger basé sur asyncio
 # -------------------------------------------------------------
 
 from __future__ import annotations
@@ -20,13 +20,40 @@ from controller.parameter_handler import (
 )
 
 # ── correspondance « champ GET » → (section_JSON, clé_JSON) ─────────────
-_CONF_FIELDS: dict[str, Tuple[str, str | Tuple[str, str]]] = {
-    "dt1start" : ("DailyTimer1_Settings",  ("start_hour",  "start_minute")),  # HH:MM
-    "dt1stop"  : ("DailyTimer1_Settings",  ("stop_hour",   "stop_minute")),
-    "period"   : ("Cyclic1_Settings",      "period_minutes"),
-    "duration" : ("Cyclic1_Settings",      "action_duration_seconds"),
-    "stage"    : ("life_period",           "stage"),
-    "speed"    : ("Motor_Settings",        "motor_user_speed"),
+_CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
+    # DailyTimer #1
+    "dt1start" : ("DailyTimer1_Settings", ("start_hour",        "start_minute")),
+    "dt1stop"  : ("DailyTimer1_Settings", ("stop_hour",         "stop_minute")),
+    # DailyTimer #2
+    "dt2start" : ("DailyTimer2_Settings", ("start_hour",        "start_minute")),
+    "dt2stop"  : ("DailyTimer2_Settings", ("stop_hour",         "stop_minute")),
+
+    # Cyclic #1
+    "period"   : ("Cyclic1_Settings",     "period_minutes"),
+    "duration" : ("Cyclic1_Settings",     "action_duration_seconds"),
+    # Cyclic #2
+    "period2"  : ("Cyclic2_Settings",     "period_minutes"),
+    "duration2": ("Cyclic2_Settings",     "action_duration_seconds"),
+
+    # Growth stage
+    "stage"    : ("life_period",          "stage"),
+
+    # Motor
+    "motor_mode"   : ("Motor_Settings",   "motor_mode"),
+    "speed"        : ("Motor_Settings",   "motor_user_speed"),
+    "target_temp"  : ("Motor_Settings",   "target_temp"),
+    "hysteresis"   : ("Motor_Settings",   "hysteresis"),
+    "min_speed"    : ("Motor_Settings",   "min_speed"),
+    "max_speed"    : ("Motor_Settings",   "max_speed"),
+
+    # Network
+    "host"          : ("Network_Settings","host_machine_address"),
+    "wifi_ssid"     : ("Network_Settings","wifi_ssid"),
+    "wifi_password" : ("Network_Settings","wifi_password"),
+    "influx_db"     : ("Network_Settings","influx_db_name"),
+    "influx_port"   : ("Network_Settings","influx_db_port"),
+    "influx_user"   : ("Network_Settings","influx_db_user"),
+    "influx_pw"     : ("Network_Settings","influx_db_password"),
 }
 
 # =============================================================
