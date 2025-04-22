@@ -1,8 +1,8 @@
-# controller/sensor/SensorHandler.py
-# Author : Progradius (adapted)
-# License : AGPL‑3.0
+# controller/sensor/SensorController.py
+# Author : Progradius
+# License : AGPL-3.0
 # --------------------------------------------------------------------
-#  Gestion unifiée de tous les capteurs matériels pour Raspberry Pi
+#  Gestion unifiée de tous les capteurs matériels pour Raspberry Pi
 # --------------------------------------------------------------------
 
 import smbus2
@@ -16,26 +16,26 @@ from controller.sensor.MLX90614Handler import MLX90614Handler
 from controller.sensor.TSL2591Handler  import TSL2591Handler
 from controller.sensor.HCSR04Handler   import HCSR04Handler
 
-# Affichage « Pretty »
-from controller.ui.pretty_console import info, warning, error
+# Affichage « Pretty »
+from ui.pretty_console import info, warning, error
 
 
-class SensorHandler:
+class SensorController:
     """
-    Abstraction d’accès à tous les capteurs du projet.
-    Instancie chaque driver **uniquement si** le capteur est marqué « enabled »
+    Abstraction d'accès à tous les capteurs du projet.
+    Instancie chaque driver **uniquement si** le capteur est marqué « enabled »
     dans *param.json*.
     """
 
     def __init__(self, parameters):
         self.parameters = parameters
 
-        # ── Bus I²C principal /dev/i2c‑1 ──────────────────────────────
+        # ── Bus I²C principal /dev/i2c-1 ──────────────────────────────
         try:
             self.i2c = smbus2.SMBus(1)
-            info("Bus I²C /dev/i2c‑1 ouvert")
+            info("Bus I²C /dev/i2c-1 ouvert")
         except FileNotFoundError as e:
-            error(f"Impossible d’ouvrir /dev/i2c‑1 → {e}")
+            error(f"Impossible d'ouvrir /dev/i2c-1 → {e}")
             self.i2c = None
 
         # ── Instanciation conditionnelle des capteurs ─────────────────
@@ -52,12 +52,12 @@ class SensorHandler:
 
         # Dictionnaire {measurement: [noms_capteurs]}
         self.sensor_dict = parameters.sensor_dict
-        info("SensorHandler initialisé")
+        info("SensorController initialisé")
 
     # ----------------------------------------------------------------
     def get_sensor_value(self, chosen_sensor):
         """
-        Retourne la mesure demandée ou **None** en cas d’erreur/inactivité.
+        Retourne la mesure demandée ou **None** en cas d'erreur/inactivité.
         Les libellés doivent correspondre à ceux déclarés dans *sensor_dict*.
         """
         try:
@@ -100,7 +100,7 @@ class SensorHandler:
             if chosen_sensor == "VL53-DIST" and self.vl53:
                 return self.vl53.get_vl53_reading()
 
-            # ----- HC‑SR04 --------------------------------------------------
+            # ----- HC-SR04 --------------------------------------------------
             if chosen_sensor == "HCSR-DIST" and self.hcsr:
                 return self.hcsr.get_distance_cm()
 

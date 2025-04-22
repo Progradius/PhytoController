@@ -1,5 +1,5 @@
-# controller/ControllerStatus.py
-# Author : Progradius (adapted)
+# controller/SystemStatus.py
+# Author : Progradius
 # License: AGPL‑3.0
 """
 Fournit une vue « statut système » centralisée :
@@ -10,10 +10,10 @@ Fournit une vue « statut système » centralisée :
 
 from __future__ import annotations
 
-from controller.ui.pretty_console import info, warning
+from ui.pretty_console import info, warning
 
 
-class ControllerStatus:
+class SystemStatus:
     """
     Instanciée une seule fois dans l'application et passée partout
     (PuppetMaster, pages web, API…) pour exposer _en lecture seulement_
@@ -25,7 +25,7 @@ class ControllerStatus:
         self._comp = component
         self._motor = motor
 
-        info("ControllerStatus initialisé")
+        info("SystemStatus initialisé")
 
     # ──────────────────────────────────────────────────────────
     #  Lectures simples

@@ -1,5 +1,5 @@
 # model/Parameter.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License : AGPL‑3.0
 # ------------------------------------------------------------------
 #  Accès / mise‑à‑jour des paramètres   (JSON ⇆ objet Python)
@@ -17,7 +17,7 @@ Cette classe encapsule **param.json**
   envoyés depuis l'interface web.
 """
 
-from controller.parameter_handler import read_parameters_from_json
+from param.parameter_handler import read_parameters_from_json
 
 
 class Parameter:

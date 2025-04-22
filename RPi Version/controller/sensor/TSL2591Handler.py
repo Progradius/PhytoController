@@ -1,5 +1,5 @@
 # controller/sensor/TSL2591Handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License : AGPL-3.0
 """
 Handler haut-niveau pour le capteur de luminosité TSL2591.
@@ -10,7 +10,7 @@ Expose deux méthodes :
 
 """
 
-from controller.ui import pretty_console as pc
+from ui import pretty_console as pc
 
 
 class TSL2591Handler:

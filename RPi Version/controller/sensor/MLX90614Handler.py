@@ -1,5 +1,5 @@
 # controller/sensor/MLX90614Handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 """
 Handler pour le capteur infrarouge MLX90614.
@@ -8,7 +8,7 @@ Expose :
     • get_object_temp()   -> température objet    (°C | None)
 """
 
-from controller.ui import pretty_console as pc
+from ui import pretty_console as pc
 
 
 class MLX90614Handler:

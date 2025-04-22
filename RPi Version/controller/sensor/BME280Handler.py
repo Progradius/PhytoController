@@ -1,5 +1,5 @@
 # controller/sensor/BME280Handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 
 """
@@ -12,7 +12,7 @@ pour :
   si le capteur est prêt
 """
 
-from controller.ui.pretty_console import error, warning, info
+from ui.pretty_console import error, warning, info
 from typing import Optional, Callable
 
 
@@ -25,7 +25,7 @@ class BME280Handler:
         Parameters
         ----------
         i2c : smbus2.SMBus
-            Instance déjà ouverte sur le bus 1 (gérée par SensorHandler).
+            Instance déjà ouverte sur le bus 1 (gérée par SensorController).
         """
         try:
             from lib.sensors.BME280 import BME280

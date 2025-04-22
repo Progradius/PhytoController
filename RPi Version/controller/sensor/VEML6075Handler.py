@@ -1,5 +1,5 @@
 # controller/sensor/VEML6075Handler.py
-# Author: Progradius (adapted)
+# Author: Progradius
 # License: AGPL-3.0
 
 """
@@ -12,7 +12,7 @@ Wrapper pour le capteur UV VEML6075.
 """
 
 from lib.sensors.VEML6075 import VEML6075
-from controller.ui.pretty_console import info, warning, error
+from ui.pretty_console import info, warning, error
 
 
 class VEMLHandler:

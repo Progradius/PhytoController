@@ -1,12 +1,12 @@
 # controller/model/CyclicTimer.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License : AGPL‑3.0
 # -------------------------------------------------------------
 #  Minuteur cyclique : déclenche périodiquement un composant
 # -------------------------------------------------------------
 
-from controller.parameter_handler import read_parameters_from_json
-from controller.ui.pretty_console import info, action, warning
+from param.parameter_handler import read_parameters_from_json
+from ui.pretty_console import info, action, warning
 
 
 class CyclicTimer:

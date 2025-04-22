@@ -1,5 +1,5 @@
 # controller/sensor/DS18Handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 """
 Gestion des sondes DS18B20 :
@@ -18,7 +18,7 @@ import glob
 from pathlib import Path
 from typing import List, Optional
 
-from controller.ui.pretty_console import info, warning, error
+from ui.pretty_console import info, warning, error
 
 # ───────────────────────────────────────────────────────────────
 #  Détection de l'implémentation disponible

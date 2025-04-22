@@ -1,5 +1,5 @@
 # function.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 # ------------------------------------------------------------------
 #  Fonctions utilitaires « système »  (temps, stockage, GPIO, …)
@@ -12,8 +12,8 @@ import time
 
 import RPi.GPIO as GPIO
 
-from controller.parameter_handler      import read_parameters_from_json
-from controller.ui.pretty_console      import info, success, warning, error
+from param.parameter_handler      import read_parameters_from_json
+from ui.pretty_console      import info, success, warning, error
 
 # ───────────────────────────────────────────────────────────────
 #  Init GPIO global – BCM & warnings off

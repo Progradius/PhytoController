@@ -1,12 +1,12 @@
 # controller/model/Component.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License : AGPL-3.0
 # -------------------------------------------------------------
 #  Abstraction d'un composant commandé par une sortie GPIO
 # -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
-from controller.ui.pretty_console import action, info
+from ui.pretty_console import action, info
 
 # ─────────────────────────── init GPIO global ─────────────────
 GPIO.setwarnings(False)

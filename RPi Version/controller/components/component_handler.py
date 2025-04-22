@@ -1,12 +1,12 @@
 # controller/components/toggle_state.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # Licence : AGPL‑3.0
 """
 Petite fonction utilitaire qui inverse l'état GPIO d'un composant et
 l'affiche joliment dans la console.
 """
 
-from controller.ui import pretty_console as ui
+from ui import pretty_console as ui
 
 
 def toggle_state(component) -> None:

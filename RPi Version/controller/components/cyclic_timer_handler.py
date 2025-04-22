@@ -1,5 +1,5 @@
 # controller/components/cyclic_timer_handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # Licence : AGPL‑3.0
 """
 Gestion asynchrone d'un timer cyclique :
@@ -12,7 +12,7 @@ import asyncio
 from datetime import datetime
 
 from function import convert_minute_to_seconds
-from controller.ui import pretty_console as ui
+from ui import pretty_console as ui
 
 
 async def timer_cylic(cyclic_timer):

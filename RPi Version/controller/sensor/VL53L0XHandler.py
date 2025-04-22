@@ -1,5 +1,5 @@
 # controller/sensor/VL53L0XHandler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 """
 Wrapper pour le télémètre laser VL53L0X.
@@ -12,7 +12,7 @@ Wrapper pour le télémètre laser VL53L0X.
 
 import smbus2
 from lib.sensors.VL53L0X import VL53L0X, TimeoutError
-from controller.ui.pretty_console import info, warning, error
+from ui.pretty_console import info, warning, error
 
 
 class VL53L0XHandler:

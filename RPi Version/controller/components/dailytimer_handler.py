@@ -1,5 +1,5 @@
 # controller/components/dailytimer_handler.py
-# Author  : Progradius (adapted)
+# Author  : Progradius
 # Licence : AGPL‑3.0
 """
 Routine asynchrone : contrôle périodique d'un DailyTimer
@@ -8,7 +8,7 @@ Routine asynchrone : contrôle périodique d'un DailyTimer
 import asyncio
 from datetime import datetime, timedelta
 
-from controller.ui import pretty_console as ui
+from ui import pretty_console as ui
 
 
 async def timer_daily(dailytimer, sampling_time: int = 60):

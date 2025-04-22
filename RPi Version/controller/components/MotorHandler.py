@@ -1,5 +1,5 @@
 # controller/components/MotorHandler.py
-# Author  : Progradius (adapted)
+# Author  : Progradius
 # Licence : AGPL-3.0
 """
 Pilotage d'un moteur 4 pas + régulation automatique
@@ -10,8 +10,8 @@ import asyncio
 from time import sleep
 
 from model.Motor                 import Motor
-from controller.SensorHandler     import SensorHandler
-from controller.ui import pretty_console as ui
+from controller.SensorController     import SensorController
+from ui import pretty_console as ui
 
 
 class MotorHandler:
@@ -95,7 +95,7 @@ async def temp_control(motor_handler: MotorHandler,
     • *manual* : vitesse imposée par l'utilisateur (paramètres)
     • *auto* : calcul de la vitesse selon la température BME280
     """
-    sensor_handler = SensorHandler(parameters=parameters)
+    sensor_handler = SensorController(parameters=parameters)
 
     while True:
         mode = parameters.get_motor_mode().lower()

@@ -1,5 +1,5 @@
 # controller/sensor/HCSR04Handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 """
 Handler pour le capteur ultrason HC-SR04 (distance).
@@ -7,7 +7,7 @@ Handler pour le capteur ultrason HC-SR04 (distance).
 """
 
 from lib.sensors.HCSR04 import HCSR04
-from controller.ui import pretty_console as pc
+from ui import pretty_console as pc
 
 
 class HCSR04Handler:

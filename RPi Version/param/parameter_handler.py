@@ -1,5 +1,5 @@
 # controller/parameter_handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL‑3.0
 # -------------------------------------------------------------
 #  Lecture / écriture du fichier param.json
@@ -11,11 +11,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from controller.ui.pretty_console import (
-    info, success, warning, error, action
+from ui.pretty_console import (
+    info, success, error, action
 )
 
-_JSON_PATH = Path("param.json")
+_JSON_PATH = Path("param/param.json")
 
 # ──────────────────────────────────────────────────────────────
 #  Helpers internes

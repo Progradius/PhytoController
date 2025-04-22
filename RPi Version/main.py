@@ -1,5 +1,5 @@
 # main.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 # -------------------------------------------------------------
 #  Point d'entrée : orchestre l'initialisation puis démarre
@@ -10,7 +10,7 @@
 import asyncio, gc, traceback
 
 # ───────────  Console « jolie »  ─────────────────────────────
-from controller.ui.pretty_console import (
+from ui.pretty_console import (
     title, info, success, warning, error, action, clock
 )
 
@@ -18,12 +18,12 @@ from controller.ui.pretty_console import (
 from function                      import (
     motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
 )
-from controller.network_handler    import do_connect, is_host_connected
+from network.network_handler    import do_connect, is_host_connected
 
 # ───────────  Modèles / Contrôleurs  ─────────────────────────
 from model.Parameter               import Parameter
-from controller.SensorHandler      import SensorHandler
-from controller.ControllerStatus   import ControllerStatus
+from controller.SensorController      import SensorController
+from controller.SystemStatus   import SystemStatus
 from controller.PuppetMaster       import PuppetMaster
 
 from model.Component               import Component
@@ -31,7 +31,7 @@ from model.DailyTimer              import DailyTimer
 from model.CyclicTimer             import CyclicTimer
 from controller.components.MotorHandler import MotorHandler
 
-from controller.parameter_handler  import (
+from param.parameter_handler  import (
     update_one_parameter, update_current_parameters_from_json
 )
 
@@ -84,14 +84,14 @@ cyclic_timer1 = CyclicTimer(cyclic_out1, timer_id="1")
 cyclic_timer2 = CyclicTimer(cyclic_out2, timer_id="2")
 
 # (8) capteurs
-sensor_handler = SensorHandler(parameters)
+sensor_handler = SensorController(parameters)
 success("Bus capteurs prêt")
 
 # (9) statut contrôleur
-controller_status = ControllerStatus(parameters, component=light1, motor=motor_handler.motor)
+controller_status = SystemStatus(parameters, component=light1, motor=motor_handler.motor)
 
 # (10) orchestrateur global
-puppet_master = PuppetMaster(
+PuppetMaster = PuppetMaster(
     parameters        = parameters,
     controller_status = controller_status,
     sensor_handler    = sensor_handler,
@@ -111,7 +111,7 @@ print()  # ligne blanche
 # =============================================================
 try:
     clock("Démarrage boucle principale … (Ctrl-C pour quitter)")
-    asyncio.run(puppet_master.main_loop())
+    asyncio.run(PuppetMaster.main_loop())
 except KeyboardInterrupt:
     warning("Arrêt demandé par l'utilisateur (Ctrl-C)")
 except Exception as e:

@@ -1,5 +1,5 @@
 # controller/components/DailyTimer.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License : AGPL‑3.0
 # -------------------------------------------------------------
 #  Minuteur journalier : active un composant entre deux horaires
@@ -7,8 +7,8 @@
 
 from datetime import datetime
 from function                       import convert_time_to_minutes
-from controller.parameter_handler   import read_parameters_from_json
-from controller.ui.pretty_console   import info, warning, clock, action
+from param.parameter_handler   import read_parameters_from_json
+from ui.pretty_console   import info, warning, clock, action
 
 
 class DailyTimer:

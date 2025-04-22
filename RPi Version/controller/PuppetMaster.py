@@ -1,5 +1,5 @@
 # controller/PuppetMaster.py
-# Author: Progradius (adapted)
+# Author: Progradius
 # License: AGPL-3.0
 # -------------------------------------------------------------
 #  Orchestrateur asynchrone du système (tâches, timers, serveur)
@@ -13,7 +13,7 @@ from controller.components.dailytimer_handler import timer_daily
 from controller.components                    import cyclic_timer_handler
 from controller.components.MotorHandler       import temp_control
 from controller.web.server                    import Server
-from controller.ui.pretty_console             import info, warning, error
+from ui.pretty_console             import info, warning, error
 
 # ------------------------------------------------------------
 class PuppetMaster:

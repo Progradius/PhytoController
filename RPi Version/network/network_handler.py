@@ -1,5 +1,5 @@
 # controller/network_handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 # -------------------------------------------------------------
 #  Gestion réseau : connexion Wi-Fi & test reachabilité hôte
@@ -11,10 +11,10 @@ import os
 import subprocess
 from pathlib import Path
 
-from controller.ui.pretty_console import (
+from ui.pretty_console import (
     info, success, warning, error, action
 )
-from controller.parameter_handler import read_parameters_from_json
+from param.parameter_handler import read_parameters_from_json
 
 # ──────────────────────────────────────────────────────────────
 #  Paramètres réseau depuis param.json
