@@ -9,9 +9,9 @@ import asyncio
 
 # ─── Modules interne ─────────────────────────────────────────
 from network.web.influx_handler            import write_sensor_values
-from controller.components.dailytimer_handler import timer_daily
-from controller.components                    import cyclic_timer_handler
-from controller.components.MotorHandler       import temp_control
+from components.dailytimer_handler import timer_daily
+from components                    import cyclic_timer_handler
+from components.MotorHandler       import temp_control
 from network.web.server                    import Server
 from ui.pretty_console             import info, warning, error
 

@@ -8,13 +8,13 @@
 import smbus2
 
 # Handlers spécialisés
-from controller.sensor.BME280Handler   import BME280Handler
-from controller.sensor.DS18Handler     import DS18Handler
-from controller.sensor.VEML6075Handler import VEMLHandler
-from controller.sensor.VL53L0XHandler  import VL53L0XHandler
-from controller.sensor.MLX90614Handler import MLX90614Handler
-from controller.sensor.TSL2591Handler  import TSL2591Handler
-from controller.sensor.HCSR04Handler   import HCSR04Handler
+from sensor.BME280Handler   import BME280Handler
+from sensor.DS18Handler     import DS18Handler
+from sensor.VEML6075Handler import VEMLHandler
+from sensor.VL53L0XHandler  import VL53L0XHandler
+from sensor.MLX90614Handler import MLX90614Handler
+from sensor.TSL2591Handler  import TSL2591Handler
+from sensor.HCSR04Handler   import HCSR04Handler
 
 # Affichage « Pretty »
 from ui.pretty_console import info, warning, error

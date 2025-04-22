@@ -29,7 +29,7 @@ from controller.PuppetMaster       import PuppetMaster
 from model.Component               import Component
 from model.DailyTimer              import DailyTimer
 from model.CyclicTimer             import CyclicTimer
-from controller.components.MotorHandler import MotorHandler
+from components.MotorHandler import MotorHandler
 
 from param.parameter_handler  import (
     update_one_parameter, update_current_parameters_from_json
