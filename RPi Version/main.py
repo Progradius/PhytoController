@@ -15,23 +15,23 @@ from ui.pretty_console import (
 )
 
 # ───────────  Helpers système  ──────────────────────────────
-from function                      import (
+from function                     import (
     motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
 )
-from network.network_handler    import do_connect, is_host_connected
+from network.network_handler      import do_connect, is_host_connected
 
 # ───────────  Modèles / Contrôleurs  ─────────────────────────
-from model.Parameter               import Parameter
-from controllers.SensorController      import SensorController
-from controllers.SystemStatus   import SystemStatus
-from controllers.PuppetMaster       import PuppetMaster
+from model.Parameter              import Parameter
+from controllers.SensorController import SensorController
+from controllers.SystemStatus     import SystemStatus
+from controllers.PuppetMaster     import PuppetMaster
 
-from model.Component               import Component
-from model.DailyTimer              import DailyTimer
-from model.CyclicTimer             import CyclicTimer
-from components.MotorHandler import MotorHandler
+from model.Component              import Component
+from model.DailyTimer             import DailyTimer
+from model.CyclicTimer            import CyclicTimer
+from components.MotorHandler      import MotorHandler
 
-from param.parameter_handler  import (
+from param.parameter_handler      import (
     update_one_parameter, update_current_parameters_from_json
 )
 
@@ -75,11 +75,12 @@ light2        = Component(pin=parameters.get_dailytimer2_pin())
 cyclic_out1   = Component(pin=parameters.get_cyclic1_pin())
 cyclic_out2   = Component(pin=parameters.get_cyclic2_pin())
 motor_handler = MotorHandler(parameters)
+heater        = Component(pin=parameters.get_heater_pin())
 success("Composants physiques initialisés")
 
 # (7) timers
-dailytimer1   = DailyTimer(light1,  timer_id="1")
-dailytimer2   = DailyTimer(light2,  timer_id="2")
+dailytimer1   = DailyTimer(light1,      timer_id="1")
+dailytimer2   = DailyTimer(light2,      timer_id="2")
 cyclic_timer1 = CyclicTimer(cyclic_out1, timer_id="1")
 cyclic_timer2 = CyclicTimer(cyclic_out2, timer_id="2")
 
@@ -88,10 +89,14 @@ sensor_handler = SensorController(parameters)
 success("Bus capteurs prêt")
 
 # (9) statut contrôleur
-controller_status = SystemStatus(parameters, component=light1, motor=motor_handler.motor)
+controller_status = SystemStatus(
+    parameters,
+    component=light1,
+    motor=motor_handler.motor
+)
 
 # (10) orchestrateur global
-PuppetMaster = PuppetMaster(
+puppet_master = PuppetMaster(
     parameters        = parameters,
     controller_status = controller_status,
     sensor_handler    = sensor_handler,
@@ -99,7 +104,8 @@ PuppetMaster = PuppetMaster(
     dailytimer2       = dailytimer2,
     cyclic_timer1     = cyclic_timer1,
     cyclic_timer2     = cyclic_timer2,
-    motor_handler     = motor_handler
+    motor_handler     = motor_handler,
+    heater_component  = heater
 )
 
 # (11) infos RAM
@@ -111,7 +117,8 @@ print()  # ligne blanche
 # =============================================================
 try:
     clock("Démarrage boucle principale … (Ctrl-C pour quitter)")
-    asyncio.run(PuppetMaster.main_loop())
+    # ===> on passe l’instance ici, pas la classe !
+    asyncio.run(puppet_master.main_loop())
 except KeyboardInterrupt:
     warning("Arrêt demandé par l'utilisateur (Ctrl-C)")
 except Exception as e:

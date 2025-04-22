@@ -40,6 +40,7 @@ _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
     "max_day"   : ("Temperature_Settings", "target_temp_max_day"),
     "min_night" : ("Temperature_Settings", "target_temp_min_night"),
     "max_night" : ("Temperature_Settings", "target_temp_max_night"),
+    "hysteresis_offset"     : ("Temperature_Settings", "hysteresis_offset"),
 
     # Growth stage
     "stage"    : ("life_period",          "stage"),
@@ -60,6 +61,8 @@ _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
     "influx_port"   : ("Network_Settings","influx_db_port"),
     "influx_user"   : ("Network_Settings","influx_db_user"),
     "influx_pw"     : ("Network_Settings","influx_db_password"),
+    
+    "heater_pin": ("GPIO_Settings", "heater_pin")
 }
 
 # =============================================================

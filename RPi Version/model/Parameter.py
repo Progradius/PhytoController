@@ -4,21 +4,8 @@
 # ------------------------------------------------------------------
 #  Accès / mise‑à‑jour des paramètres   (JSON ⇆ objet Python)
 # ------------------------------------------------------------------
-"""
-Cette classe encapsule **param.json**
-
-• À l'instanciation, toutes les valeurs sont lues depuis le fichier  
-• Des getters et setters (très nombreux) donnent accès à chaque champ  
-• `_refresh_from_json()` peut être rappelé pour recharger le fichier  
-• Quelques alias pratiques (ex. `get_dailytimer1_start()`) simplifient
-  l'usage dans `pages.py` et ailleurs  
-• Des *setters génériques* (`set_stage`, `set_period_minutes`, …) sont
-  utilisés par le serveur HTTP pour appliquer à chaud les changements
-  envoyés depuis l'interface web.
-"""
 
 from param.parameter_handler import read_parameters_from_json
-
 
 class Parameter:
     # ────────────────────────── init / refresh ──────────────────────────
@@ -48,8 +35,8 @@ class Parameter:
 
             # ――― DISTANCE : mesures de distance ―――
             "distance": [
-                "VL53L0X",                         # ToF (mm)
-                "HCSR04"                          # Ultrason (cm)
+                "VL53L0X",                           # ToF (mm)
+                "HCSR-DIST"                          # Ultrason (cm)
             ],
 
             # ――― IR_OBJECT : température infrarouge d’objet ―――
@@ -58,49 +45,47 @@ class Parameter:
             ]
         }
 
-
-
     # -------------------------------------------------------------------
     #                     lecture complète depuis le JSON
     # -------------------------------------------------------------------
     def _refresh_from_json(self) -> None:
         p = read_parameters_from_json()  # dict brut
 
-        # ――― Etape de croissance ―――――――――――――――――――――――――――――――――
+        # ――― Etape de croissance ―――
         self.growth_stage = p["life_period"]["stage"]
 
-        # ――― DailyTimer 1 ――――――――――――――――――――――――――――――――――――――
+        # ――― DailyTimer 1 ―――
         dt1 = p["DailyTimer1_Settings"]
         self.dailytimer1_start_hour   = int(dt1["start_hour"])
         self.dailytimer1_start_minute = int(dt1["start_minute"])
         self.dailytimer1_stop_hour    = int(dt1["stop_hour"])
         self.dailytimer1_stop_minute  = int(dt1["stop_minute"])
 
-        # ――― DailyTimer 2 ――――――――――――――――――――――――――――――――――――――
+        # ――― DailyTimer 2 ―――
         dt2 = p["DailyTimer2_Settings"]
         self.dailytimer2_start_hour   = int(dt2["start_hour"])
         self.dailytimer2_start_minute = int(dt2["start_minute"])
         self.dailytimer2_stop_hour    = int(dt2["stop_hour"])
         self.dailytimer2_stop_minute  = int(dt2["stop_minute"])
 
-        # ――― Cyclic 1 ――――――――――――――――――――――――――――――――――――――――――
+        # ――― Cyclic 1 ―――
         cy1 = p["Cyclic1_Settings"]
-        self.cyclic1_period_minutes           = int(cy1["period_minutes"])
-        self.cyclic1_action_duration_seconds  = int(cy1["action_duration_seconds"])
+        self.cyclic1_period_minutes          = int(cy1["period_minutes"])
+        self.cyclic1_action_duration_seconds = int(cy1["action_duration_seconds"])
 
-        # ――― Cyclic 2 ――――――――――――――――――――――――――――――――――――――――――
+        # ――― Cyclic 2 ―――
         cy2 = p["Cyclic2_Settings"]
-        self.cyclic2_period_minutes           = int(cy2["period_minutes"])
-        self.cyclic2_action_duration_seconds  = int(cy2["action_duration_seconds"])
-        
-        # ――― Temperatures ――――――――――――――――――――――――――――――――――――――――――
-        temps = p["Temperature_Settings"]
-        self.target_temp_min_day   = int(temps["target_temp_min_day"])
-        self.target_temp_max_day   = int(temps["target_temp_max_day"])
-        self.target_temp_min_night = int(temps["target_temp_min_night"])
-        self.target_temp_max_night = int(temps["target_temp_max_night"])
+        self.cyclic2_period_minutes          = int(cy2["period_minutes"])
+        self.cyclic2_action_duration_seconds = int(cy2["action_duration_seconds"])
 
-        # ――― Réseau ―――――――――――――――――――――――――――――――――――――――――――
+        # ――― Temperature thresholds ―――
+        temps = p["Temperature_Settings"]
+        self.target_temp_min_day    = int(temps["target_temp_min_day"])
+        self.target_temp_max_day    = int(temps["target_temp_max_day"])
+        self.target_temp_min_night  = int(temps["target_temp_min_night"])
+        self.target_temp_max_night  = int(temps["target_temp_max_night"])
+        self.hysteresis_offset     = int(temps["hysteresis_offset"])
+        # ――― Réseau ―――
         net = p["Network_Settings"]
         self.host_machine_address = net["host_machine_address"]
         self.host_machine_state   = net["host_machine_state"]
@@ -111,25 +96,27 @@ class Parameter:
         self.influx_db_user       = net["influx_db_user"]
         self.influx_db_password   = net["influx_db_password"]
 
-        # ――― GPIO ―――――――――――――――――――――――――――――――――――――――――――――――
+        # ――― GPIO ―――
         g = p["GPIO_Settings"]
-        (self.i2c_sda, self.i2c_scl,
+        (self.i2c_sda,  self.i2c_scl,
          self.ds18_pin,
          self.hcsr_trigger_pin, self.hcsr_echo_pin,
-         self.dailytimer1_pin, self.dailytimer2_pin,
-         self.cyclic1_pin,    self.cyclic2_pin,
-         self.motor_pin1, self.motor_pin2,
-         self.motor_pin3, self.motor_pin4) = (
+         self.dailytimer1_pin,  self.dailytimer2_pin,
+         self.cyclic1_pin,      self.cyclic2_pin,
+         self.motor_pin1,       self.motor_pin2,
+         self.motor_pin3,       self.motor_pin4,
+         self.heater_pin) = (
             g["i2c_sda"],  g["i2c_scl"],
             g["ds18_pin"],
             g["hcsr_trigger_pin"], g["hcsr_echo_pin"],
             g["dailytimer1_pin"],  g["dailytimer2_pin"],
             g["cyclic1_pin"],      g["cyclic2_pin"],
-            g["motor_pin1"], g["motor_pin2"],
-            g["motor_pin3"], g["motor_pin4"]
+            g["motor_pin1"],       g["motor_pin2"],
+            g["motor_pin3"],       g["motor_pin4"],
+            g["heater_pin"]
         )
 
-        # ――― Moteur ――――――――――――――――――――――――――――――――――――――――――――
+        # ――― Moteur ―――
         m = p["Motor_Settings"]
         self.motor_mode       = m["motor_mode"]
         self.motor_user_speed = m["motor_user_speed"]
@@ -138,7 +125,7 @@ class Parameter:
         self.motor_min_speed  = m["min_speed"]
         self.motor_max_speed  = m["max_speed"]
 
-        # ――― Capteurs ――――――――――――――――――――――――――――――――――――――――――
+        # ――― Capteurs ―――
         s = p["Sensor_State"]
         (self.bme_state, self.ds18_state, self.veml_state,
          self.vl53_state, self.mlx_state, self.tsl_state,
@@ -329,6 +316,12 @@ class Parameter:
     def set_target_temp_max_day(self, v):   self.target_temp_max_day   = int(v)
     def set_target_temp_min_night(self, v): self.target_temp_min_night = int(v)
     def set_target_temp_max_night(self, v): self.target_temp_max_night = int(v)
+    
+    def get_heater_pin(self) -> int:
+        return self.heater_pin
+
+    def set_hysteresis_offset(self, v):
+        self.hysteresis_offset = int(v)
 
     # Getters
     def get_dailytimer1_start_hour(self):
@@ -530,3 +523,9 @@ class Parameter:
     def get_target_temp_max_day(self) -> int:   return self.target_temp_max_day
     def get_target_temp_min_night(self) -> int: return self.target_temp_min_night
     def get_target_temp_max_night(self) -> int: return self.target_temp_max_night
+    
+    def set_heater_pin(self, pin: int) -> None:
+        self.heater_pin = int(pin)
+        
+    def get_hysteresis_offset(self) -> int:
+        return self.hysteresis_offset
