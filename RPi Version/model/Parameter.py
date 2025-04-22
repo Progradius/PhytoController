@@ -92,6 +92,13 @@ class Parameter:
         cy2 = p["Cyclic2_Settings"]
         self.cyclic2_period_minutes           = int(cy2["period_minutes"])
         self.cyclic2_action_duration_seconds  = int(cy2["action_duration_seconds"])
+        
+        # ――― Temperatures ――――――――――――――――――――――――――――――――――――――――――
+        temps = p["Temperature_Settings"]
+        self.target_temp_min_day   = int(temps["target_temp_min_day"])
+        self.target_temp_max_day   = int(temps["target_temp_max_day"])
+        self.target_temp_min_night = int(temps["target_temp_min_night"])
+        self.target_temp_max_night = int(temps["target_temp_max_night"])
 
         # ――― Réseau ―――――――――――――――――――――――――――――――――――――――――――
         net = p["Network_Settings"]
@@ -317,6 +324,11 @@ class Parameter:
 
     def set_hcsr_state(self, state):
         self.hcsr_state = state
+        
+    def set_target_temp_min_day(self, v):   self.target_temp_min_day   = int(v)
+    def set_target_temp_max_day(self, v):   self.target_temp_max_day   = int(v)
+    def set_target_temp_min_night(self, v): self.target_temp_min_night = int(v)
+    def set_target_temp_max_night(self, v): self.target_temp_max_night = int(v)
 
     # Getters
     def get_dailytimer1_start_hour(self):
@@ -513,3 +525,8 @@ class Parameter:
 
     def get_motor_max_speed(self):
         return self.motor_max_speed
+
+    def get_target_temp_min_day(self) -> int:   return self.target_temp_min_day
+    def get_target_temp_max_day(self) -> int:   return self.target_temp_max_day
+    def get_target_temp_min_night(self) -> int: return self.target_temp_min_night
+    def get_target_temp_max_night(self) -> int: return self.target_temp_max_night

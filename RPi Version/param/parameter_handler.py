@@ -3,7 +3,7 @@
 # License: AGPL‑3.0
 # -------------------------------------------------------------
 #  Lecture / écriture du fichier param.json
-#  + mise à jour de l’instance Parameter en RAM
+#  + mise à jour de l'instance Parameter en RAM
 # -------------------------------------------------------------
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ def read_parameters_from_json() -> dict:
 # -------------------------------------------------------------
 def write_current_parameters_to_json(parameters) -> None:
     """
-    Sauvegarde l’état courant de l’instance *parameters* vers param.json.
+    Sauvegarde l'état courant de l'instance *parameters* vers param.json.
     """
     action("Sauvegarde des paramètres …")
 
@@ -71,6 +71,12 @@ def write_current_parameters_to_json(parameters) -> None:
             "Cyclic2_Settings": {
                 "period_minutes"        : parameters.get_cyclic2_period_minutes(),
                 "action_duration_seconds": parameters.get_cyclic2_action_duration_seconds(),
+            },
+            "Temperature_Settings": {
+                "target_temp_min_day":    parameters.get_target_temp_min_day(),
+                "target_temp_max_day":    parameters.get_target_temp_max_day(),
+                "target_temp_min_night":  parameters.get_target_temp_min_night(),
+                "target_temp_max_night":  parameters.get_target_temp_max_night()
             },
             "Network_Settings": {
                 "host_machine_address": parameters.get_host_machine_address(),
@@ -120,12 +126,12 @@ def write_current_parameters_to_json(parameters) -> None:
         success("Paramètres sauvegardés ✔️")
 
     except Exception as exc:
-        error(f"Échec d’écriture du JSON : {exc}")
+        error(f"Échec d'écriture du JSON : {exc}")
 
 # -------------------------------------------------------------
 def update_current_parameters_from_json(parameters) -> None:
     """
-    Recharge param.json et met à jour en‐mémoire l’objet *parameters*
+    Recharge param.json et met à jour en-mémoire l'objet *parameters*
     via ses setters.
     """
     info("Actualisation des paramètres depuis le JSON …")
@@ -153,6 +159,12 @@ def update_current_parameters_from_json(parameters) -> None:
         cyc2 = data["Cyclic2_Settings"]
         parameters.set_cyclic2_period_minutes(cyc2["period_minutes"])
         parameters.set_cyclic2_action_duration_seconds(cyc2["action_duration_seconds"])
+        
+        temps = data["Temperature_Settings"]
+        parameters.set_target_temp_min_day(  temps["target_temp_min_day"])
+        parameters.set_target_temp_max_day(  temps["target_temp_max_day"])
+        parameters.set_target_temp_min_night(temps["target_temp_min_night"])
+        parameters.set_target_temp_max_night(temps["target_temp_max_night"])
 
         net = data["Network_Settings"]
         parameters.set_host_machine_address(net["host_machine_address"])

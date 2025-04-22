@@ -34,6 +34,12 @@ _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
     # Cyclic #2
     "period2"  : ("Cyclic2_Settings",     "period_minutes"),
     "duration2": ("Cyclic2_Settings",     "action_duration_seconds"),
+    
+    # Temperature
+    "min_day"   : ("Temperature_Settings", "target_temp_min_day"),
+    "max_day"   : ("Temperature_Settings", "target_temp_max_day"),
+    "min_night" : ("Temperature_Settings", "target_temp_min_night"),
+    "max_night" : ("Temperature_Settings", "target_temp_max_night"),
 
     # Growth stage
     "stage"    : ("life_period",          "stage"),
