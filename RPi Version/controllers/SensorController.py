@@ -1,8 +1,8 @@
 # controller/sensor/SensorController.py
 # Author : Progradius
-# License : AGPL‑3.0
+# License : AGPL-3.0
 # --------------------------------------------------------------------
-#  Gestion unifiée de tous les capteurs matériels pour Raspberry Pi
+#  Gestion unifiée de tous les capteurs matériels pour Raspberry Pi
 # --------------------------------------------------------------------
 
 import smbus2
@@ -19,12 +19,15 @@ from sensor_handlers.HCSR04Handler   import HCSR04Handler
 # Affichage « Pretty »
 from ui.pretty_console import info, warning, error
 
+# Stats min/max
+from model.SensorStats import SensorStats
+
 
 class SensorController:
     """
     Abstraction d'accès à tous les capteurs du projet.
     Instancie chaque driver **uniquement si** le capteur est marqué « enabled »
-    dans `parameters.sensor_state`.
+    dans `parameters.sensor_state`. Met aussi à jour les statistiques min/max.
     """
 
     def __init__(self, parameters):
@@ -39,80 +42,104 @@ class SensorController:
             self.i2c = None
 
         # ── Instanciation conditionnelle des capteurs ─────────────────
-        self.bme  = BME280Handler(i2c=self.i2c)  if parameters.get_bme_state()   == "enabled" else None
-        self.ds18 = DS18Handler()                if parameters.get_ds18_state()  == "enabled" else None
-        self.veml = VEMLHandler(i2c=self.i2c)    if parameters.get_veml_state() == "enabled" else None
-        self.vl53 = VL53L0XHandler(parameters)   if parameters.get_vl53_state()  == "enabled" else None
-        self.mlx  = MLX90614Handler(i2c=self.i2c) if parameters.get_mlx_state()   == "enabled" else None
-        self.tsl  = TSL2591Handler(i2c=self.i2c)  if parameters.get_tsl_state()   == "enabled" else None
+        self.bme  = BME280Handler(i2c=self.i2c) \
+                    if parameters.get_bme_state() == "enabled" else None
+        self.ds18 = DS18Handler() \
+                    if parameters.get_ds18_state() == "enabled" else None
+        self.veml = VEMLHandler(i2c=self.i2c) \
+                    if parameters.get_veml_state() == "enabled" else None
+        self.vl53 = VL53L0XHandler(parameters) \
+                    if parameters.get_vl53_state() == "enabled" else None
+        self.mlx  = MLX90614Handler(i2c=self.i2c) \
+                    if parameters.get_mlx_state() == "enabled" else None
+        self.tsl  = TSL2591Handler(i2c=self.i2c) \
+                    if parameters.get_tsl_state() == "enabled" else None
         self.hcsr = HCSR04Handler(
                         trigger_pin=parameters.get_hcsr_trigger_pin(),
                         echo_pin=   parameters.get_hcsr_echo_pin()
-                    )                                        if parameters.get_hcsr_state() == "enabled" else None
+                    ) if parameters.get_hcsr_state() == "enabled" else None
 
-        # Dictionnaire de mesures → listes de capteurs (utilisé pour Influx, autres boucles…)
+        # Dictionnaire de mesures → listes de capteurs
         self.sensor_dict = parameters.sensor_dict
+
+        # Stats min/max
+        self.stats = SensorStats()
 
         info("SensorController initialisé")
 
     def get_sensor_value(self, sensor_key: str):
         """
         Retourne la mesure demandée (float ou int) ou None si désactivé/erreur.
-        Les clés (`sensor_key`) doivent correspondre à celles de `sensor_dict` :
-          - "BME280T", "BME280H", "BME280P"
-          - "DS18B#1" / "DS18B#2" / "DS18B#3"
-          - "TSL-LUX", "TSL-IR"
-          - "VEML-UVA", "VEML-UVB", "VEML-UVINDEX"
-          - "MLX-AMB", "MLX-OBJ"
-          - "VL53L0X"
-          - "HCSR04"
+        Met à jour les stats pour BME280T, BME280H et DS18B#3.
         """
         try:
+            result = None
+
             # DS18B20
             if sensor_key.startswith("DS18B#") and self.ds18:
                 idx = int(sensor_key.split("#")[1])
-                return self.ds18.get_ds18_temp(idx)
+                result = self.ds18.get_ds18_temp(idx)
 
             # BME280
-            if sensor_key.startswith("BME280") and self.bme:
-                return {
+            elif sensor_key.startswith("BME280") and self.bme:
+                result = {
                     "BME280T": self.bme.get_bme_temp,
                     "BME280H": self.bme.get_bme_hygro,
                     "BME280P": self.bme.get_bme_pressure
                 }[sensor_key]()
 
             # TSL2591
-            if sensor_key.startswith("TSL-") and self.tsl:
-                return {
+            elif sensor_key.startswith("TSL-") and self.tsl:
+                result = {
                     "TSL-LUX": self.tsl.calculate_lux,
                     "TSL-IR" : self.tsl.get_ir
                 }[sensor_key]()
 
             # VEML6075
-            if sensor_key.startswith("VEML-") and self.veml:
-                return {
+            elif sensor_key.startswith("VEML-") and self.veml:
+                result = {
                     "VEML-UVA"   : self.veml.get_veml_uva,
                     "VEML-UVB"   : self.veml.get_veml_uvb,
                     "VEML-UVINDEX": self.veml.get_veml_uv_index
                 }[sensor_key]()
 
             # MLX90614 (ambiant / objet)
-            if sensor_key in ("MLX-AMB", "MLX-OBJ") and self.mlx:
-                return {
+            elif sensor_key in ("MLX-AMB", "MLX-OBJ") and self.mlx:
+                result = {
                     "MLX-AMB": self.mlx.get_ambient_temp,
                     "MLX-OBJ": self.mlx.get_object_temp
                 }[sensor_key]()
 
             # VL53L0X (ToF mm)
-            if sensor_key == "VL53L0X" and self.vl53:
-                return self.vl53.get_vl53_reading()
+            elif sensor_key == "VL53L0X" and self.vl53:
+                result = self.vl53.get_vl53_reading()
 
-            # HC‑SR04 (cm)
-            if sensor_key == "HCSR04" and self.hcsr:
-                return self.hcsr.get_distance_cm()
+            # HC-SR04 (cm)
+            elif sensor_key == "HCSR04" and self.hcsr:
+                result = self.hcsr.get_distance_cm()
+
+            # Gestion d'erreur de clé inattendue
+            elif sensor_key not in self.sensor_dict.get("air", []) \
+               + self.sensor_dict.get("water", []) \
+               + self.sensor_dict.get("light", []) \
+               + self.sensor_dict.get("distance", []) \
+               + self.sensor_dict.get("ir_object", []):
+                warning(f"Capteur inconnu : {sensor_key}")
 
         except Exception as e:
             error(f"Erreur lecture capteur {sensor_key}: {e}")
+            result = None
 
-        warning(f"{sensor_key} désactivé ou introuvable")
-        return None
+        if result is None:
+            warning(f"{sensor_key} désactivé ou introuvable")
+            return None
+
+        # mise à jour des stats si c'est l'un des capteurs suivis
+        if sensor_key in ("BME280T", "BME280H", "DS18B#3"):
+            try:
+                self.stats.update(sensor_key, float(result))
+            except Exception:
+                # en cas de stats en erreur, on ignore
+                pass
+
+        return result

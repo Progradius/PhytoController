@@ -292,29 +292,31 @@ def conf_page(parameters) -> str:
 #  PAGE MONITORING  – valeurs dynamiques
 # ==============================================================
 
-def monitor_page(sensor_handler) -> str:
+def monitor_page(sensor_handler, stats) -> str:
     """
-    Page « Monitor » : affiche les valeurs en temps réel des capteurs.
+    Page « Monitor » : affiche les valeurs en temps réel des capteurs,
+    ainsi que l'historique min/max pour certaines sondes avec possibilité de reset.
     """
     def _fmt(val, unit):
-        return f"{val:.1f}&nbsp;{unit}" if isinstance(val, (int, float)) else val
+        return f"{val:.1f}&nbsp;{unit}" if isinstance(val, (int, float)) else "―"
+    def _fmt_stat(val, unit=""):
+        return f"{val:.1f}{unit}" if isinstance(val, (int, float)) else "—"
 
-    # BME280
-    t   = sensor_handler.get_sensor_value("BME280T")   or "―"
-    h   = sensor_handler.get_sensor_value("BME280H")   or "―"
-    p   = sensor_handler.get_sensor_value("BME280P")   or "―"
-    # DS18B20
-    ds1 = sensor_handler.get_sensor_value("DS18B#1")   or "―"
-    ds2 = sensor_handler.get_sensor_value("DS18B#2")   or "―"
-    ds3 = sensor_handler.get_sensor_value("DS18B#3")   or "―"
-    # MLX IR
-    mlx_amb = sensor_handler.get_sensor_value("MLX-AMB") or "―"
-    mlx_obj = sensor_handler.get_sensor_value("MLX-OBJ") or "―"
-    # Distance
-    tof     = sensor_handler.get_sensor_value("VL53-DIST") or "―"
-    us      = sensor_handler.get_sensor_value("HCSR-DIST") or "―"
-    # Light
-    lux     = sensor_handler.get_sensor_value("TSL-LUX")    or "―"
+    # Relevés actuels
+    t      = sensor_handler.get_sensor_value("BME280T")   or None
+    h      = sensor_handler.get_sensor_value("BME280H")   or None
+    p      = sensor_handler.get_sensor_value("BME280P")   or None
+    ds1    = sensor_handler.get_sensor_value("DS18B#1")   or None
+    ds2    = sensor_handler.get_sensor_value("DS18B#2")   or None
+    ds3    = sensor_handler.get_sensor_value("DS18B#3")   or None
+    mlx_amb= sensor_handler.get_sensor_value("MLX-AMB")   or None
+    mlx_obj= sensor_handler.get_sensor_value("MLX-OBJ")   or None
+    tof    = sensor_handler.get_sensor_value("VL53-DIST") or None
+    us     = sensor_handler.get_sensor_value("HCSR-DIST") or None
+    lux    = sensor_handler.get_sensor_value("TSL-LUX")   or None
+
+    # Charger l'historique min/max depuis le JSON
+    all_stats = stats.get_all()
 
     return f"""{html_header}
 <div class="container-fluid">
@@ -323,6 +325,7 @@ def monitor_page(sensor_handler) -> str:
   <p><a href="monitor">Monitored Values</a></p>
   <p><a href="conf">System Configuration</a></p><br><br>
 
+  <!-- Valeurs en temps réel -->
   <div class="row">
     <div class="col-md-6">
       <h1>BME280</h1><hr>
@@ -337,10 +340,43 @@ def monitor_page(sensor_handler) -> str:
       <div class="mainwrap"><h1>DS18 #3</h1><hr><h2>{_fmt(ds3,'°C')}</h2></div>
       <div class="mainwrap"><h1>MLX Amb</h1><hr><h2>{_fmt(mlx_amb,'°C')}</h2></div>
       <div class="mainwrap"><h1>MLX Obj</h1><hr><h2>{_fmt(mlx_obj,'°C')}</h2></div>
-      <div class="mainwrap"><h1>ToF (mm)</h1><hr><h2>{tof}</h2></div>
-      <div class="mainwrap"><h1>US (cm)</h1><hr><h2>{us}</h2></div>
-      <div class="mainwrap"><h1>Lux</h1><hr><h2>{lux}</h2></div>
+      <div class="mainwrap"><h1>ToF (mm)</h1><hr><h2>{_fmt(tof,'mm')}</h2></div>
+      <div class="mainwrap"><h1>US (cm)</h1><hr><h2>{_fmt(us,'cm')}</h2></div>
+      <div class="mainwrap"><h1>Lux</h1><hr><h2>{_fmt(lux,'lx')}</h2></div>
     </div>
   </div>
+
+  <!-- Historique min/max -->
+  <div class="row">
+    <div class="col-md-12"><div class="formwrap">
+      <h1>Historique min/max</h1><hr>
+
+      <h2>BME280 Temp</h2>
+      <p>Min : {_fmt_stat(all_stats["BME280T"]["min"], "°C")} le {all_stats["BME280T"]["min_date"] or "—"}</p>
+      <p>Max : {_fmt_stat(all_stats["BME280T"]["max"], "°C")} le {all_stats["BME280T"]["max_date"] or "—"}</p>
+      <form method="get" action="/monitor">
+        <input type="hidden" name="reset_BME280T" value="1">
+        <input class="button_base" type="submit" value="Reset BME Temp">
+      </form><hr>
+
+      <h2>BME280 Humid</h2>
+      <p>Min : {_fmt_stat(all_stats["BME280H"]["min"], "%")} le {all_stats["BME280H"]["min_date"] or "—"}</p>
+      <p>Max : {_fmt_stat(all_stats["BME280H"]["max"], "%")} le {all_stats["BME280H"]["max_date"] or "—"}</p>
+      <form method="get" action="/monitor">
+        <input type="hidden" name="reset_BME280H" value="1">
+        <input class="button_base" type="submit" value="Reset BME Humid">
+      </form><hr>
+
+      <h2>DS18B#3 (Water)</h2>
+      <p>Min : {_fmt_stat(all_stats["DS18B#3"]["min"], "°C")} le {all_stats["DS18B#3"]["min_date"] or "—"}</p>
+      <p>Max : {_fmt_stat(all_stats["DS18B#3"]["max"], "°C")} le {all_stats["DS18B#3"]["max_date"] or "—"}</p>
+      <form method="get" action="/monitor">
+        <input type="hidden" name="reset_DS18B3" value="1">
+        <input class="button_base" type="submit" value="Reset Water Temp">
+      </form>
+
+    </div></div>
+  </div>
+
 </div>
 {html_footer}"""

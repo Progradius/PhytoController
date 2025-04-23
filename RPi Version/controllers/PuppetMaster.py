@@ -8,13 +8,13 @@
 import asyncio
 
 # ─── Modules interne ─────────────────────────────────────────
-from network.web.influx_handler    import write_sensor_values
-from components.dailytimer_handler import timer_daily
+from network.web.influx_handler     import write_sensor_values
+from components.dailytimer_handler  import timer_daily
 from components                    import cyclic_timer_handler
-from components.MotorHandler       import temp_control
-from components.heater_control     import heat_control
-from network.web.server            import Server
-from ui.pretty_console             import info, warning, error
+from components.MotorHandler        import temp_control
+from components.heater_control      import heat_control
+from network.web.server             import Server
+from ui.pretty_console              import info, warning, error
 
 # ------------------------------------------------------------
 class PuppetMaster:
@@ -49,6 +49,7 @@ class PuppetMaster:
         self.motor_handler     = motor_handler
         self.heater            = heater_component
 
+    # ──────────────────────────────────────────────────────────
     def _set_global_exception(self) -> None:
         def _handler(loop, context):
             exc = context.get("exception")
@@ -59,18 +60,22 @@ class PuppetMaster:
 
         asyncio.get_event_loop().set_exception_handler(_handler)
 
+    # ──────────────────────────────────────────────────────────
     async def main_loop(self) -> None:
         self._set_global_exception()
         loop = asyncio.get_event_loop()
 
+        # Timers jour / nuit
         info("Démarrage des DailyTimers")
         loop.create_task(timer_daily(self.dailytimer1, sampling_time=60))
         loop.create_task(timer_daily(self.dailytimer2, sampling_time=60))
 
+        # Timers cycliques
         info("Démarrage des CyclicTimers")
         loop.create_task(cyclic_timer_handler.timer_cylic(self.cyclic_timer1))
         loop.create_task(cyclic_timer_handler.timer_cylic(self.cyclic_timer2))
 
+        # Contrôle moteur
         info("Démarrage du contrôle moteur")
         loop.create_task(
             temp_control(
@@ -80,6 +85,7 @@ class PuppetMaster:
             )
         )
 
+        # Contrôle chauffage
         info("Démarrage du contrôle chauffage")
         loop.create_task(
             heat_control(
@@ -90,18 +96,20 @@ class PuppetMaster:
             )
         )
 
+        # Push InfluxDB
         if self.parameters.get_host_machine_state() == "online":
             info("InfluxDB : envoi périodique activé (delay 60 s)")
             loop.create_task(write_sensor_values(period=60))
         else:
             warning("InfluxDB : hôte hors-ligne - export désactivé")
 
+        # Serveur HTTP (plus de sensor_stats passé ici)
         info("Démarrage du serveur HTTP")
         loop.create_task(
             Server(
                 controller_status=self.controller_status,
-                sensor_handler   = self.sensor_handler,
-                parameters       = self.parameters,
+                sensor_handler=self.sensor_handler,
+                parameters=self.parameters,
             ).run()
         )
 

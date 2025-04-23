@@ -6,18 +6,15 @@
 # -------------------------------------------------------------
 
 from __future__ import annotations
-
 import asyncio
 import json
 import urllib.parse
 from typing import Tuple
 
-from ui.pretty_console            import info, success, warning, error, action
-from network.web.pages            import main_page, conf_page, monitor_page
-from param.parameter_handler      import (
-    write_current_parameters_to_json,
-    update_one_parameter
-)
+from ui.pretty_console           import info, success, warning, error, action
+from network.web.pages           import main_page, conf_page, monitor_page
+from param.parameter_handler     import write_current_parameters_to_json, update_one_parameter
+from model.SensorStats           import SensorStats
 
 # ── correspondance « champ GET » → (section_JSON, clé_JSON) ─────────────
 _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
@@ -72,7 +69,7 @@ class Server:
     Routes gérées :
       • GET /            → page d’accueil
       • GET /conf        → page configuration (+ prise en compte des champs GET)
-      • GET /monitor     → page monitoring (valeurs capteurs live)
+      • GET /monitor     → page monitoring (valeurs capteurs + stats)
       • GET /status      → JSON de statut pour intégration externe
     """
 
@@ -87,8 +84,10 @@ class Server:
         self.controller_status = controller_status
         self.sensor_handler    = sensor_handler
         self.parameters        = parameters
-        self.host = host
-        self.port = port
+        self.host              = host
+        self.port              = port
+        self.stats = SensorStats()
+        self.sensor_handler.stats = self.stats
 
     async def run(self) -> None:
         srv = await asyncio.start_server(self._handle, self.host, self.port)
@@ -101,8 +100,7 @@ class Server:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter
     ) -> None:
-
-        # 1) Lecture de la ligne de requête
+        # 1) Request line
         req_line = await reader.readline()
         try:
             method, path, _ = req_line.decode("ascii").split()
@@ -115,7 +113,7 @@ class Server:
 
         action(f"{method} {path}")
 
-        # 2) Vidage des headers
+        # 2) Skip headers
         while True:
             line = await reader.readline()
             if line in (b"\r\n", b"\n", b""):
@@ -127,22 +125,51 @@ class Server:
         if method != "GET":
             status, body = "405 Method Not Allowed", b"Method not allowed"
         else:
+            # accueil
             if path in ("/", "/index.html"):
                 body   = main_page(self.controller_status).encode("utf-8")
                 status = "200 OK"
                 ctype  = "text/html; charset=utf-8"
 
+            # configuration
             elif path.startswith("/conf"):
                 self._apply_conf_changes(path)
                 body   = conf_page(self.parameters).encode("utf-8")
                 status = "200 OK"
                 ctype  = "text/html; charset=utf-8"
 
+            # monitoring + reset individuels
+            # monitoring + reset individuels
             elif path.startswith("/monitor"):
-                body   = monitor_page(self.sensor_handler).encode("utf-8")
+                parts = urllib.parse.urlparse(path)
+                query = urllib.parse.parse_qs(parts.query, keep_blank_values=True)
+
+                # on traite chaque reset_<CAPTEUR>
+                for param in query:
+                    if not param.startswith("reset_"):
+                        continue
+
+                    # extrait la clé réelle
+                    key = param.split("reset_", 1)[1]
+                    if key == "DS18B3":                 # HTML envoie reset_DS18B3
+                        sensor_key = "DS18B#3"
+                    else:
+                        sensor_key = key
+
+                    # remet à None puis à la valeur courante
+                    self.stats.clear_key(sensor_key)
+                    val = self.sensor_handler.get_sensor_value(sensor_key)
+                    if val is not None:
+                        self.stats.update(sensor_key, float(val))
+
+                    success(f"Statistique {sensor_key} réinitialisée")
+
+                # renvoie la page avec la même instance self.stats
+                body   = monitor_page(self.sensor_handler, self.stats).encode("utf-8")
                 status = "200 OK"
                 ctype  = "text/html; charset=utf-8"
 
+            # status JSON
             elif path.startswith("/status"):
                 payload = {
                     "component_state": self.controller_status.get_component_state(),
@@ -186,7 +213,8 @@ class Server:
                 warning(f"Champ GET inconnu : {key}")
                 continue
 
-            value, (section, j_k) = values[0], _CONF_FIELDS[key]
+            value        = values[0]
+            section, j_k = _CONF_FIELDS[key]
 
             # HH:MM fields
             if isinstance(j_k, tuple):
@@ -195,11 +223,10 @@ class Server:
                 except ValueError:
                     error(f"Format HH:MM invalide pour {key}={value}")
                     continue
-
                 k_h, k_m = j_k
                 update_one_parameter(section, k_h, hh)
                 update_one_parameter(section, k_m, mm)
-
+                # setters runtime
                 if key == "dt1start":
                     self.parameters.set_dailytimer1_start_hour(hh)
                     self.parameters.set_dailytimer1_start_minute(mm)
@@ -212,23 +239,19 @@ class Server:
                 elif key == "dt2stop":
                     self.parameters.set_dailytimer2_stop_hour(hh)
                     self.parameters.set_dailytimer2_stop_minute(mm)
-
                 success(f"{key} → {hh:02d}:{mm:02d}")
 
             # simple fields
             else:
-                # Special case pour heater_enabled (garder la chaîne "enabled"/"disabled")
-                if key == "heater_enabled":
-                    update_one_parameter("Heater_Settings", "enabled", value)
-                    self.parameters.set_heater_enabled(value)
-                    success(f"{key} = {value}")
-                    continue
-
                 update_one_parameter(section, j_k, value)
                 setter = getattr(self.parameters, f"set_{j_k}", None)
                 if callable(setter):
-                    setter(value)
+                    # cast heater_enabled vers bool
+                    if key == "heater_enabled":
+                        setter(value.lower() in ("1","true","enabled","on","yes"))
+                    else:
+                        setter(value)
                 success(f"{key} = {value}")
 
-        # ré-écrit le JSON complet pour cohérence
+        # sauvegarde tout pour cohérence
         write_current_parameters_to_json(self.parameters)

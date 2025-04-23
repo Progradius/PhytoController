@@ -105,7 +105,7 @@ puppet_master = PuppetMaster(
     cyclic_timer1     = cyclic_timer1,
     cyclic_timer2     = cyclic_timer2,
     motor_handler     = motor_handler,
-    heater_component  = heater
+    heater_component  = heater,
 )
 
 # (11) infos RAM
