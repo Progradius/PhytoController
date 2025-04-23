@@ -322,17 +322,16 @@ class Parameter:
     def set_target_temp_max_day(self, v):   self.target_temp_max_day   = int(v)
     def set_target_temp_min_night(self, v): self.target_temp_min_night = int(v)
     def set_target_temp_max_night(self, v): self.target_temp_max_night = int(v)
-    
-    def get_heater_pin(self) -> int:
-        return self.heater_pin
-
         
     def set_hysteresis_offset(self, v):
         self.hysteresis_offset = float(v)
-
-    def get_heater_enabled(self) -> str: 
+        
+    def get_heater_enabled(self):
         return self.heater_enabled
 
+    def get_heater_pin(self):
+        return self.heater_pin        
+        
     # Getters
     def get_dailytimer1_start_hour(self):
         return self.dailytimer1_start_hour
@@ -533,14 +532,13 @@ class Parameter:
     def get_target_temp_max_day(self) -> int:   return self.target_temp_max_day
     def get_target_temp_min_night(self) -> int: return self.target_temp_min_night
     def get_target_temp_max_night(self) -> int: return self.target_temp_max_night
-    
-    def set_heater_pin(self, pin: int) -> None:
-        self.heater_pin = int(pin)
         
     def get_hysteresis_offset(self) -> float:
        """Décalage d'hystérésis (°C) autour des consignes jour/nuit."""
        return self.hysteresis_offset
    
-    def set_heater_enabled(self, enabled: str) -> None:
+    def set_heater_enabled(self, v):
+        self.heater_enabled = v
 
-        self.heater_enabled = enabled
+    def set_heater_pin(self, pin):
+        self.heater_pin = int(pin)

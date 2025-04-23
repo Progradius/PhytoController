@@ -30,7 +30,7 @@
         "hysteresis_offset": 2.0
     },
     "Heater_Settings": {
-        "enabled": false
+        "enabled": "enabled"
     },
     "Network_Settings": {
         "host_machine_address": "192.168.1.15",

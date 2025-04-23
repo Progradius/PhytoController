@@ -1,8 +1,8 @@
 # controller/web/server.py
 # Author : Progradius (adapted)
-# License: AGPL‑3.0
+# License: AGPL-3.0
 # -------------------------------------------------------------
-#  Serveur HTTP ultra‑léger basé sur asyncio
+#  Serveur HTTP ultra-léger basé sur asyncio
 # -------------------------------------------------------------
 
 from __future__ import annotations
@@ -12,9 +12,9 @@ import json
 import urllib.parse
 from typing import Tuple
 
-from ui.pretty_console      import info, success, warning, error, action
-from network.web.pages      import main_page, conf_page, monitor_page
-from param.parameter_handler import (
+from ui.pretty_console            import info, success, warning, error, action
+from network.web.pages            import main_page, conf_page, monitor_page
+from param.parameter_handler      import (
     write_current_parameters_to_json,
     update_one_parameter
 )
@@ -69,9 +69,9 @@ _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
 
 class Server:
     """
-    Routes gérées :
+    Routes gérées :
       • GET /            → page d’accueil
-      • GET /conf        → page configuration (+ prise en compte des champs GET)
+      • GET /conf        → page configuration (+ prise en compte des champs GET)
       • GET /monitor     → page monitoring (valeurs capteurs live)
       • GET /status      → JSON de statut pour intégration externe
     """
@@ -107,7 +107,6 @@ class Server:
         try:
             method, path, _ = req_line.decode("ascii").split()
         except ValueError:
-            # Log détaillé de la requête mal formée
             raw = req_line.decode("ascii", errors="replace").rstrip("\r\n")
             error("Requête malformée détectée")
             warning(f"Contenu brut : {repr(raw)}")
@@ -174,7 +173,7 @@ class Server:
 
     def _apply_conf_changes(self, raw_path: str) -> None:
         """
-        Extrait la query‑string éventuelle et applique les changements
+        Extrait la query-string éventuelle et applique les changements
         → instance Parameter **et** fichier JSON.
         """
         parts = urllib.parse.urlparse(raw_path)
@@ -184,11 +183,10 @@ class Server:
         query = urllib.parse.parse_qs(parts.query, keep_blank_values=True)
         for key, values in query.items():
             if key not in _CONF_FIELDS:
-                warning(f"Champ GET inconnu : {key}")
+                warning(f"Champ GET inconnu : {key}")
                 continue
 
-            value   = values[0]
-            section, j_k = _CONF_FIELDS[key]
+            value, (section, j_k) = values[0], _CONF_FIELDS[key]
 
             # HH:MM fields
             if isinstance(j_k, tuple):
@@ -202,7 +200,6 @@ class Server:
                 update_one_parameter(section, k_h, hh)
                 update_one_parameter(section, k_m, mm)
 
-                # setters runtime
                 if key == "dt1start":
                     self.parameters.set_dailytimer1_start_hour(hh)
                     self.parameters.set_dailytimer1_start_minute(mm)
@@ -220,15 +217,18 @@ class Server:
 
             # simple fields
             else:
+                # Special case pour heater_enabled (garder la chaîne "enabled"/"disabled")
+                if key == "heater_enabled":
+                    update_one_parameter("Heater_Settings", "enabled", value)
+                    self.parameters.set_heater_enabled(value)
+                    success(f"{key} = {value}")
+                    continue
+
                 update_one_parameter(section, j_k, value)
                 setter = getattr(self.parameters, f"set_{j_k}", None)
                 if callable(setter):
-                    # special case for heater_enabled → boolean
-                    if key == "heater_enabled":
-                        setter(value.lower() in ("1", "true", "on", "yes"))
-                    else:
-                        setter(value)
+                    setter(value)
                 success(f"{key} = {value}")
 
-        # ré‑écrit le JSON complet pour cohérence
+        # ré-écrit le JSON complet pour cohérence
         write_current_parameters_to_json(self.parameters)
