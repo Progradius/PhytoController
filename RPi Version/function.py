@@ -1,5 +1,5 @@
 # function.py
-# Author : Progradius (refactorisé)
+# Author : Progradius 
 # License: AGPL-3.0
 # ------------------------------------------------------------------
 #  Fonctions utilitaires « système »  (temps, stockage, GPIO, …)

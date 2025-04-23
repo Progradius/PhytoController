@@ -1,86 +1,88 @@
 # controller/web/server.py
-# Author : Progradius
+# Author : Progradius (refacto)
 # License: AGPL-3.0
 # -------------------------------------------------------------
-#  Serveur HTTP ultra-léger basé sur asyncio
+#  Serveur HTTP ultra-léger basé sur asyncio, utilisant AppConfig
 # -------------------------------------------------------------
 
 from __future__ import annotations
 import asyncio
+import json
 import urllib.parse
 from typing import Tuple
 
-from ui.pretty_console           import info, success, warning, error, action
-from network.web.pages           import main_page, conf_page, monitor_page
-from model.SensorStats           import SensorStats
-from param.config                import AppConfig
+from ui.pretty_console import info, success, warning, error, action
+from network.web.pages import main_page, conf_page, monitor_page
+from model.SensorStats   import SensorStats
+from param.config        import AppConfig
 
 # ── correspondance « champ GET » → (section_attr, clé_attr) ─────────────
-# section_attr doit correspondre au nom du champ AppConfig.<section_attr>
+# Les section_attr correspondent aux attributs d’AppConfig
 _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
     # DailyTimer #1
-    "dt1start"      : ("daily_timer1_settings", ("start_hour",    "start_minute")),
-    "dt1stop"       : ("daily_timer1_settings", ("stop_hour",     "stop_minute")),
+    "dt1start": ("daily_timer1", ("start_hour",    "start_minute")),
+    "dt1stop":  ("daily_timer1", ("stop_hour",     "stop_minute")),
     # DailyTimer #2
-    "dt2start"      : ("daily_timer2_settings", ("start_hour",    "start_minute")),
-    "dt2stop"       : ("daily_timer2_settings", ("stop_hour",     "stop_minute")),
+    "dt2start": ("daily_timer2", ("start_hour",    "start_minute")),
+    "dt2stop":  ("daily_timer2", ("stop_hour",     "stop_minute")),
 
     # Cyclic #1
-    "period"        : ("cyclic1_settings",     "period_minutes"),
-    "duration"      : ("cyclic1_settings",     "action_duration_seconds"),
+    "period":   ("cyclic1",      "period_minutes"),
+    "duration": ("cyclic1",      "action_duration_seconds"),
     # Cyclic #2
-    "period2"       : ("cyclic2_settings",     "period_minutes"),
-    "duration2"     : ("cyclic2_settings",     "action_duration_seconds"),
+    "period2":  ("cyclic2",      "period_minutes"),
+    "duration2":("cyclic2",      "action_duration_seconds"),
 
     # Temperature Settings
-    "min_day"           : ("temperature_settings", "target_temp_min_day"),
-    "max_day"           : ("temperature_settings", "target_temp_max_day"),
-    "min_night"         : ("temperature_settings", "target_temp_min_night"),
-    "max_night"         : ("temperature_settings", "target_temp_max_night"),
-    "hysteresis_offset" : ("temperature_settings", "hysteresis_offset"),
+    "min_day":           ("temperature", "target_temp_min_day"),
+    "max_day":           ("temperature", "target_temp_max_day"),
+    "min_night":         ("temperature", "target_temp_min_night"),
+    "max_night":         ("temperature", "target_temp_max_night"),
+    "hysteresis_offset": ("temperature", "hysteresis_offset"),
 
     # Heater enable
-    "heater_enabled"    : ("heater_settings",      "enabled"),
+    "heater_enabled":    ("heater_settings", "enabled"),
 
     # Network Settings
-    "host"              : ("network_settings",     "host_machine_address"),
-    "wifi_ssid"         : ("network_settings",     "wifi_ssid"),
-    "wifi_password"     : ("network_settings",     "wifi_password"),
-    "influx_db"         : ("network_settings",     "influx_db_name"),
-    "influx_port"       : ("network_settings",     "influx_db_port"),
-    "influx_user"       : ("network_settings",     "influx_db_user"),
-    "influx_pw"         : ("network_settings",     "influx_db_password"),
+    "host":        ("network", "host_machine_address"),
+    "wifi_ssid":   ("network", "wifi_ssid"),
+    "wifi_password":("network","wifi_password"),
+    "influx_db":   ("network", "influx_db_name"),
+    "influx_port": ("network", "influx_db_port"),
+    "influx_user": ("network", "influx_db_user"),
+    "influx_pw":   ("network", "influx_db_password"),
 
     # Growth stage
-    "stage"             : ("life_period",          "stage"),
+    "stage":       ("life_period", "stage"),
 
     # Motor Settings
-    "motor_mode"        : ("motor_settings",       "motor_mode"),
-    "speed"             : ("motor_settings",       "motor_user_speed"),
-    "target_temp"       : ("motor_settings",       "target_temp"),
-    "hysteresis"        : ("motor_settings",       "hysteresis"),
-    "min_speed"         : ("motor_settings",       "min_speed"),
-    "max_speed"         : ("motor_settings",       "max_speed"),
+    "motor_mode":  ("motor",      "motor_mode"),
+    "speed":       ("motor",      "motor_user_speed"),
+    "target_temp": ("motor",      "target_temp"),
+    "hysteresis":  ("motor",      "hysteresis"),
+    "min_speed":   ("motor",      "min_speed"),
+    "max_speed":   ("motor",      "max_speed"),
 
     # GPIO Settings
-    "dailytimer1_pin"   : ("gpio_settings",        "dailytimer1_pin"),
-    "dailytimer2_pin"   : ("gpio_settings",        "dailytimer2_pin"),
-    "cyclic1_pin"       : ("gpio_settings",        "cyclic1_pin"),
-    "cyclic2_pin"       : ("gpio_settings",        "cyclic2_pin"),
-    "heater_pin"        : ("gpio_settings",        "heater_pin"),
-    "motor_pin1"        : ("gpio_settings",        "motor_pin1"),
-    "motor_pin2"        : ("gpio_settings",        "motor_pin2"),
-    "motor_pin3"        : ("gpio_settings",        "motor_pin3"),
-    "motor_pin4"        : ("gpio_settings",        "motor_pin4"),
+    "dailytimer1_pin": ("gpio", "dailytimer1_pin"),
+    "dailytimer2_pin": ("gpio", "dailytimer2_pin"),
+    "cyclic1_pin":     ("gpio", "cyclic1_pin"),
+    "cyclic2_pin":     ("gpio", "cyclic2_pin"),
+    "heater_pin":      ("gpio", "heater_pin"),
+    "motor_pin1":      ("gpio", "motor_pin1"),
+    "motor_pin2":      ("gpio", "motor_pin2"),
+    "motor_pin3":      ("gpio", "motor_pin3"),
+    "motor_pin4":      ("gpio", "motor_pin4"),
 }
+
 
 class Server:
     """
     Routes gérées :
-      • GET /            → page d’accueil
-      • GET /conf        → page configuration (+ prise en compte des champs GET)
-      • GET /monitor     → page monitoring (valeurs capteurs + stats + GPIO)
-      • GET /status      → JSON de statut pour intégration externe
+      • GET /         → page d’accueil
+      • GET /conf     → page configuration (+ prise en compte des champs GET)
+      • GET /monitor  → page monitoring (capteurs + stats + GPIO)
+      • GET /status   → JSON de statut pour intégration externe
     """
 
     def __init__(
@@ -97,9 +99,9 @@ class Server:
         self.host              = host
         self.port              = port
 
-        # min/max stats
+        # Min/max stats
         self.stats = SensorStats()
-        # inject same stats into the handler
+        # Inject same stats into sensor_handler
         setattr(self.sensor_handler, "stats", self.stats)
 
     async def run(self) -> None:
@@ -141,31 +143,27 @@ class Server:
         else:
             # Accueil
             if path in ("/", "/index.html"):
-                body, ctype, status = (
-                    main_page(self.controller_status).encode("utf-8"),
-                    "text/html; charset=utf-8",
-                    "200 OK"
-                )
+                body   = main_page(self.controller_status).encode("utf-8")
+                status = "200 OK"
+                ctype  = "text/html; charset=utf-8"
 
             # Configuration
             elif path.startswith("/conf"):
                 self._apply_conf_changes(path)
-                body, ctype, status = (
-                    conf_page(self.config).encode("utf-8"),
-                    "text/html; charset=utf-8",
-                    "200 OK"
-                )
+                body   = conf_page(self.config).encode("utf-8")
+                status = "200 OK"
+                ctype  = "text/html; charset=utf-8"
 
             # Monitoring + resets
             elif path.startswith("/monitor"):
                 parts = urllib.parse.urlparse(path)
                 query = urllib.parse.parse_qs(parts.query, keep_blank_values=True)
 
-                # reset_<capteur>
+                # Traite chaque reset_<capteur>
                 for param in query:
                     if not param.startswith("reset_"):
                         continue
-                    key = param.split("reset_",1)[1]
+                    key = param.split("reset_", 1)[1]
                     sensor_key = "DS18B#3" if key == "DS18B3" else key
                     self.stats.clear_key(sensor_key)
                     val = self.sensor_handler.get_sensor_value(sensor_key)
@@ -173,12 +171,9 @@ class Server:
                         self.stats.update(sensor_key, float(val))
                     success(f"Statistique {sensor_key} réinitialisée")
 
-                # Génère la page
-                body, ctype, status = (
-                    monitor_page(self.sensor_handler, self.stats, self.config).encode("utf-8"),
-                    "text/html; charset=utf-8",
-                    "200 OK"
-                )
+                body   = monitor_page(self.sensor_handler, self.stats, self.config).encode("utf-8")
+                status = "200 OK"
+                ctype  = "text/html; charset=utf-8"
 
             # Status JSON
             elif path.startswith("/status"):
@@ -194,13 +189,11 @@ class Server:
                         "duration": self.controller_status.get_cyclic_duration(),
                     }
                 }
-                body, ctype, status = (
-                    json.dumps(payload).encode("utf-8"),
-                    "application/json",
-                    "200 OK"
-                )
+                body   = json.dumps(payload).encode("utf-8")
+                status = "200 OK"
+                ctype  = "application/json"
 
-        # 4) Envoi réponse
+        # 4) Envoi de la réponse
         headers = (
             f"HTTP/1.1 {status}\r\n"
             f"Content-Type: {ctype}\r\n"
@@ -225,34 +218,34 @@ class Server:
                 warning(f"Champ GET inconnu : {key}")
                 continue
 
-            section_attr, j_k = _CONF_FIELDS[key]
+            section_attr, attr_key = _CONF_FIELDS[key]
             model = getattr(self.config, section_attr)
+            raw   = values[0]
 
-            value = values[0]
             # HH:MM fields
-            if isinstance(j_k, tuple):
+            if isinstance(attr_key, tuple):
                 try:
-                    hh, mm = map(int, value.split(":"))
+                    h, m = map(int, raw.split(":"))
                 except ValueError:
-                    error(f"Format HH:MM invalide pour {key}={value}")
+                    error(f"Format HH:MM invalide pour {key}={raw}")
                     continue
-                setattr(model, j_k[0], hh)
-                setattr(model, j_k[1], mm)
+                setattr(model, attr_key[0], h)
+                setattr(model, attr_key[1], m)
 
-            # simple scalar fields
+            # simple scalar
             else:
-                # conversion booléenne pour heater_enabled
-                if key == "heater_enabled":
-                    cast = value.lower() in ("1","true","enabled","on","yes")
+                current = getattr(model, attr_key)
+                if isinstance(current, bool):
+                    cast = raw.lower() in ("1","true","enabled","on","yes")
+                elif isinstance(current, int):
+                    cast = int(raw)
+                elif isinstance(current, float):
+                    cast = float(raw)
                 else:
-                    # int ou float selon votre modèle AppConfig
-                    cast = (int(value) if isinstance(getattr(model, j_k), int)
-                            else float(value)
-                            if isinstance(getattr(model, j_k), float)
-                            else value)
-                setattr(model, j_k, cast)
+                    cast = raw
+                setattr(model, attr_key, cast)
 
-            success(f"{key} <- {value}")
+            success(f"{key} <- {raw}")
 
-        # enfin on écrit tout d’un coup dans le JSON
+        # finally persist back to param.json
         self.config.save()

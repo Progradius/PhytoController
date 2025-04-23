@@ -1,5 +1,5 @@
 # model/SensorStats.py
-# Author: Progradius
+# Author: Progradius (refactorisé)
 # License: AGPL-3.0
 
 import json
@@ -9,23 +9,27 @@ from datetime import datetime
 class SensorStats:
     """
     Stocke en JSON le min/max et leurs dates pour chaque capteur suivi.
-    Ne réinitialise pas le fichier s'il existe déjà.
+    Crée automatiquement le dossier et le fichier s'il n'existent pas.
     """
 
-    FILE = Path("param/sensor_stats.json")
+    # On pointe désormais vers param/sensor_stats.json à partir du répertoire du module
+    FILE = Path(__file__).parent.parent / "param" / "sensor_stats.json"
     KEYS = ("BME280T", "BME280H", "DS18B#3")
 
     def __init__(self):
+        # 1) S’assure que le dossier existe
+        self.FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        # 2) Charge ou initialise les données
         if self.FILE.exists():
-            # charge le JSON existant
             with self.FILE.open(encoding="utf-8") as f:
                 self.data = json.load(f)
-            # ajoute au besoin les clés manquantes
+            # Ajoute les clés manquantes si besoin
             for k in self.KEYS:
                 if k not in self.data:
                     self.data[k] = {"min": None, "min_date": None, "max": None, "max_date": None}
         else:
-            # crée tout à None
+            # Dossier ok, mais pas de fichier → on crée tout à None
             self.data = {
                 k: {"min": None, "min_date": None, "max": None, "max_date": None}
                 for k in self.KEYS
@@ -33,6 +37,9 @@ class SensorStats:
             self._dump()
 
     def _dump(self):
+        """Écrit self.data dans le fichier JSON."""
+        # En cas d’appel isolé on recrée aussi le dossier
+        self.FILE.parent.mkdir(parents=True, exist_ok=True)
         with self.FILE.open("w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4)
 
@@ -62,13 +69,10 @@ class SensorStats:
         ou pour toutes les clés si key est None.
         """
         if key is None:
-            # reset global
             for k in self.KEYS:
                 self.data[k] = {"min": None, "min_date": None, "max": None, "max_date": None}
-        else:
-            # reset sur une seule clé
-            if key in self.data:
-                self.data[key] = {"min": None, "min_date": None, "max": None, "max_date": None}
+        elif key in self.data:
+            self.data[key] = {"min": None, "min_date": None, "max": None, "max_date": None}
         self._dump()
 
     @property
@@ -78,7 +82,7 @@ class SensorStats:
         """
         return self.data
 
-    def get_all(self):
+    def get_all(self) -> dict:
         """
         Retourne tout le dictionnaire de stats.
         """

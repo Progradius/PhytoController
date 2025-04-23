@@ -1,14 +1,14 @@
 # controller/components/DailyTimer.py
-# Author  : Progradius (refactorisé)
+# Author  : Progradius 
 # License : AGPL-3.0
 # -------------------------------------------------------------
 #  Minuteur journalier : active un composant entre deux horaires
 # -------------------------------------------------------------
 
-from datetime import datetime
-from function import convert_time_to_minutes
-from param.config import AppConfig
-from ui.pretty_console import info, warning, clock, action
+from datetime               import datetime
+from function               import convert_time_to_minutes
+from param.config           import AppConfig
+from ui.pretty_console      import info, warning, clock, action
 
 class DailyTimer:
     """

@@ -1,5 +1,5 @@
 # controller/model/CyclicTimer.py
-# Author  : Progradius (refactorisé)
+# Author  : Progradius 
 # License : AGPL-3.0
 # -------------------------------------------------------------
 #  Minuteur cyclique : déclenche périodiquement un composant

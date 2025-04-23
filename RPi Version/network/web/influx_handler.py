@@ -9,8 +9,6 @@ Envoi périodique des mesures capteurs vers InfluxDB (v1.*) via l’API HTTP.
 ‣ Gestion mémoire explicite (gc.collect) après chaque rafraîchissement
 """
 
-from __future__ import annotations
-
 import asyncio
 import gc
 from urllib.parse import urlencode
@@ -21,18 +19,18 @@ from ui.pretty_console import info, warning, error
 from param.config import AppConfig
 from controllers.SensorController import SensorController
 
-
 # ───────────────────────────────────────────────────────────────
 #  Initialisation unique depuis AppConfig
 # ───────────────────────────────────────────────────────────────
 _params = AppConfig.load()
-_sensor_handler = SensorController(parameters=_params)
+# On passe _params en premier argument (config), pas en keyword 'parameters'
+_sensor_handler = SensorController(_params)
 
 _influx_host = f"http://{_params.network.host_machine_address}:{_params.network.influx_db_port}"
 _query_base = _influx_host + "/write?" + urlencode({
     "db": _params.network.influx_db_name,
-    "u": _params.network.influx_db_user,
-    "p": _params.network.influx_db_password
+    "u":  _params.network.influx_db_user,
+    "p":  _params.network.influx_db_password
 })
 
 info(f"InfluxDB → {_query_base}")

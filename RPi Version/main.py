@@ -67,10 +67,10 @@ motor_handler = MotorHandler(config)
 success("Composants physiques initialisés")
 
 # (7) Timers
-dailytimer1 = DailyTimer(light1, timer_id="1", config=config.dailytimer1)
-dailytimer2 = DailyTimer(light2, timer_id="2", config=config.dailytimer2)
-cyclic_timer1 = CyclicTimer(cyclic_out1, timer_id="1", config=config.cyclic1)
-cyclic_timer2 = CyclicTimer(cyclic_out2, timer_id="2", config=config.cyclic2)
+dailytimer1 = DailyTimer(light1, timer_id="1", config=config)
+dailytimer2 = DailyTimer(light2, timer_id="2", config=config)
+cyclic_timer1 = CyclicTimer(cyclic_out1, timer_id="1", config=config)
+cyclic_timer2 = CyclicTimer(cyclic_out2, timer_id="2", config=config)
 
 # (8) Capteurs
 sensor_handler = SensorController(config)
