@@ -1,5 +1,5 @@
 # controller/api.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 """
 Mini-REST API HTTP (très simple GET) pour modifier certains paramètres à

@@ -1,5 +1,5 @@
 # controller/web/influx_handler.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 """
 Envoi périodique des mesures capteurs vers InfluxDB (v1.*) via l’API HTTP.

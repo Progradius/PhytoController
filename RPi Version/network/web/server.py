@@ -1,5 +1,5 @@
 # controller/web/server.py
-# Author : Progradius (adapted)
+# Author : Progradius
 # License: AGPL-3.0
 # -------------------------------------------------------------
 #  Serveur HTTP ultra-léger basé sur asyncio

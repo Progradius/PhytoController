@@ -1,6 +1,9 @@
 ﻿# controller/web/pages.py
-# Author: Progradius (adapted)
+# Author: Progradius
 # License: AGPL‑3.0
+
+from datetime import datetime
+
 # -------------------------------------------------------------
 #  Génère les pages HTML (aucune logique réseau ici)
 # -------------------------------------------------------------
@@ -296,11 +299,22 @@ def monitor_page(sensor_handler, stats) -> str:
     """
     Page « Monitor » : affiche les valeurs en temps réel des capteurs,
     ainsi que l'historique min/max pour certaines sondes avec possibilité de reset.
+    Les dates sont maintenant affichées au format JJ/MM/AAAA HH:MM:SS.
     """
     def _fmt(val, unit):
         return f"{val:.1f}&nbsp;{unit}" if isinstance(val, (int, float)) else "―"
+
     def _fmt_stat(val, unit=""):
         return f"{val:.1f}{unit}" if isinstance(val, (int, float)) else "—"
+
+    def _fmt_date(dt_str):
+        if not dt_str:
+            return "—"
+        try:
+            dt = datetime.fromisoformat(dt_str)
+            return dt.strftime("%d/%m/%Y %H:%M:%S")
+        except ValueError:
+            return dt_str  # fallback si format inattendu
 
     # Relevés actuels
     t      = sensor_handler.get_sensor_value("BME280T")   or None
@@ -352,26 +366,26 @@ def monitor_page(sensor_handler, stats) -> str:
       <h1>Historique min/max</h1><hr>
 
       <h2>BME280 Temp</h2>
-      <p>Min : {_fmt_stat(all_stats["BME280T"]["min"], "°C")} le {all_stats["BME280T"]["min_date"] or "—"}</p>
-      <p>Max : {_fmt_stat(all_stats["BME280T"]["max"], "°C")} le {all_stats["BME280T"]["max_date"] or "—"}</p>
+      <p>Min : {_fmt_stat(all_stats["BME280T"]["min"], "°C")} le {_fmt_date(all_stats["BME280T"]["min_date"])}</p>
+      <p>Max : {_fmt_stat(all_stats["BME280T"]["max"], "°C")} le {_fmt_date(all_stats["BME280T"]["max_date"])}</p>
       <form method="get" action="/monitor">
         <input type="hidden" name="reset_BME280T" value="1">
         <input class="button_base" type="submit" value="Reset BME Temp">
       </form><hr>
 
       <h2>BME280 Humid</h2>
-      <p>Min : {_fmt_stat(all_stats["BME280H"]["min"], "%")} le {all_stats["BME280H"]["min_date"] or "—"}</p>
-      <p>Max : {_fmt_stat(all_stats["BME280H"]["max"], "%")} le {all_stats["BME280H"]["max_date"] or "—"}</p>
+      <p>Min : {_fmt_stat(all_stats["BME280H"]["min"], "%")} le {_fmt_date(all_stats["BME280H"]["min_date"])}</p>
+      <p>Max : {_fmt_stat(all_stats["BME280H"]["max"], "%")} le {_fmt_date(all_stats["BME280H"]["max_date"])}</p>
       <form method="get" action="/monitor">
         <input type="hidden" name="reset_BME280H" value="1">
         <input class="button_base" type="submit" value="Reset BME Humid">
       </form><hr>
 
       <h2>DS18B#3 (Water)</h2>
-      <p>Min : {_fmt_stat(all_stats["DS18B#3"]["min"], "°C")} le {all_stats["DS18B#3"]["min_date"] or "—"}</p>
-      <p>Max : {_fmt_stat(all_stats["DS18B#3"]["max"], "°C")} le {all_stats["DS18B#3"]["max_date"] or "—"}</p>
+      <p>Min : {_fmt_stat(all_stats["DS18B#3"]["min"], "°C")} le {_fmt_date(all_stats["DS18B#3"]["min_date"])}</p>
+      <p>Max : {_fmt_stat(all_stats["DS18B#3"]["max"], "°C")} le {_fmt_date(all_stats["DS18B#3"]["max_date"])}</p>
       <form method="get" action="/monitor">
-        <input type="hidden" name="reset_DS18B3" value="1">
+        <input type="hidden" name="reset_DS18B#3" value="1">
         <input class="button_base" type="submit" value="Reset Water Temp">
       </form>
 
