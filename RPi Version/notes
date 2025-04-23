@@ -1,5 +1,6 @@
 pour le module network manager nmcli à installer:
 sudo apt-get install network-manager
+pip install pydantic
 
 Activer OneWire via raspi-config ou en ajoutant dans /boot/config.txt :
 

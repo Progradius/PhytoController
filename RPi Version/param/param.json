@@ -23,10 +23,10 @@
         "action_duration_seconds": 45
     },
     "Temperature_Settings": {
-        "target_temp_min_day": 21,
-        "target_temp_max_day": 25,
-        "target_temp_min_night": 19,
-        "target_temp_max_night": 25,
+        "target_temp_min_day": 21.0,
+        "target_temp_max_day": 25.0,
+        "target_temp_min_night": 19.0,
+        "target_temp_max_night": 25.0,
         "hysteresis_offset": 2.0
     },
     "Heater_Settings": {
@@ -61,8 +61,8 @@
     "Motor_Settings": {
         "motor_mode": "manual",
         "motor_user_speed": 2,
-        "target_temp": 25,
-        "hysteresis": 2,
+        "target_temp": 25.0,
+        "hysteresis": 2.0,
         "min_speed": 0,
         "max_speed": 4
     },
