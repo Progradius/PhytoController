@@ -1,9 +1,10 @@
 ﻿# controller/web/pages.py
-# Author: Progradius (adapted)
+# Author: Progradius (refactorisé)
 # License: AGPL-3.0
 
 from datetime import datetime
 import RPi.GPIO as GPIO
+from param.config import AppConfig
 
 # -------------------------------------------------------------
 #  Génère les pages HTML (aucune logique réseau ici)
@@ -49,6 +50,7 @@ html_footer = "</body></html>"
 # Initialise RPi.GPIO pour lecture
 GPIO.setmode(GPIO.BCM)
 
+
 # ==============================================================
 #  PAGE PRINCIPALE  (état système)
 # ==============================================================
@@ -80,66 +82,38 @@ def main_page(controller_status) -> str:
 </div>
 {html_footer}"""
 
+
 # ==============================================================
 #  PAGE CONFIGURATION  (formulaire complet)
 # ==============================================================
-def conf_page(parameters) -> str:
+def conf_page(config: AppConfig) -> str:
     """
     Renvoie le formulaire HTML de configuration.
-    Les champs sont pré-remplis à partir de `parameters`.
+    Les champs sont pré-remplis à partir de `config`.
     """
-    # --- DailyTimer #1
-    dt1_start      = f"{parameters.get_dailytimer1_start_hour():02d}:{parameters.get_dailytimer1_start_minute():02d}"
-    dt1_stop       = f"{parameters.get_dailytimer1_stop_hour():02d}:{parameters.get_dailytimer1_stop_minute():02d}"
-    dt1_pin        = parameters.get_dailytimer1_pin()
+    # GPIO
+    gpio = config.gpio
 
-    # --- DailyTimer #2
-    dt2_start      = f"{parameters.get_dailytimer2_start_hour():02d}:{parameters.get_dailytimer2_start_minute():02d}"
-    dt2_stop       = f"{parameters.get_dailytimer2_stop_hour():02d}:{parameters.get_dailytimer2_stop_minute():02d}"
-    dt2_pin        = parameters.get_dailytimer2_pin()
+    # DailyTimer
+    dt1 = config.daily_timer1
+    dt2 = config.daily_timer2
 
-    # --- Cyclic #1
-    c1_period      = parameters.get_cyclic1_period_minutes()
-    c1_dur         = parameters.get_cyclic1_action_duration_seconds()
-    c1_pin         = parameters.get_cyclic1_pin()
+    # Cyclic
+    c1 = config.cyclic1
+    c2 = config.cyclic2
 
-    # --- Cyclic #2
-    c2_period      = parameters.get_cyclic2_period_minutes()
-    c2_dur         = parameters.get_cyclic2_action_duration_seconds()
-    c2_pin         = parameters.get_cyclic2_pin()
+    # Heater
+    heater = config.heater_settings
 
-    # --- Heater
-    heater_enabled = parameters.get_heater_enabled()
-    heater_pin     = parameters.get_heater_pin()
+    # Motor
+    motor = config.motor
+    stage = config.life_period.stage
 
-    # --- Motor (mode + vitesses)
-    stage          = parameters.get_growth_stage()
-    m_mode         = parameters.get_motor_mode()
-    m_speed        = parameters.get_motor_user_speed()
-    target_temp    = parameters.get_target_temp()
-    hysteresis     = parameters.get_hysteresis()
-    min_speed      = parameters.get_motor_min_speed()
-    max_speed      = parameters.get_motor_max_speed()
-    motor_pin1     = parameters.get_motor_pin1()
-    motor_pin2     = parameters.get_motor_pin2()
-    motor_pin3     = parameters.get_motor_pin3()
-    motor_pin4     = parameters.get_motor_pin4()
+    # Network / Influx
+    net  = config.network
 
-    # --- Network & Influx
-    host           = parameters.get_host_machine_address()
-    wifi_ssid      = parameters.get_wifi_ssid()
-    wifi_pw        = parameters.get_wifi_password()
-    influx_name    = parameters.get_influx_db_name()
-    influx_port    = parameters.get_influx_db_port()
-    influx_user    = parameters.get_influx_db_user()
-    influx_pw      = parameters.get_influx_db_password()
-
-    # --- Temperature Settings
-    tmin_day       = parameters.get_target_temp_min_day()
-    tmax_day       = parameters.get_target_temp_max_day()
-    tmin_night     = parameters.get_target_temp_min_night()
-    tmax_night     = parameters.get_target_temp_max_night()
-    hyst_offset    = parameters.get_hysteresis_offset()
+    # Temperature
+    temp = config.temperature
 
     return f"""{html_header}
 <section id="conf">
@@ -154,59 +128,55 @@ def conf_page(parameters) -> str:
       <div class="col-md-12"><div class="formwrap">
         <h1>GPIO Settings</h1><hr>
         <form method="get">
-          <h2>DailyTimer 1 Pin</h2><input type="number" name="dailytimer1_pin" value="{dt1_pin}">
-          <h2>DailyTimer 2 Pin</h2><input type="number" name="dailytimer2_pin" value="{dt2_pin}">
-          <h2>Cyclic 1 Pin</h2>    <input type="number" name="cyclic1_pin"     value="{c1_pin}">
-          <h2>Cyclic 2 Pin</h2>    <input type="number" name="cyclic2_pin"     value="{c2_pin}">
-          <h2>Heater Pin</h2>      <input type="number" name="heater_pin"      value="{heater_pin}">
-          <h2>Motor Pin 1</h2>     <input type="number" name="motor_pin1"      value="{motor_pin1}">
-          <h2>Motor Pin 2</h2>     <input type="number" name="motor_pin2"      value="{motor_pin2}">
-          <h2>Motor Pin 3</h2>     <input type="number" name="motor_pin3"      value="{motor_pin3}">
-          <h2>Motor Pin 4</h2>     <input type="number" name="motor_pin4"      value="{motor_pin4}">
+          <h2>DailyTimer 1 Pin</h2> <input type="number" name="dailytimer1_pin" value="{gpio.dailytimer1_pin}">
+          <h2>DailyTimer 2 Pin</h2> <input type="number" name="dailytimer2_pin" value="{gpio.dailytimer2_pin}">
+          <h2>Cyclic 1 Pin</h2>     <input type="number" name="cyclic1_pin"      value="{gpio.cyclic1_pin}">
+          <h2>Cyclic 2 Pin</h2>     <input type="number" name="cyclic2_pin"      value="{gpio.cyclic2_pin}">
+          <h2>Heater Pin</h2>       <input type="number" name="heater_pin"       value="{gpio.heater_pin}">
+          <h2>Motor Pin 1</h2>      <input type="number" name="motor_pin1"       value="{gpio.motor_pin1}">
+          <h2>Motor Pin 2</h2>      <input type="number" name="motor_pin2"       value="{gpio.motor_pin2}">
+          <h2>Motor Pin 3</h2>      <input type="number" name="motor_pin3"       value="{gpio.motor_pin3}">
+          <h2>Motor Pin 4</h2>      <input type="number" name="motor_pin4"       value="{gpio.motor_pin4}">
           <div class="div_center"><input class="button_base" type="submit" value="Save GPIO"></div>
         </form>
       </div></div>
     </div>
 
-    <!-- DailyTimer #1 -->
+    <!-- DailyTimer #1 & #2 -->
     <div class="row">
       <div class="col-md-6"><div class="formwrap">
         <h1>DailyTimer #1</h1><hr>
         <form method="get">
-          <h2>Start</h2><input type="hour" name="dt1start" value="{dt1_start}">
-          <h2>Stop</h2> <input type="hour" name="dt1stop"  value="{dt1_stop}">
+          <h2>Start</h2><input type="time" name="dt1start" value="{dt1.start_hour:02d}:{dt1.start_minute:02d}">
+          <h2>Stop</h2> <input type="time" name="dt1stop"  value="{dt1.stop_hour:02d}:{dt1.stop_minute:02d}">
           <div class="div_center"><input class="button_base" type="submit" value="Save Timer 1"></div>
         </form>
       </div></div>
-
-    <!-- DailyTimer #2 -->
       <div class="col-md-6"><div class="formwrap">
         <h1>DailyTimer #2</h1><hr>
         <form method="get">
-          <h2>Start</h2><input type="hour" name="dt2start" value="{dt2_start}">
-          <h2>Stop</h2> <input type="hour" name="dt2stop"  value="{dt2_stop}">
+          <h2>Start</h2><input type="time" name="dt2start" value="{dt2.start_hour:02d}:{dt2.start_minute:02d}">
+          <h2>Stop</h2> <input type="time" name="dt2stop"  value="{dt2.stop_hour:02d}:{dt2.stop_minute:02d}">
           <div class="div_center"><input class="button_base" type="submit" value="Save Timer 2"></div>
         </form>
       </div></div>
     </div>
 
-    <!-- Cyclic #1 -->
+    <!-- Cyclic #1 & #2 -->
     <div class="row">
       <div class="col-md-6"><div class="formwrap">
         <h1>Cyclic #1</h1><hr>
         <form method="get">
-          <h2>Period (min)</h2>  <input type="number" name="period"   value="{c1_period}">
-          <h2>Duration (sec)</h2><input type="number" name="duration" value="{c1_dur}">
+          <h2>Period (min)</h2>  <input type="number" name="period"   value="{c1.period_minutes}">
+          <h2>Duration (sec)</h2><input type="number" name="duration" value="{c1.action_duration_seconds}">
           <div class="div_center"><input class="button_base" type="submit" value="Save Cyclic 1"></div>
         </form>
       </div></div>
-
-    <!-- Cyclic #2 -->
       <div class="col-md-6"><div class="formwrap">
         <h1>Cyclic #2</h1><hr>
         <form method="get">
-          <h2>Period (min)</h2>  <input type="number" name="period2"   value="{c2_period}">
-          <h2>Duration (sec)</h2><input type="number" name="duration2" value="{c2_dur}">
+          <h2>Period (min)</h2>  <input type="number" name="period2"   value="{c2.period_minutes}">
+          <h2>Duration (sec)</h2><input type="number" name="duration2" value="{c2.action_duration_seconds}">
           <div class="div_center"><input class="button_base" type="submit" value="Save Cyclic 2"></div>
         </form>
       </div></div>
@@ -219,8 +189,8 @@ def conf_page(parameters) -> str:
         <form method="get">
           <h2>Activation</h2>
           <select name="heater_enabled">
-            <option value="enabled"  {"selected" if heater_enabled=="enabled"  else ""}>Enabled</option>
-            <option value="disabled" {"selected" if heater_enabled=="disabled" else ""}>Disabled</option>
+            <option value="enabled"  {"selected" if heater.enabled else ""}>Enabled</option>
+            <option value="disabled" {"selected" if not heater.enabled else ""}>Disabled</option>
           </select>
           <div class="div_center"><input class="button_base" type="submit" value="Save Heater"></div>
         </form>
@@ -232,40 +202,39 @@ def conf_page(parameters) -> str:
       <div class="col-md-12"><div class="formwrap">
         <h1>Motor Settings</h1><hr>
         <form method="get">
-          <h2>Mode</h2>
-          <select name="motor_mode">
-            <option value="manual" {"selected" if m_mode=="manual" else ""}>Manual</option>
-            <option value="auto"   {"selected" if m_mode=="auto"   else ""}>Auto</option>
+          <h2>Stage</h2>       <input type="text"   name="stage"        value="{stage}">
+          <h2>Mode</h2>        <select name="motor_mode">
+            <option value="manual" {"selected" if motor.motor_mode=="manual" else ""}>Manual</option>
+            <option value="auto"   {"selected" if motor.motor_mode=="auto"   else ""}>Auto</option>
           </select>
-          <h2>User Speed</h2>   <input type="number" name="speed"    value="{m_speed}" min="0" max="4">
-          <h2>Target Temp (°C)</h2><input type="number" name="target_temp" value="{target_temp}">
-          <h2>Hysteresis</h2>   <input type="number" name="hysteresis"   value="{hysteresis}">
-          <h2>Min Speed</h2>    <input type="number" name="min_speed"   value="{min_speed}" min="0" max="4">
-          <h2>Max Speed</h2>    <input type="number" name="max_speed"   value="{max_speed}" min="0" max="4">
+          <h2>User Speed</h2>   <input type="number" name="speed"        value="{motor.motor_user_speed}" min="0" max="4">
+          <h2>Target Temp</h2>  <input type="number" name="target_temp"  value="{motor.target_temp}">
+          <h2>Hysteresis</h2>   <input type="number" name="hysteresis"   value="{motor.hysteresis}">
+          <h2>Min Speed</h2>    <input type="number" name="min_speed"    value="{motor.min_speed}" min="0" max="4">
+          <h2>Max Speed</h2>    <input type="number" name="max_speed"    value="{motor.max_speed}" min="0" max="4">
           <div class="div_center"><input class="button_base" type="submit" value="Save Motor"></div>
         </form>
       </div></div>
     </div>
 
-    <!-- Network Settings -->
+    <!-- Network & Influx -->
     <div class="row">
       <div class="col-md-6"><div class="formwrap">
         <h1>Network Settings</h1><hr>
         <form method="get">
-          <h2>Host (IP)</h2>       <input type="text"   name="host"          value="{host}">
-          <h2>Wi-Fi SSID</h2>      <input type="text"   name="wifi_ssid"     value="{wifi_ssid}">
-          <h2>Wi-Fi Password</h2>  <input type="password" name="wifi_password" value="{wifi_pw}">
+          <h2>Host (IP)</h2>      <input type="text"   name="host"          value="{net.host_machine_address}">
+          <h2>Wi-Fi SSID</h2>     <input type="text"   name="wifi_ssid"     value="{net.wifi_ssid}">
+          <h2>Wi-Fi Password</h2> <input type="password" name="wifi_password" value="{net.wifi_password}">
           <div class="div_center"><input class="button_base" type="submit" value="Save Network"></div>
         </form>
       </div></div>
-
       <div class="col-md-6"><div class="formwrap">
         <h1>InfluxDB Settings</h1><hr>
         <form method="get">
-          <h2>DB Name</h2>         <input type="text"   name="influx_db"   value="{influx_name}">
-          <h2>Port</h2>            <input type="number" name="influx_port" value="{influx_port}">
-          <h2>User</h2>            <input type="text"   name="influx_user" value="{influx_user}">
-          <h2>Password</h2>        <input type="password" name="influx_pw"   value="{influx_pw}">
+          <h2>DB Name</h2>        <input type="text"   name="influx_db"   value="{net.influx_db_name}">
+          <h2>Port</h2>           <input type="number" name="influx_port" value="{net.influx_db_port}">
+          <h2>User</h2>           <input type="text"   name="influx_user" value="{net.influx_db_user}">
+          <h2>Password</h2>       <input type="password" name="influx_pw"   value="{net.influx_db_password}">
           <div class="div_center"><input class="button_base" type="submit" value="Save Influx"></div>
         </form>
       </div></div>
@@ -277,16 +246,12 @@ def conf_page(parameters) -> str:
         <h1>Temperature Settings</h1><hr>
         <form method="get">
           <h2>Day</h2>
-          <label>Min</label> <input type="number" name="target_temp_min_day"   value="{tmin_day}"   step="0.5">
-          <label>Max</label> <input type="number" name="target_temp_max_day"   value="{tmax_day}"   step="0.5">
-
+          <label>Min</label> <input type="number" name="target_temp_min_day"   value="{temp.target_temp_min_day}" step="0.5">
+          <label>Max</label> <input type="number" name="target_temp_max_day"   value="{temp.target_temp_max_day}" step="0.5">
           <h2>Night</h2>
-          <label>Min</label> <input type="number" name="target_temp_min_night" value="{tmin_night}" step="0.5">
-          <label>Max</label> <input type="number" name="target_temp_max_night" value="{tmax_night}" step="0.5">
-
-          <h2>Hysteresis Offset (°C)</h2>
-          <input type="number" name="hysteresis_offset" value="{hyst_offset}" step="0.1">
-
+          <label>Min</label> <input type="number" name="target_temp_min_night" value="{temp.target_temp_min_night}" step="0.5">
+          <label>Max</label> <input type="number" name="target_temp_max_night" value="{temp.target_temp_max_night}" step="0.5">
+          <h2>Hysteresis Offset</h2> <input type="number" name="hysteresis_offset" value="{temp.hysteresis_offset}" step="0.1">
           <div class="div_center"><input class="button_base" type="submit" value="Save Temp"></div>
         </form>
       </div></div>
@@ -298,12 +263,12 @@ def conf_page(parameters) -> str:
 
 
 # ==============================================================
-#  PAGE MONITORING  – valeurs dynamiques
+#  PAGE MONITORING  – valeurs dynamiques + GPIO
 # ==============================================================
-def monitor_page(sensor_handler, stats, parameters) -> str:
+def monitor_page(sensor_handler, stats, config: AppConfig) -> str:
     """
     Page « Monitor » :
-    - Valeurs temps réel des capteurs
+    - Valeurs en temps réel des capteurs
     - Historique min/max avec dates formatées
     - États GPIO (On/Off)
     """
@@ -320,42 +285,43 @@ def monitor_page(sensor_handler, stats, parameters) -> str:
         except ValueError:
             return dt_str
 
-    # → relevés actuels
-    t       = sensor_handler.get_sensor_value("BME280T")   or None
-    h       = sensor_handler.get_sensor_value("BME280H")   or None
-    p       = sensor_handler.get_sensor_value("BME280P")   or None
-    ds1     = sensor_handler.get_sensor_value("DS18B#1")   or None
-    ds2     = sensor_handler.get_sensor_value("DS18B#2")   or None
-    ds3     = sensor_handler.get_sensor_value("DS18B#3")   or None
-    mlx_amb = sensor_handler.get_sensor_value("MLX-AMB")   or None
-    mlx_obj = sensor_handler.get_sensor_value("MLX-OBJ")   or None
-    tof     = sensor_handler.get_sensor_value("VL53-DIST") or None
-    us      = sensor_handler.get_sensor_value("HCSR-DIST") or None
-    lux     = sensor_handler.get_sensor_value("TSL-LUX")   or None
+    # Relevés capteurs
+    t      = sensor_handler.get_sensor_value("BME280T")   or None
+    h      = sensor_handler.get_sensor_value("BME280H")   or None
+    p      = sensor_handler.get_sensor_value("BME280P")   or None
+    ds1    = sensor_handler.get_sensor_value("DS18B#1")   or None
+    ds2    = sensor_handler.get_sensor_value("DS18B#2")   or None
+    ds3    = sensor_handler.get_sensor_value("DS18B#3")   or None
+    mlx_a  = sensor_handler.get_sensor_value("MLX-AMB")   or None
+    mlx_o  = sensor_handler.get_sensor_value("MLX-OBJ")   or None
+    tof    = sensor_handler.get_sensor_value("VL53-DIST") or None
+    us     = sensor_handler.get_sensor_value("HCSR-DIST") or None
+    lux    = sensor_handler.get_sensor_value("TSL-LUX")   or None
 
-    # stats
+    # Stats min/max
     all_stats = stats.get_all()
 
-    # GPIO etats
+    # États GPIO
+    gpio = config.gpio
     gpio_map = {
-        "DailyTimer #1": parameters.get_dailytimer1_pin(),
-        "DailyTimer #2": parameters.get_dailytimer2_pin(),
-        "Cyclic #1"    : parameters.get_cyclic1_pin(),
-        "Cyclic #2"    : parameters.get_cyclic2_pin(),
-        "Heater"       : parameters.get_heater_pin(),
-        "Motor Pin 1"  : parameters.get_motor_pin1(),
-        "Motor Pin 2"  : parameters.get_motor_pin2(),
-        "Motor Pin 3"  : parameters.get_motor_pin3(),
-        "Motor Pin 4"  : parameters.get_motor_pin4(),
+        "DailyTimer #1": (gpio.dailytimer1_pin, "daily"),
+        "DailyTimer #2": (gpio.dailytimer2_pin, "daily"),
+        "Cyclic #1"    : (gpio.cyclic1_pin,     "cyclic"),
+        "Cyclic #2"    : (gpio.cyclic2_pin,     "cyclic"),
+        "Heater"       : (gpio.heater_pin,      "heater"),
+        "Motor Pin 1"  : (gpio.motor_pin1,      "motor"),
+        "Motor Pin 2"  : (gpio.motor_pin2,      "motor"),
+        "Motor Pin 3"  : (gpio.motor_pin3,      "motor"),
+        "Motor Pin 4"  : (gpio.motor_pin4,      "motor"),
     }
     gpio_html = ""
-    for name, pin in gpio_map.items():
+    for name, (pin, _) in gpio_map.items():
         try:
             state = GPIO.input(pin)
             onoff = "On" if state == GPIO.HIGH else "Off"
         except Exception:
             onoff = "—"
-        gpio_html += f"<li>{name} (pin {pin}) : {onoff}</li>\n"
+        gpio_html += f"<li>{name} (pin {pin}): {onoff}</li>\n"
 
     return f"""{html_header}
 <div class="container-fluid">
@@ -373,15 +339,10 @@ def monitor_page(sensor_handler, stats, parameters) -> str:
       <div class="mainwrap"><h1>Pres</h1><hr><h2>{_fmt(p,'hPa')}</h2></div>
     </div>
     <div class="col-md-6">
-      <h1>Other Sensors</h1><hr>
-      <div class="mainwrap"><h1>DS18 #1</h1><hr><h2>{_fmt(ds1,'°C')}</h2></div>
-      <div class="mainwrap"><h1>DS18 #2</h1><hr><h2>{_fmt(ds2,'°C')}</h2></div>
-      <div class="mainwrap"><h1>DS18 #3</h1><hr><h2>{_fmt(ds3,'°C')}</h2></div>
-      <div class="mainwrap"><h1>MLX Amb</h1><hr><h2>{_fmt(mlx_amb,'°C')}</h2></div>
-      <div class="mainwrap"><h1>MLX Obj</h1><hr><h2>{_fmt(mlx_obj,'°C')}</h2></div>
-      <div class="mainwrap"><h1>ToF (mm)</h1><hr><h2>{_fmt(tof,'mm')}</h2></div>
-      <div class="mainwrap"><h1>US (cm)</h1><hr><h2>{_fmt(us,'cm')}</h2></div>
-      <div class="mainwrap"><h1>Lux</h1><hr><h2>{_fmt(lux,'lx')}</h2></div>
+      <h1>DS18B20</h1><hr>
+      <div class="mainwrap"><h1>#1</h1><hr><h2>{_fmt(ds1,'°C')}</h2></div>
+      <div class="mainwrap"><h1>#2</h1><hr><h2>{_fmt(ds2,'°C')}</h2></div>
+      <div class="mainwrap"><h1>#3</h1><hr><h2>{_fmt(ds3,'°C')}</h2></div>
     </div>
   </div>
 

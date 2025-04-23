@@ -1,1 +1,11 @@
-pydantic>=1.10.0
+# Pydantic v2 pour la gestion de la config
+pydantic>=2.11.3
+
+# Requêtes HTTP vers InfluxDB
+requests>=2.31.0
+
+# GPIO Raspberry
+RPi.GPIO>=0.7.0
+
+# Bus I²C pour le BME280
+smbus2>=0.4.0
