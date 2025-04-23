@@ -88,9 +88,8 @@ class Parameter:
         
         # ――― Heater Settings ―――――――――――――――――――――――――――――――――――――
         heater = p.get("Heater_Settings", {})
+        self.heater_enabled = heater.get("enabled", "disabled")
         self.heater_pin     = int(heater.get("heater_pin", 0))
-        # stocke True si "enabled", False sinon
-        self.heater_enabled = heater.get("heater_enabled", "disabled").lower() == "enabled"
         
         # ――― Réseau ―――
         net = p["Network_Settings"]
@@ -541,6 +540,7 @@ class Parameter:
     def get_hysteresis_offset(self) -> float:
        """Décalage d'hystérésis (°C) autour des consignes jour/nuit."""
        return self.hysteresis_offset
-    
-    def get_heater_enabled(self) -> bool:
-        return getattr(self, "heater_enabled", False)
+   
+    def set_heater_enabled(self, enabled: str) -> None:
+
+        self.heater_enabled = enabled

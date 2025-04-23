@@ -81,13 +81,12 @@ class PuppetMaster:
         )
 
         info("Démarrage du contrôle chauffage")
-        # appels positionnels → 4 arguments
         loop.create_task(
             heat_control(
-                heater_component = self.heater,
-                sensor_handler   = self.sensor_handler,
-                parameters       = self.parameters,
-                sampling_time    = 30,
+                heater_component=self.heater,
+                sensor_handler=self.sensor_handler,
+                parameters=self.parameters,
+                sampling_time=30,
             )
         )
 

@@ -7,8 +7,6 @@ from datetime import datetime
 
 from ui.pretty_console import info, warning
 
-# controller/components/heater_control.py
-
 async def heat_control(
     *,
     heater_component,
@@ -21,38 +19,49 @@ async def heat_control(
       ◦ Choisit plage jour/nuit selon horaire DailyTimer
       ◦ Si T < T_min - offset  → ON
       ◦ Si T > T_max + offset  → OFF
+      ◦ Sinon conserve l’état précédent et l’affiche
     """
-    from datetime import datetime
-    from ui.pretty_console import info, warning
-
     while True:
-        now_h = datetime.now().hour
+        # 1) Mode manuel On/Off
+        if parameters.get_heater_enabled() != "enabled":
+            info("Chauffage désactivé – contrôle suspendu")
+            await asyncio.sleep(sampling_time)
+            continue
 
-        # on récupère les consignes jour/nuit
-        if (   parameters.get_dailytimer1_start_hour() * 60
-            + parameters.get_dailytimer1_start_minute()
-            <= datetime.now().hour * 60 + datetime.now().minute
-            <= parameters.get_dailytimer1_stop_hour()  * 60
-            + parameters.get_dailytimer1_stop_minute()):
-            # période « jour » selon DailyTimer #1
-            t_min = parameters.get_target_temp_min_day()  - parameters.get_hysteresis_offset()
-            t_max = parameters.get_target_temp_max_day()  + parameters.get_hysteresis_offset()
+        # 2) Détermination de la plage jour/nuit d’après DailyTimer #1
+        now = datetime.now()
+        current = now.hour * 60 + now.minute
+        start = parameters.get_dailytimer1_start_hour() * 60 + parameters.get_dailytimer1_start_minute()
+        stop  = parameters.get_dailytimer1_stop_hour()  * 60 + parameters.get_dailytimer1_stop_minute()
+
+        if start <= stop:
+            is_day = start <= current <= stop
         else:
-            # période « nuit »
-            t_min = parameters.get_target_temp_min_night() - parameters.get_hysteresis_offset()
-            t_max = parameters.get_target_temp_max_night() + parameters.get_hysteresis_offset()
+            is_day = current >= start or current <= stop
 
+        offset = parameters.get_hysteresis_offset()
+        if is_day:
+            t_min = parameters.get_target_temp_min_day()   - offset
+            t_max = parameters.get_target_temp_max_day()   + offset
+        else:
+            t_min = parameters.get_target_temp_min_night() - offset
+            t_max = parameters.get_target_temp_max_night() + offset
+
+        # 3) Lecture de la température ambiante
         temp = sensor_handler.get_sensor_value("BME280T")
         if temp is None:
-            warning("Chauffage – lecture T ambiante échouée")
+            warning("Chauffage – lecture T ambiante échouée")
         else:
-            info(f"Chauffage – T={temp:.1f}°C, plage [{t_min:.1f};{t_max:.1f}]")
+            info(f"Chauffage – T={temp:.1f}°C, plage [{t_min:.1f};{t_max:.1f}]")
             if temp < t_min:
                 heater_component.set_state(1)
-                info("Chauffage ON")
+                info("Chauffage → ON")
             elif temp > t_max:
                 heater_component.set_state(0)
-                info("Chauffage OFF")
-            # sinon on conserve l’état courant
+                info("Chauffage → OFF")
+            else:
+                # 4) Température OK : on conserve l'état précédent
+                etat = "ON" if heater_component.get_state() == 1 else "OFF"
+                info(f"Chauffage reste → {etat}")
 
         await asyncio.sleep(sampling_time)
