@@ -19,19 +19,19 @@ from model.SensorStats           import SensorStats
 # ── correspondance « champ GET » → (section_JSON, clé_JSON) ─────────────
 _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
     # DailyTimer #1
-    "dt1start"      : ("DailyTimer1_Settings", ("start_hour",        "start_minute")),
-    "dt1stop"       : ("DailyTimer1_Settings", ("stop_hour",         "stop_minute")),
+    "dt1start"       : ("DailyTimer1_Settings", ("start_hour",    "start_minute")),
+    "dt1stop"        : ("DailyTimer1_Settings", ("stop_hour",     "stop_minute")),
     # DailyTimer #2
-    "dt2start"      : ("DailyTimer2_Settings", ("start_hour",        "start_minute")),
-    "dt2stop"       : ("DailyTimer2_Settings", ("stop_hour",         "stop_minute")),
+    "dt2start"       : ("DailyTimer2_Settings", ("start_hour",    "start_minute")),
+    "dt2stop"        : ("DailyTimer2_Settings", ("stop_hour",     "stop_minute")),
 
     # Cyclic #1
-    "period"        : ("Cyclic1_Settings",     "period_minutes"),
-    "duration"      : ("Cyclic1_Settings",     "action_duration_seconds"),
+    "period"         : ("Cyclic1_Settings",     "period_minutes"),
+    "duration"       : ("Cyclic1_Settings",     "action_duration_seconds"),
     # Cyclic #2
-    "period2"       : ("Cyclic2_Settings",     "period_minutes"),
-    "duration2"     : ("Cyclic2_Settings",     "action_duration_seconds"),
-    
+    "period2"        : ("Cyclic2_Settings",     "period_minutes"),
+    "duration2"      : ("Cyclic2_Settings",     "action_duration_seconds"),
+
     # Temperature Settings
     "min_day"           : ("Temperature_Settings", "target_temp_min_day"),
     "max_day"           : ("Temperature_Settings", "target_temp_max_day"),
@@ -39,29 +39,40 @@ _CONF_FIELDS: dict[str, tuple[str, str | tuple[str, str]]] = {
     "max_night"         : ("Temperature_Settings", "target_temp_max_night"),
     "hysteresis_offset" : ("Temperature_Settings", "hysteresis_offset"),
 
-    # Heater enable / pin
+    # Heater enable
     "heater_enabled"    : ("Heater_Settings",      "enabled"),
-    "heater_pin"        : ("GPIO_Settings",        "heater_pin"),
-
-    # Growth stage
-    "stage"         : ("life_period",          "stage"),
-
-    # Motor Settings
-    "motor_mode"    : ("Motor_Settings",       "motor_mode"),
-    "speed"         : ("Motor_Settings",       "motor_user_speed"),
-    "target_temp"   : ("Motor_Settings",       "target_temp"),
-    "hysteresis"    : ("Motor_Settings",       "hysteresis"),
-    "min_speed"     : ("Motor_Settings",       "min_speed"),
-    "max_speed"     : ("Motor_Settings",       "max_speed"),
 
     # Network Settings
-    "host"          : ("Network_Settings",     "host_machine_address"),
-    "wifi_ssid"     : ("Network_Settings",     "wifi_ssid"),
-    "wifi_password" : ("Network_Settings",     "wifi_password"),
-    "influx_db"     : ("Network_Settings",     "influx_db_name"),
-    "influx_port"   : ("Network_Settings",     "influx_db_port"),
-    "influx_user"   : ("Network_Settings",     "influx_db_user"),
-    "influx_pw"     : ("Network_Settings",     "influx_db_password"),
+    "host"              : ("Network_Settings",     "host_machine_address"),
+    "wifi_ssid"         : ("Network_Settings",     "wifi_ssid"),
+    "wifi_password"     : ("Network_Settings",     "wifi_password"),
+    "influx_db"         : ("Network_Settings",     "influx_db_name"),
+    "influx_port"       : ("Network_Settings",     "influx_db_port"),
+    "influx_user"       : ("Network_Settings",     "influx_db_user"),
+    "influx_pw"         : ("Network_Settings",     "influx_db_password"),
+
+    # Growth stage
+    "stage"             : ("life_period",          "stage"),
+
+    # Motor Settings
+    "motor_mode"        : ("Motor_Settings",       "motor_mode"),
+    "speed"             : ("Motor_Settings",       "motor_user_speed"),
+    "target_temp"       : ("Motor_Settings",       "target_temp"),
+    "hysteresis"        : ("Motor_Settings",       "hysteresis"),
+    "min_speed"         : ("Motor_Settings",       "min_speed"),
+    "max_speed"         : ("Motor_Settings",       "max_speed"),
+
+    # ─────────────────────────────────────────────
+    # GPIO Settings (pins pour timers, chauffage, moteur)
+    "dailytimer1_pin"   : ("GPIO_Settings",        "dailytimer1_pin"),
+    "dailytimer2_pin"   : ("GPIO_Settings",        "dailytimer2_pin"),
+    "cyclic1_pin"       : ("GPIO_Settings",        "cyclic1_pin"),
+    "cyclic2_pin"       : ("GPIO_Settings",        "cyclic2_pin"),
+    "heater_pin"        : ("GPIO_Settings",        "heater_pin"),
+    "motor_pin1"        : ("GPIO_Settings",        "motor_pin1"),
+    "motor_pin2"        : ("GPIO_Settings",        "motor_pin2"),
+    "motor_pin3"        : ("GPIO_Settings",        "motor_pin3"),
+    "motor_pin4"        : ("GPIO_Settings",        "motor_pin4"),
 }
 
 class Server:
@@ -86,8 +97,12 @@ class Server:
         self.parameters        = parameters
         self.host              = host
         self.port              = port
+
+        # Stats min/max
         self.stats = SensorStats()
-        self.sensor_handler.stats = self.stats
+        # on injette aussi la même instance dans le sensor_handler
+        # pour que les relevés mettent à jour les stats correctement
+        setattr(self.sensor_handler, "stats", self.stats)
 
     async def run(self) -> None:
         srv = await asyncio.start_server(self._handle, self.host, self.port)
@@ -124,6 +139,7 @@ class Server:
         # 3) Routing
         if method != "GET":
             status, body = "405 Method Not Allowed", b"Method not allowed"
+
         else:
             # accueil
             if path in ("/", "/index.html"):
@@ -139,7 +155,6 @@ class Server:
                 ctype  = "text/html; charset=utf-8"
 
             # monitoring + reset individuels
-            # monitoring + reset individuels
             elif path.startswith("/monitor"):
                 parts = urllib.parse.urlparse(path)
                 query = urllib.parse.parse_qs(parts.query, keep_blank_values=True)
@@ -149,14 +164,11 @@ class Server:
                     if not param.startswith("reset_"):
                         continue
 
-                    # extrait la clé réelle
                     key = param.split("reset_", 1)[1]
-                    if key == "DS18B3":                 # HTML envoie reset_DS18B3
-                        sensor_key = "DS18B#3"
-                    else:
-                        sensor_key = key
+                    # HTML envoyait parfois reset_DS18B3 sans le '#'
+                    sensor_key = "DS18B#3" if key == "DS18B3" else key
 
-                    # remet à None puis à la valeur courante
+                    # remise à zéro + valeur courante
                     self.stats.clear_key(sensor_key)
                     val = self.sensor_handler.get_sensor_value(sensor_key)
                     if val is not None:
@@ -164,8 +176,8 @@ class Server:
 
                     success(f"Statistique {sensor_key} réinitialisée")
 
-                # renvoie la page avec la même instance self.stats
-                body   = monitor_page(self.sensor_handler, self.stats).encode("utf-8")
+                # → nouveau : on passe self.parameters en 3ᵉ argument
+                body   = monitor_page(self.sensor_handler, self.stats, self.parameters).encode("utf-8")
                 status = "200 OK"
                 ctype  = "text/html; charset=utf-8"
 
@@ -213,8 +225,7 @@ class Server:
                 warning(f"Champ GET inconnu : {key}")
                 continue
 
-            value        = values[0]
-            section, j_k = _CONF_FIELDS[key]
+            value, (section, j_k) = values[0], _CONF_FIELDS[key]
 
             # HH:MM fields
             if isinstance(j_k, tuple):
@@ -223,6 +234,7 @@ class Server:
                 except ValueError:
                     error(f"Format HH:MM invalide pour {key}={value}")
                     continue
+
                 k_h, k_m = j_k
                 update_one_parameter(section, k_h, hh)
                 update_one_parameter(section, k_m, mm)
@@ -239,6 +251,7 @@ class Server:
                 elif key == "dt2stop":
                     self.parameters.set_dailytimer2_stop_hour(hh)
                     self.parameters.set_dailytimer2_stop_minute(mm)
+
                 success(f"{key} → {hh:02d}:{mm:02d}")
 
             # simple fields
@@ -246,7 +259,6 @@ class Server:
                 update_one_parameter(section, j_k, value)
                 setter = getattr(self.parameters, f"set_{j_k}", None)
                 if callable(setter):
-                    # cast heater_enabled vers bool
                     if key == "heater_enabled":
                         setter(value.lower() in ("1","true","enabled","on","yes"))
                     else:
