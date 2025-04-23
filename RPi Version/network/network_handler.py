@@ -9,64 +9,56 @@ from __future__ import annotations
 
 import os
 import subprocess
-from pathlib import Path
 
-from ui.pretty_console import (
-    info, success, warning, error, action
-)
-from param.parameter_handler import read_parameters_from_json
+from ui.pretty_console import info, success, warning, error, action
+from param.config       import AppConfig
 
-# ──────────────────────────────────────────────────────────────
-#  Paramètres réseau depuis param.json
-# ──────────────────────────────────────────────────────────────
-_param = read_parameters_from_json()
-_NET   = _param["Network_Settings"]
-
-SSID      = _NET["wifi_ssid"]
-PASSWORD  = _NET["wifi_password"]
-HOST_ADDR = _NET["host_machine_address"]
-
-# ──────────────────────────────────────────────────────────────
-#  Connexion Wi-Fi
-# ──────────────────────────────────────────────────────────────
 def do_connect() -> None:
     """
-    Active la radio Wi-Fi (nmcli) puis tente de se connecter sur SSID/PASS.
-    Nécessite les droits root, sinon on avertit l'utilisateur.
+    Active la radio Wi-Fi (nmcli) puis tente de se connecter sur SSID/PASS
+    définis dans AppConfig.network. Nécessite les droits root.
     """
-    action(f"Tentative de connexion au Wi-Fi SSID : '{SSID}'")
+    # Recharge la config à jour
+    config = AppConfig.load()
+    ssid     = config.network.wifi_ssid
+    password = config.network.wifi_password
+
+    action(f"Tentative de connexion au Wi-Fi SSID : '{ssid}'")
 
     if os.geteuid() != 0:
-        warning("Exécutez le script en root pour activer le Wi-Fi :"
-                "  sudo python3 main.py")
+        warning(
+            "Exécutez le script en root pour activer le Wi-Fi :\n"
+            "  sudo python3 main.py"
+        )
         return
 
     try:
-        # Active la radio
+        # Active la radio Wi-Fi
         subprocess.run(["nmcli", "radio", "wifi", "on"], check=True)
-
         # Se connecte
         subprocess.run(
-            ["nmcli", "device", "wifi", "connect", SSID, "password", PASSWORD],
+            ["nmcli", "device", "wifi", "connect", ssid, "password", password],
             check=True
         )
-
         success("Connexion Wi-Fi réussie ✅")
 
     except subprocess.CalledProcessError as exc:
         error(f"Erreur de connexion Wi-Fi : {exc}")
 
-# ──────────────────────────────────────────────────────────────
-#  Test de présence du serveur distant
-# ──────────────────────────────────────────────────────────────
+
 def is_host_connected() -> str:
     """
-    Ping (1 paquet, timeout 1 s) ; renvoie « online/offline ».
+    Ping l’hôte configuré dans AppConfig.network.host_machine_address
+    (1 paquet, timeout 1 s) ; renvoie « online » ou « offline ».
     """
-    info(f"Ping vers {HOST_ADDR} …")
+    # Recharge la config à jour
+    config = AppConfig.load()
+    host = config.network.host_machine_address
+
+    info(f"Ping vers {host} …")
     try:
         ret = subprocess.run(
-            ["ping", "-c", "1", "-W", "1", HOST_ADDR],
+            ["ping", "-c", "1", "-W", "1", host],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         ).returncode
 

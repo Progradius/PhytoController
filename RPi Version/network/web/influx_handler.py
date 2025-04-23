@@ -4,9 +4,9 @@
 """
 Envoi périodique des mesures capteurs vers InfluxDB (v1.*) via l’API HTTP.
 
-‣ URL construite dynamiquement à partir de *param.json*
+‣ URL construite dynamiquement à partir de AppConfig
 ‣ Log soigné (Pretty-Console)
-‣ Gestion mémoire explicite (gc.collect) après chaque rafraichissement
+‣ Gestion mémoire explicite (gc.collect) après chaque rafraîchissement
 """
 
 from __future__ import annotations
@@ -18,21 +18,21 @@ from urllib.parse import urlencode
 import requests
 
 from ui.pretty_console import info, warning, error
-from model.Parameter          import Parameter
+from param.config import AppConfig
 from controllers.SensorController import SensorController
 
 
 # ───────────────────────────────────────────────────────────────
-#  Initialisation unique
+#  Initialisation unique depuis AppConfig
 # ───────────────────────────────────────────────────────────────
-_params         = Parameter()
+_params = AppConfig.load()
 _sensor_handler = SensorController(parameters=_params)
 
-_influx_host = f"http://{_params.get_host_machine_address()}:{_params.get_influx_db_port()}"
-_query_base  = _influx_host + "/write?" + urlencode({
-    "db": _params.get_influx_db_name(),
-    "u" : _params.get_influx_db_user(),
-    "p" : _params.get_influx_db_password()
+_influx_host = f"http://{_params.network.host_machine_address}:{_params.network.influx_db_port}"
+_query_base = _influx_host + "/write?" + urlencode({
+    "db": _params.network.influx_db_name,
+    "u": _params.network.influx_db_user,
+    "p": _params.network.influx_db_password
 })
 
 info(f"InfluxDB → {_query_base}")
@@ -55,7 +55,7 @@ def _send_point(measurement: str, field: str, value):
     try:
         r = requests.post(_query_base, data=payload, timeout=4)
         if r.status_code == 204:
-            return                        # OK (Influx renvoie 204 No Content)
+            return  # OK (Influx renvoie 204 No Content)
         warning(f"InfluxDB HTTP {r.status_code}: {r.text.strip()}")
     except requests.RequestException as exc:
         error(f"POST InfluxDB : {exc}")

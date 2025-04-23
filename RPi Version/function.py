@@ -1,19 +1,17 @@
 # function.py
-# Author : Progradius
+# Author : Progradius (refactorisé)
 # License: AGPL-3.0
 # ------------------------------------------------------------------
 #  Fonctions utilitaires « système »  (temps, stockage, GPIO, …)
 # ------------------------------------------------------------------
 
-import os
 import shutil
 import subprocess
-import time
 
 import RPi.GPIO as GPIO
 
-from param.parameter_handler      import read_parameters_from_json
-from ui.pretty_console      import info, success, warning, error
+from param.config import AppConfig
+from ui.pretty_console import info, success, warning, error
 
 # ───────────────────────────────────────────────────────────────
 #  Init GPIO global – BCM & warnings off
@@ -21,17 +19,12 @@ from ui.pretty_console      import info, success, warning, error
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-# ───────────────────────────────────────────────────────────────
-#  Chargement des paramètres (JSON)
-# ───────────────────────────────────────────────────────────────
-parameters = read_parameters_from_json()
-
 # ==================================================================
 #                       OUTILS DE CONVERSION TEMPS
 # ==================================================================
-convert_time_to_minutes  = lambda h, m   : int(h)*60   + int(m)
-convert_time_to_seconds  = lambda h,m,s : int(h)*3600 + int(m)*60 + int(s)
-convert_minute_to_seconds= lambda m      : int(m)*60
+convert_time_to_minutes   = lambda h, m   : int(h)*60   + int(m)
+convert_time_to_seconds   = lambda h, m, s: int(h)*3600 + int(m)*60 + int(s)
+convert_minute_to_seconds = lambda m      : int(m)*60
 
 # ==================================================================
 #                        INFO STOCKAGE / RAM
@@ -43,10 +36,9 @@ def check_disk_usage(path: str = "/") -> str:
     total, used, free = shutil.disk_usage(path)
     return f"{free / (1024**3):.2f} GB"
 
-
 def check_ram_usage() -> None:
     """
-    Affiche la RAM totale et disponible sans dépendance externe.
+    Affiche la RAM totale et disponible.
     Utilise /proc/meminfo (Linux only).
     """
     mem = {}
@@ -66,7 +58,7 @@ def check_ram_usage() -> None:
 # ==================================================================
 def set_ntp_time() -> None:
     """
-    Active (ou vérifie) la synchro NTP via *systemd-timesyncd*.
+    Active (ou vérifie) la synchro NTP via systemd‐timesyncd.
     Nécessite sudo ou des permissions adaptées.
     """
     try:
@@ -84,15 +76,19 @@ def set_ntp_time() -> None:
 # ==================================================================
 #                   SÉCURITÉ MOTEUR AU DÉMARRAGE
 # ==================================================================
-def motor_all_pin_down_at_boot() -> None:
+def motor_all_pin_down_at_boot(config: AppConfig | None = None) -> None:
     """
     Met **toutes** les broches moteur à LOW au boot (sécurité).
+    Si `config` n'est pas fourni, on le charge depuis AppConfig.
     """
+    if config is None:
+        config = AppConfig.load()
+
     pins = [
-        parameters["GPIO_Settings"]["motor_pin1"],
-        parameters["GPIO_Settings"]["motor_pin2"],
-        parameters["GPIO_Settings"]["motor_pin3"],
-        parameters["GPIO_Settings"]["motor_pin4"],
+        config.gpio.motor_pin1,
+        config.gpio.motor_pin2,
+        config.gpio.motor_pin3,
+        config.gpio.motor_pin4,
     ]
     for pin in pins:
         GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
