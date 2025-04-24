@@ -1,8 +1,8 @@
 ﻿# controller/web/pages.py
-# Author: Progradius
+# Author : Progradius
 # License: AGPL-3.0
 # -------------------------------------------------------------
-#  Génère les pages HTML (aucune logique réseau ici)
+#  Génère les pages HTML (pas de logique réseau ici)
 # -------------------------------------------------------------
 
 from datetime import datetime
@@ -11,10 +11,9 @@ from typing import get_origin, get_args, Literal
 from param.config import AppConfig
 
 # -------------------------------------------------------------
-#  En-tête / pied de page HTML
+#  En-tête / pied de page
 # -------------------------------------------------------------
-html_header = r"""
-<!DOCTYPE HTML>
+html_header = r"""<!DOCTYPE HTML>
 <html><head>
 <meta charset="utf8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.0/css/bootstrap.min.css" rel="stylesheet">
@@ -42,30 +41,33 @@ html_footer = "</div></body></html>"
 GPIO.setmode(GPIO.BCM)
 
 # -------------------------------------------------------------
-# Helper rendu champ <input>/<select>
+# Helper rendu input / select
 # -------------------------------------------------------------
 def _render_field(name: str, value, ann) -> str:
     if get_origin(ann) is Literal:
         opts = get_args(ann)
-        s = [f'<select name="{name}">'] + [
-            f'<option value="{o}"{" selected" if value==o else ""}>{o}</option>' for o in opts
-        ] + ['</select>']
-        return "\n".join(s)
+        out = ['<select name="{}">'.format(name)]
+        for o in opts:
+            sel = ' selected' if value == o else ''
+            out.append(f'<option value="{o}"{sel}>{o}</option>')
+        out.append('</select>')
+        return "\n".join(out)
+
     if ann is bool:
         sel = lambda v: ' selected' if v else ''
-        return (
-            f'<select name="{name}">'
-            f'<option value="enabled"{sel(value)}>Enabled</option>'
-            f'<option value="disabled"{sel(not value)}>Disabled</option></select>'
-        )
+        return (f'<select name="{name}">'
+                f'<option value="enabled"{sel(value)}>Enabled</option>'
+                f'<option value="disabled"{sel(not value)}>Disabled</option></select>')
+
     if ann in (int, float):
         step = ' step="0.1"' if ann is float else ''
         return f'<input type="number" name="{name}" value="{value}"{step}>'
+
     return f'<input type="text" name="{name}" value="{value}">'
 
-# ==============================================================
+# -------------------------------------------------------------
 #  PAGE PRINCIPALE
-# ==============================================================
+# -------------------------------------------------------------
 def main_page(controller_status) -> str:
     start = controller_status.get_dailytimer_current_start_time()
     stop  = controller_status.get_dailytimer_current_stop_time()
@@ -98,13 +100,14 @@ def main_page(controller_status) -> str:
   <div class="mainwrap"><h1>Component #1</h1><hr><h2>State : {state}</h2></div></div>
 </div>{html_footer}"""
 
-# ==============================================================
+# -------------------------------------------------------------
 #  PAGE CONFIGURATION
-# ==============================================================
+# -------------------------------------------------------------
 def conf_page(config: AppConfig) -> str:
-    html = [html_header, '<form method="get" action="/conf">']
+    html = [html_header, '<form method="post" action="/conf">']       # ⬅️ POST
     for idx, (section_name, field_info) in enumerate(config.model_fields.items()):
-        if idx % 3 == 0: html.append('<div class="row">')
+        if idx % 3 == 0:
+            html.append('<div class="row">')
         alias = field_info.alias or section_name
         section_obj = getattr(config, section_name)
         html.append(f'<div class="col-md-4"><fieldset><legend>{alias}</legend>')
@@ -114,10 +117,12 @@ def conf_page(config: AppConfig) -> str:
             html.append(f'<label for="{alias}.{fld_alias}">{fld_alias}</label>')
             html.append(_render_field(f"{alias}.{fld_alias}", val, ann))
         html.append('</fieldset></div>')
-        if idx % 3 == 2 or idx == len(config.model_fields)-1: html.append('</div>')
+        if idx % 3 == 2 or idx == len(config.model_fields) - 1:
+            html.append('</div>')
     html.append('<div class="div_center"><button class="button_base" type="submit">Save configuration</button></div>')
-    html.append('</form>'+html_footer)
+    html.append('</form>' + html_footer)
     return "\n".join(html)
+
 
 # ==============================================================
 #  PAGE MONITORING
