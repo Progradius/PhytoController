@@ -14,7 +14,7 @@ from param.config import AppConfig
 # Réglages de taille de police (à modifier selon vos préférences)
 # ──────────────────────────────────────────────────────────────
 BODY_FONT_SIZE   = "1.5rem"    # taille du texte normal
-HEADER_FONT_SIZE = "2rem"  # taille des titres h1, h2 et legend
+HEADER_FONT_SIZE = "2rem"      # taille des titres h1, h2 et legend
 
 # -------------------------------------------------------------
 #  En-tête / pied de page HTML
@@ -27,109 +27,82 @@ html_header = f"""
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.0/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    /* Reset basique */
+    /* Reset & global */
     * {{ margin:0; padding:0; box-sizing:border-box; }}
     body {{
-      background: #000;
-      color: #eee;
+      background: #000; color: #eee;
       font-family: "Courier New", monospace;
-      font-size: {BODY_FONT_SIZE};
-      line-height: 1.4;
-      padding: 1rem;
+      font-size: {BODY_FONT_SIZE}; line-height:1.4;
+      padding:1rem;
     }}
+    a {{ color:inherit; text-decoration:none; }}
     hr {{ border:0; border-top:3px solid #fff; margin:10px 0; }}
-    .mainwrap {{
-      background: rgba(0,0,0,.7);
-      margin: 5px 0;
-      padding:10px;
-    }}
-    .formwrap {{
-      background: rgba(0,0,0,.7);
-      margin:20px 0;
-      padding:10px;
-    }}
-    h1 {{
+
+    /* Navbar */
+    .navbar {{ margin-bottom:1rem; font-size:1.2rem; }}
+    .navbar a {{ margin-right:1rem; }}
+
+    /* Conteneurs */
+    .mainwrap, .formwrap {{ background:rgba(0,0,0,0.7); padding:1rem; border:1px solid #fff; border-radius:6px; }}
+    .formwrap {{ margin:1rem 0; }}
+
+    /* Titres */
+    h1,h2,legend {{
       font-size: {HEADER_FONT_SIZE};
       margin-bottom:0.5rem;
+      font-weight:normal;
     }}
-    h2 {{
-      font-size: {HEADER_FONT_SIZE};
-      margin-bottom:0.5rem;
-    }}
-    legend {{
-      font-size: {HEADER_FONT_SIZE};
-      margin-bottom:0.5rem;
-    }}
-    label {{
-      display:block;
-      margin-top:0.5rem;
-      font-size: {BODY_FONT_SIZE};
-    }}
+
+    /* Champs */
+    label {{ display:block; margin-top:0.5rem; font-size:{BODY_FONT_SIZE}; }}
     input, select {{
-      font-family:"Courier New", monospace;
-      font-size:{BODY_FONT_SIZE};
-      color:#FCF7EE;
-      background:transparent;
-      border:1px solid #fff;
-      width:100%;
-      padding:6px;
-      margin-top:4px;
+      width:100%; padding:0.5rem; margin-top:0.3rem;
+      background:transparent; border:1px solid #fff;
+      font-family:"Courier New", monospace; font-size:{BODY_FONT_SIZE};
+      color:#FCF7EE; border-radius:4px;
     }}
-    .button_base {{
-      display:block;
-      width:100%;
-      max-width:200px;
-      margin:10px auto;
-      padding:8px;
-      text-align:center;
-      background:#fff;
-      color:#000;
-      text-transform:uppercase;
-      cursor:pointer;
-      border:1px solid #000;
+
+    /* Boutons */
+    .button_base, .button_param {{
+      display:block; width:100%; max-width:200px;
+      margin:1rem auto 0; padding:0.6rem; text-align:center;
+      background:#fff; color:#000; text-transform:uppercase;
+      border:1px solid #000; border-radius:4px; cursor:pointer;
     }}
-    .button_base:hover {{
-      background:transparent;
-      color:#fff;
-      border:1px solid #fff;
+    .button_base:hover, .button_param:hover {{
+      background:transparent; color:#fff; border-color:#fff;
     }}
-    .div_center {{ text-align:center; margin-top:1rem; }}
-    fieldset {{
-      border:1px solid #fff;
-      padding:10px;
-      margin-bottom:20px;
+
+    /* Scroll-snap horizontal pour les cartes */
+    .scroll-container {{
+      display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
+      -webkit-overflow-scrolling: touch; padding-bottom:1rem; margin:1rem 0;
     }}
-    .navbar {{
-      margin-bottom:20px;
-      font-family:"Courier New", monospace;
+    .card {{
+      flex:0 0 300px; min-width:250px; margin-right:1rem;
+      scroll-snap-align:start; background:rgba(0,0,0,0.8);
+      border:1px solid #fff; border-radius:6px; padding:1rem;
+      position:relative;
     }}
-    .navbar a {{
-      color:#fff;
-      margin-right:15px;
-      text-decoration:none;
-    }}
-    .row {{ display:flex; flex-wrap:wrap; margin:-0.5rem; }}
-    .col {{ flex:1; min-width:200px; padding:0.5rem; }}
-    @media (max-width: 600px) {{
-      .row {{ flex-direction:column; }}
-      .col {{ min-width:100%; }}
-      body {{ padding:0.5rem; }}
-      .navbar {{ font-size:0.9rem; }}
+    .card:last-child {{ margin-right:0; }}
+
+    /* Responsive */
+    @media(max-width:600px){{
+      .navbar {{ font-size:1rem; }}
+      .card {{ flex:0 0 80%; min-width:200px; }}
     }}
   </style>
 </head>
 <body>
-<div class="container-fluid">
   <div class="navbar">
     <a href="/">System State</a> |
     <a href="/monitor">Monitored Values</a> |
     <a href="/conf">Configuration</a> |
-  <a href="/console">Console</a>
+    <a href="/console">Console</a>
   </div>
 """
 
 html_footer = """
-</div>
 </body>
 </html>
 """
@@ -169,8 +142,9 @@ def _render_field(name: str, value, annotation) -> str:
     # fallback → <input type="text">
     return f'<input type="text" name="{name}" value="{value}">'
 
+
 # ==============================================================
-#  PAGE PRINCIPALE  (état système)
+#  PAGE PRINCIPALE  (identique)
 # ==============================================================
 def main_page(controller_status) -> str:
     start = controller_status.get_dailytimer_current_start_time()
@@ -194,146 +168,149 @@ def main_page(controller_status) -> str:
         )
 
     return f"""{html_header}
-<div class="row">
-  <div class="col">
-    <div class="mainwrap"><h1>DailyTimer #1</h1><hr>
-      <h2>Start : {start}</h2>
-      <h2>Stop  : {stop}</h2>
-    </div>
+  <div class="mainwrap">
+    <h1>DailyTimer #1</h1><hr>
+    <h2>Start : {start}</h2>
+    <h2>Stop  : {stop}</h2>
   </div>
-  <div class="col">
-    <div class="mainwrap"><h1>Cyclic #1</h1><hr>
-      <h2 style="font-size:1rem;line-height:1.3;">{cyc_desc}</h2>
-    </div>
+  <div class="mainwrap">
+    <h1>Cyclic #1</h1><hr>
+    <h2 style="font-size:1rem;line-height:1.3;">{cyc_desc}</h2>
   </div>
-</div>
-<div class="row">
-  <div class="col">
-    <div class="mainwrap"><h1>Component #1</h1><hr>
-      <h2>State : {state}</h2>
-    </div>
+  <div class="mainwrap">
+    <h1>Component #1</h1><hr>
+    <h2>State : {state}</h2>
   </div>
-</div>
 {html_footer}"""
 
+
 # ==============================================================
-#  PAGE CONFIGURATION  (formulaire auto-généré)
+#  PAGE CONFIGURATION  (formulaire par section)
 # ==============================================================
 def conf_page(config: AppConfig) -> str:
-    html = [html_header, '<form method="post" action="/conf">']
     sections = list(config.model_fields.items())
-    for idx, (section_name, field_info) in enumerate(sections):
-        if idx % 3 == 0:
-            html.append('<div class="row">')
+    cards: list[str] = []
+
+    for section_name, field_info in sections:
         alias = field_info.alias or section_name
         section_obj = getattr(config, section_name)
-        html.append('<div class="col"><fieldset>')
-        html.append(f'<legend>{alias}</legend>')
+        # début de la carte pour cette section
+        card = [
+            '<div class="card">',
+            f'  <form method="post" action="/conf">',
+            f'    <h2>{alias}</h2><hr>'
+        ]
+        # tous les champs de la section
         for attr_name, fld in section_obj.model_fields.items():
             fld_alias      = fld.alias or attr_name
             fld_annotation = fld.annotation
             fld_value      = getattr(section_obj, attr_name)
             input_name     = f"{alias}.{fld_alias}"
-            html.append(f'<label for="{input_name}">{fld_alias}</label>')
-            html.append(_render_field(input_name, fld_value, fld_annotation))
-        html.append('</fieldset></div>')
-        if idx % 3 == 2 or idx == len(sections) - 1:
-            html.append('</div>')
-    html.append('<div class="div_center"><button class="button_base" type="submit">Save configuration</button></div>')
-    html.append('</form>')
-    html.append(html_footer)
-    return "\n".join(html)
+            card.append(f'    <label for="{input_name}">{fld_alias}</label>')
+            card.append(f'    {_render_field(input_name, fld_value, fld_annotation)}')
+        # bouton Save
+        card.append('    <button type="submit" class="button_param">Save</button>')
+        card.append('  </form>')
+        card.append('</div>')
+        cards.append("\n".join(card))
+
+    return html_header + """
+  <h1>Configuration</h1><hr>
+  <div class="scroll-container">
+""" + "\n".join(cards) + """
+  </div>
+""" + html_footer
+
 
 # ==============================================================
 #  PAGE MONITORING  – valeurs dynamiques + GPIO + actions sys.
 # ==============================================================
 def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=None) -> str:
-    _fmt   = lambda v,u: f"{v:.1f}&nbsp;{u}" if isinstance(v, (int, float)) else "―"
-    _stat  = lambda v  : f"{v:.1f}"          if isinstance(v, (int, float)) else "—"
-    _fmt_d = lambda dt : datetime.fromisoformat(dt).strftime("%d/%m/%Y %H:%M:%S") if dt else "—"
+    _fmt   = lambda v,u: f"{v:.1f}&nbsp;{u}" if isinstance(v,(int,float)) else "―"
+    _stat  = lambda v: f"{v:.1f}"         if isinstance(v,(int,float)) else "—"
+    fmt_d  = lambda dt: datetime.fromisoformat(dt).strftime("%d/%m/%Y %H:%M:%S") if dt else "—"
 
-    def _state(pin):
-        try:
-            return "On" if GPIO.input(pin) == GPIO.HIGH else "Off"
-        except:
-            return "—"
+    def state(pin):
+        try: return "On" if GPIO.input(pin)==GPIO.HIGH else "Off"
+        except: return "—"
 
-    timers_state = {
-        "DailyTimer #1": _state(config.gpio.dailytimer1_pin),
-        "DailyTimer #2": _state(config.gpio.dailytimer2_pin),
-        "Cyclic #1":     _state(config.gpio.cyclic1_pin),
-        "Cyclic #2":     _state(config.gpio.cyclic2_pin),
+    # Timers state
+    timers = {
+        "DailyTimer #1": state(config.gpio.dailytimer1_pin),
+        "DailyTimer #2": state(config.gpio.dailytimer2_pin),
+        "Cyclic #1":     state(config.gpio.cyclic1_pin),
+        "Cyclic #2":     state(config.gpio.cyclic2_pin),
     }
-
+    # Motor power
     motor_pins = [
-        config.gpio.motor_pin1,
-        config.gpio.motor_pin2,
-        config.gpio.motor_pin3,
-        config.gpio.motor_pin4,
+        config.gpio.motor_pin1, config.gpio.motor_pin2,
+        config.gpio.motor_pin3, config.gpio.motor_pin4
     ]
     try:
-        speed = next(i+1 for i,p in enumerate(motor_pins) if GPIO.input(p) == GPIO.HIGH)
+        speed = next(i+1 for i,p in enumerate(motor_pins) if GPIO.input(p)==GPIO.HIGH)
     except:
         speed = 0
-    pct = int(speed / 4 * 100)
+    pct = int(speed/4*100)
 
-    html = [html_header, '<div class="row">']
-    html.append('  <div class="col"><div class="mainwrap"><h1>Timers state</h1><hr>')
-    for name, st in timers_state.items():
-        html.append(f"    <p>{name} : {st}</p>")
-    html.append('  </div></div>')
+    html = [html_header]
+
+    html.append('<div class="mainwrap"><h1>Timers state</h1><hr>')
+    for n,s in timers.items():
+        html.append(f'<p>{n} : {s}</p>')
+    html.append('</div>')
+
     html.append(f'''
-  <div class="col"><div class="mainwrap"><h1>Motor power</h1><hr>
+  <div class="mainwrap">
+    <h1>Motor power</h1><hr>
     <p>Level : {speed} / 4</p>
     <div style="background:#555;width:100%;height:20px;">
       <div style="background:#0f0;height:20px;width:{pct}%"></div>
     </div>
-  </div></div></div>''')
+  </div>
+''')
 
+    # Capteurs
     readings = {
-        "BME280T": "°C", "BME280H": "%",  "BME280P": "hPa",
-        "DS18B#1": "°C", "DS18B#2": "°C", "DS18B#3": "°C",
-        "MLX-AMB": "°C", "MLX-OBJ": "°C",
-        "VL53-DIST": "mm", "HCSR-DIST": "cm", "TSL-LUX": "lx",
+        "BME280T":"°C","BME280H":"%","BME280P":"hPa",
+        "DS18B#1":"°C","DS18B#2":"°C","DS18B#3":"°C",
+        "MLX-AMB":"°C","MLX-OBJ":"°C",
+        "VL53-DIST":"mm","HCSR-DIST":"cm","TSL-LUX":"lx",
     }
     html.append('<div class="row">')
-    for key, unit in readings.items():
-        val = sensor_handler.get_sensor_value(key)
-        html.append(
-            f'<div class="col"><div class="mainwrap">'
-            f'<h1>{key}</h1><hr><h2>{_fmt(val, unit)}</h2>'
-            f'</div></div>'
-        )
+    for k,u in readings.items():
+        v = sensor_handler.get_sensor_value(k)
+        html.append(f'<div class="col"><div class="mainwrap"><h1>{k}</h1><hr><h2>{_fmt(v,u)}</h2></div></div>')
     html.append('</div>')
 
+    # Historique min/max
     html.append('<div class="formwrap"><h1>Historique min/max</h1><hr>')
-    for key, s in stats.get_all().items():
-        html.append(f'<h2>{key}</h2>')
-        html.append(f'<p>Min : {_stat(s["min"])} le {_fmt_d(s["min_date"])}</p>')
-        html.append(f'<p>Max : {_stat(s["max"])} le {_fmt_d(s["max_date"])}</p>')
+    for k,s in stats.get_all().items():
+        html.append(f'<h2>{k}</h2>')
+        html.append(f'<p>Min : {_stat(s["min"])} le {fmt_d(s["min_date"])}</p>')
+        html.append(f'<p>Max : {_stat(s["max"])} le {fmt_d(s["max_date"])}</p>')
         html.append(f'''
 <form method="get" action="/monitor">
-  <input type="hidden" name="reset_{key.replace("#","")}" value="1">
-  <button class="button_base" type="submit">Reset {key}</button>
+  <input type="hidden" name="reset_{k.replace("#","")}" value="1">
+  <button class="button_base" type="submit">Reset {k}</button>
 </form><hr>''')
     html.append('</div>')
 
+    # GPIO divers
     gpio = config.gpio
     html.append('<div class="formwrap"><h1>GPIO States</h1><hr><ul>')
-    for name, pin in {
-        "DailyTimer #1": gpio.dailytimer1_pin,
-        "DailyTimer #2": gpio.dailytimer2_pin,
-        "Cyclic #1":     gpio.cyclic1_pin,
-        "Heater":        gpio.heater_pin,
-        "Motor Pin 1":   gpio.motor_pin1,
+    for n,p in {
+        "DailyTimer #1":gpio.dailytimer1_pin,
+        "DailyTimer #2":gpio.dailytimer2_pin,
+        "Cyclic #1":    gpio.cyclic1_pin,
+        "Heater":       gpio.heater_pin,
+        "Motor Pin 1":  gpio.motor_pin1
     }.items():
-        try:
-            st = "On" if GPIO.input(pin) == GPIO.HIGH else "Off"
-        except:
-            st = "—"
-        html.append(f'<li>{name} (pin {pin}): {st}</li>')
+        try: st="On" if GPIO.input(p)==GPIO.HIGH else "Off"
+        except: st="—"
+        html.append(f'<li>{n} (pin {p}): {st}</li>')
     html.append('</ul></div>')
 
+    # Actions système
     html.append('<div class="formwrap"><h1>Actions système</h1><hr>')
     html.append('''
 <form method="get" action="/monitor">
@@ -348,6 +325,10 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
     html.append(html_footer)
     return "\n".join(html)
 
+
+# ==============================================================
+#  PAGE CONSOLE  (xterm.js + SSE)
+# ==============================================================
 def console_page() -> str:
     return f"""{html_header}
 <div class="row">
@@ -355,26 +336,16 @@ def console_page() -> str:
     <div id="terminal" style="width:100%; height:100%; background:#000;"></div>
   </div>
 </div>
-<!-- xterm.css et xterm.js depuis un CDN -->
-<link rel="stylesheet" href="https://unpkg.com/xterm/css/xterm.css" />
-<script src="https://unpkg.com/xterm/lib/xterm.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/xterm@3.8.0/dist/xterm.css" />
+<script src="https://unpkg.com/xterm@3.8.0/dist/xterm.js"></script>
 <script>
-  document.addEventListener("DOMContentLoaded", () => {{
-    // 1) Créer et ouvrir le terminal
-    const term = new Terminal({{ convertEol: true }});
-    term.open(document.getElementById('terminal'));
-    term.focus();
-
-    // 2) Se connecter au flux SSE
-    const evtSource = new EventSource('/console/stream');
-    evtSource.onmessage = ev => {{
-      // ev.data contient la ligne brute avec codes ANSI
-      term.write(ev.data + '\\r\\n');
-    }};
-    evtSource.onerror = err => {{
-      console.error("Erreur SSE:", err);
-      evtSource.close();
-    }};
-  }});
+document.addEventListener("DOMContentLoaded", () => {{
+  const term = new Terminal({{ convertEol: true }});
+  term.open(document.getElementById('terminal'));
+  term.focus();
+  const es = new EventSource('/console/stream');
+  es.onmessage = ev => term.write(ev.data + '\\r\\n');
+  es.onerror   = _ => es.close();
+}});
 </script>
 {html_footer}"""
