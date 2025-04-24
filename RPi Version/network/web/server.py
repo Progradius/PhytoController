@@ -105,7 +105,12 @@ class Server:
                     success(f"Statistique {sensor_key} réinitialisée")
 
                 body, ctype, status = (
-                    monitor_page(self.sensor_handler, self.stats, self.config).encode("utf-8"),
+                    monitor_page(
+                        self.sensor_handler,
+                        self.stats,
+                        self.config,
+                        self.controller_status                # 🆕
+                    ).encode("utf-8"),
                     "text/html; charset=utf-8",
                     "200 OK"
                 )
