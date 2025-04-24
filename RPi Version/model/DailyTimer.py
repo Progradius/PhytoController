@@ -41,6 +41,12 @@ class DailyTimer:
             f"{self.stop_hour:02d}:{self.stop_minute:02d}"
         )
 
+        # 🔄 Synchronisation immédiate de la broche au bon état
+        changed = self.toggle_state_daily()
+        if changed:
+            state = "ON" if self.component.get_state() else "OFF"
+            success(f"DailyTimer #{self.timer_id} initialisé → {state}")
+
     def refresh_from_config(self):
         """
         Recharge les horaires depuis le JSON en cours.
@@ -52,7 +58,9 @@ class DailyTimer:
         self.start_minute = blk.start_minute
         self.stop_hour    = blk.stop_hour
         self.stop_minute  = blk.stop_minute
-        success(f"DailyTimer #{self.timer_id} rafraîchi depuis AppConfig")
+        success(f"DailyTimer #{self.timer_id} rafraîchi depuis AppConfig: "
+                f"{self.start_hour:02d}:{self.start_minute:02d} → "
+                f"{self.stop_hour:02d}:{self.stop_minute:02d}")
 
     def get_component_state(self) -> bool:
         return self.component.get_state()
