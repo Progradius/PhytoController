@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from ui import pretty_console as ui
-from param.config import AppConfig  # pour typer le paramètre config
+from param.config import AppConfig
 
 async def timer_daily(
     dailytimer,
@@ -22,7 +22,7 @@ async def timer_daily(
     DailyTimer doit être (dé)activé en fonction de l'heure courante.
 
     • dailytimer : instance de `DailyTimer`
-      (doit exposer .timer_id, .toggle_state_daily(), .component.get_state())
+      (doit exposer .timer_id, .toggle_state_daily(), .component.get_state(), .refresh_from_config())
 
     • config : AppConfig optionnel, pour recharger les horaires
       depuis la configuration avant chaque vérification.
@@ -32,44 +32,30 @@ async def timer_daily(
     tid = str(dailytimer.timer_id)
 
     while True:
-        now = datetime.now()
-        now_str = now.strftime("%H:%M:%S")
-        ui.box(f"[D] #{tid} CHECK @ {now_str}", color="green")
+        # 1) Date/heure actuelle
+        now_dt = datetime.now()
+        ui.clock(f"DailyTimer #{tid}  –  check @ {now_dt:%H:%M:%S}")
 
-        # Si on a reçu la config, on met à jour dynamiquement les horaires
-        if config is not None:
-            if tid == "1":
-                block = config.daily_timer1
-            elif tid == "2":
-                block = config.daily_timer2
-            else:
-                ui.warning(f"timer_daily: ID inattendu {tid}")
-                block = None
+        # 2) Rechargement à chaud de la conf si supporté
+        if hasattr(dailytimer, "refresh_from_config"):
+            try:
+                dailytimer.refresh_from_config()
+            except Exception as e:
+                ui.warning(f"Échec refresh_from_config #{tid} → {e}")
 
-            if block is not None:
-                dailytimer.start_hour   = block.start_hour
-                dailytimer.start_minute = block.start_minute
-                dailytimer.stop_hour    = block.stop_hour
-                dailytimer.stop_minute  = block.stop_minute
-
-        # La méthode interne décide si on doit activer/désactiver
+        # 3) Décision ON/OFF
         changed = dailytimer.toggle_state_daily()
-
-        # Affichage résultat
         if changed:
-            gpio_state = dailytimer.component.get_state()
-            state_on = gpio_state == 0  # ON = GPIO LOW
-            action = "ON" if state_on else "OFF"
-            color  = "green" if state_on else "yellow"
-            now = datetime.now().strftime("%H:%M:%S")
-            ui.box(f"[D] #{tid} {action} @ {now}", color=color)
+            state_on = bool(dailytimer.component.get_state())
+            txt = "ON" if state_on else "OFF"
+            col = "green" if state_on else "grey"
+            ui.action(f"DailyTimer #{tid} switched {txt}")
         else:
-            ui.dim = True
             ui.info("Aucun changement demandé par le planning.")
-            ui.dim = False
 
-        # Prochaine vérif (info allégée, pas dans le style [D])
-        next_check = (now + timedelta(seconds=sampling_time)).strftime("%H:%M:%S")
+        # 4) Prochaine vérif (affichage format HH:MM:SS)
+        next_dt = now_dt + timedelta(seconds=sampling_time)
+        next_check = next_dt.strftime("%H:%M:%S")
         ui.dim = True
         ui.info(f"Prochaine vérif : {next_check}")
         ui.dim = False

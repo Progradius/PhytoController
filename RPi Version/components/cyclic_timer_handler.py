@@ -54,6 +54,7 @@ async def timer_cyclic(cyclic_timer) -> None:
     # Boucle principale infinie
     # ---------------------------------------------------------
     while True:
+        cyclic_timer.refresh_from_config()
         mode = cyclic_timer.get_mode().lower()
 
         # =====================================================

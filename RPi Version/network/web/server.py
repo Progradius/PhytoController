@@ -121,7 +121,7 @@ class Server:
                        else float(raw_val) if ann is float
                        else raw_val)
                 setattr(nested_model, nested_key, val)
-                success(f"{alias} ← {raw_val}")               # ✅ affichage
+                success(f"{alias} ← {raw_val}")
 
             # ---- champ top-level ----
             else:
@@ -133,7 +133,7 @@ class Server:
                        else float(raw_val) if ann is float
                        else raw_val)
                 setattr(self.config, field_name, val)
-                success(f"{alias} ← {raw_val}")               # ✅ affichage
+                success(f"{alias} ← {raw_val}")
 
         # Sauvegarde & re-initialisations
         self.config.save(); info("Configuration sauvegardée")
