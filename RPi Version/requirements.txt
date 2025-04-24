@@ -9,3 +9,5 @@ RPi.GPIO>=0.7.0
 
 # Bus I²C pour le BME280
 smbus2>=0.4.0
+
+aiohttp>=3.8
