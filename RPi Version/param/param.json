@@ -15,12 +15,26 @@
         "stop_minute": 0
     },
     "Cyclic1_Settings": {
-        "period_minutes": 1,
-        "action_duration_seconds": 30
+        "mode": "séquentiel",
+        "period_days": 1,
+        "triggers_per_day": 1,
+        "first_trigger_hour": 8,
+        "action_duration_seconds": 30,
+        "on_time_day": 600,
+        "off_time_day": 10,
+        "on_time_night": 5,
+        "off_time_night": 9
     },
     "Cyclic2_Settings": {
-        "period_minutes": 1,
-        "action_duration_seconds": 45
+        "mode": "journalier",
+        "period_days": 10,
+        "triggers_per_day": 1,
+        "first_trigger_hour": 8,
+        "action_duration_seconds": 60,
+        "on_time_day": 0,
+        "off_time_day": 0,
+        "on_time_night": 0,
+        "off_time_night": 0
     },
     "Temperature_Settings": {
         "target_temp_min_day": 21.0,

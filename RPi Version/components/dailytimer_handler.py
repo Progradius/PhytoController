@@ -1,17 +1,22 @@
 # controller/components/dailytimer_handler.py
 # Author  : Progradius
-# Licence : AGPL‑3.0
+# Licence : AGPL-3.0
 """
 Routine asynchrone : contrôle périodique d'un DailyTimer
+avec rechargement dynamique des horaires depuis AppConfig.
 """
 
 import asyncio
 from datetime import datetime, timedelta
 
 from ui import pretty_console as ui
+from param.config import AppConfig  # pour typer le paramètre config
 
-
-async def timer_daily(dailytimer, sampling_time: int = 60):
+async def timer_daily(
+    dailytimer,
+    config: AppConfig | None = None,
+    sampling_time: int = 60
+):
     """
     Vérifie toutes les *sampling_time* secondes si le composant du
     DailyTimer doit être (dé)activé en fonction de l'heure courante.
@@ -19,32 +24,54 @@ async def timer_daily(dailytimer, sampling_time: int = 60):
     • dailytimer : instance de `DailyTimer`
       (doit exposer .timer_id, .toggle_state_daily(), .component.get_state())
 
+    • config : AppConfig optionnel, pour recharger les horaires
+      depuis la configuration avant chaque vérification.
+
     • sampling_time : période de vérification, en secondes
     """
-    tid = dailytimer.timer_id
+    tid = str(dailytimer.timer_id)
 
     while True:
         now = datetime.now()
+        now_str = now.strftime("%H:%M:%S")
+        ui.box(f"[D] #{tid} CHECK @ {now_str}", color="green")
 
-        # ── affichage avant vérification ─────────────────────
-        ui.clock(f"DailyTimer #{tid}  –  check @ {now:%H:%M:%S}")
+        # Si on a reçu la config, on met à jour dynamiquement les horaires
+        if config is not None:
+            if tid == "1":
+                block = config.daily_timer1
+            elif tid == "2":
+                block = config.daily_timer2
+            else:
+                ui.warning(f"timer_daily: ID inattendu {tid}")
+                block = None
 
-        # La méthode utilisateur gère seule la décision / action
-        changed = dailytimer.toggle_state_daily()  # bool éventuel ou None
+            if block is not None:
+                dailytimer.start_hour   = block.start_hour
+                dailytimer.start_minute = block.start_minute
+                dailytimer.stop_hour    = block.stop_hour
+                dailytimer.stop_minute  = block.stop_minute
 
-        # ── Affichage résultat — si état modifié on le signale ─
+        # La méthode interne décide si on doit activer/désactiver
+        changed = dailytimer.toggle_state_daily()
+
+        # Affichage résultat
         if changed:
-            state_on = dailytimer.component.get_state() == 0  # adapté à ton log.
-            txt  = "ON" if state_on else "OFF"
-            col  = "green" if state_on else "grey"
-            ui.box(f"Component switched {txt}", color=col)
+            gpio_state = dailytimer.component.get_state()
+            state_on = gpio_state == 0  # ON = GPIO LOW
+            action = "ON" if state_on else "OFF"
+            color  = "green" if state_on else "yellow"
+            now = datetime.now().strftime("%H:%M:%S")
+            ui.box(f"[D] #{tid} {action} @ {now}", color=color)
         else:
+            ui.dim = True
             ui.info("Aucun changement demandé par le planning.")
+            ui.dim = False
 
-        # ── Prochaine vérification ────────────────────────────
+        # Prochaine vérif (info allégée, pas dans le style [D])
         next_check = (now + timedelta(seconds=sampling_time)).strftime("%H:%M:%S")
-        ui.dim = True  # petite astuce : attribut dynamique (cf. pretty_console)
-        ui.info(f"Prochaine vérif : {next_check}")
+        ui.dim = True
+        ui.info(f"Prochaine vérif : {next_check}")
         ui.dim = False
 
         await asyncio.sleep(sampling_time)

@@ -1,5 +1,5 @@
 # controller/sensor/DS18Handler.py
-# Author : Progradius (refactorisé)
+# Author : Progradius
 # License: AGPL-3.0
 
 import glob

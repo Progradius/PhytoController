@@ -1,5 +1,5 @@
 # controller/sensor/SensorController.py
-# Author : Progradius (adapted for AppConfig)
+# Author : Progradius
 # License : AGPL-3.0
 # --------------------------------------------------------------------
 #  Gestion unifiée de tous les capteurs matériels pour Raspberry Pi
@@ -21,15 +21,18 @@ from sensor_handlers.HCSR04Handler   import HCSR04Handler
 # Affichage « Pretty »
 from ui.pretty_console import info, warning, error
 
-# Votre nouveau modèle de config
+# Votre modèle de config
 from param.config import AppConfig
 
 
 class SensorController:
     """
-    Abstraction d'accès à tous les capteurs du projet.
-    Instancie chaque driver **uniquement si** le capteur est activé
-    dans `config.sensors`. Met aussi à jour les stats si injectées.
+    Regroupe tous les capteurs sous des measurements « métier » :
+      • air          : BME280 + MLX90614 ambiant
+      • surface_temp : MLX90614 objet
+      • water        : DS18B#3 (température d'eau)
+      • distance     : VL53L0X + HC-SR04
+      • lux          : TSL2591
     """
 
     def __init__(self, config: AppConfig):
@@ -44,41 +47,65 @@ class SensorController:
             self.i2c = None
 
         # ── Activation selon AppConfig.sensors ─────────────────────────
-        # Pydantic booleans issus de "enabled"/"disabled"
         s = self.config.sensors
-        self.bme_enabled   = s.bme280_state
-        self.ds18_enabled  = s.ds18b20_state
-        self.veml_enabled  = s.veml6075_state
-        self.vl53_enabled  = s.vl53L0x_state
-        self.mlx_enabled   = s.mlx90614_state
-        self.tsl_enabled   = s.tsl2591_state
-        self.hcsr_enabled  = s.hcsr04_state
+        self.bme_enabled  = s.bme280_state
+        self.ds18_enabled = s.ds18b20_state
+        self.veml_enabled = s.veml6075_state
+        self.vl53_enabled = s.vl53L0x_state
+        self.mlx_enabled  = s.mlx90614_state
+        self.tsl_enabled  = s.tsl2591_state
+        self.hcsr_enabled = s.hcsr04_state
 
         # Instanciation conditionnelle
-        self.bme  = BME280Handler(i2c=self.i2c)  if self.bme_enabled  else None
-        self.ds18 = DS18Handler()                if self.ds18_enabled else None
-        self.veml = VEMLHandler(i2c=self.i2c)    if self.veml_enabled else None
-        self.vl53 = VL53L0XHandler(config)       if self.vl53_enabled else None
-        self.mlx  = MLX90614Handler(i2c=self.i2c) if self.mlx_enabled  else None
-        self.tsl  = TSL2591Handler(i2c=self.i2c)  if self.tsl_enabled  else None
+        self.bme  = BME280Handler(i2c=self.i2c)   if self.bme_enabled else None
+        self.ds18 = DS18Handler()                 if self.ds18_enabled else None
+        self.veml = VEMLHandler(i2c=self.i2c)     if self.veml_enabled else None
+        self.vl53 = VL53L0XHandler(config)        if self.vl53_enabled else None
+        self.mlx  = MLX90614Handler(i2c=self.i2c) if self.mlx_enabled else None
+        self.tsl  = TSL2591Handler(i2c=self.i2c)  if self.tsl_enabled else None
         self.hcsr = HCSR04Handler(
-                        trigger_pin=self.config.gpio.hcsr_trigger_pin,
-                        echo_pin=   self.config.gpio.hcsr_echo_pin
-                    ) if self.hcsr_enabled else None
+            trigger_pin=self.config.gpio.hcsr_trigger_pin,
+            echo_pin=self.config.gpio.hcsr_echo_pin
+        ) if self.hcsr_enabled else None
 
         # ── Dictionnaire de mesures pour Influx / Web ─────────────────
-        # On regroupe les clés de mesure par « measurement » Influx
-        self.sensor_dict: Dict[str, List[str]] = {
-            "BME280":   ["BME280T", "BME280H", "BME280P"] if self.bme else [],
-            "DS18B20":  [f"DS18B#{i}" for i in (1,2,3)] if self.ds18 else [],
-            "TSL2591":  ["TSL-LUX", "TSL-IR"] if self.tsl else [],
-            "VEML6075": ["VEML-UVA", "VEML-UVB", "VEML-UVINDEX"] if self.veml else [],
-            "MLX90614":["MLX-AMB", "MLX-OBJ"] if self.mlx else [],
-            "VL53L0X":  ["VL53L0X"] if self.vl53 else [],
-            "HCSR04":   ["HCSR04"] if self.hcsr else []
+        self.sensor_dict = self._build_sensor_dict()
+        info(f"SensorController initialisé avec : {self.sensor_dict}")
+
+    def _is_sensor_enabled(self, sensor_name: str) -> bool:
+        sensor_mapping = {
+            "BME280T": self.bme_enabled, "BME280H": self.bme_enabled, "BME280P": self.bme_enabled,
+            "DS18B#1": self.ds18_enabled, "DS18B#2": self.ds18_enabled, "DS18B#3": self.ds18_enabled,
+            "TSL-LUX": self.tsl_enabled, "TSL-IR": self.tsl_enabled,
+            "VEML-UVA": self.veml_enabled, "VEML-UVB": self.veml_enabled, "VEML-UVINDEX": self.veml_enabled,
+            "MLX-AMB": self.mlx_enabled, "MLX-OBJ": self.mlx_enabled,
+            "VL53L0X": self.vl53_enabled,
+            "HCSR04": self.hcsr_enabled,
+        }
+        return sensor_mapping.get(sensor_name, False)
+
+    def _build_sensor_dict(self) -> Dict[str, List[str]]:
+        """
+        Construit le dictionnaire des capteurs activés, utilisé pour l’export.
+        """
+        base_sensor_dict: Dict[str, List[str]] = {
+            "air":          ["BME280T", "BME280H", "BME280P", "MLX-AMB", "DS18B#1", "DS18B#2"],
+            "surface_temp": ["MLX-OBJ"],
+            "water":        ["DS18B#3"],
+            "distance":     ["VL53L0X", "HCSR04"],
+            "lux":          ["TSL-LUX", "TSL-IR"],
         }
 
-        info("SensorController initialisé")
+        sensor_dict: Dict[str, List[str]] = {}
+        for measurement, sensor_keys in base_sensor_dict.items():
+            enabled_sensors = [
+                sensor for sensor in sensor_keys
+                if self._is_sensor_enabled(sensor)
+            ]
+            if enabled_sensors:
+                sensor_dict[measurement] = enabled_sensors
+
+        return sensor_dict
 
     def get_sensor_value(self, sensor_key: str):
         """
@@ -87,12 +114,10 @@ class SensorController:
         try:
             result = None
 
-            # DS18B20
             if sensor_key.startswith("DS18B#") and self.ds18:
                 idx = int(sensor_key.split("#")[1])
                 result = self.ds18.get_ds18_temp(idx)
 
-            # BME280
             elif sensor_key.startswith("BME280") and self.bme:
                 result = {
                     "BME280T": self.bme.get_bme_temp,
@@ -100,33 +125,28 @@ class SensorController:
                     "BME280P": self.bme.get_bme_pressure
                 }[sensor_key]()
 
-            # TSL2591
             elif sensor_key.startswith("TSL-") and self.tsl:
                 result = {
                     "TSL-LUX": self.tsl.calculate_lux,
-                    "TSL-IR":  self.tsl.get_ir
+                    "TSL-IR": self.tsl.get_ir
                 }[sensor_key]()
 
-            # VEML6075
             elif sensor_key.startswith("VEML-") and self.veml:
                 result = {
-                    "VEML-UVA":    self.veml.get_veml_uva,
-                    "VEML-UVB":    self.veml.get_veml_uvb,
-                    "VEML-UVINDEX":self.veml.get_uv_index
+                    "VEML-UVA": self.veml.get_veml_uva,
+                    "VEML-UVB": self.veml.get_veml_uvb,
+                    "VEML-UVINDEX": self.veml.get_uv_index
                 }[sensor_key]()
 
-            # MLX90614
             elif sensor_key in ("MLX-AMB", "MLX-OBJ") and self.mlx:
                 result = {
                     "MLX-AMB": self.mlx.get_ambient_temp,
                     "MLX-OBJ": self.mlx.get_object_temp
                 }[sensor_key]()
 
-            # VL53L0X (Time-of-Flight)
             elif sensor_key == "VL53L0X" and self.vl53:
                 result = self.vl53.get_vl53_reading()
 
-            # HC-SR04 (ultrason)
             elif sensor_key == "HCSR04" and self.hcsr:
                 result = self.hcsr.get_distance_cm()
 
@@ -138,7 +158,6 @@ class SensorController:
             warning(f"{sensor_key} désactivé ou introuvable")
             return None
 
-        # Mise à jour des stats si injectées
         stats = getattr(self, "stats", None)
         if stats and sensor_key in stats.KEYS:
             try:

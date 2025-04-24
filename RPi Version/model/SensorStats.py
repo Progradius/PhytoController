@@ -1,5 +1,5 @@
 # model/SensorStats.py
-# Author: Progradius (refactorisé)
+# Author: Progradius
 # License: AGPL-3.0
 
 import json

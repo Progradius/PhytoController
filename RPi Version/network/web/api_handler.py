@@ -58,7 +58,7 @@ class API:
         # ─── Configuration via query-string ─────────────────────
         if "dt1start" in q and "dt1stop" in q:
             self._configure_dailytimer(q)
-        if "period" in q and "duration" in q:
+        if "period_days" in q and "action_duration_seconds" in q:
             self._configure_cyclic(q)
 
         # ─── Endpoints JSON ───────────────────────────────────
@@ -99,17 +99,22 @@ class API:
             warning(f"DailyTimer: format invalide ({exc})")
 
     def _configure_cyclic(self, q: dict[str, list[str]]):
-        """Met à jour période/durée du CyclicTimer #1 dans AppConfig puis sauve."""
+        """
+        Met à jour le CyclicTimer #1 dans AppConfig puis sauve.
+        Attend les paramètres :
+          • period_days
+          • action_duration_seconds
+        """
         try:
-            period   = int(q["period"][0])
-            duration = int(q["duration"][0])
+            days = int(q["period_days"][0])
+            dur  = int(q["action_duration_seconds"][0])
 
             c1 = self._config.cyclic1
-            c1.period_minutes          = period
-            c1.action_duration_seconds = duration
+            c1.period_days             = days
+            c1.action_duration_seconds = dur
 
             self._config.save()
-            info(f"CyclicTimer mis à jour → période {period} min, action {duration} s")
+            info(f"CyclicTimer mis à jour → période {days} j, action {dur} s")
 
         except Exception as exc:
             warning(f"CyclicTimer: paramètres invalides ({exc})")
@@ -153,7 +158,27 @@ class API:
         )
 
     def _system_state_json(self) -> dict:
-        st = self._controller_state
+        """
+        Expose l’état système, y compris les réglages du CyclicTimer refactoré.
+        """
+        st  = self._controller_state
+        cfg = self._config.cyclic1
+
+        # Base du payload pour le cyclic
+        cyc: dict[str, int | str] = {
+            "mode":                     cfg.mode,
+            "period_days":              cfg.period_days,
+            "action_duration_seconds":  cfg.action_duration_seconds,
+        }
+        # Si mode "séquentiel", on ajoute les temps on/off
+        if cfg.mode == "séquentiel":
+            cyc.update({
+                "on_time_day":    cfg.on_time_day,
+                "off_time_day":   cfg.off_time_day,
+                "on_time_night":  cfg.on_time_night,
+                "off_time_night": cfg.off_time_night,
+            })
+
         return {
             "component_state": st.get_component_state(),
             "motor_speed"    : st.get_motor_speed(),
@@ -161,10 +186,7 @@ class API:
                 "start": st.get_dailytimer_current_start_time(),
                 "stop" : st.get_dailytimer_current_stop_time(),
             },
-            "cyclic"         : {
-                "period"  : st.get_cyclic_period(),
-                "duration": st.get_cyclic_duration(),
-            }
+            "cyclic1"        : cyc,
         }
 
     # ──────────────────────────────────────────────────────────

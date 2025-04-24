@@ -1,5 +1,5 @@
 # controllers/PuppetMaster.py
-# Author: Progradius (refactorisé)
+# Author: Progradius
 # License: AGPL-3.0
 # -------------------------------------------------------------
 #  Orchestrateur asynchrone du système (tâches, timers, serveur)
@@ -7,14 +7,14 @@
 
 import asyncio
 
-from network.web.influx_handler     import write_sensor_values
-from components.dailytimer_handler  import timer_daily
-from components                     import cyclic_timer_handler
-from components.MotorHandler        import temp_control
-from components.heater_control      import heat_control
-from network.web.server             import Server
-from ui.pretty_console              import info, warning, error
-from param.config                   import AppConfig
+from network.web.influx_handler         import write_sensor_values
+from components.dailytimer_handler      import timer_daily
+from components.cyclic_timer_handler    import timer_cyclic
+from components.MotorHandler            import temp_control
+from components.heater_control          import heat_control
+from network.web.server                 import Server
+from ui.pretty_console                  import info, warning, error
+from param.config                       import AppConfig
 
 
 class PuppetMaster:
@@ -67,15 +67,15 @@ class PuppetMaster:
 
         # --- Daily timers ---
         info("Démarrage des DailyTimers")
-        loop.create_task(timer_daily(self.dailytimer1, sampling_time=60))
-        loop.create_task(timer_daily(self.dailytimer2, sampling_time=60))
+        loop.create_task(timer_daily(self.dailytimer1, self.config, sampling_time=60))
+        loop.create_task(timer_daily(self.dailytimer2, self.config, sampling_time=60))
 
         # --- Cyclic timers ---
         info("Démarrage des CyclicTimers")
-        loop.create_task(cyclic_timer_handler.timer_cylic(self.cyclic_timer1))
-        loop.create_task(cyclic_timer_handler.timer_cylic(self.cyclic_timer2))
+        loop.create_task(timer_cyclic(self.cyclic_timer1))
+        loop.create_task(timer_cyclic(self.cyclic_timer2))
 
-        # Contrôle moteur
+        # --- Contrôle moteur ---
         info("Démarrage du contrôle moteur")
         loop.create_task(
             temp_control(
@@ -85,7 +85,7 @@ class PuppetMaster:
             )
         )
 
-        # Contrôle chauffage
+        # --- Contrôle chauffage ---
         info("Démarrage du contrôle chauffage")
         loop.create_task(
             heat_control(
@@ -97,7 +97,6 @@ class PuppetMaster:
         )
 
         # --- InfluxDB push ---
-        # now using config.network.host_machine_state
         if self.config.network.host_machine_state.lower() == "online":
             info("InfluxDB : envoi périodique activé (delay 60 s)")
             loop.create_task(write_sensor_values(period=60))
@@ -110,7 +109,7 @@ class PuppetMaster:
             Server(
                 controller_status=self.controller_status,
                 sensor_handler=self.sensor_handler,
-                config=self.config,      # nouveau paramètre
+                config=self.config,
             ).run()
         )
 
