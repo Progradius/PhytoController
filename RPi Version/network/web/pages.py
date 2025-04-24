@@ -10,10 +10,16 @@ import RPi.GPIO as GPIO
 from typing import get_origin, get_args, Literal
 from param.config import AppConfig
 
+# ──────────────────────────────────────────────────────────────
+# Réglages de taille de police (à modifier selon vos préférences)
+# ──────────────────────────────────────────────────────────────
+BODY_FONT_SIZE   = "1.5rem"    # taille du texte normal
+HEADER_FONT_SIZE = "2rem"  # taille des titres h1, h2 et legend
+
 # -------------------------------------------------------------
 #  En-tête / pied de page HTML
 # -------------------------------------------------------------
-html_header = r"""
+html_header = f"""
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -22,40 +28,54 @@ html_header = r"""
   <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.0/css/bootstrap.min.css" rel="stylesheet">
   <style>
     /* Reset basique */
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body {
+    * {{ margin:0; padding:0; box-sizing:border-box; }}
+    body {{
       background: #000;
       color: #eee;
       font-family: "Courier New", monospace;
+      font-size: {BODY_FONT_SIZE};
       line-height: 1.4;
       padding: 1rem;
-    }
-    hr { border:0; border-top:3px solid #fff; margin:10px 0; }
-    .mainwrap {
+    }}
+    hr {{ border:0; border-top:3px solid #fff; margin:10px 0; }}
+    .mainwrap {{
       background: rgba(0,0,0,.7);
       margin: 5px 0;
       padding:10px;
-    }
-    .formwrap {
+    }}
+    .formwrap {{
       background: rgba(0,0,0,.7);
       margin:20px 0;
       padding:10px;
-    }
-    h1 { font-size:1.5rem; margin-bottom:0.5rem; }
-    h2 { font-size:1.2rem; margin-bottom:0.5rem; }
-    legend { font-size:1rem; margin-bottom:0.5rem; }
-    label { display:block; margin-top:0.5rem; font-size:0.9rem; }
-    input, select {
+    }}
+    h1 {{
+      font-size: {HEADER_FONT_SIZE};
+      margin-bottom:0.5rem;
+    }}
+    h2 {{
+      font-size: {HEADER_FONT_SIZE};
+      margin-bottom:0.5rem;
+    }}
+    legend {{
+      font-size: {HEADER_FONT_SIZE};
+      margin-bottom:0.5rem;
+    }}
+    label {{
+      display:block;
+      margin-top:0.5rem;
+      font-size: {BODY_FONT_SIZE};
+    }}
+    input, select {{
       font-family:"Courier New", monospace;
-      font-size:0.9rem;
+      font-size:{BODY_FONT_SIZE};
       color:#FCF7EE;
       background:transparent;
       border:1px solid #fff;
       width:100%;
       padding:6px;
       margin-top:4px;
-    }
-    .button_base {
+    }}
+    .button_base {{
       display:block;
       width:100%;
       max-width:200px;
@@ -67,35 +87,35 @@ html_header = r"""
       text-transform:uppercase;
       cursor:pointer;
       border:1px solid #000;
-    }
-    .button_base:hover {
+    }}
+    .button_base:hover {{
       background:transparent;
       color:#fff;
       border:1px solid #fff;
-    }
-    .div_center { text-align:center; margin-top:1rem; }
-    fieldset {
+    }}
+    .div_center {{ text-align:center; margin-top:1rem; }}
+    fieldset {{
       border:1px solid #fff;
       padding:10px;
       margin-bottom:20px;
-    }
-    .navbar {
+    }}
+    .navbar {{
       margin-bottom:20px;
       font-family:"Courier New", monospace;
-    }
-    .navbar a {
+    }}
+    .navbar a {{
       color:#fff;
       margin-right:15px;
       text-decoration:none;
-    }
-    .row { display:flex; flex-wrap:wrap; margin:-0.5rem; }
-    .col { flex:1; min-width:200px; padding:0.5rem; }
-    @media (max-width: 600px) {
-      .row { flex-direction:column; }
-      .col { min-width:100%; }
-      body { padding:0.5rem; }
-      .navbar { font-size:0.9rem; }
-    }
+    }}
+    .row {{ display:flex; flex-wrap:wrap; margin:-0.5rem; }}
+    .col {{ flex:1; min-width:200px; padding:0.5rem; }}
+    @media (max-width: 600px) {{
+      .row {{ flex-direction:column; }}
+      .col {{ min-width:100%; }}
+      body {{ padding:0.5rem; }}
+      .navbar {{ font-size:0.9rem; }}
+    }}
   </style>
 </head>
 <body>
@@ -103,7 +123,8 @@ html_header = r"""
   <div class="navbar">
     <a href="/">System State</a> |
     <a href="/monitor">Monitored Values</a> |
-    <a href="/conf">Configuration</a>
+    <a href="/conf">Configuration</a> |
+  <a href="/console">Console</a>
   </div>
 """
 
@@ -231,7 +252,6 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
     _stat  = lambda v  : f"{v:.1f}"          if isinstance(v, (int, float)) else "—"
     _fmt_d = lambda dt : datetime.fromisoformat(dt).strftime("%d/%m/%Y %H:%M:%S") if dt else "—"
 
-    # ─── Timers state + Motor power ──────────────────────────
     def _state(pin):
         try:
             return "On" if GPIO.input(pin) == GPIO.HIGH else "Off"
@@ -270,7 +290,6 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
     </div>
   </div></div></div>''')
 
-    # ─── Capteurs ───────────────────────────────────────────
     readings = {
         "BME280T": "°C", "BME280H": "%",  "BME280P": "hPa",
         "DS18B#1": "°C", "DS18B#2": "°C", "DS18B#3": "°C",
@@ -287,7 +306,6 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
         )
     html.append('</div>')
 
-    # ─── Historique min/max ─────────────────────────────────
     html.append('<div class="formwrap"><h1>Historique min/max</h1><hr>')
     for key, s in stats.get_all().items():
         html.append(f'<h2>{key}</h2>')
@@ -300,7 +318,6 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
 </form><hr>''')
     html.append('</div>')
 
-    # ─── États GPIO divers ──────────────────────────────────
     gpio = config.gpio
     html.append('<div class="formwrap"><h1>GPIO States</h1><hr><ul>')
     for name, pin in {
@@ -317,7 +334,6 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
         html.append(f'<li>{name} (pin {pin}): {st}</li>')
     html.append('</ul></div>')
 
-    # ─── Actions système ───────────────────────────────────
     html.append('<div class="formwrap"><h1>Actions système</h1><hr>')
     html.append('''
 <form method="get" action="/monitor">
@@ -331,3 +347,34 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
 ''')
     html.append(html_footer)
     return "\n".join(html)
+
+def console_page() -> str:
+    return f"""{html_header}
+<div class="row">
+  <div class="col" style="height:80vh; padding:0;">
+    <div id="terminal" style="width:100%; height:100%; background:#000;"></div>
+  </div>
+</div>
+<!-- xterm.css et xterm.js depuis un CDN -->
+<link rel="stylesheet" href="https://unpkg.com/xterm/css/xterm.css" />
+<script src="https://unpkg.com/xterm/lib/xterm.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {{
+    // 1) Créer et ouvrir le terminal
+    const term = new Terminal({{ convertEol: true }});
+    term.open(document.getElementById('terminal'));
+    term.focus();
+
+    // 2) Se connecter au flux SSE
+    const evtSource = new EventSource('/console/stream');
+    evtSource.onmessage = ev => {{
+      // ev.data contient la ligne brute avec codes ANSI
+      term.write(ev.data + '\\r\\n');
+    }};
+    evtSource.onerror = err => {{
+      console.error("Erreur SSE:", err);
+      evtSource.close();
+    }};
+  }});
+</script>
+{html_footer}"""
