@@ -5,6 +5,14 @@
 Pilotage d'un moteur 4 pas + régulation automatique (manuel / auto)
 en fonction de la température mesurée via BME280 et des Temperature_Settings,
 en déduisant jour/nuit depuis DailyTimer1.
+
+Auto‐mode granulaire :
+ • temp < tmin → ventil 15 min/h (speed=1 les 15 premières minutes, sinon 0)
+ • tmin ≤ temp ≤ tmax → low vitesse de base (1)
+ • tmax < temp ≤ tmax+hyst → speed=2
+ • tmax+hyst < temp ≤ tmax+2·hyst → speed=3
+ • temp > tmax+2·hyst → speed=4
+Aucun saut de plus d’un cran d’un cycle à l’autre.
 """
 
 import asyncio
@@ -41,6 +49,7 @@ class MotorHandler:
         info(f"Mode moteur initial : {self.mode}, vitesse : {self.speed}")
 
     def all_pin_down(self):
+        """Met toutes les sorties GPIO à HIGH (moteur coupé)."""
         for setter in (
             self.motor.set_pin1_value,
             self.motor.set_pin2_value,
@@ -51,19 +60,23 @@ class MotorHandler:
         warning("Moteur sécurisé : toutes les broches à HIGH")
 
     def set_motor_speed(self, speed: int):
+        """
+        Positionne la vitesse (0 - 4) ; coupe d'abord le moteur 1 s
+        pour éviter un court-circuit entre deux pas.
+        """
         speed = max(0, min(speed, 4))
         self.all_pin_down()
         sleep(1)
         if speed == 0:
             warning("Vitesse moteur : 0 (OFF)")
         else:
-            # active la broche correspondante en LOW (=False)
             getattr(self.motor, f"set_pin{speed}_value")(False)
             success(f"Vitesse moteur réglée : {speed}")
         sleep(1)
         self.speed = speed
 
     def current_speed(self) -> int:
+        """Renvoie la vitesse actuelle (0-4) d'après l'état des broches."""
         return self.motor.get_motor_speed()
 
 
@@ -74,8 +87,7 @@ async def temp_control(
 ):
     """
     • manual : vitesse imposée par l'utilisateur (config.motor.motor_user_speed)
-    • auto   : calcul de la vitesse selon la Temperature_Settings,
-               avec hystérésis et distinction jour/nuit via DailyTimer1.
+    • auto   : vitesse granulaire selon Temperature_Settings et horaire jour/nuit.
     """
     sensor_handler = SensorController(config)
 
@@ -88,9 +100,10 @@ async def temp_control(
             info(f"[MANUAL] Vitesse demandée : {speed}")
             motor_handler.set_motor_speed(speed)
             await asyncio.sleep(60)
+            continue
 
         # ─── MODE AUTOMATIQUE ────────────────────────────────────
-        elif mode == "auto":
+        if mode == "auto":
             raw = sensor_handler.get_sensor_value("BME280T")
             try:
                 temp_val = float(raw)
@@ -99,14 +112,14 @@ async def temp_control(
                 await asyncio.sleep(sampling_time)
                 continue
 
-            # 1) jour/nuit via DailyTimer1
-            dt1 = config.daily_timer1
+            # 1) Déterminer jour/nuit via DailyTimer1
+            dt1   = config.daily_timer1
             start = convert_time_to_minutes(dt1.start_hour, dt1.start_minute)
             stop  = convert_time_to_minutes(dt1.stop_hour,  dt1.stop_minute)
             now_m = convert_time_to_minutes(datetime.now().hour, datetime.now().minute)
             is_day = (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)
 
-            # 2) sélection des bornes
+            # 2) Choix des bornes selon jour/nuit
             ts = config.temperature_settings
             if is_day:
                 tmin = ts.target_temp_min_day
@@ -116,33 +129,37 @@ async def temp_control(
                 tmax = ts.target_temp_max_night
             hyst = ts.hysteresis_offset
 
-            # 3) calcul de la vitesse désirée (0–4)
-            span = tmax - tmin
-            if span <= 0:
-                desired = 0
+            # 3) Calcul de la vitesse désirée (0–4) par paliers
+            if temp_val < tmin:
+                # ventilation périodique 15 min/h
+                minute = datetime.now().minute
+                speed = 1 if (minute % 60) < 15 else 0
+                clock(f"[AUTO] {temp_val:.1f}°C < {tmin} → ventilation, speed {speed}")
+            elif temp_val <= tmax:
+                speed = 1
+                clock(f"[AUTO] {temp_val:.1f}°C dans [{tmin},{tmax}] → speed 1")
+            elif temp_val <= tmax + hyst:
+                speed = 2
+                clock(f"[AUTO] {temp_val:.1f}°C ≤ {tmax+hyst:.1f} → speed 2")
+            elif temp_val <= tmax + 2*hyst:
+                speed = 3
+                clock(f"[AUTO] {temp_val:.1f}°C ≤ {tmax+2*hyst:.1f} → speed 3")
             else:
-                ratio = (temp_val - tmin) / span
-                desired = round(ratio * 4)
-                desired = max(0, min(4, desired))
+                speed = 4
+                clock(f"[AUTO] {temp_val:.1f}°C > {tmax+2*hyst:.1f} → speed 4")
 
-            # 4) hystérésis simple : on change *vraiment* que si
-            #    on sort de la bande [borne-hyst ; borne+hyst]
-            #    où 'borne' = tmin + desired*(span/4)
-            if span > 0 and desired != motor_handler.speed:
-                threshold = tmin + (desired / 4) * span
-                if abs(temp_val - threshold) >= hyst:
-                    speed = desired
-                else:
-                    speed = motor_handler.speed
-                clock(f"[AUTO] {temp_val:.1f}°C → désiré {desired}, appliqué {speed}")
-            else:
-                speed = desired
-                clock(f"[AUTO] {temp_val:.1f}°C → speed {speed}")
+            # 4) Empêcher les sauts de plus d'un cran
+            prev = motor_handler.speed
+            delta = speed - prev
+            if abs(delta) > 1:
+                speed = prev + (1 if delta > 0 else -1)
+                clock(f"[AUTO] Limitation saut → nouveau speed {speed}")
 
+            # Appliquer
             motor_handler.set_motor_speed(speed)
             await asyncio.sleep(sampling_time)
+            continue
 
         # ─── MODE INCONNU ────────────────────────────────────────
-        else:
-            warning(f"Mode moteur inconnu : '{mode}'")
-            await asyncio.sleep(sampling_time)
+        warning(f"Mode moteur inconnu : '{mode}'")
+        await asyncio.sleep(sampling_time)
