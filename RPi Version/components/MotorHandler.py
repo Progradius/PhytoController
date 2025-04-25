@@ -88,7 +88,7 @@ async def temp_control(
 ):
     """
     • manual : vitesse imposée par l'utilisateur (config.motor.motor_user_speed)
-    • auto   : vitesse granulaire selon Temperature_Settings et horaire jour/nuit.
+    • auto   : vitesse granulaire selon TemperatureSettings et horaire jour/nuit.
     """
     sensor_handler = SensorController(config)
 
@@ -121,7 +121,7 @@ async def temp_control(
             is_day = (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)
 
             # 2) Choix des bornes selon jour/nuit
-            ts = config.temperature_settings
+            ts = config.temperature
             if is_day:
                 tmin = ts.target_temp_min_day
                 tmax = ts.target_temp_max_day
@@ -149,7 +149,7 @@ async def temp_control(
                 speed = 4
                 clock(f"[AUTO] {temp_val:.1f}°C > {tmax+2*hyst:.1f} → speed 4")
 
-            # 4) Empêcher les sauts de plus d'un cran
+            # 4) Empêcher les sauts de plus d’un cran
             prev = motor_handler.speed
             delta = speed - prev
             if abs(delta) > 1:
