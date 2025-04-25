@@ -9,6 +9,10 @@ from datetime import datetime
 import RPi.GPIO as GPIO
 from typing import get_origin, get_args, Literal
 from param.config import AppConfig
+from datetime import datetime
+import RPi.GPIO as GPIO
+from typing import get_origin, get_args, Literal
+from param.config import AppConfig
 
 # ──────────────────────────────────────────────────────────────
 # Réglages de taille de police (à modifier selon vos préférences)
@@ -109,6 +113,16 @@ html_footer = """
 
 GPIO.setmode(GPIO.BCM)
 
+
+
+# -------------------------------------------------------------
+#  Helper : rend “On” / “Off” d'un pin GPIO
+# -------------------------------------------------------------
+def _state(pin: int) -> str:
+    try:
+        return "On" if GPIO.input(pin) == GPIO.HIGH else "Off"
+    except:
+        return "—"
 # -------------------------------------------------------------
 #  Helper : rend un <input> / <select> adapté à l’annotation
 # -------------------------------------------------------------
@@ -143,64 +157,166 @@ def _render_field(name: str, value, annotation) -> str:
     return f'<input type="text" name="{name}" value="{value}">'
 
 
-# ==============================================================
-#  PAGE PRINCIPALE  (identique)
-# ==============================================================
-def main_page(controller_status) -> str:
-    start = controller_status.get_dailytimer_current_start_time()
-    stop  = controller_status.get_dailytimer_current_stop_time()
-    state = controller_status.get_component_state()
+# -------------------------------------------------------------
+#  PAGE PRINCIPALE  (état global)
+# -------------------------------------------------------------
+def main_page(
+    controller_status,
+    sensor_handler,
+    stats,
+    config: AppConfig
+) -> str:
+    # 1) DailyTimers
+    dt1 = config.daily_timer1
+    dt2 = config.daily_timer2
+    dt1_sched = f"{dt1.start_hour:02d}:{dt1.start_minute:02d} → {dt1.stop_hour:02d}:{dt1.stop_minute:02d}"
+    dt2_sched = f"{dt2.start_hour:02d}:{dt2.start_minute:02d} → {dt2.stop_hour:02d}:{dt2.stop_minute:02d}"
+    dt1_state = _state(config.gpio.dailytimer1_pin)
+    dt2_state = _state(config.gpio.dailytimer2_pin)
 
-    cfg = AppConfig.load().cyclic1
-    if cfg.mode == "journalier":
-        cyc_desc = (
-            "Mode : Journalier<br>"
-            f"Période : {cfg.period_days} jour{'s' if cfg.period_days > 1 else ''}<br>"
-            f"Actions / jour : {cfg.triggers_per_day}<br>"
-            f"Premier déclenchement : {cfg.first_trigger_hour}h00<br>"
-            f"Durée action : {cfg.action_duration_seconds}s"
-        )
-    else:
-        cyc_desc = (
-            "Mode : Séquentiel<br>"
-            f"Jour – ON {cfg.on_time_day}s / OFF {cfg.off_time_day}s<br>"
-            f"Nuit – ON {cfg.on_time_night}s / OFF {cfg.off_time_night}s"
-        )
+    # 2) Cyclic timers
+    def _format_cyclic(cyc):
+        if cyc.mode == "journalier":
+            return (
+                "Mode : Journalier<br>"
+                f"Période : {cyc.period_days} jour{'s' if cyc.period_days>1 else ''}<br>"
+                f"Actions/jour : {cyc.triggers_per_day}<br>"
+                f"Premier : {cyc.first_trigger_hour}h00<br>"
+                f"Durée : {cyc.action_duration_seconds}s"
+            )
+        else:
+            return (
+                "Mode : Séquentiel<br>"
+                f"Jour – ON {cyc.on_time_day}s / OFF {cyc.off_time_day}s<br>"
+                f"Nuit – ON {cyc.on_time_night}s / OFF {cyc.off_time_night}s"
+            )
+    cyc1 = config.cyclic1
+    cyc2 = config.cyclic2
+    cyc1_desc = _format_cyclic(cyc1)
+    cyc2_desc = _format_cyclic(cyc2)
+    cyc1_state = _state(config.gpio.cyclic1_pin)
+    cyc2_state = _state(config.gpio.cyclic2_pin)
 
+    # 3) Heater
+    heater_state = _state(config.gpio.heater_pin)
+
+    # 4) Températures min/max (récupérées depuis stats)
+    temps = []
+    for key in ("BME280T","DS18B#1","DS18B#2","DS18B#3","MLX-AMB","MLX-OBJ"):
+        s = stats.get_all().get(key)
+        if s:
+            dmin = datetime.fromisoformat(s["min_date"]).strftime("%d/%m %H:%M")
+            dmax = datetime.fromisoformat(s["max_date"]).strftime("%d/%m %H:%M")
+            temps.append(
+                f"<p><strong>{key}</strong> : Min {s['min']:.1f}°C le {dmin} — Max {s['max']:.1f}°C le {dmax}</p>"
+            )
+    temps_html = "\n".join(temps) or "<p>Aucune donnée</p>"
+
+    # 5) Etat des capteurs (enabled/disabled)
+    sensors = []
+    for name, sensor in sensor_handler.sensor_dict.items():
+        enabled = getattr(sensor, "enabled", True)
+        sensors.append(f"<p>{name} : {'Enabled' if enabled else 'Disabled'}</p>")
+    sensors_html = "\n".join(sensors)
+
+    # --- Génération HTML ---
     return f"""{html_header}
-  <div class="mainwrap">
-    <h1>DailyTimer #1</h1><hr>
-    <h2>Start : {start}</h2>
-    <h2>Stop  : {stop}</h2>
+
+  <div class="row">
+    <div class="col"><div class="mainwrap">
+      <h1>DailyTimer #1</h1><hr>
+      <p>Planning : {dt1_sched}</p>
+      <p>Etat    : {dt1_state}</p>
+    </div></div>
+
+    <div class="col"><div class="mainwrap">
+      <h1>DailyTimer #2</h1><hr>
+      <p>Planning : {dt2_sched}</p>
+      <p>Etat    : {dt2_state}</p>
+    </div></div>
   </div>
-  <div class="mainwrap">
-    <h1>Cyclic #1</h1><hr>
-    <h2 style="font-size:1rem;line-height:1.3;">{cyc_desc}</h2>
+
+  <div class="row">
+    <div class="col"><div class="mainwrap">
+      <h1>Cyclic #1</h1><hr>
+      <div style="font-size:0.9rem;line-height:1.2;">{cyc1_desc}</div>
+      <p>Etat : {cyc1_state}</p>
+    </div></div>
+
+    <div class="col"><div class="mainwrap">
+      <h1>Cyclic #2</h1><hr>
+      <div style="font-size:0.9rem;line-height:1.2;">{cyc2_desc}</div>
+      <p>Etat : {cyc2_state}</p>
+    </div></div>
   </div>
-  <div class="mainwrap">
-    <h1>Component #1</h1><hr>
-    <h2>State : {state}</h2>
+
+  <div class="row">
+    <div class="col"><div class="mainwrap">
+      <h1>Heater</h1><hr>
+      <p>Etat : {heater_state}</p>
+    </div></div>
   </div>
+
+  <div class="formwrap">
+    <h1>Températures min/max</h1><hr>
+    {temps_html}
+  </div>
+
+  <div class="formwrap">
+    <h1>Sensors Enabled</h1><hr>
+    {sensors_html}
+  </div>
+
 {html_footer}"""
 
 
 # ==============================================================
-#  PAGE CONFIGURATION  (formulaire par section)
+#  PAGE CONFIGURATION  (formulaire par section, avec regroupement)
 # ==============================================================
 def conf_page(config: AppConfig) -> str:
     sections = list(config.model_fields.items())
     cards: list[str] = []
 
+    # clés à regrouper
+    to_merge = {"Temperature_Settings", "Heater_Settings"}
+    merged_alias = "Temperature & Heater Settings"
+    merged_done = False
+
     for section_name, field_info in sections:
         alias = field_info.alias or section_name
+
+        # si on doit regrouper ces deux sections
+        if section_name in to_merge:
+            if merged_done:
+                continue  # on l'a déjà fait
+            merged_done = True
+
+            # créer la carte fusionnée
+            card = ['<div class="card">', f'  <form method="post" action="/conf">', f'    <h2>{merged_alias}</h2><hr>']
+            # parcourir dans l'ordre Temperature puis Heater
+            for key in ("Temperature_Settings", "Heater_Settings"):
+                section_obj = getattr(config, key)
+                sub_alias = config.model_fields[key].alias or key
+                for attr_name, fld in section_obj.model_fields.items():
+                    fld_alias      = fld.alias or attr_name
+                    fld_annotation = fld.annotation
+                    fld_value      = getattr(section_obj, attr_name)
+                    input_name     = f"{sub_alias}.{fld_alias}"
+                    card.append(f'    <label for="{input_name}">{fld_alias}</label>')
+                    card.append(f'    {_render_field(input_name, fld_value, fld_annotation)}')
+            card.append('    <button type="submit" class="button_param">Save</button>')
+            card.append('  </form>')
+            card.append('</div>')
+            cards.append("\n".join(card))
+            continue
+
+        # sinon, carte normale pour la section seule
+        if section_name in to_merge:
+            # (sera géré par la fusion ci-dessus)
+            continue
+
         section_obj = getattr(config, section_name)
-        # début de la carte pour cette section
-        card = [
-            '<div class="card">',
-            f'  <form method="post" action="/conf">',
-            f'    <h2>{alias}</h2><hr>'
-        ]
-        # tous les champs de la section
+        card = ['<div class="card">', f'  <form method="post" action="/conf">', f'    <h2>{alias}</h2><hr>']
         for attr_name, fld in section_obj.model_fields.items():
             fld_alias      = fld.alias or attr_name
             fld_annotation = fld.annotation
@@ -208,18 +324,19 @@ def conf_page(config: AppConfig) -> str:
             input_name     = f"{alias}.{fld_alias}"
             card.append(f'    <label for="{input_name}">{fld_alias}</label>')
             card.append(f'    {_render_field(input_name, fld_value, fld_annotation)}')
-        # bouton Save
         card.append('    <button type="submit" class="button_param">Save</button>')
         card.append('  </form>')
         card.append('</div>')
         cards.append("\n".join(card))
 
-    return html_header + """
-  <h1>Configuration</h1><hr>
-  <div class="scroll-container">
-""" + "\n".join(cards) + """
-  </div>
-""" + html_footer
+    return (
+        html_header
+        + "\n  <h1>Configuration</h1><hr>\n"
+        + '  <div class="scroll-container">\n'
+        + "\n".join(cards)
+        + "\n  </div>\n"
+        + html_footer
+    )
 
 
 # ==============================================================

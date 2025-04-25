@@ -146,9 +146,11 @@ class Server:
 
         # --- ROUTING ---
         if method=="GET" and path in ("/","/index.html"):
-            body,ctype,status = (
-                main_page(self.controller_status).encode("utf-8"),
-                "text/html; charset=utf-8","200 OK"
+            body, ctype, status = (
+                main_page(self.controller_status, self.sensor_handler, self.stats, self.config)
+                    .encode("utf-8"),
+                "text/html; charset=utf-8",
+                "200 OK"
             )
 
         elif path=="/conf":
