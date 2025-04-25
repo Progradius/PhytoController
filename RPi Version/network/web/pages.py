@@ -13,14 +13,15 @@ import os
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
 
-# Initialisation des GPIO
-GPIO.setmode(GPIO.BCM)
-
 def render_template(template_name: str, **context) -> str:
     template = env.get_template(template_name)
     return template.render(**context)
 
 def _render_field(name: str, value, annotation) -> str:
+    # Ignore les champs mode pour Motor et Cyclic → rendus manuellement (switch)
+    if name.endswith(".motor_mode") or name.endswith(".mode"):
+        return ""  # handled separately via toggles
+
     if get_origin(annotation) is Literal:
         opts = get_args(annotation)
         html = [f'<select name="{name}">']
@@ -29,6 +30,7 @@ def _render_field(name: str, value, annotation) -> str:
             html.append(f'  <option value="{opt}"{sel}>{opt}</option>')
         html.append('</select>')
         return "\n".join(html)
+
     if annotation is bool:
         sel_en = ' selected' if value else ''
         sel_dis = ' selected' if not value else ''
@@ -38,9 +40,11 @@ def _render_field(name: str, value, annotation) -> str:
             f'<option value="disabled"{sel_dis}>Disabled</option>'
             f'</select>'
         )
+
     if annotation in (int, float):
         step = ' step="0.1"' if annotation is float else ''
         return f'<input type="number" name="{name}" value="{value}"{step}>'
+
     return f'<input type="text" name="{name}" value="{value}">'
 
 def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> str:

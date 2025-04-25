@@ -152,6 +152,28 @@ class Server:
                 "text/html; charset=utf-8",
                 "200 OK"
             )
+            
+        elif method == "GET" and path.startswith("/static/"):
+            filepath = os.path.join(os.path.dirname(__file__), path.lstrip("/"))
+            if os.path.isfile(filepath):
+                with open(filepath, "rb") as f:
+                    body = f.read()
+                ext = os.path.splitext(filepath)[1]
+                ctype = {
+                    ".css": "text/css",
+                    ".js": "application/javascript",
+                    ".ttf": "font/ttf",
+                    ".woff": "font/woff",
+                    ".woff2": "font/woff2",
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                }.get(ext, "application/octet-stream")
+                status = "200 OK"
+            else:
+                body = b"Not found"
+                ctype = "text/plain"
+                status = "404 Not Found"
+
 
         elif path=="/conf":
             if method=="POST":

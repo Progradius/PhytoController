@@ -1,0 +1,161 @@
+@font-face {
+    font-family: 'VisitorTT1BRK';
+    src: url('/static/fonts/visitor1.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* RESET */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Effet scanlines */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 255, 0, 0.02),
+        rgba(0, 255, 0, 0.02) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* BODY */
+body {
+    background-color: #000;
+    color: #00FF55;
+    font-family: 'VisitorTT1BRK', monospace;
+    font-size: 15px;
+    line-height: 1.4;
+    padding: 24px;
+}
+
+/* TITRES */
+h1, h2, h3 {
+    color: #00FF55;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+/* BLOCS PRINCIPAUX */
+.mainwrap, .formwrap, .scroll-container, .card {
+    border: 1px solid #00FF55;
+    padding: 12px;
+    margin-bottom: 20px;
+    background-color: rgba(0, 255, 85, 0.02);
+    border-radius: 3px;
+}
+
+/* CHAMPS & LIBELLÉS */
+label {
+    display: block;
+    margin: 6px 0 2px;
+    color: #00FF55;
+}
+
+input, select {
+    width: 100%;
+    padding: 4px;
+    background: #000;
+    border: 1px solid #00FF55;
+    color: #00FF55;
+    font-family: 'VisitorTT1BRK', monospace;
+    font-size: 14px;
+}
+
+/* BOUTONS */
+.button_param, .button_base {
+    background-color: #000;
+    border: 1px solid #00FF55;
+    color: #00FF55;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-family: 'VisitorTT1BRK', monospace;
+    font-size: 14px;
+    margin-top: 10px;
+    transition: background 0.2s;
+}
+
+.button_param:hover, .button_base:hover {
+    background-color: #00FF55;
+    color: #000;
+}
+
+/* GRILLE */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.col {
+    flex: 1 1 220px;
+}
+
+/* CHAMP DE PUISSANCE */
+.powerbar {
+    background: #222;
+    height: 16px;
+    width: 100%;
+    border: 1px solid #00FF55;
+    margin-top: 5px;
+}
+
+.powerbar-inner {
+    height: 100%;
+    background-color: #00FF55;
+}
+
+/* EFFET TEXTE CRT */
+body, h1, h2, h3, p, label {
+    text-shadow: 0 0 1px #00FF55, 0 0 2px #00FF55;
+}
+
+/* CURSEUR */
+.cursor {
+    display: inline-block;
+    width: 10px;
+    height: 1em;
+    background-color: #00FF55;
+    animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+    to { visibility: hidden; }
+}
+
+/* TOGGLES */
+.toggle-group {
+    display: flex;
+    gap: 10px;
+    margin: 8px 0;
+}
+
+.toggle-group input[type="radio"] {
+    display: none;
+}
+
+.toggle-group label {
+    border: 1px solid #00FF55;
+    padding: 6px 12px;
+    cursor: pointer;
+    background: transparent;
+    color: #00FF55;
+    font-size: 14px;
+}
+
+.toggle-group input[type="radio"]:checked + label {
+    background-color: #00FF55;
+    color: #000;
+    text-shadow: none;
+}
