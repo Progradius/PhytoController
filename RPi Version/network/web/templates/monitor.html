@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Timers State</h1>
+<hr>
+<div class="row">
+  {% for name, state in timers.items() %}
+  <div class="col">
+    <div class="mainwrap">
+      <h2>{{ name }}</h2>
+      <p>État : {{ state }}</p>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<h1>Motor Power</h1>
+<hr>
+<div class="mainwrap">
+  <p>Level : {{ motor_speed }} / 4</p>
+  <div style="background:#555;width:100%;height:20px;">
+    <div style="background:#0f0;height:20px;width:{{ motor_percent }}%"></div>
+  </div>
+</div>
+
+<h1>Capteurs</h1>
+<hr>
+<div class="row">
+  {% for name, (value, unit) in sensors.items() %}
+  <div class="col">
+    <div class="mainwrap">
+      <h2>{{ name }}</h2>
+      <h3>{{ value }} {{ unit }}</h3>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<h1>Historique Min/Max</h1>
+<hr>
+<div class="formwrap">
+  {% for name, stat in stats.items() %}
+  <div class="mainwrap">
+    <h2>{{ name }}</h2>
+    <p>Min : {{ stat.min }} le {{ stat.min_date }}</p>
+    <p>Max : {{ stat.max }} le {{ stat.max_date }}</p>
+    <form method="get" action="/monitor">
+      <input type="hidden" name="reset_{{ name|replace('#', '') }}" value="1">
+      <button class="button_base" type="submit">Reset {{ name }}</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+<h1>GPIO States</h1>
+<hr>
+<div class="formwrap">
+  <ul>
+    {% for name, state in gpio_states.items() %}
+    <li>{{ name }} : {{ state }}</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<h1>Actions système</h1>
+<hr>
+<div class="formwrap">
+  <form method="get" action="/monitor">
+    <input type="hidden" name="shutdown" value="1">
+    <button class="button_base" type="submit">Éteindre le Raspberry Pi</button>
+  </form>
+  <form method="get" action="/monitor">
+    <input type="hidden" name="reboot" value="1">
+    <button class="button_base" type="submit">Redémarrer le Raspberry Pi</button>
+  </form>
+</div>
+
+{% endblock %}

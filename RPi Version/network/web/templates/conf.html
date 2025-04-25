@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Configuration</h1><hr>
+
+<div class="scroll-container">
+  {% for section in sections %}
+    <div class="card">
+      <form method="post" action="/conf">
+        <h2>{{ section.title }}</h2><hr>
+
+        {% if section.type == "merge" %}
+          {% for field in section.fields %}
+            <label for="{{ field.name }}">{{ field.label }}</label>
+            {{ field.input_html|safe }}
+          {% endfor %}
+
+        {% elif section.type == "motor" %}
+          <label for="motor_mode_toggle">Motor Mode</label>
+          <select id="motor_mode_toggle" name="Motor.motor_mode">
+            <option value="manual" {% if section.mode == "manual" %}selected{% endif %}>Manual</option>
+            <option value="auto" {% if section.mode == "auto" %}selected{% endif %}>Auto</option>
+          </select>
+
+          <div id="motor_manual_fields">
+            <label for="Motor.motor_user_speed">Motor User Speed</label>
+            <input type="number" name="Motor.motor_user_speed" min="0" max="4" value="{{ section.user_speed }}">
+          </div>
+
+        {% elif section.type == "cyclic" %}
+          <label for="{{ section.id }}_mode_toggle">Mode</label>
+          <select id="{{ section.id }}_mode_toggle" name="{{ section.alias }}.mode">
+            <option value="journalier" {% if section.mode == "journalier" %}selected{% endif %}>Journalier</option>
+            <option value="séquentiel" {% if section.mode == "séquentiel" %}selected{% endif %}>Séquentiel</option>
+          </select>
+
+          <div id="{{ section.id }}_journalier_fields">
+            {% for field in section.journalier_fields %}
+              <label for="{{ field.name }}">{{ field.label }}</label>
+              {{ field.input_html|safe }}
+            {% endfor %}
+          </div>
+
+          <div id="{{ section.id }}_séquentiel_fields">
+            {% for field in section.sequentiel_fields %}
+              <label for="{{ field.name }}">{{ field.label }}</label>
+              {{ field.input_html|safe }}
+            {% endfor %}
+          </div>
+
+        {% else %}
+          {% for field in section.fields %}
+            <label for="{{ field.name }}">{{ field.label }}</label>
+            {{ field.input_html|safe }}
+          {% endfor %}
+        {% endif %}
+
+        <button type="submit" class="button_param">Save</button>
+      </form>
+    </div>
+  {% endfor %}
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  // Toggle moteur
+  const motorSelect = document.getElementById("motor_mode_toggle");
+  const motorManualDiv = document.getElementById("motor_manual_fields");
+  function toggleMotorFields() {
+    if (motorSelect && motorManualDiv) {
+      motorManualDiv.style.display = (motorSelect.value === "manual") ? "block" : "none";
+    }
+  }
+  if (motorSelect) {
+    motorSelect.addEventListener("change", toggleMotorFields);
+    toggleMotorFields();
+  }
+
+  // Toggle cyclic
+  document.querySelectorAll('select[id$="_mode_toggle"]').forEach(sel => {
+    const sectionId = sel.id.replace("_mode_toggle", "");
+    const journalierDiv = document.getElementById(sectionId + "_journalier_fields");
+    const sequentielDiv = document.getElementById(sectionId + "_séquentiel_fields");
+
+    function toggleCyclicFields() {
+      if (sel.value === "journalier") {
+        if (journalierDiv) journalierDiv.style.display = "block";
+        if (sequentielDiv) sequentielDiv.style.display = "none";
+      } else {
+        if (journalierDiv) journalierDiv.style.display = "none";
+        if (sequentielDiv) sequentielDiv.style.display = "block";
+      }
+    }
+    sel.addEventListener("change", toggleCyclicFields);
+    toggleCyclicFields();
+  });
+});
+</script>
+
+{% endblock %}

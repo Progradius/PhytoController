@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>DailyTimer #1</h1>
+<hr>
+<div class="mainwrap">
+  <p>Planning : {{ dt1_schedule }}</p>
+  <p>État : {{ dt1_state }}</p>
+</div>
+
+<h1>DailyTimer #2</h1>
+<hr>
+<div class="mainwrap">
+  <p>Planning : {{ dt2_schedule }}</p>
+  <p>État : {{ dt2_state }}</p>
+</div>
+
+<h1>Cyclic #1</h1>
+<hr>
+<div class="mainwrap">
+  <p>{{ cyclic1_description|safe }}</p>
+  <p>État : {{ cyc1_state }}</p>
+</div>
+
+<h1>Cyclic #2</h1>
+<hr>
+<div class="mainwrap">
+  <p>État : {{ cyc2_state }}</p>
+</div>
+
+<h1>Heater</h1>
+<hr>
+<div class="mainwrap">
+  <p>État : {{ heater_state }}</p>
+</div>
+
+<h1>Températures min/max</h1>
+<hr>
+<div class="mainwrap">
+  {{ temps_html | safe }}
+</div>
+
+<h1>Sensors Status</h1>
+<hr>
+<div class="formwrap">
+  {{ sensors_html|safe }}
+</div>
+
+{% endblock %}
