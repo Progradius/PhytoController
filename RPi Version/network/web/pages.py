@@ -130,90 +130,90 @@ def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> st
 
 def conf_page(config: AppConfig) -> str:
     sections = []
-    to_merge = {"Temperature_Settings", "Heater_Settings"}
-    merged_done = False
 
     for section_name, field_info in config.model_fields.items():
+        # field_info.alias est le nom que tu vois dans ton JSON (ex. "Motor_Settings")
         alias = field_info.alias or section_name
+        section_obj = getattr(config, section_name)
 
-        if section_name in to_merge:
-            if merged_done:
-                continue
-            merged_done = True
+        # 1) Temperature seul (pas de toggle)
+        if alias == "Temperature_Settings":
             fields = []
-            for key in to_merge:
-                section_obj = getattr(config, key)
-                sub_alias = config.model_fields[key].alias or key
-                for attr_name, fld in section_obj.model_fields.items():
-                    fld_alias = fld.alias or attr_name
-                    fld_value = getattr(section_obj, attr_name)
-                    fields.append({
-                        "name": f"{sub_alias}.{fld_alias}",
-                        "label": fld_alias,
-                        "input_html": _render_field(f"{sub_alias}.{fld_alias}", fld_value, fld.annotation)
-                    })
+            for attr, fld in section_obj.model_fields.items():
+                val = getattr(section_obj, attr)
+                fields.append({
+                    "name": f"{alias}.{(fld.alias or attr)}",
+                    "label": fld.alias or attr,
+                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
+                })
             sections.append({
-                "type": "merge",
-                "title": "Temperature & Heater Settings",
+                "type": "default",
+                "title": "Temperature Settings",
                 "fields": fields
             })
             continue
 
-        if section_name == "Motor":
-            section_obj = getattr(config, section_name)
-            motor_mode = getattr(section_obj, "motor_mode")
-            motor_speed = getattr(section_obj, "motor_user_speed")
+        # 2) Heater toggle
+        if alias == "Heater_Settings":
+            enabled = section_obj.enabled
+            sections.append({
+                "type": "heater",
+                "title": "Heater",
+                "enabled": "enabled" if enabled else "disabled"
+            })
+            continue
+
+        # 3) Motor toggle + speed
+        if alias == "Motor_Settings":
             sections.append({
                 "type": "motor",
                 "title": "Motor",
-                "mode": motor_mode,
-                "user_speed": motor_speed
+                "mode": section_obj.motor_mode,
+                "user_speed": section_obj.motor_user_speed
             })
             continue
 
-        if section_name.startswith("Cyclic"):
-            section_obj = getattr(config, section_name)
-            cyc_mode = getattr(section_obj, "mode")
-            journalier_fields = []
-            for attr in ("period_days", "triggers_per_day", "first_trigger_hour", "action_duration_seconds"):
+        # 4) Cyclic toggle + champs
+        if alias.startswith("Cyclic"):
+            mode = section_obj.mode
+            # journaliers
+            journalier = []
+            for attr in ("period_days","triggers_per_day","first_trigger_hour","action_duration_seconds"):
                 fld = section_obj.__class__.model_fields[attr]
                 val = getattr(section_obj, attr)
-                journalier_fields.append({
-                    "name": f"{alias}.{fld.alias or attr}",
+                journalier.append({
+                    "name": f"{alias}.{(fld.alias or attr)}",
                     "label": fld.alias or attr,
-                    "input_html": _render_field(f"{alias}.{fld.alias or attr}", val, fld.annotation)
+                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
                 })
-
-            sequentiel_fields = []
-            for attr in ("on_time_day", "off_time_day", "on_time_night", "off_time_night"):
+            # séquentiels
+            sequentiel = []
+            for attr in ("on_time_day","off_time_day","on_time_night","off_time_night"):
                 fld = section_obj.__class__.model_fields[attr]
                 val = getattr(section_obj, attr)
-                sequentiel_fields.append({
-                    "name": f"{alias}.{fld.alias or attr}",
+                sequentiel.append({
+                    "name": f"{alias}.{(fld.alias or attr)}",
                     "label": fld.alias or attr,
-                    "input_html": _render_field(f"{alias}.{fld.alias or attr}", val, fld.annotation)
+                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
                 })
-
             sections.append({
                 "type": "cyclic",
                 "title": alias,
-                "alias": alias,
-                "id": section_name,
-                "mode": cyc_mode,
-                "journalier_fields": journalier_fields,
-                "sequentiel_fields": sequentiel_fields
+                "id": alias,           # on se sert de alias comme identifiant
+                "mode": mode,
+                "journalier_fields": journalier,
+                "sequentiel_fields": sequentiel
             })
             continue
 
-        section_obj = getattr(config, section_name)
+        # 5) Tout le reste (merge Network, GPIO, etc.)
         fields = []
-        for attr_name, fld in section_obj.model_fields.items():
-            fld_alias = fld.alias or attr_name
-            fld_value = getattr(section_obj, attr_name)
+        for attr, fld in section_obj.model_fields.items():
+            val = getattr(section_obj, attr)
             fields.append({
-                "name": f"{alias}.{fld_alias}",
-                "label": fld_alias,
-                "input_html": _render_field(f"{alias}.{fld_alias}", fld_value, fld.annotation)
+                "name": f"{alias}.{(fld.alias or attr)}",
+                "label": fld.alias or attr,
+                "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
             })
         sections.append({
             "type": "default",
