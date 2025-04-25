@@ -1,5 +1,5 @@
 # controller/components/MotorHandler.py
-# Author  : Progradius (refacto)
+# Author  : Progradius
 # Licence : AGPL-3.0
 """
 Pilotage d'un moteur 4 pas + régulation automatique (manuel / auto)
