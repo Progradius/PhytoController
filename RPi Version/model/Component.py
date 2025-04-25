@@ -6,7 +6,7 @@
 # -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
-from ui.pretty_console import action, info
+from ui.pretty_console import action, info, warning
 
 # ─────────────────────────── init GPIO global ─────────────────
 GPIO.setwarnings(False)
@@ -31,14 +31,13 @@ class Component:
 
     # ───────────────────────── setters / getters ──────────────
     def set_state(self, value: int) -> None:
-        """
-        Force l'état de la broche :
-          • 0 → LOW   (généralement *ON* si relais actif bas)
-          • 1 → HIGH  (généralement *OFF*)
-        """
-        GPIO.output(self.pin, GPIO.LOW if value == 0 else GPIO.HIGH)
-        state_txt = "LOW (ON)" if value == 0 else "HIGH (OFF)"
-        action(f"GPIO {self.pin} ← {state_txt}")
+        try:
+            GPIO.output(self.pin, GPIO.LOW if value == 0 else GPIO.HIGH)
+            state_txt = "LOW (ON)" if value == 0 else "HIGH (OFF)"
+            action(f"GPIO {self.pin} ← {state_txt}")
+        except RuntimeError as e:
+            warning(f"Tentative d'écriture sur GPIO {self.pin} non initialisée : {e}")
+
 
     def get_state(self) -> int:
         """Retourne 0 (LOW) ou 1 (HIGH)."""

@@ -43,7 +43,11 @@ class Motor:
 
     # ───────────────────── helpers internes ──────────────────
     def _set_pin(self, pin: int, value: bool) -> None:
-        GPIO.output(pin, GPIO.HIGH if value else GPIO.LOW)
+        try:
+            GPIO.setup(pin, GPIO.OUT)  # ← forcer la configuration ici si nécessaire
+            GPIO.output(pin, GPIO.HIGH if value else GPIO.LOW)
+        except RuntimeError as e:
+            warning(f"[MOTOR] GPIO {pin} non prêt : {e}")
 
     # ───────────────────────── setters ────────────────────────
     def set_pin1_value(self, value: bool): self._set_pin(self.pin1, value)

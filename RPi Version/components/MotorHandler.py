@@ -49,15 +49,16 @@ class MotorHandler:
         info(f"Mode moteur initial : {self.mode}, vitesse : {self.speed}")
 
     def all_pin_down(self):
-        """Met toutes les sorties GPIO à HIGH (moteur coupé)."""
         for setter in (
             self.motor.set_pin1_value,
             self.motor.set_pin2_value,
             self.motor.set_pin3_value,
             self.motor.set_pin4_value
         ):
-            setter(True)
-        warning("Moteur sécurisé : toutes les broches à HIGH")
+            try:
+                setter(True)
+            except Exception as e:
+                warning(f"Erreur lors de la mise à HIGH : {e}")
 
     def set_motor_speed(self, speed: int):
         """
