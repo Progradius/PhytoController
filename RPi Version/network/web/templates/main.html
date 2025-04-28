@@ -5,27 +5,28 @@
 <h1>DailyTimer #1</h1>
 <hr>
 <div class="mainwrap">
-  <p>Planning : {{ dt1_schedule }}</p>
+  <p>Planning : {{ dt1_sched }}</p>
   <p>État : {{ dt1_state }}</p>
 </div>
 
 <h1>DailyTimer #2</h1>
 <hr>
 <div class="mainwrap">
-  <p>Planning : {{ dt2_schedule }}</p>
+  <p>Planning : {{ dt2_sched }}</p>
   <p>État : {{ dt2_state }}</p>
 </div>
 
 <h1>Cyclic #1</h1>
 <hr>
 <div class="mainwrap">
-  <p>{{ cyclic1_description|safe }}</p>
+  <p>{{ cyc1_desc|safe }}</p>
   <p>État : {{ cyc1_state }}</p>
 </div>
 
 <h1>Cyclic #2</h1>
 <hr>
 <div class="mainwrap">
+  <p>{{ cyc2_desc|safe }}</p>
   <p>État : {{ cyc2_state }}</p>
 </div>
 
@@ -41,10 +42,14 @@
   {{ temps_html | safe }}
 </div>
 
-<h1>Sensors Status</h1>
+<h1>État des capteurs</h1>
 <hr>
 <div class="formwrap">
-  {{ sensors_html|safe }}
+  <ul>
+    {% for name, status in sensors_list %}
+      <li>{{ name }} : {{ status }}</li>
+    {% endfor %}
+  </ul>
 </div>
 
 {% endblock %}
