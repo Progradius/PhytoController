@@ -8,6 +8,7 @@
 import asyncio
 import traceback
 
+import RPi.GPIO as GPIO
 from ui.pretty_console        import title, action, success, warning, error, clock
 from function                import motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
 from network.network_handler import do_connect, is_host_connected
@@ -35,7 +36,25 @@ success("Configuration chargée")
 # (2) Sécurité : broches moteur → LOW
 motor_all_pin_down_at_boot(config)
 
-# (3) Wi-Fi
+# (3) Initialisation globale des broches GPIO
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+all_pins = [
+    config.gpio.dailytimer1_pin,
+    config.gpio.dailytimer2_pin,
+    config.gpio.cyclic1_pin,
+    config.gpio.cyclic2_pin,
+    config.gpio.heater_pin,
+    config.gpio.motor_pin1,
+    config.gpio.motor_pin2,
+    config.gpio.motor_pin3,
+    config.gpio.motor_pin4,
+]
+for pin in all_pins:
+    GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
+success("Toutes les broches GPIO configurées en OUTPUT (HIGH)")
+
+# (4) Wi-Fi
 try:
     action("Connexion Wi-Fi…")
     do_connect()
@@ -44,20 +63,18 @@ except Exception:
     error("Connexion Wi-Fi échouée")
     traceback.print_exc()
 
-# (4) NTP
+# (5) NTP
 try:
     action("Synchronisation NTP…")
     set_ntp_time()
 except Exception:
     warning("NTP indisponible → heure non synchronisée")
 
-
-
-# (5) Vérification de la reachabilité de l'hôte
+# (6) Vérification de la reachabilité de l'hôte
 if is_host_connected() == "offline":
     warning("Machine hôte hors-ligne → mode dégradé")
 
-# (6) Initialisation des composants GPIO
+# (7) Initialisation des composants physiques
 light1      = Component(pin=config.gpio.dailytimer1_pin)
 light2      = Component(pin=config.gpio.dailytimer2_pin)
 cyclic_out1 = Component(pin=config.gpio.cyclic1_pin)
@@ -66,24 +83,24 @@ heater      = Component(pin=config.gpio.heater_pin)
 motor_handler = MotorHandler(config)
 success("Composants physiques initialisés")
 
-# (7) Timers
-dailytimer1 = DailyTimer(light1, timer_id="1", config=config)
-dailytimer2 = DailyTimer(light2, timer_id="2", config=config)
-cyclic_timer1 = CyclicTimer(cyclic_out1, timer_id="1", config=config)
-cyclic_timer2 = CyclicTimer(cyclic_out2, timer_id="2", config=config)
+# (8) Timers
+dailytimer1    = DailyTimer(light1,      timer_id="1", config=config)
+dailytimer2    = DailyTimer(light2,      timer_id="2", config=config)
+cyclic_timer1  = CyclicTimer(cyclic_out1, timer_id="1", config=config)
+cyclic_timer2  = CyclicTimer(cyclic_out2, timer_id="2", config=config)
 
-# (8) Capteurs
+# (9) Capteurs
 sensor_handler = SensorController(config)
 success("Bus capteurs prêt")
 
-# (9) Statut système
+# (10) Statut système
 controller_status = SystemStatus(
     config=config,
     component=light1,
     motor=motor_handler.motor
 )
 
-# (10) Orchestrateur principal
+# (11) Orchestrateur principal
 puppet_master = PuppetMaster(
     config             = config,
     controller_status  = controller_status,
@@ -96,9 +113,9 @@ puppet_master = PuppetMaster(
     heater_component   = heater,
 )
 
-# (11) Info mémoire
+# (12) Info mémoire
 check_ram_usage()
-print()  # blanc
+print()  # ligne blanche
 
 # =============================================================
 #                   BOUCLE PRINCIPALE ASYNCIO
