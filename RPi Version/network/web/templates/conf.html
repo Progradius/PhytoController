@@ -3,121 +3,200 @@
 {% block content %}
 <h1>Configuration</h1><hr>
 
-<div class="scroll-container">
-  {% for section in sections %}
-    <div class="card">
-      <form method="post" action="/conf">
-        <h2>{{ section.title }}</h2><hr>
+<div class="conf-wrapper">
+  <button class="carousel-arrow left" aria-label="Précédent">‹</button>
+  <div class="scroll-container">
+    {% for section in sections %}
+      <div class="card">
+        <form method="post" action="/conf">
+          <h2>{{ section.title }}</h2><hr>
 
-        {# === Temperature (default) === #}
-        {% if section.type == "default" %}
-          {% for field in section.fields %}
-            <label for="{{ field.name }}">{{ field.label }}</label>
-            {{ field.input_html|safe }}
-          {% endfor %}
-
-        {# === Heater toggle === #}
-        {% elif section.type == "heater" %}
-          <label>Heater</label>
-          <div class="switch-group" data-target="Heater_Settings">
-            <input type="radio"
-                   id="heater_enabled"
-                   name="Heater_Settings_enabled_switch"
-                   value="enabled"
-                   {% if section.enabled == 'enabled' %}checked{% endif %}>
-            <label class="switch-label" for="heater_enabled">Enabled</label>
-
-            <input type="radio"
-                   id="heater_disabled"
-                   name="Heater_Settings_enabled_switch"
-                   value="disabled"
-                   {% if section.enabled == 'disabled' %}checked{% endif %}>
-            <label class="switch-label" for="heater_disabled">Disabled</label>
-
-            <input type="hidden"
-                   name="Heater_Settings.enabled"
-                   id="Heater_Settings_mode_input"
-                   value="{{ section.enabled }}">
-          </div>
-
-        {# === Motor toggle === #}
-        {% elif section.type == "motor" %}
-          <label>Motor Mode</label>
-          <div class="switch-group" data-target="Motor_Settings">
-            <input type="radio"
-                   id="motor_manual"
-                   name="Motor_Settings_mode_switch"
-                   value="manual"
-                   {% if section.mode == 'manual' %}checked{% endif %}>
-            <label class="switch-label" for="motor_manual">Manual</label>
-
-            <input type="radio"
-                   id="motor_auto"
-                   name="Motor_Settings_mode_switch"
-                   value="auto"
-                   {% if section.mode == 'auto' %}checked{% endif %}>
-            <label class="switch-label" for="motor_auto">Auto</label>
-
-            <input type="hidden"
-                   name="Motor_Settings.motor_mode"
-                   id="Motor_Settings_mode_input"
-                   value="{{ section.mode }}">
-          </div>
-
-          <div id="Motor_Settings_manual_fields">
-            <label for="Motor_Settings.motor_user_speed">Motor User Speed</label>
-            <input type="number"
-                   name="Motor_Settings.motor_user_speed"
-                   min="0" max="4"
-                   value="{{ section.user_speed }}">
-          </div>
-
-        {# === Cyclic toggle === #}
-        {% elif section.type == "cyclic" %}
-          <label>Mode</label>
-          <div class="switch-group" data-target="{{ section.id }}">
-            <input type="radio"
-                   id="{{ section.id }}_journalier"
-                   name="{{ section.id }}_mode_switch"
-                   value="journalier"
-                   {% if section.mode == 'journalier' %}checked{% endif %}>
-            <label class="switch-label" for="{{ section.id }}_journalier">Journalier</label>
-
-            <input type="radio"
-                   id="{{ section.id }}_sequentiel"
-                   name="{{ section.id }}_mode_switch"
-                   value="séquentiel"
-                   {% if section.mode == 'séquentiel' %}checked{% endif %}>
-            <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
-
-            <input type="hidden"
-                   name="{{ section.id }}.mode"
-                   id="{{ section.id }}_mode_input"
-                   value="{{ section.mode }}">
-          </div>
-
-          <div id="{{ section.id }}_journalier_fields">
-            {% for f in section.journalier_fields %}
-              <label for="{{ f.name }}">{{ f.label }}</label>
-              {{ f.input_html|safe }}
+          {# === Default fields === #}
+          {% if section.type == "default" %}
+            {% for field in section.fields %}
+              <label for="{{ field.name }}">{{ field.label }}</label>
+              {{ field.input_html|safe }}
             {% endfor %}
-          </div>
-          <div id="{{ section.id }}_séquentiel_fields">
-            {% for f in section.sequentiel_fields %}
-              <label for="{{ f.name }}">{{ f.label }}</label>
-              {{ f.input_html|safe }}
+
+          {# === Heater toggle === #}
+          {% elif section.type == "heater" %}
+            <label>Heater</label>
+            <div class="switch-group" data-target="Heater_Settings">
+              <input type="radio"
+                     id="heater_enabled"
+                     name="Heater_Settings_enabled_switch"
+                     value="enabled"
+                     {% if section.enabled == 'enabled' %}checked{% endif %}>
+              <label class="switch-label" for="heater_enabled">Enabled</label>
+
+              <input type="radio"
+                     id="heater_disabled"
+                     name="Heater_Settings_enabled_switch"
+                     value="disabled"
+                     {% if section.enabled == 'disabled' %}checked{% endif %}>
+              <label class="switch-label" for="heater_disabled">Disabled</label>
+
+              <input type="hidden"
+                     name="Heater_Settings.enabled"
+                     id="Heater_Settings_mode_input"
+                     value="{{ section.enabled }}">
+            </div>
+
+          {# === Motor toggle + manual speed === #}
+          {% elif section.type == "motor" %}
+            <label>Motor Mode</label>
+            <div class="switch-group" data-target="Motor_Settings">
+              <input type="radio"
+                     id="motor_manual"
+                     name="Motor_Settings_mode_switch"
+                     value="manual"
+                     {% if section.mode == 'manual' %}checked{% endif %}>
+              <label class="switch-label" for="motor_manual">Manual</label>
+
+              <input type="radio"
+                     id="motor_auto"
+                     name="Motor_Settings_mode_switch"
+                     value="auto"
+                     {% if section.mode == 'auto' %}checked{% endif %}>
+              <label class="switch-label" for="motor_auto">Auto</label>
+
+              <input type="hidden"
+                     name="Motor_Settings.motor_mode"
+                     id="Motor_Settings_mode_input"
+                     value="{{ section.mode }}">
+            </div>
+
+            <div id="Motor_Settings_manual_fields">
+              <label for="Motor_Settings.motor_user_speed">Motor User Speed</label>
+              <input type="number"
+                     name="Motor_Settings.motor_user_speed"
+                     min="0" max="4"
+                     value="{{ section.user_speed }}">
+            </div>
+
+          {# === Cyclic toggle + fields === #}
+          {% elif section.type == "cyclic" %}
+            <label>Mode</label>
+            <div class="switch-group" data-target="{{ section.id }}">
+              <input type="radio"
+                     id="{{ section.id }}_journalier"
+                     name="{{ section.id }}_mode_switch"
+                     value="journalier"
+                     {% if section.mode == 'journalier' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_journalier">Journalier</label>
+
+              <input type="radio"
+                     id="{{ section.id }}_sequentiel"
+                     name="{{ section.id }}_mode_switch"
+                     value="séquentiel"
+                     {% if section.mode == 'séquentiel' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
+
+              <input type="hidden"
+                     name="{{ section.id }}.mode"
+                     id="{{ section.id }}_mode_input"
+                     value="{{ section.mode }}">
+            </div>
+
+            <div id="{{ section.id }}_journalier_fields">
+              {% for f in section.journalier_fields %}
+                <label for="{{ f.name }}">{{ f.label }}</label>
+                {{ f.input_html|safe }}
+              {% endfor %}
+            </div>
+            <div id="{{ section.id }}_séquentiel_fields">
+              {% for f in section.sequentiel_fields %}
+                <label for="{{ f.name }}">{{ f.label }}</label>
+                {{ f.input_html|safe }}
+              {% endfor %}
+            </div>
+
+          {# === Sensor State toggle === #}
+          {% elif section.type == "sensor_state" %}
+            {% for s in section.sensors %}
+              <label>{{ s.attr }}</label>
+              <div class="switch-group" data-target="{{ section.id }}_{{ s.attr }}">
+                <input type="radio"
+                       id="{{ section.id }}_{{ s.attr }}_enabled"
+                       name="{{ section.id }}_{{ s.attr }}_switch"
+                       value="enabled"
+                       {% if s.enabled %}checked{% endif %}>
+                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_enabled">Enabled</label>
+
+                <input type="radio"
+                       id="{{ section.id }}_{{ s.attr }}_disabled"
+                       name="{{ section.id }}_{{ s.attr }}_switch"
+                       value="disabled"
+                       {% if not s.enabled %}checked{% endif %}>
+                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_disabled">Disabled</label>
+
+                <input type="hidden"
+                       name="{{ section.id }}.{{ s.attr }}"
+                       id="{{ section.id }}_{{ s.attr }}_mode_input"
+                       value="{{ 'enabled' if s.enabled else 'disabled' }}">
+              </div>
             {% endfor %}
-          </div>
+          {% endif %}
 
-        {% endif %}
-
-        <button type="submit" class="button_param">Save</button>
-      </form>
-    </div>
-  {% endfor %}
+          <button type="submit" class="button_param">Save</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+  <button class="carousel-arrow right" aria-label="Suivant">›</button>
 </div>
 
 <style>
+.conf-wrapper {
+  position: relative;
+}
+
+/* flèches carousel mobile */
+.carousel-arrow {
+  display: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.5);
+  border: none;
+  color: #00FF55;
+  font-size: 2rem;
+  padding: 0 .5rem;
+  cursor: pointer;
+  z-index: 10;
+}
+.carousel-arrow.left  { left: .5rem; }
+.carousel-arrow.right { right: .5rem; }
+
+/* Grille desktop : 4 colonnes fixes */
+.scroll-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+/* Cartes */
+.card {
+  background: rgba(0,0,0,0.8);
+  padding: 1rem;
+}
+
+/* responsive : sur mobile slider */
+@media (max-width: 767px) {
+  .scroll-container {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+  .card {
+    flex: 0 0 100%;
+    min-width: 100%;
+    scroll-snap-align: start;
+  }
+  .carousel-arrow { display: block; }
+}
+
+/* Groupes de toggles */
 .switch-group {
   display: flex;
   flex-wrap: wrap;
@@ -141,14 +220,6 @@
   background: #00FF88;
   color: #000;
 }
-
-/* responsive */
-@media (max-width: 768px) {
-  .switch-label {
-    flex: 1 1 100%;
-    text-align: center;
-  }
-}
 </style>
 
 <script>
@@ -159,14 +230,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     group.querySelectorAll('input[type="radio"]').forEach(r => {
       r.addEventListener("change", () => {
-        // MAJ du champ caché
-        hidden.value = r.value;
+        if (hidden) hidden.value = r.value;
 
-        // affichage conditionnel
+        // affichage conditionnel motor/cyclic
         if (target === "Motor_Settings") {
           document.getElementById("Motor_Settings_manual_fields")
             .style.display = (r.value === "manual" ? "block" : "none");
-        } else if (target.startsWith("Cyclic")) {
+        } else if (target && target.startsWith("Cyclic")) {
           document.getElementById(target + "_journalier_fields")
             .style.display = (r.value === "journalier" ? "block" : "none");
           document.getElementById(target + "_séquentiel_fields")
@@ -175,10 +245,22 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    // déclenchement initial
     const checked = group.querySelector('input[type="radio"]:checked');
     if (checked) checked.dispatchEvent(new Event("change"));
   });
+
+  const cont = document.querySelector(".scroll-container");
+  const prev = document.querySelector(".carousel-arrow.left");
+  const next = document.querySelector(".carousel-arrow.right");
+  function scrollByCard(off) {
+    const c = cont.querySelector(".card");
+    if (!c) return;
+    const gap = parseInt(getComputedStyle(cont).gap)||0;
+    const w   = c.offsetWidth + gap;
+    cont.scrollBy({ left: off*w, behavior: "smooth" });
+  }
+  prev && prev.addEventListener("click", () => scrollByCard(-1));
+  next && next.addEventListener("click", () => scrollByCard( 1));
 });
 </script>
 {% endblock %}

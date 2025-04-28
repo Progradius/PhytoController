@@ -79,8 +79,8 @@ def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> st
         else:
             return (
                 "Mode : Séquentiel<br>"
-                f"Jour – ON {cyc.on_time_day}s / OFF {cyc.off_time_day}s<br>"
-                f"Nuit – ON {cyc.on_time_night}s / OFF {cyc.off_time_night}s"
+                f"Jour - ON {cyc.on_time_day}s / OFF {cyc.off_time_day}s<br>"
+                f"Nuit - ON {cyc.on_time_night}s / OFF {cyc.off_time_night}s"
             )
 
     cyc1 = config.cyclic1
@@ -136,7 +136,7 @@ def conf_page(config: AppConfig) -> str:
         alias = field_info.alias or section_name
         section_obj = getattr(config, section_name)
 
-        # 1) Temperature_Settings → formulaire classique
+        # 1) Temperature_Settings
         if alias == "Temperature_Settings":
             fields = []
             for attr, fld in section_obj.model_fields.items():
@@ -203,7 +203,22 @@ def conf_page(config: AppConfig) -> str:
             })
             continue
 
-        # 5) Tout le reste → formulaire générique
+        if alias == "Sensor_State":
+            sensors = []
+            for attr, fld in section_obj.model_fields.items():
+                val = getattr(section_obj, attr)
+                sensors.append({
+                    "attr": fld.alias or attr,
+                    "enabled": val
+                })
+            sections.append({
+                "type": "sensor_state",
+                "title": "Sensors",
+                "id": alias,
+                "sensors": sensors
+            })
+            continue
+
         fields = []
         for attr, fld in section_obj.model_fields.items():
             val = getattr(section_obj, attr)
