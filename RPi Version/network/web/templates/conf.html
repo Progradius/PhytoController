@@ -4,176 +4,238 @@
 <h1>Configuration</h1>
 <hr>
 
-<div class="scroll-container">
-  {% for section in sections %}
-    <div class="card">
-      <form method="post" action="/conf">
-        <h2>{{ section.title }}</h2>
-        <hr>
+<div class="conf-wrapper">
+  <button class="carousel-arrow left" aria-label="Précédent">‹</button>
+  <div class="scroll-container">
+    {% for section in sections %}
+      <div class="card">
+        <form method="post" action="/conf">
+          <h2>{{ section.title }}</h2>
+          <hr>
 
-        {# ——— Blocs “default” ——— #}
-        {% if section.type == "default" %}
-          {% for field in section.fields %}
-            <label for="{{ field.name }}">{{ field.label }}</label>
-            {{ field.input_html|safe }}
-          {% endfor %}
-
-        {# ——— Chauffage ——— #}
-        {% elif section.type == "heater" %}
-          <label>Heater</label>
-          <div class="switch-group" data-target="Heater_Settings">
-            <input type="radio"
-                   id="heater_enabled"
-                   name="Heater_Settings.enabled"
-                   value="enabled"
-                   {% if section.enabled == 'enabled' %}checked{% endif %}>
-            <label class="switch-label" for="heater_enabled">Enabled</label>
-
-            <input type="radio"
-                   id="heater_disabled"
-                   name="Heater_Settings.enabled"
-                   value="disabled"
-                   {% if section.enabled == 'disabled' %}checked{% endif %}>
-            <label class="switch-label" for="heater_disabled">Disabled</label>
-          </div>
-
-        {# ——— Moteur ——— #}
-        {% elif section.type == "motor" %}
-          <label>Motor Mode</label>
-          <div class="switch-group" data-target="Motor_Settings">
-            <input type="radio"
-                   id="motor_manual"
-                   name="Motor_Settings.motor_mode"
-                   value="manual"
-                   {% if section.mode == 'manual' %}checked{% endif %}>
-            <label class="switch-label" for="motor_manual">Manual</label>
-
-            <input type="radio"
-                   id="motor_auto"
-                   name="Motor_Settings.motor_mode"
-                   value="auto"
-                   {% if section.mode == 'auto' %}checked{% endif %}>
-            <label class="switch-label" for="motor_auto">Auto</label>
-          </div>
-
-          <div id="Motor_Settings_manual_fields">
-            <label for="Motor_Settings.motor_user_speed">Motor User Speed</label>
-            <input type="number"
-                   name="Motor_Settings.motor_user_speed"
-                   min="0" max="4"
-                   value="{{ section.user_speed }}">
-          </div>
-
-        {# ——— Cyclique ——— #}
-        {% elif section.type == "cyclic" %}
-          <label>Mode</label>
-          <div class="switch-group" data-target="{{ section.id }}">
-            <input type="radio"
-                   id="{{ section.id }}_journalier"
-                   name="{{ section.id }}.mode"
-                   value="journalier"
-                   {% if section.mode == 'journalier' %}checked{% endif %}>
-            <label class="switch-label" for="{{ section.id }}_journalier">Journalier</label>
-
-            <input type="radio"
-                   id="{{ section.id }}_sequentiel"
-                   name="{{ section.id }}.mode"
-                   value="séquentiel"
-                   {% if section.mode == 'séquentiel' %}checked{% endif %}>
-            <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
-          </div>
-
-          <div id="{{ section.id }}_journalier_fields">
-            {% for f in section.journalier_fields %}
-              <label for="{{ f.name }}">{{ f.label }}</label>
-              {{ f.input_html|safe }}
+          {# default fields #}
+          {% if section.type == "default" %}
+            {% for field in section.fields %}
+              <label for="{{ field.name }}">{{ field.label }}</label>
+              {{ field.input_html|safe }}
             {% endfor %}
-          </div>
 
-          <div id="{{ section.id }}_séquentiel_fields">
-            {% for f in section.sequentiel_fields %}
-              <label for="{{ f.name }}">{{ f.label }}</label>
-              {{ f.input_html|safe }}
-            {% endfor %}
-          </div>
+          {# heater toggle #}
+          {% elif section.type == "heater" %}
+            <label>Heater</label>
+            <div class="switch-group" data-target="Heater_Settings">
+              <input type="radio"
+                     id="heater_enabled"
+                     name="Heater_Settings.enabled"
+                     value="enabled"
+                     {% if section.enabled=='enabled' %}checked{% endif %}>
+              <label class="switch-label" for="heater_enabled">Enabled</label>
 
-        {% endif %}
+              <input type="radio"
+                     id="heater_disabled"
+                     name="Heater_Settings.enabled"
+                     value="disabled"
+                     {% if section.enabled=='disabled'%}checked{% endif %}>
+              <label class="switch-label" for="heater_disabled">Disabled</label>
+            </div>
 
-        <button type="submit" class="button_param">Save</button>
-      </form>
-    </div>
-  {% endfor %}
+          {# motor toggle + speed #}
+          {% elif section.type == "motor" %}
+            <label>Motor Mode</label>
+            <div class="switch-group" data-target="Motor_Settings">
+              <input type="radio"
+                     id="motor_manual"
+                     name="Motor_Settings.motor_mode"
+                     value="manual"
+                     {% if section.mode=='manual' %}checked{% endif %}>
+              <label class="switch-label" for="motor_manual">Manual</label>
+
+              <input type="radio"
+                     id="motor_auto"
+                     name="Motor_Settings.motor_mode"
+                     value="auto"
+                     {% if section.mode=='auto'   %}checked{% endif %}>
+              <label class="switch-label" for="motor_auto">Auto</label>
+            </div>
+
+            <div id="Motor_Settings_manual_fields">
+              <label for="Motor_Settings.motor_user_speed">Motor User Speed</label>
+              <input type="number"
+                     name="Motor_Settings.motor_user_speed"
+                     min="0" max="4"
+                     value="{{ section.user_speed }}">
+            </div>
+
+          {# cyclic toggle + fields #}
+          {% elif section.type == "cyclic" %}
+            <label>Mode</label>
+            <div class="switch-group" data-target="{{ section.id }}">
+              <input type="radio"
+                     id="{{ section.id }}_journalier"
+                     name="{{ section.id }}.mode"
+                     value="journalier"
+                     {% if section.mode=='journalier' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_journalier">Journalier</label>
+
+              <input type="radio"
+                     id="{{ section.id }}_sequentiel"
+                     name="{{ section.id }}.mode"
+                     value="séquentiel"
+                     {% if section.mode=='séquentiel' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
+            </div>
+
+            <div id="{{ section.id }}_journalier_fields">
+              {% for f in section.journalier_fields %}
+                <label for="{{ f.name }}">{{ f.label }}</label>
+                {{ f.input_html|safe }}
+              {% endfor %}
+            </div>
+            <div id="{{ section.id }}_séquentiel_fields">
+              {% for f in section.sequentiel_fields %}
+                <label for="{{ f.name }}">{{ f.label }}</label>
+                {{ f.input_html|safe }}
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <button type="submit" class="button_param">Save</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+  <button class="carousel-arrow right" aria-label="Suivant">›</button>
 </div>
+{% endblock %}
 
+{% block head_extra %}
 <style>
-.switch-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 1rem 0;
-}
-.switch-group input[type="radio"] {
-  display: none;
-}
-.switch-label {
-  padding: 8px 16px;
-  border: 2px solid #00FF88;
-  background: #000;
-  color: #00FF88;
-  cursor: pointer;
-  font-family: 'VisitorTT1BRK', monospace;
-  text-transform: uppercase;
-  transition: 0.2s;
-}
-.switch-group input[type="radio"]:checked + .switch-label {
-  background: #00FF88;
-  color: #000;
-}
-
-/* Masquer les champs non‐pertinents par défaut */
-#Motor_Settings_manual_fields { display: none; }
-{% for sec in sections %}
-  {% if sec.type == "cyclic" %}
-    #{{ sec.id }}_journalier_fields,
-    #{{ sec.id }}_séquentiel_fields { display: none; }
-  {% endif %}
-{% endfor %}
-
-/* responsive */
-@media (max-width: 768px) {
-  .switch-label {
-    flex: 1 1 100%;
-    text-align: center;
+  /* wrapper */
+  .conf-wrapper {
+    position: relative;
   }
-}
+
+  /* flèches */
+  .carousel-arrow {
+    display: none;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: #00FF55;
+    font-size: 2rem;
+    padding: 0 0.5rem;
+    cursor: pointer;
+    z-index: 10;
+  }
+  .carousel-arrow.left  { left: 0.5rem; }
+  .carousel-arrow.right { right: 0.5rem; }
+
+  /* by default, grid 4 colonnes */
+  .scroll-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    overflow: visible;
+  }
+
+  /* carte */
+  .card {
+    background: rgba(0,0,0,0.8);
+  }
+
+  /* masquage par défaut des champs conditionnels */
+  #Motor_Settings_manual_fields { display: none; }
+  {% for sec in sections %}
+    {% if sec.type=="cyclic" %}
+      #{{ sec.id }}_journalier_fields,
+      #{{ sec.id }}_séquentiel_fields { display: none; }
+    {% endif %}
+  {% endfor %}
+
+  /* carousel mobile */
+  @media (max-width: 767px) {
+    .scroll-container {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+    }
+    .card {
+      flex: 0 0 100%;
+      min-width: 100%;
+      scroll-snap-align: start;
+    }
+    .carousel-arrow { display: block; }
+  }
+
+  /* ==== Toggle buttons styling ==== */
+  .switch-group {
+    margin: 8px 0;
+    display: flex;
+    gap: 10px;
+  }
+  .switch-group input[type="radio"] {
+    display: none;
+  }
+  .switch-label {
+    padding: 6px 16px;
+    border: 2px solid #00FF88;
+    background: transparent;
+    color: #00FF88;
+    cursor: pointer;
+    font-family: 'VisitorTT1BRK', monospace;
+    text-transform: uppercase;
+    transition: background 0.2s, color 0.2s;
+  }
+  .switch-group input[type="radio"]:checked + .switch-label {
+    background-color: #00FF88;
+    color: #000;
+  }
+  .switch-label:hover {
+    background-color: rgba(0,255,136,0.2);
+  }
 </style>
+{% endblock %}
 
+{% block body_extra %}
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".switch-group").forEach(group => {
-    const target = group.dataset.target;
-
-    group.querySelectorAll('input[type="radio"]').forEach(radio => {
-      radio.addEventListener("change", () => {
-        const val = radio.value;
-
-        if (target === "Motor_Settings") {
-          document.getElementById("Motor_Settings_manual_fields")
-            .style.display = (val === "manual" ? "block" : "none");
-        }
-        else if (target.startsWith("Cyclic")) {
-          document.getElementById(`${target}_journalier_fields`)
-            .style.display = (val === "journalier" ? "block" : "none");
-          document.getElementById(`${target}_séquentiel_fields`)
-            .style.display = (val === "séquentiel" ? "block" : "none");
-        }
+  document.addEventListener("DOMContentLoaded", () => {
+    // toggle fields
+    document.querySelectorAll(".switch-group").forEach(group => {
+      const target = group.dataset.target;
+      group.querySelectorAll("input[type=radio]").forEach(radio => {
+        radio.addEventListener("change", () => {
+          const v = radio.value;
+          if (target==="Motor_Settings") {
+            document.getElementById("Motor_Settings_manual_fields")
+                    .style.display = v==="manual" ? "block" : "none";
+          } else if (target.startsWith("Cyclic")) {
+            document.getElementById(`${target}_journalier_fields`)
+                    .style.display = v==="journalier" ? "block" : "none";
+            document.getElementById(`${target}_séquentiel_fields`)
+                    .style.display = v==="séquentiel"  ? "block" : "none";
+          }
+        });
       });
+      // déclenchement initial
+      const init = group.querySelector("input[type=radio]:checked");
+      if (init) init.dispatchEvent(new Event("change"));
     });
 
-    // déclenchement initial
-    const checked = group.querySelector('input[type="radio"]:checked');
-    if (checked) checked.dispatchEvent(new Event("change"));
+    // flèches carousel mobile
+    const container = document.querySelector(".scroll-container");
+    const prev = document.querySelector(".carousel-arrow.left");
+    const next = document.querySelector(".carousel-arrow.right");
+    function scrollByCard(offset) {
+      const card = container.querySelector(".card");
+      if (!card) return;
+      const gap = parseInt(getComputedStyle(container).gap) || 0;
+      const w   = card.offsetWidth + gap;
+      container.scrollBy({ left: offset * w, behavior: "smooth" });
+    }
+    prev && prev.addEventListener("click", () => scrollByCard(-1));
+    next && next.addEventListener("click", () => scrollByCard( 1));
   });
-});
 </script>
 {% endblock %}
