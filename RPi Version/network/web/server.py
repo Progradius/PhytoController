@@ -196,7 +196,7 @@ class Server:
             if qs.get("reboot",["0"])[0]=="1":
                 info("Reboot via web"); os.system("sudo reboot")
             if qs.get("poweroff",["0"])[0]=="1":
-                info("Poweroff via web"); os.system("sudo shutdown -h now")
+                info("Poweroff via web"); os.system("/sbin/shutdown -h now")
 
             body,ctype,status = (
                 monitor_page(

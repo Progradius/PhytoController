@@ -5,6 +5,7 @@
 import json
 from pathlib import Path
 from datetime import datetime
+from ui.pretty_console            import warning
 
 class SensorStats:
     """
@@ -22,18 +23,20 @@ class SensorStats:
 
         # 2) Charge ou initialise les données
         if self.FILE.exists():
-            with self.FILE.open(encoding="utf-8") as f:
-                self.data = json.load(f)
-            # Ajoute les clés manquantes si besoin
-            for k in self.KEYS:
-                if k not in self.data:
-                    self.data[k] = {"min": None, "min_date": None, "max": None, "max_date": None}
+            try:
+                with self.FILE.open(encoding="utf-8") as f:
+                    self.data = json.load(f)
+            except Exception as e:
+                warning(f"Stats corrompues : {e} → Réinitialisation")
+                self.data = self._default_data()
+                self._dump()
+            else:
+                # Ajoute les clés manquantes si besoin
+                for k in self.KEYS:
+                    if k not in self.data:
+                        self.data[k] = {"min": None, "min_date": None, "max": None, "max_date": None}
         else:
-            # Dossier ok, mais pas de fichier → on crée tout à None
-            self.data = {
-                k: {"min": None, "min_date": None, "max": None, "max_date": None}
-                for k in self.KEYS
-            }
+            self.data = self._default_data()
             self._dump()
 
     def _dump(self):
@@ -87,3 +90,9 @@ class SensorStats:
         Retourne tout le dictionnaire de stats.
         """
         return self.data
+    
+    def _default_data(self) -> dict:
+        return {
+            k: {"min": None, "min_date": None, "max": None, "max_date": None}
+            for k in self.KEYS
+        }
