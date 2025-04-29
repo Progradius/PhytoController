@@ -62,23 +62,25 @@ class MotorHandler:
 
     def set_motor_speed(self, speed: int):
         """
-        Positionne la vitesse (0 - 4) ; coupe d'abord le moteur 1 s
-        pour éviter un court-circuit entre deux pas.
+        Change la vitesse uniquement si différente. Sinon ne fait rien.
+        Vitesse 0 : tout HIGH. Vitesse N : active pinN en LOW.
         """
         speed = max(0, min(speed, 4))
+        if speed == self.speed:
+            return  # pas de changement → ne rien faire
+
+        # mise à jour : on arrête le moteur proprement
         self.all_pin_down()
         sleep(1)
+
         if speed == 0:
             warning("Vitesse moteur : 0 (OFF)")
         else:
             getattr(self.motor, f"set_pin{speed}_value")(False)
             success(f"Vitesse moteur réglée : {speed}")
+
         sleep(1)
         self.speed = speed
-
-    def current_speed(self) -> int:
-        """Renvoie la vitesse actuelle (0-4) d'après l'état des broches."""
-        return self.motor.get_motor_speed()
 
 
 async def temp_control(
