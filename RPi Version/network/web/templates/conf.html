@@ -20,27 +20,22 @@
 
           {# === Heater toggle === #}
           {% elif section.type == "heater" %}
-            <label>Heater</label>
-            <div class="switch-group" data-target="Heater_Settings">
-              <input type="radio"
-                     id="heater_enabled"
-                     name="Heater_Settings_enabled_switch"
-                     value="enabled"
-                     {% if section.enabled == 'enabled' %}checked{% endif %}>
-              <label class="switch-label" for="heater_enabled">Enabled</label>
-
-              <input type="radio"
-                     id="heater_disabled"
-                     name="Heater_Settings_enabled_switch"
-                     value="disabled"
-                     {% if section.enabled == 'disabled' %}checked{% endif %}>
-              <label class="switch-label" for="heater_disabled">Disabled</label>
-
-              <input type="hidden"
-                     name="Heater_Settings.enabled"
-                     id="Heater_Settings_mode_input"
-                     value="{{ section.enabled }}">
-            </div>
+          <label>Heater</label>
+          <div class="switch-group" data-target="Heater_Settings">
+            <input type="radio"
+                   id="heater_enabled"
+                   name="Heater_Settings.enabled"
+                   value="enabled"
+                   {% if section.enabled == 'enabled' %}checked{% endif %}>
+            <label class="switch-label" for="heater_enabled">Enabled</label>
+          
+            <input type="radio"
+                   id="heater_disabled"
+                   name="Heater_Settings.enabled"
+                   value="disabled"
+                   {% if section.enabled == 'disabled' %}checked{% endif %}>
+            <label class="switch-label" for="heater_disabled">Disabled</label>
+          </div>          
 
           {# === Motor toggle + manual speed === #}
           {% elif section.type == "motor" %}
@@ -92,10 +87,6 @@
                      {% if section.mode == 'séquentiel' %}checked{% endif %}>
               <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
 
-              <input type="hidden"
-                     name="{{ section.id }}.mode"
-                     id="{{ section.id }}_mode_input"
-                     value="{{ section.mode }}">
             </div>
 
             <div id="{{ section.id }}_journalier_fields">
@@ -114,27 +105,23 @@
           {# === Sensor State toggle === #}
           {% elif section.type == "sensor_state" %}
             {% for s in section.sensors %}
-              <label>{{ s.attr }}</label>
-              <div class="switch-group" data-target="{{ section.id }}_{{ s.attr }}">
-                <input type="radio"
-                       id="{{ section.id }}_{{ s.attr }}_enabled"
-                       name="{{ section.id }}_{{ s.attr }}_switch"
-                       value="enabled"
-                       {% if s.enabled %}checked{% endif %}>
-                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_enabled">Enabled</label>
-
-                <input type="radio"
-                       id="{{ section.id }}_{{ s.attr }}_disabled"
-                       name="{{ section.id }}_{{ s.attr }}_switch"
-                       value="disabled"
-                       {% if not s.enabled %}checked{% endif %}>
-                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_disabled">Disabled</label>
-
-                <input type="hidden"
-                       name="{{ section.id }}.{{ s.attr }}"
-                       id="{{ section.id }}_{{ s.attr }}_mode_input"
-                       value="{{ 'enabled' if s.enabled else 'disabled' }}">
-              </div>
+            <label>{{ s.attr }}</label>
+            <div class="switch-group" data-target="{{ section.id }}_{{ s.attr }}">
+              <input type="radio"
+                     id="{{ section.id }}_{{ s.attr }}_enabled"
+                     name="{{ section.id }}.{{ s.attr }}"
+                     value="enabled"
+                     {% if s.enabled %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_enabled">Enabled</label>
+            
+              <input type="radio"
+                     id="{{ section.id }}_{{ s.attr }}_disabled"
+                     name="{{ section.id }}.{{ s.attr }}"
+                     value="disabled"
+                     {% if not s.enabled %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_disabled">Disabled</label>
+            </div>
+            
             {% endfor %}
           {% endif %}
 

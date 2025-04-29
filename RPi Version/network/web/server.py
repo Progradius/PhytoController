@@ -294,6 +294,8 @@ class Server:
         }
 
         for alias, vals in posted.items():
+            if alias.endswith("_switch"):
+                continue  # champ utilisé uniquement pour les radios, on l'ignore
             raw = vals[0]
             if "." in alias:
                 top,nest = alias.split(".",1)
