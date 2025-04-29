@@ -46,7 +46,7 @@ class SystemStatus:
         if self._motor is None:
             warning("get_motor_speed : aucun moteur déclaré")
             return None
-        return self._motor.current_speed()
+        return self._motor.get_motor_speed()
 
     # ──────────────────────────────────────────────────────────
     #  Timers (DailyTimer #1)

@@ -262,7 +262,7 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
     for p in motor_pins:
         GPIO.setup(p, GPIO.IN)
 
-    speed = next((i + 1 for i, p in enumerate(motor_pins) if GPIO.input(p) == GPIO.HIGH), 0)
+    speed = controller_status.get_motor_speed() if controller_status else 0
     percent = int(speed / 4 * 100)
 
     # Capteurs

@@ -6,7 +6,7 @@
 # -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
-from ui.pretty_console import info, warning   # log coloré
+from ui.pretty_console import info, warning, error   # log coloré
 
 # Configuration globale (une seule fois dans tout le programme)
 GPIO.setwarnings(False)
@@ -57,25 +57,22 @@ class Motor:
 
     # ───────────────────────── getters ────────────────────────
     def get_motor_speed(self) -> int:
-        """
-        Analyse l’état des GPIO pour déduire la vitesse demandée.
+        """Renvoie la vitesse actuelle (0 à 4). Force arrêt immédiat si plusieurs pins actifs."""
+        states = {
+            1: GPIO.input(self.pin1) == GPIO.LOW,
+            2: GPIO.input(self.pin2) == GPIO.LOW,
+            3: GPIO.input(self.pin3) == GPIO.LOW,
+            4: GPIO.input(self.pin4) == GPIO.LOW,
+        }
+        active = [speed for speed, is_on in states.items() if is_on]
 
-        Retour : 0‑4  
-        (0 = arrêt ou combinaisons invalides, 1‑4 = broche active LOW)
-        """
-        states = (
-            GPIO.input(self.pin1) == GPIO.LOW,
-            GPIO.input(self.pin2) == GPIO.LOW,
-            GPIO.input(self.pin3) == GPIO.LOW,
-            GPIO.input(self.pin4) == GPIO.LOW,
-        )
-
-        if sum(states) > 1:             # sécurité : plusieurs broches basses
-            warning("Plusieurs broches moteur actives ! (état invalide)")
+        if len(active) == 1:
+            return active[0]
+        elif len(active) == 0:
             return 0
-
-        if   states[0]: return 1
-        elif states[1]: return 2
-        elif states[2]: return 3
-        elif states[3]: return 4
-        else:           return 0        # aucune broche active
+        else:
+            # sécurité : forcer tout à HIGH
+            for p in (self.pin1, self.pin2, self.pin3, self.pin4):
+                GPIO.output(p, GPIO.HIGH)
+            error(f"⚠️ Motor - état dangereux détecté : plusieurs vitesses actives {active} → arrêt forcé")
+            raise RuntimeError("Danger électrique : plusieurs pins moteur actifs en même temps")

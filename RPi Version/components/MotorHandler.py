@@ -131,10 +131,12 @@ async def temp_control(
             hyst = ts.hysteresis_offset
 
             # 3) Calcul de la vitesse désirée (0–4) par paliers
+            under_min = False
             if temp_val < tmin:
                 # ventilation périodique 15 min/h
                 minute = datetime.now().minute
                 speed = 1 if (minute % 60) < 15 else 0
+                under_min = True
                 clock(f"[AUTO] {temp_val:.1f}°C < {tmin} → ventilation, speed {speed}")
             elif temp_val <= tmax:
                 speed = 1
@@ -149,12 +151,13 @@ async def temp_control(
                 speed = 4
                 clock(f"[AUTO] {temp_val:.1f}°C > {tmax+2*hyst:.1f} → speed 4")
 
-            # 4) Empêcher les sauts de plus d’un cran
-            prev = motor_handler.speed
-            delta = speed - prev
-            if abs(delta) > 1:
-                speed = prev + (1 if delta > 0 else -1)
-                clock(f"[AUTO] Limitation saut → nouveau speed {speed}")
+            # 4) Limitation de saut SEULEMENT si on n'est PAS en mode ventilation périodique
+            if not under_min:
+                prev = motor_handler.speed
+                delta = speed - prev
+                if abs(delta) > 1:
+                    speed = prev + (1 if delta > 0 else -1)
+                    clock(f"[AUTO] Limitation saut → nouveau speed {speed}")
 
             # Appliquer
             motor_handler.set_motor_speed(speed)
