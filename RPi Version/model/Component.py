@@ -14,31 +14,39 @@ GPIO.setmode(GPIO.BCM)
 
 class Component:
     """
-    Petite sur-couche autour de *RPi.GPIO* :
+    Abstraction d’un composant commandé par un relais actif à l’état bas.
 
-    • `pin` (BCM) mémorisé dans l'attr. public **pin**  
-    • `set_state(value)`   →  1 = HIGH, 0 = LOW  
-    • `get_state()`        →  lit l'état actuel
+    • `pin` (BCM) exposé publiquement
+    • `set_state(1)` → Active le composant (GPIO LOW)
+    • `set_state(0)` → Désactive le composant (GPIO HIGH)
+    • `get_state()`  → Retourne 1 (ON) si GPIO LOW, sinon 0 (OFF)
     """
 
     def __init__(self, pin: int):
-        self.pin: int = pin                       # rendu public pour DailyTimer
+        self.pin: int = pin  # rendu public pour accès externe (ex: DailyTimer)
         GPIO.setup(self.pin, GPIO.OUT)
 
-        # Par défaut composant désactivé (niveau HIGH avec relais actif niveau bas)
+        # Par défaut, le composant est désactivé (GPIO HIGH pour relais actif bas)
         GPIO.output(self.pin, GPIO.HIGH)
-        info(f"Component initialisé sur GPIO {self.pin} (état HIGH)")
+        info(f"[Component] Initialisé sur GPIO {self.pin} → état par défaut : OFF (niveau HIGH)")
 
-    # ───────────────────────── setters / getters ──────────────
     def set_state(self, value: int) -> None:
+        """
+        Définit l’état du composant :
+        - 1 = ON (GPIO LOW, active le relais)
+        - 0 = OFF (GPIO HIGH, coupe le relais)
+        """
         try:
-            GPIO.output(self.pin, GPIO.LOW if value == 0 else GPIO.HIGH)
-            state_txt = "LOW (ON)" if value == 0 else "HIGH (OFF)"
-            action(f"GPIO {self.pin} ← {state_txt}")
+            GPIO.output(self.pin, GPIO.LOW if value == 1 else GPIO.HIGH)
+            state_txt = "ON  (LOW - actif)" if value == 1 else "OFF (HIGH - inactif)"
+            action(f"[Component] GPIO {self.pin} ← {state_txt}")
         except RuntimeError as e:
-            warning(f"Tentative d'écriture sur GPIO {self.pin} non initialisée : {e}")
-
+            warning(f"[Component] Erreur lors de l’écriture sur GPIO {self.pin} : {e}")
 
     def get_state(self) -> int:
-        """Retourne 0 (LOW) ou 1 (HIGH)."""
-        return GPIO.input(self.pin)
+        """
+        Retourne l’état logique du composant :
+        - 1 = ON  (si GPIO LOW → relais actif)
+        - 0 = OFF (si GPIO HIGH → relais inactif)
+        """
+        return 1 if GPIO.input(self.pin) == GPIO.LOW else 0

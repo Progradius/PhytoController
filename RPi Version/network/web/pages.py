@@ -53,7 +53,7 @@ def _render_field(name: str, value, annotation) -> str:
 def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> str:
     def gpio_state(pin: int) -> str:
         try:
-            return "On" if GPIO.input(pin) == GPIO.HIGH else "Off"
+            return "On" if GPIO.input(pin) == GPIO.LOW else "Off"
         except:
             return "—"
 
@@ -239,7 +239,7 @@ def conf_page(config: AppConfig) -> str:
 def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=None) -> str:
     def gpio_state(pin: int) -> str:
         try:
-            return "On" if GPIO.input(pin) == GPIO.HIGH else "Off"
+            return "On" if GPIO.input(pin) == GPIO.LOW else "Off"
         except:
             return "—"
 
