@@ -20,7 +20,7 @@ from ui.pretty_console            import info, warning, error
 class API:
     """
     Chaque connexion HTTP instancie un objet API chargé de :
-      • parser l’URL reçue,
+      • parser l'URL reçue,
       • mettre à jour AppConfig si besoin,
       • retourner JSON ou erreur HTTP.
     """
@@ -159,7 +159,7 @@ class API:
 
     def _system_state_json(self) -> dict:
         """
-        Expose l’état système, y compris les réglages du CyclicTimer refactoré.
+        Expose l'état système, y compris les réglages du CyclicTimer refactoré.
         """
         st  = self._controller_state
         cfg = self._config.cyclic1

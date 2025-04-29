@@ -86,7 +86,7 @@ class SensorController:
 
     def _build_sensor_dict(self) -> Dict[str, List[str]]:
         """
-        Construit le dictionnaire des capteurs activés, utilisé pour l’export.
+        Construit le dictionnaire des capteurs activés, utilisé pour l'export.
         """
         base_sensor_dict: Dict[str, List[str]] = {
             "air":          ["BME280T", "BME280H", "BME280P", "MLX-AMB", "DS18B#1", "DS18B#2"],

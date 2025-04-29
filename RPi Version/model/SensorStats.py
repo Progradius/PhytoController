@@ -17,7 +17,7 @@ class SensorStats:
     KEYS = ("BME280T", "BME280H", "DS18B#3")
 
     def __init__(self):
-        # 1) S’assure que le dossier existe
+        # 1) S'assure que le dossier existe
         self.FILE.parent.mkdir(parents=True, exist_ok=True)
 
         # 2) Charge ou initialise les données
@@ -38,7 +38,7 @@ class SensorStats:
 
     def _dump(self):
         """Écrit self.data dans le fichier JSON."""
-        # En cas d’appel isolé on recrée aussi le dossier
+        # En cas d'appel isolé on recrée aussi le dossier
         self.FILE.parent.mkdir(parents=True, exist_ok=True)
         with self.FILE.open("w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4)

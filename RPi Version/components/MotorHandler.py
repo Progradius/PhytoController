@@ -6,13 +6,13 @@ Pilotage d'un moteur 4 pas + régulation automatique (manuel / auto)
 en fonction de la température mesurée via BME280 et des Temperature_Settings,
 en déduisant jour/nuit depuis DailyTimer1.
 
-Auto‐mode granulaire :
+Auto-mode granulaire :
  • temp < tmin → ventil 15 min/h (speed=1 les 15 premières minutes, sinon 0)
  • tmin ≤ temp ≤ tmax → low vitesse de base (1)
  • tmax < temp ≤ tmax+hyst → speed=2
  • tmax+hyst < temp ≤ tmax+2·hyst → speed=3
  • temp > tmax+2·hyst → speed=4
-Aucun saut de plus d’un cran d’un cycle à l’autre.
+Aucun saut de plus d'un cran d'un cycle à l'autre.
 """
 
 import asyncio

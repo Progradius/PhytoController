@@ -58,7 +58,7 @@ def check_ram_usage() -> None:
 # ==================================================================
 def set_ntp_time() -> None:
     """
-    Active (ou vérifie) la synchro NTP via systemd‐timesyncd.
+    Active (ou vérifie) la synchro NTP via systemd-timesyncd.
     Nécessite sudo ou des permissions adaptées.
     """
     try:

@@ -2,7 +2,7 @@
 # Author : Progradius (adapted)
 # License : AGPL‑3.0
 # -------------------------------------------------------------
-#  Pilotage d’un moteur 4 fils via RPi.GPIO
+#  Pilotage d'un moteur 4 fils via RPi.GPIO
 # -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
@@ -27,7 +27,7 @@ class Motor:
           4          pin4        LOW
     ============  ==========  ============
 
-    Toutes les broches sont initialisées en HIGH pour garantir l’arrêt
+    Toutes les broches sont initialisées en HIGH pour garantir l'arrêt
     au démarrage.  
     Les setters attendent un booléen : `True` → HIGH, `False` → LOW.
     """

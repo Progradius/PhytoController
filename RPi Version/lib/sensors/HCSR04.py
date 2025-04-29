@@ -15,7 +15,7 @@ class HCSR04:
     def __init__(self, trigger_pin, echo_pin, echo_timeout_us=500*2*30):
         """
         trigger_pin      : GPIO BCM du trigger (output)
-        echo_pin         : GPIO BCM de l’echo   (input)
+        echo_pin         : GPIO BCM de l'echo   (input)
         echo_timeout_us  : timeout en µs (microsecondes)
         """
         self.trigger_pin      = trigger_pin
@@ -33,7 +33,7 @@ class HCSR04:
 
     def _send_pulse_and_wait(self):
         """
-        Envoie l’impulsion et mesure la durée du signal echo en secondes.
+        Envoie l'impulsion et mesure la durée du signal echo en secondes.
         Lève OSError('Out of range') si timeout dépassé.
         """
         # --- Envoi de la pulse de 10µs sur trigger ---

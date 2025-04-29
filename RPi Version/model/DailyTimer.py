@@ -84,7 +84,7 @@ class DailyTimer:
     def toggle_state_daily(self) -> bool:
         """
         À appeler périodiquement : active/désactive selon l'heure.
-        Retourne True si l’état GPIO a été changé.
+        Retourne True si l'état GPIO a été changé.
         """
         start = convert_time_to_minutes(self.start_hour, self.start_minute)
         stop  = convert_time_to_minutes(self.stop_hour,  self.stop_minute)

@@ -16,7 +16,7 @@ class CyclicTimer:
     """
     • mode                    → "journalier" ou "séquentiel"
     • period_days             → espacement en jours (journalier)
-    • triggers_per_day        → nombre d’actions par journée (journalier)
+    • triggers_per_day        → nombre d'actions par journée (journalier)
     • first_trigger_hour      → heure du 1er déclenchement (journalier)
     • action_duration_seconds → durée ON (journalier)
     • on/off_*                → durées ON/OFF jour & nuit (séquentiel)

@@ -36,7 +36,7 @@ class MLX90614Handler:
             self.available = True
             pc.success("MLX90614 initialisé")
         except Exception as exc:
-            pc.error(f"Impossible d’initialiser le MLX90614 : {exc}")
+            pc.error(f"Impossible d'initialiser le MLX90614 : {exc}")
             self.mlx = None
 
     # ------------------------------------------------------------------

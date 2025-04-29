@@ -14,7 +14,7 @@ GPIO.setmode(GPIO.BCM)
 
 class Component:
     """
-    Abstraction d’un composant commandé par un relais actif à l’état bas.
+    Abstraction d'un composant commandé par un relais actif à l'état bas.
 
     • `pin` (BCM) exposé publiquement
     • `set_state(1)` → Active le composant (GPIO LOW)
@@ -32,7 +32,7 @@ class Component:
 
     def set_state(self, value: int) -> None:
         """
-        Définit l’état du composant :
+        Définit l'état du composant :
         - 1 = ON (GPIO LOW, active le relais)
         - 0 = OFF (GPIO HIGH, coupe le relais)
         """
@@ -41,11 +41,11 @@ class Component:
             state_txt = "ON  (LOW - actif)" if value == 1 else "OFF (HIGH - inactif)"
             action(f"[Component] GPIO {self.pin} ← {state_txt}")
         except RuntimeError as e:
-            warning(f"[Component] Erreur lors de l’écriture sur GPIO {self.pin} : {e}")
+            warning(f"[Component] Erreur lors de l'écriture sur GPIO {self.pin} : {e}")
 
     def get_state(self) -> int:
         """
-        Retourne l’état logique du composant :
+        Retourne l'état logique du composant :
         - 1 = ON  (si GPIO LOW → relais actif)
         - 0 = OFF (si GPIO HIGH → relais inactif)
         """

@@ -48,7 +48,7 @@ def do_connect() -> None:
 
 def is_host_connected() -> str:
     """
-    Ping l’hôte configuré dans AppConfig.network.host_machine_address
+    Ping l'hôte configuré dans AppConfig.network.host_machine_address
     (1 paquet, timeout 1 s) ; renvoie « online » ou « offline ».
     """
     # Recharge la config à jour
