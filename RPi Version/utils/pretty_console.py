@@ -100,14 +100,3 @@ def box(text: str, *, color="white"):
     for line in lines:
         print(_c(f"║ {line.ljust(maxi)} ║", color))
     print(_c(bot, color))
-
-# ───────────────────────────────────────────────────────────────
-#  Exemple d'utilisation (à retirer en production)
-# ───────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    title("Pretty Console Demo")
-    info("System started")
-    success("Parameters successfully written to file")
-    warning("Component already OFF")
-    error("Sensor read failed")
-    box("Next on‑period in 140 minutes\nChecked at 15:40:45", color="cyan")

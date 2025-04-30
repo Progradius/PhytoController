@@ -1,16 +1,15 @@
 # main.py
 # Author : Progradius
 # License: AGPL-3.0
-# -------------------------------------------------------------
-#  Point d'entrée : orchestre l'initialisation puis démarre
-#  la boucle d'exécution asynchrone.
-# -------------------------------------------------------------
 
 import asyncio
 import traceback
 import signal
 import sys
 import atexit
+import threading
+import os
+import time
 
 import RPi.GPIO as GPIO
 from ui.pretty_console        import title, action, success, warning, error, clock
@@ -32,9 +31,10 @@ from param.config import AppConfig
 #                  GESTION SÉCURISÉE À LA SORTIE
 # =============================================================
 
-SAFE_PINS = [
-    1, 7, 8, 17, 18, 22, 23, 25, 27
-]
+SAFE_PINS = [1, 7, 8, 17, 18, 22, 23, 25, 27]
+watchdog_thread = None
+watchdog_active = False
+watchdog_stop = threading.Event()
 
 def cleanup_gpio():
     """Force tous les GPIO utilisés à HIGH et nettoie."""
@@ -48,17 +48,45 @@ def cleanup_gpio():
             print(f"⚠️ Erreur GPIO {pin} : {e}")
     GPIO.cleanup()
 
-# Enregistrement automatique à la fin du programme
-atexit.register(cleanup_gpio)
+def disable_watchdog():
+    """Désactive /dev/watchdog si possible"""
+    global watchdog_active
+    if not watchdog_active:
+        return
+    try:
+        with open("/dev/watchdog", "w") as f:
+            f.write("V")  # signal au driver watchdog pour désactivation
+        print("🛡️  Watchdog matériel désactivé proprement")
+    except Exception as e:
+        print(f"⚠️ Impossible de désactiver le watchdog : {e}")
 
-# Interception des signaux système
 def handle_exit_signal(signum, frame):
     print(f"\n🛑 Signal {signum} reçu → arrêt sécurisé.")
+    disable_watchdog()
     cleanup_gpio()
     sys.exit(0)
 
+# Interception des signaux système
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
     signal.signal(sig, handle_exit_signal)
+
+atexit.register(disable_watchdog)
+atexit.register(cleanup_gpio)
+
+def watchdog_worker():
+    """Thread d'écriture régulière sur /dev/watchdog"""
+    global watchdog_active
+    try:
+        with open("/dev/watchdog", "w") as f:
+            watchdog_active = True
+            print("🛡️  Watchdog matériel activé")
+            while not watchdog_stop.is_set():
+                f.write("\n")
+                f.flush()
+                time.sleep(10)
+    except Exception as e:
+        warning(f"Watchdog matériel non disponible : {e}")
+        watchdog_active = False
 
 # =============================================================
 #                    INITIALISATION SYSTÈME
@@ -90,7 +118,7 @@ for pin in all_pins:
     GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
 success("Toutes les broches GPIO configurées en OUTPUT (HIGH)")
 
-# (4) Wi-Fi
+# Wi-Fi
 try:
     action("Connexion Wi-Fi…")
     do_connect()
@@ -99,7 +127,7 @@ except Exception:
     error("Connexion Wi-Fi échouée")
     traceback.print_exc()
 
-# (5) NTP
+# NTP
 try:
     action("Synchronisation NTP…")
     set_ntp_time()
@@ -151,7 +179,11 @@ puppet_master = PuppetMaster(
 
 # (12) Info mémoire
 check_ram_usage()
-print()  # ligne blanche
+print()
+
+# Lancement du watchdog dans un thread
+watchdog_thread = threading.Thread(target=watchdog_worker, daemon=True)
+watchdog_thread.start()
 
 # =============================================================
 #                   BOUCLE PRINCIPALE ASYNCIO
@@ -165,4 +197,7 @@ except Exception as e:
     error(f"Crash : {e}")
     traceback.print_exc()
 finally:
-    success("Programme terminé (GPIO nettoyés automatiquement)")
+    watchdog_stop.set()
+    if watchdog_thread.is_alive():
+        watchdog_thread.join()
+    success("Programme terminé (watchdog & GPIO nettoyés)")
