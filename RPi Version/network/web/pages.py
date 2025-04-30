@@ -109,10 +109,20 @@ def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> st
     for key in ("BME280T", "DS18B#1", "DS18B#2", "DS18B#3", "MLX-AMB", "MLX-OBJ"):
         s = stats.get_all().get(key)
         if s:
-            dmin = datetime.fromisoformat(s["min_date"]).strftime("%d/%m %H:%M")
-            dmax = datetime.fromisoformat(s["max_date"]).strftime("%d/%m %H:%M")
+            min_date = s.get("min_date")
+            max_date = s.get("max_date")
+            try:
+                dmin = datetime.fromisoformat(min_date).strftime("%d/%m %H:%M") if min_date else "—"
+            except Exception:
+                dmin = "—"
+            try:
+                dmax = datetime.fromisoformat(max_date).strftime("%d/%m %H:%M") if max_date else "—"
+            except Exception:
+                dmax = "—"
+            min_val = f"{s['min']:.1f}" if s.get("min") is not None else "—"
+            max_val = f"{s['max']:.1f}" if s.get("max") is not None else "—"
             temps.append(
-                f"<p><strong>{key}</strong> : Min {s['min']:.1f}°C le {dmin} — Max {s['max']:.1f}°C le {dmax}</p>"
+                f"<p><strong>{key}</strong> : Min {min_val}°C le {dmin} — Max {max_val}°C le {dmax}</p>"
             )
     temps_html = "\n".join(temps) or "<p>Aucune donnée</p>"
 
@@ -136,7 +146,6 @@ def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> st
         temps_html=temps_html,
         sensors_list=sensors_list
     )
-
 
 def conf_page(config: AppConfig) -> str:
     """
