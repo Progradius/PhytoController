@@ -5,8 +5,12 @@
 #  Point d'entrée : orchestre l'initialisation puis démarre
 #  la boucle d'exécution asynchrone.
 # -------------------------------------------------------------
+
 import asyncio
 import traceback
+import signal
+import sys
+import atexit
 
 import RPi.GPIO as GPIO
 from ui.pretty_console        import title, action, success, warning, error, clock
@@ -23,6 +27,38 @@ from controllers.SystemStatus     import SystemStatus
 from controllers.PuppetMaster     import PuppetMaster
 
 from param.config import AppConfig
+
+# =============================================================
+#                  GESTION SÉCURISÉE À LA SORTIE
+# =============================================================
+
+SAFE_PINS = [
+    1, 7, 8, 17, 18, 22, 23, 25, 27
+]
+
+def cleanup_gpio():
+    """Force tous les GPIO utilisés à HIGH et nettoie."""
+    print("🧹 Cleanup GPIO avant extinction…")
+    GPIO.setmode(GPIO.BCM)
+    for pin in SAFE_PINS:
+        try:
+            GPIO.setup(pin, GPIO.OUT)
+            GPIO.output(pin, GPIO.HIGH)
+        except Exception as e:
+            print(f"⚠️ Erreur GPIO {pin} : {e}")
+    GPIO.cleanup()
+
+# Enregistrement automatique à la fin du programme
+atexit.register(cleanup_gpio)
+
+# Interception des signaux système
+def handle_exit_signal(signum, frame):
+    print(f"\n🛑 Signal {signum} reçu → arrêt sécurisé.")
+    cleanup_gpio()
+    sys.exit(0)
+
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    signal.signal(sig, handle_exit_signal)
 
 # =============================================================
 #                    INITIALISATION SYSTÈME
@@ -129,4 +165,4 @@ except Exception as e:
     error(f"Crash : {e}")
     traceback.print_exc()
 finally:
-    success("Programme terminé")
+    success("Programme terminé (GPIO nettoyés automatiquement)")
