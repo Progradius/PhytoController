@@ -8,7 +8,7 @@ Expose :
     • get_object_temp()   -> température objet    (°C | None)
 """
 
-from ui import pretty_console as pc
+from utils import pretty_console as pc
 
 
 class MLX90614Handler:

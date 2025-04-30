@@ -10,7 +10,7 @@ Expose deux méthodes :
 
 """
 
-from ui import pretty_console as pc
+from utils import pretty_console as pc
 
 
 class TSL2591Handler:

@@ -9,7 +9,7 @@ avec rechargement dynamique des horaires depuis AppConfig.
 import asyncio
 from datetime import datetime, timedelta
 
-from ui import pretty_console as ui
+from utils import pretty_console as ui
 from param.config import AppConfig
 
 async def timer_daily(
