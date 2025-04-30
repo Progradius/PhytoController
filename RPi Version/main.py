@@ -12,7 +12,7 @@ import os
 import time
 
 import RPi.GPIO as GPIO
-from ui.pretty_console        import title, action, success, warning, error, clock
+from utils.pretty_console        import title, action, success, warning, error, clock
 from function                import motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
 from network.network_handler import do_connect, is_host_connected
 

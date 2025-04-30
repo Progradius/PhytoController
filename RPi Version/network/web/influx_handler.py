@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 import requests
 
-from ui.pretty_console import info, warning, error
+from utils.pretty_console import info, warning, error
 from param.config import AppConfig
 from controllers.SensorController import SensorController
 

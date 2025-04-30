@@ -6,7 +6,7 @@
 # -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
-from ui.pretty_console import info, warning, error   # log coloré
+from utils.pretty_console import info, warning, error   # log coloré
 
 # Configuration globale (une seule fois dans tout le programme)
 GPIO.setwarnings(False)

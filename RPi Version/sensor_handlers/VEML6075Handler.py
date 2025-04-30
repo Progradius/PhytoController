@@ -12,7 +12,7 @@ Wrapper pour le capteur UV VEML6075.
 """
 
 from lib.sensors.VEML6075 import VEML6075
-from ui.pretty_console import info, warning, error
+from utils.pretty_console import info, warning, error
 
 
 class VEMLHandler:

@@ -5,7 +5,7 @@
 import asyncio
 from datetime import datetime, timedelta, time, date
 
-from ui.pretty_console import box, warning
+from utils.pretty_console import box, warning
 
 aSYNC_DAY = 24 * 3600
 

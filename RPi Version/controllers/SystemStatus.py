@@ -10,7 +10,7 @@ Fournit une vue « statut système » centralisée :
 
 from __future__             import annotations
 
-from ui.pretty_console      import info, warning
+from utils.pretty_console      import info, warning
 from param.config           import AppConfig
 
 

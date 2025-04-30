@@ -25,7 +25,7 @@ from function import convert_time_to_minutes
 from model.Motor import Motor
 from controllers.SensorController import SensorController
 from param.config import AppConfig
-from ui.pretty_console import info, warning, clock, error, success
+from utils.pretty_console import info, warning, clock, error, success
 
 
 class MotorHandler:

@@ -2,26 +2,45 @@
 # Author : Progradius
 # License : AGPL‑3.0
 """
-Gestion unifiée de l'affichage console.
+Gestion unifiée de l'affichage console + log persistants.
 
 ‣ Couleurs ANSI (fallback sans couleur si le flux n'est pas un TTY)
 ‣ Pictogrammes (Unicode) pour chaque niveau de message
-‣ Cadres ASCII/UTF‑8 pour titrer ou isoler des blocs
+‣ Log file persistants via logging (avec rotation)
 """
 
 import sys
 import shutil
 from datetime import datetime
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+
+# ───────────────────────────────────────────────────────────────
+#  Initialisation du logger (fichier persistants)
+# ───────────────────────────────────────────────────────────────
+
+LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, "phyto.log")
+
+logger = logging.getLogger("phyto")
+logger.setLevel(logging.DEBUG)
+
+file_handler = RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=5)
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
+))
+logger.addHandler(file_handler)
 
 # ───────────────────────────────────────────────────────────────
 #  Palette ANSI  (codes courts)
 # ───────────────────────────────────────────────────────────────
+
 class _Ansi:
     RESET = '\033[0m'
-
     BOLD  = '\033[1m'
     DIM   = '\033[2m'
-
     FG = {
         "grey"    : '\033[90m',
         "red"     : '\033[91m',
@@ -33,7 +52,6 @@ class _Ansi:
         "white"   : '\033[97m',
     }
 
-# Couleurs désactivées si stdout n'est pas un terminal
 USE_COLOR = sys.stdout.isatty()
 
 def _c(text, color=None, *, bold=False, dim=False):
@@ -49,6 +67,7 @@ def _c(text, color=None, *, bold=False, dim=False):
 # ───────────────────────────────────────────────────────────────
 #  Icônes Unicode
 # ───────────────────────────────────────────────────────────────
+
 ICONS = {
     "info"    : "ℹ️ ",
     "success" : "✅",
@@ -59,27 +78,44 @@ ICONS = {
 }
 
 # ───────────────────────────────────────────────────────────────
-#  Afficheurs de base
+#  Afficheurs de base avec log fichier
 # ───────────────────────────────────────────────────────────────
+
 def _stamp() -> str:
     """Horodatage court HH:MM:SS."""
     return _c(datetime.now().strftime("%H:%M:%S"), "grey", dim=True)
+
+def _print(level, msg, color, **kwargs):
+    icon = ICONS.get(level, "")
+    colored = f"{_stamp()} {_c(icon, color)} {_c(msg, color, **kwargs)}"
+    print(colored)
+    # Log brut sans couleur dans le fichier
+    if level == "info":
+        logger.info(msg)
+    elif level == "success":
+        logger.info(msg)
+    elif level == "warning":
+        logger.warning(msg)
+    elif level == "error":
+        logger.error(msg)
+    elif level == "action":
+        logger.info(msg)
+    elif level == "clock":
+        logger.info(msg)
+    else:
+        logger.debug(msg)
 
 def info(msg):     _print("info",    msg, "blue")
 def success(msg):  _print("success", msg, "green")
 def warning(msg):  _print("warning", msg, "yellow", bold=True)
 def error(msg):    _print("error",   msg, "red",    bold=True)
-
 def action(msg):   _print("action",  msg, "cyan")
 def clock(msg):    _print("clock",   msg, "magenta")
-
-def _print(level, msg, color, **kwargs):
-    icon = ICONS.get(level, "")
-    print(f"{_stamp()} {_c(icon, color)} {_c(msg, color, **kwargs)}")
 
 # ───────────────────────────────────────────────────────────────
 #  Titres & blocs encadrés
 # ───────────────────────────────────────────────────────────────
+
 def title(text, *, char="═"):
     """Titre encadré (sur toute la largeur du terminal)."""
     width = shutil.get_terminal_size((80, 20)).columns
@@ -89,6 +125,7 @@ def title(text, *, char="═"):
     print(_c(bar, "magenta", bold=True))
     print(_c(mid, "magenta", bold=True))
     print(_c(bar, "magenta", bold=True))
+    logger.info(f"[TITLE] {text.strip()}")
 
 def box(text: str, *, color="white"):
     """Encadre un (ou plusieurs) paragraphes avec un double cadre."""
@@ -100,3 +137,18 @@ def box(text: str, *, color="white"):
     for line in lines:
         print(_c(f"║ {line.ljust(maxi)} ║", color))
     print(_c(bot, color))
+    logger.info(f"[BOX]\n{text}")
+
+# ───────────────────────────────────────────────────────────────
+#  Exemple de démo
+# ───────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    title("Pretty Console + Logs Demo")
+    info("System started")
+    success("Parameters successfully written to file")
+    warning("Component already OFF")
+    error("Sensor read failed")
+    action("Connecting to broker")
+    clock("Next refresh scheduled in 30 min")
+    box("This is a boxed message\nMultiline supported")

@@ -1,7 +1,7 @@
 # controller/components/heater_control.py
 import asyncio
 from datetime import datetime
-from ui.pretty_console import info, warning
+from utils.pretty_console import info, warning
 
 
 async def heat_control(

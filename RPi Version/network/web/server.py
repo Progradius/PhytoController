@@ -16,7 +16,7 @@ import subprocess
 import urllib.parse
 from collections import deque
 
-from ui.pretty_console            import success, warning, error, action, info
+from utils.pretty_console            import success, warning, error, action, info
 from network.web.pages            import (
     main_page,
     conf_page,

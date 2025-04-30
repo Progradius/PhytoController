@@ -11,7 +11,7 @@ import subprocess
 import RPi.GPIO as GPIO
 
 from param.config import AppConfig
-from ui.pretty_console import info, success, warning, error
+from utils.pretty_console import info, success, warning, error
 
 # ───────────────────────────────────────────────────────────────
 #  Init GPIO global – BCM & warnings off

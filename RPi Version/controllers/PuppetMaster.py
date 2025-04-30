@@ -13,7 +13,7 @@ from components.cyclic_timer_handler    import timer_cyclic
 from components.MotorHandler            import temp_control
 from components.heater_control          import heat_control
 from network.web.server                 import Server
-from ui.pretty_console                  import info, warning, error
+from utils.pretty_console                  import info, warning, error
 from param.config                       import AppConfig
 
 

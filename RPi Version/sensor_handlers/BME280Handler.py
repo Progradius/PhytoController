@@ -12,7 +12,7 @@ pour :
   si le capteur est prêt
 """
 
-from ui.pretty_console import error, warning, info
+from utils.pretty_console import error, warning, info
 from typing import Optional, Callable
 
 

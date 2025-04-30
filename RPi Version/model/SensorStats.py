@@ -5,7 +5,7 @@
 import json
 from pathlib import Path
 from datetime import datetime
-from ui.pretty_console            import warning
+from utils.pretty_console            import warning
 
 class SensorStats:
     """
