@@ -295,43 +295,89 @@ class Server:
 
         for alias, vals in posted.items():
             if alias.endswith("_switch"):
-                continue  # champ utilisé uniquement pour les radios, on l'ignore
-            raw = vals[0]
-            if "." in alias:
-                top,nest = alias.split(".",1)
-                if top not in alias2field:
-                    warning(f"Ignoré alias «{top}»"); continue
-                mdl = getattr(self.config, alias2field[top])
-                fld = mdl.__class__.model_fields.get(nest)
-                if not fld:
-                    warning(f"Ignoré champ imbriqué «{nest}»"); continue
-                ann = fld.annotation
-                val = (
-                    raw.lower() in ("1","true","enabled","yes") if ann is bool else
-                    int(raw)   if ann is int   else
-                    float(raw) if ann is float else
-                    raw
-                )
-                setattr(mdl, nest, val)
-                success(f"{alias} ← {raw}")
-            else:
-                if alias not in alias2field:
-                    warning(f"Ignoré alias «{alias}»"); continue
-                fldinfo = self.config.model_fields[alias2field[alias]]
-                ann     = fldinfo.annotation
-                val = (
-                    raw.lower() in ("1","true","enabled","yes") if ann is bool else
-                    int(raw)   if ann is int   else
-                    float(raw) if ann is float else
-                    raw
-                )
-                setattr(self.config, alias2field[alias], val)
-                success(f"{alias} ← {raw}")
+                # champs radio "visuels" → ignorés
+                continue
 
-        # sauve + ré-init
-        self.config.save(); info("Configuration sauvegardée")
+            raw = vals[0]
+
+            # ------------------------------------------------------------------
+            # Cas imbriqué : ex. DailyTimer1_Settings.enabled
+            # ------------------------------------------------------------------
+            if "." in alias:
+                top, nest = alias.split(".", 1)
+
+                # on retrouve le vrai nom du champ dans AppConfig
+                if top not in alias2field:
+                    warning(f"Ignoré alias «{top}»")
+                    continue
+
+                mdl = getattr(self.config, alias2field[top])
+
+                # champ connu dans le modèle ?
+                fld = mdl.__class__.model_fields.get(nest)
+
+                if fld:
+                    ann = fld.annotation
+                    val = (
+                        raw.lower() in ("1", "true", "enabled", "yes")
+                        if ann is bool else
+                        int(raw)   if ann is int   else
+                        float(raw) if ann is float else
+                        raw
+                    )
+                    setattr(mdl, nest, val)
+                    success(f"{alias} ← {raw}")
+                    continue
+
+                # ------------------------------------------------------------------
+                # ICI: champ non défini dans le modèle (c’est notre cas pour .enabled)
+                # On l’accepte quand même pour DailyTimer* et Cyclic*.
+                # ------------------------------------------------------------------
+                if top.startswith("DailyTimer") and nest == "enabled":
+                    val = raw.lower() in ("1", "true", "enabled", "yes")
+                    setattr(mdl, "enabled", val)
+                    success(f"{alias} (custom) ← {val}")
+                    continue
+
+                if top.startswith("Cyclic") and nest == "enabled":
+                    val = raw.lower() in ("1", "true", "enabled", "yes")
+                    setattr(mdl, "enabled", val)
+                    success(f"{alias} (custom) ← {val}")
+                    continue
+
+                # sinon on ignore
+                warning(f"Ignoré champ imbriqué «{nest}» sur «{top}»")
+                continue
+
+            # ------------------------------------------------------------------
+            # Cas non imbriqué : ex. Heater_Settings, Motor_Settings
+            # ------------------------------------------------------------------
+            if alias not in alias2field:
+                warning(f"Ignoré alias «{alias}»")
+                continue
+
+            fldinfo = self.config.model_fields[alias2field[alias]]
+            ann     = fldinfo.annotation
+            val = (
+                raw.lower() in ("1", "true", "enabled", "yes")
+                if ann is bool else
+                int(raw)   if ann is int   else
+                float(raw) if ann is float else
+                raw
+            )
+            setattr(self.config, alias2field[alias], val)
+            success(f"{alias} ← {raw}")
+
+        # ----------------------------------------------------------------------
+        # Sauvegarde + ré-init capteurs
+        # ----------------------------------------------------------------------
+        self.config.save()
+        info("Configuration sauvegardée")
+
+        # recharger les capteurs avec la nouvelle config
         self.sensor_handler = SensorController(self.config)
         setattr(self.sensor_handler, "stats", self.stats)
         self.sensor_handler.sensor_dict = self.sensor_handler._build_sensor_dict()
         influx_handler.reload_sensor_handler(self.config)
         success("Nouvelle configuration appliquée")
+
