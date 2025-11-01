@@ -1,35 +1,30 @@
-# controller/components/MotorHandler.py
+# components/MotorHandler.py
 # Author  : Progradius
 # Licence : AGPL-3.0
 """
 Pilotage d'un moteur 4 pas + régulation automatique (manuel / auto)
-en fonction de la température mesurée via BME280 et des Temperature_Settings,
-en déduisant jour/nuit depuis DailyTimer1.
+pour une CARTE RELAIS ACTIVE-HAUT.
 
-Auto-mode granulaire :
- • temp < tmin → ventil 15 min/h (speed=1 les 15 premières minutes, sinon 0)
- • tmin ≤ temp ≤ tmax → low vitesse de base (1)
- • tmax < temp ≤ tmax+hyst → speed=2
- • tmax+hyst < temp ≤ tmax+2·hyst → speed=3
- • temp > tmax+2·hyst → speed=4
-Aucun saut de plus d'un cran d'un cycle à l'autre.
+Règle matérielle :
+    - OFF / état sûr  → toutes les pins moteur à LOW
+    - Vitesse N (1..4) → d'abord tout LOW, puis SEULEMENT la pin N à HIGH
+
+Ça évite les courts-circuits si plusieurs relais sont fermés.
 """
 
 import asyncio
 from time import sleep
-from datetime import datetime
 
 import RPi.GPIO as GPIO
 
-from function import convert_time_to_minutes
 from model.Motor import Motor
-from controllers.SensorController import SensorController
 from param.config import AppConfig
-from utils.pretty_console import info, warning, clock, error, success
+from utils.pretty_console import info, warning, success, error
 
 
 class MotorHandler:
-    """Encapsule les opérations bas niveau sur le moteur."""
+    """Encapsule les opérations bas niveau sur le moteur (active-HIGH)."""
+
     def __init__(self, config: AppConfig):
         self.config = config
         pins = [
@@ -38,134 +33,121 @@ class MotorHandler:
             config.gpio.motor_pin3,
             config.gpio.motor_pin4,
         ]
+
+        # sécurité : on force les 4 en LOW ici
         for p in pins:
-            GPIO.setup(p, GPIO.OUT, initial=GPIO.HIGH)
+            GPIO.setup(p, GPIO.OUT, initial=GPIO.LOW)
+
         self.motor = Motor(*pins)
-        info(f"MotorHandler initialisé sur pins {pins}")
+        self.speed = 0  # dernière vitesse appliquée
+        info(f"MotorHandler (active-HIGH) initialisé sur pins {pins}")
 
-        # vitesse et mode initiaux depuis la config
-        self.mode  = config.motor.motor_mode.lower()
-        self.speed = config.motor.motor_user_speed
-        info(f"Mode moteur initial : {self.mode}, vitesse : {self.speed}")
+    # ──────────────────────────────────────────────────────────
+    def all_off(self):
+        """État sûr : toutes les sorties moteur à LOW."""
+        self.motor.all_off()
+        self.speed = 0
 
-    def all_pin_down(self):
-        for setter in (
-            self.motor.set_pin1_value,
-            self.motor.set_pin2_value,
-            self.motor.set_pin3_value,
-            self.motor.set_pin4_value
-        ):
-            try:
-                setter(True)
-            except Exception as e:
-                warning(f"Erreur lors de la mise à HIGH : {e}")
-
+    # ──────────────────────────────────────────────────────────
     def set_motor_speed(self, speed: int):
         """
-        Change la vitesse uniquement si différente. Sinon ne fait rien.
-        Vitesse 0 : tout HIGH. Vitesse N : active pinN en LOW.
+        speed 0..4
+        0 → tout LOW
+        N → d’abord tout LOW, puis une seule pin HIGH
         """
         speed = max(0, min(speed, 4))
+
+        # pas de changement → ne rien faire
         if speed == self.speed:
-            return  # pas de changement → ne rien faire
+            return
 
-        # mise à jour : on arrête le moteur proprement
-        self.all_pin_down()
-        sleep(1)
+        # 1) état sûr
+        self.all_off()
+        # petit délai matériel
+        sleep(0.05)
 
+        # 2) activer la bonne pin si > 0
         if speed == 0:
-            warning("Vitesse moteur : 0 (OFF)")
+            warning("Vitesse moteur : 0 (tout OFF)")
         else:
-            getattr(self.motor, f"set_pin{speed}_value")(False)
-            success(f"Vitesse moteur réglée : {speed}")
+            try:
+                # nom de la méthode dans Motor : set_pin{n}_value(True/False)
+                getattr(self.motor, f"set_pin{speed}_value")(True)  # True → HIGH → ON
+                success(f"Vitesse moteur réglée : {speed}")
+            except AttributeError:
+                error(f"[MOTOR] pin de vitesse {speed} inexistante ?")
 
-        sleep(1)
         self.speed = speed
 
 
+# ─────────────────────────────────────────────────────────────
+#  Contrôle température (version qui réutilise le SensorController du main)
+# ─────────────────────────────────────────────────────────────
 async def temp_control(
     motor_handler: MotorHandler,
     config: AppConfig,
-    sampling_time: int = 15
+    sensor_handler,
+    sampling_time: int = 15,
 ):
     """
     • manual : vitesse imposée par l'utilisateur (config.motor.motor_user_speed)
-    • auto   : vitesse granulaire selon TemperatureSettings et horaire jour/nuit.
+    • auto   : vitesse décidée à partir de BME280 (day/night possible + hyst)
+    On réutilise le sensor_handler existant → pas de 3e ouverture I2C,
+    pas de double init, pas de doublons dans les logs.
+
+    IMPORTANT : on fait un PREMIER CHECK avant le premier sleep.
     """
-    sensor_handler = SensorController(config)
 
-    while True:
-        mode = config.motor.motor_mode.lower()
+    async def _apply_once():
+        mode = (config.motor.motor_mode or "").lower()
 
-        # ─── MODE MANUEL ─────────────────────────────────────────
         if mode == "manual":
-            speed = config.motor.motor_user_speed
-            info(f"[MANUAL] Vitesse demandée : {speed}")
-            motor_handler.set_motor_speed(speed)
-            await asyncio.sleep(60)
-            continue
+            s = config.motor.motor_user_speed
+            info(f"[MOTOR] [MANUAL] Vitesse demandée : {s}")
+            motor_handler.set_motor_speed(s)
+            return
 
-        # ─── MODE AUTOMATIQUE ────────────────────────────────────
         if mode == "auto":
             raw = sensor_handler.get_sensor_value("BME280T")
             try:
                 temp_val = float(raw)
             except (TypeError, ValueError):
-                error(f"Valeur température invalide : {raw}")
-                await asyncio.sleep(sampling_time)
-                continue
+                error(f"[MOTOR] Temp invalide pour le contrôle moteur : {raw}")
+                motor_handler.set_motor_speed(0)
+                return
 
-            # 1) Déterminer jour/nuit via DailyTimer1
-            dt1   = config.daily_timer1
-            start = convert_time_to_minutes(dt1.start_hour, dt1.start_minute)
-            stop  = convert_time_to_minutes(dt1.stop_hour,  dt1.stop_minute)
-            now_m = convert_time_to_minutes(datetime.now().hour, datetime.now().minute)
-            is_day = (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)
-
-            # 2) Choix des bornes selon jour/nuit
             ts = config.temperature
-            if is_day:
-                tmin = ts.target_temp_min_day
-                tmax = ts.target_temp_max_day
-            else:
-                tmin = ts.target_temp_min_night
-                tmax = ts.target_temp_max_night
+            tmin = ts.target_temp_min_day
+            tmax = ts.target_temp_max_day
             hyst = ts.hysteresis_offset
 
-            # 3) Calcul de la vitesse désirée (0–4) par paliers
-            under_min = False
             if temp_val < tmin:
-                # ventilation périodique 15 min/h
-                minute = datetime.now().minute
-                speed = 1 if (minute % 60) < 15 else 0
-                under_min = True
-                clock(f"[AUTO] {temp_val:.1f}°C < {tmin} → ventilation, speed {speed}")
+                wanted = 0
+                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C < {tmin}°C → OFF")
             elif temp_val <= tmax:
-                speed = 1
-                clock(f"[AUTO] {temp_val:.1f}°C dans [{tmin},{tmax}] → speed 1")
+                wanted = 1
+                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C dans [{tmin},{tmax}] → speed 1")
             elif temp_val <= tmax + hyst:
-                speed = 2
-                clock(f"[AUTO] {temp_val:.1f}°C ≤ {tmax+hyst:.1f} → speed 2")
-            elif temp_val <= tmax + 2*hyst:
-                speed = 3
-                clock(f"[AUTO] {temp_val:.1f}°C ≤ {tmax+2*hyst:.1f} → speed 3")
+                wanted = 2
+                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C ≤ {tmax+hyst:.1f} → speed 2")
+            elif temp_val <= tmax + 2 * hyst:
+                wanted = 3
+                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C ≤ {tmax+2*hyst:.1f} → speed 3")
             else:
-                speed = 4
-                clock(f"[AUTO] {temp_val:.1f}°C > {tmax+2*hyst:.1f} → speed 4")
+                wanted = 4
+                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C > {tmax+2*hyst:.1f} → speed 4")
 
-            # 4) Limitation de saut SEULEMENT si on n'est PAS en mode ventilation périodique
-            if not under_min:
-                prev = motor_handler.speed
-                delta = speed - prev
-                if abs(delta) > 1:
-                    speed = prev + (1 if delta > 0 else -1)
-                    clock(f"[AUTO] Limitation saut → nouveau speed {speed}")
+            motor_handler.set_motor_speed(wanted)
+            return
 
-            # Appliquer
-            motor_handler.set_motor_speed(speed)
-            await asyncio.sleep(sampling_time)
-            continue
+        # mode inconnu
+        warning(f"[MOTOR] Mode moteur inconnu : {mode!r} → OFF")
+        motor_handler.set_motor_speed(0)
 
-        # ─── MODE INCONNU ────────────────────────────────────────
-        warning(f"Mode moteur inconnu : '{mode}'")
+    # 1er passage IMMÉDIAT
+    await _apply_once()
+
+    # puis boucle régulière
+    while True:
         await asyncio.sleep(sampling_time)
+        await _apply_once()

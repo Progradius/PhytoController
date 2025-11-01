@@ -13,7 +13,7 @@ from components.cyclic_timer_handler    import timer_cyclic
 from components.MotorHandler            import temp_control
 from components.heater_control          import heat_control
 from network.web.server                 import Server
-from utils.pretty_console                  import info, warning, error
+from utils.pretty_console               import info, warning, error
 from param.config                       import AppConfig
 
 
@@ -67,8 +67,20 @@ class PuppetMaster:
 
         # --- Daily timers ---
         info("Démarrage des DailyTimers")
-        loop.create_task(timer_daily(self.dailytimer1, self.config, sampling_time=60))
-        loop.create_task(timer_daily(self.dailytimer2, self.config, sampling_time=60))
+        loop.create_task(
+            timer_daily(
+                self.dailytimer1,
+                self.config,
+                sampling_time=60
+            )
+        )
+        loop.create_task(
+            timer_daily(
+                self.dailytimer2,
+                self.config,
+                sampling_time=60
+            )
+        )
 
         # --- Cyclic timers ---
         info("Démarrage des CyclicTimers")
@@ -79,8 +91,9 @@ class PuppetMaster:
         info("Démarrage du contrôle moteur")
         loop.create_task(
             temp_control(
-                self.motor_handler,
-                self.config,
+                motor_handler=self.motor_handler,
+                config=self.config,
+                sensor_handler=self.sensor_handler,   # ← manquait ici
                 sampling_time=15,
             )
         )
@@ -114,5 +127,6 @@ class PuppetMaster:
         )
 
         info("Toutes les tâches asynchrones sont démarrées ✔")
+
         # Bloque indéfiniment (Ctrl-C pour quitter)
         await asyncio.Event().wait()
