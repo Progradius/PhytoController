@@ -147,9 +147,13 @@ def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> st
         sensors_list=sensors_list
     )
 
+
 def conf_page(config: AppConfig) -> str:
     """
     Génère la page de configuration en regroupant les paramètres par sections.
+    On ajoute :
+      - DailyTimer1 / DailyTimer2 avec un toggle Enabled/Disabled
+      - Cyclic1 / Cyclic2 avec un toggle Enabled/Disabled + choix du mode
     """
     sections = []
 
@@ -157,7 +161,9 @@ def conf_page(config: AppConfig) -> str:
         alias = field_info.alias or section_name
         section_obj = getattr(config, section_name)
 
-        # Section Temperature_Settings
+        # ---------------------------------------------------------------------
+        # Temperature_Settings
+        # ---------------------------------------------------------------------
         if alias == "Temperature_Settings":
             fields = []
             for attr, fld in section_obj.model_fields.items():
@@ -174,7 +180,9 @@ def conf_page(config: AppConfig) -> str:
             })
             continue
 
-        # Section Heater_Settings
+        # ---------------------------------------------------------------------
+        # Heater_Settings
+        # ---------------------------------------------------------------------
         if alias == "Heater_Settings":
             sections.append({
                 "type": "heater",
@@ -183,7 +191,9 @@ def conf_page(config: AppConfig) -> str:
             })
             continue
 
-        # Section Motor_Settings
+        # ---------------------------------------------------------------------
+        # Motor_Settings
+        # ---------------------------------------------------------------------
         if alias == "Motor_Settings":
             sections.append({
                 "type": "motor",
@@ -193,9 +203,41 @@ def conf_page(config: AppConfig) -> str:
             })
             continue
 
-        # Sections Cyclic*_Settings
+        # ---------------------------------------------------------------------
+        # DailyTimer1 / DailyTimer2
+        # On les traite comme le heater : un toggle + les champs
+        # On suppose qu'il peut y avoir un champ "enabled" dans le modèle;
+        # sinon, on force "enabled".
+        # ---------------------------------------------------------------------
+        if alias.startswith("DailyTimer"):
+            fields = []
+            for attr, fld in section_obj.model_fields.items():
+                val = getattr(section_obj, attr)
+                # on laisse les champs heures, minutes, etc.
+                fields.append({
+                    "name": f"{alias}.{(fld.alias or attr)}",
+                    "label": fld.alias or attr,
+                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
+                })
+
+            enabled_val = getattr(section_obj, "enabled", True)
+            sections.append({
+                "type": "daily",
+                "title": alias,
+                "id": alias,
+                "enabled": "enabled" if enabled_val else "disabled",
+                "fields": fields,
+            })
+            continue
+
+        # ---------------------------------------------------------------------
+        # Cyclic*_Settings
+        # (Cyclic1, Cyclic2, etc.)
+        # On ajoute aussi un toggle enabled/disabled
+        # ---------------------------------------------------------------------
         if alias.startswith("Cyclic"):
             mode = section_obj.mode
+            enabled_val = getattr(section_obj, "enabled", True)
             journalier_fields = []
             for attr in ("period_days", "triggers_per_day", "first_trigger_hour", "action_duration_seconds"):
                 fld = section_obj.__class__.model_fields[attr]
@@ -218,13 +260,16 @@ def conf_page(config: AppConfig) -> str:
                 "type": "cyclic",
                 "title": alias,
                 "id": alias,
+                "enabled": "enabled" if enabled_val else "disabled",
                 "mode": mode,
                 "journalier_fields": journalier_fields,
                 "sequentiel_fields": sequentiel_fields
             })
             continue
 
-        # Section Sensor_State
+        # ---------------------------------------------------------------------
+        # Sensor_State
+        # ---------------------------------------------------------------------
         if alias == "Sensor_State":
             sensors = []
             for attr, fld in section_obj.model_fields.items():
@@ -241,7 +286,9 @@ def conf_page(config: AppConfig) -> str:
             })
             continue
 
+        # ---------------------------------------------------------------------
         # Autres sections par défaut
+        # ---------------------------------------------------------------------
         fields = []
         for attr, fld in section_obj.model_fields.items():
             val = getattr(section_obj, attr)
@@ -257,6 +304,7 @@ def conf_page(config: AppConfig) -> str:
         })
 
     return render_template("conf.html", sections=sections)
+
 
 def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=None) -> str:
     def gpio_state(pin: int) -> str:
@@ -276,15 +324,14 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
         "Cyclic #2": gpio_state(config.gpio.cyclic2_pin),
     }
 
-    # Motor power
-    motor_pins = [
-        config.gpio.motor_pin1, config.gpio.motor_pin2,
-        config.gpio.motor_pin3, config.gpio.motor_pin4
-    ]
-    for p in motor_pins:
-        GPIO.setup(p, GPIO.IN)
-
-    speed = controller_status.get_motor_speed() if controller_status else 0
+    # Motor power (version sécurisée : on NE TOUCHE PAS aux GPIO moteur ici)
+    if controller_status:
+        try:
+            speed = controller_status.get_motor_speed() or 0
+        except Exception:
+            speed = 0
+    else:
+        speed = 0
     percent = int(speed / 4 * 100)
 
     # Capteurs
@@ -316,8 +363,8 @@ def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=Non
         "DailyTimer #1": gpio_state(config.gpio.dailytimer1_pin),
         "DailyTimer #2": gpio_state(config.gpio.dailytimer2_pin),
         "Cyclic #1": gpio_state(config.gpio.cyclic1_pin),
+        "Cyclic #2": gpio_state(config.gpio.cyclic2_pin),
         "Heater": gpio_state(config.gpio.heater_pin),
-        "Motor Pin 1": gpio_state(config.gpio.motor_pin1),
     }
 
     return render_template(

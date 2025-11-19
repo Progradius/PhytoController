@@ -1,11 +1,12 @@
-# controller/components/cyclic_timer_handler.py
+# components/cyclic_timer_handler.py
 # Author  : Progradius
 # License : AGPL-3.0
 
 import asyncio
 from datetime import datetime, timedelta, time, date
 
-from ui.pretty_console import box, warning
+from utils.pretty_console import box, warning
+from param.config import AppConfig
 
 aSYNC_DAY = 24 * 3600
 
@@ -16,28 +17,40 @@ aSYNC_COL_WARN = "red"
 
 aSYNC_SLEEP_TEMPLATE = "[J] #{tid} SLEEP {msg}"
 
+
 async def timer_cyclic(cyclic_timer) -> None:
     """Coroutine de pilotage du CyclicTimer (mode journalier ou séquentiel)."""
 
     tid    = cyclic_timer.timer_id
     comp   = cyclic_timer.component
-    config = cyclic_timer._config
-
-    def _is_day() -> bool:
-        now      = datetime.now()
-        start_h  = config.daily_timer1.start_hour
-        start_m  = config.daily_timer1.start_minute
-        stop_h   = config.daily_timer1.stop_hour
-        stop_m   = config.daily_timer1.stop_minute
-
-        start = start_h * 60 + start_m
-        stop  = stop_h  * 60 + stop_m
-        now_m = now.hour * 60 + now.minute
-
-        return (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)
 
     while True:
-        cyclic_timer.refresh_from_config()
+        # recharger complètement la conf
+        cfg = AppConfig.load()
+        if cyclic_timer.timer_id == "1":
+            cyc_conf = cfg.cyclic1
+            gpio_pin = cfg.gpio.cyclic1_pin
+        else:
+            cyc_conf = cfg.cyclic2
+            gpio_pin = cfg.gpio.cyclic2_pin
+
+        # ----- gestion du enabled -----
+        enabled = getattr(cyc_conf, "enabled", True)
+        if not enabled:
+            # on force OFF et on redort un peu
+            box(f"Cyclic #{tid} désactivé → GPIO {gpio_pin} OFF", color=aSYNC_COL_INFO)
+            try:
+                comp.set_state(0)
+            except Exception as e:
+                warning(f"Cyclic #{tid} OFF échoué: {e}")
+            await asyncio.sleep(5)
+            continue
+        # ------------------------------
+
+        # si activé → on réinjecte la conf dans l'instance existante
+        cyclic_timer._config = cfg
+        cyclic_timer._load_from_config_block()
+
         mode = cyclic_timer.get_mode().lower()
 
         if mode == "journalier":
@@ -54,40 +67,39 @@ async def timer_cyclic(cyclic_timer) -> None:
                 box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=msg), color=aSYNC_COL_INFO)
                 await asyncio.sleep(days_offset * aSYNC_DAY)
 
-            while True:
-                day0 = date.today()
-                trigger0 = datetime.combine(day0, time(first_hour, 0))
-                for n in range(triggers_per_day):
-                    trig_time = trigger0 + timedelta(seconds=n * interval_seconds)
-                    now = datetime.now()
-                    if trig_time < now:
-                        continue
+            # on refait la journée
+            day0 = date.today()
+            trigger0 = datetime.combine(day0, time(first_hour, 0))
+            for n in range(triggers_per_day):
+                trig_time = trigger0 + timedelta(seconds=n * interval_seconds)
+                now = datetime.now()
+                if trig_time > now:
                     delay = (trig_time - now).total_seconds()
-                    if delay > 0:
-                        box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{int(delay)} s"), color=aSYNC_COL_INFO)
-                        await asyncio.sleep(delay)
+                    box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{int(delay)} s"), color=aSYNC_COL_INFO)
+                    await asyncio.sleep(delay)
 
-                    # Activation (ON = 1 → GPIO LOW)
-                    box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT)
-                    try:
-                        comp.set_state(1)
-                    except Exception as e:
-                        warning(f"CyclicTimer #{tid} activation échouée : {e}")
+                # ON
+                box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT)
+                try:
+                    comp.set_state(1)
+                except Exception as e:
+                    warning(f"CyclicTimer #{tid} activation échouée : {e}")
 
-                    await asyncio.sleep(action_duration)
+                await asyncio.sleep(action_duration)
 
-                    # Désactivation (OFF = 0 → GPIO HIGH)
-                    box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF)
-                    try:
-                        comp.set_state(0)
-                    except Exception as e:
-                        warning(f"CyclicTimer #{tid} désactivation échouée : {e}")
+                # OFF
+                box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF)
+                try:
+                    comp.set_state(0)
+                except Exception as e:
+                    warning(f"CyclicTimer #{tid} désactivation échouée : {e}")
 
-                box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{period_days} jour{'s' if period_days > 1 else ''}"), color=aSYNC_COL_INFO)
-                await asyncio.sleep(period_days * aSYNC_DAY)
+            # fin de journée
+            box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{period_days} jour(s)"), color=aSYNC_COL_INFO)
+            await asyncio.sleep(period_days * aSYNC_DAY)
 
         elif mode == "séquentiel":
-            if _is_day():
+            if _is_day_from(cfg):
                 on_d  = cyclic_timer.get_on_time_day()
                 off_d = cyclic_timer.get_off_time_day()
                 phase = "Jour"
@@ -115,3 +127,18 @@ async def timer_cyclic(cyclic_timer) -> None:
         else:
             warning(f"CyclicTimer #{tid} mode inconnu : « {mode} » → arrêt du timer")
             return
+
+
+def _is_day_from(cfg: AppConfig) -> bool:
+    from datetime import datetime
+    now      = datetime.now()
+    start_h  = cfg.daily_timer1.start_hour
+    start_m  = cfg.daily_timer1.start_minute
+    stop_h   = cfg.daily_timer1.stop_hour
+    stop_m   = cfg.daily_timer1.stop_minute
+
+    start = start_h * 60 + start_m
+    stop  = stop_h  * 60 + stop_m
+    now_m = now.hour * 60 + now.minute
+
+    return (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)

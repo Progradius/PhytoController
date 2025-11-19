@@ -6,10 +6,38 @@ Activer OneWire via raspi-config ou en ajoutant dans /boot/config.txt :
 
 dtoverlay=w1-gpio
 
+a ajouter au boot.txt:
+# Force GPIOs HIGH au boot (sécurité relais OFF)
+gpio=4=op,dh
+gpio=17=op,dh
+gpio=18=op,dh
+gpio=22=op,dh
+gpio=23=op,dh
+gpio=24=op,dh
+gpio=25=op,dh
+gpio=27=op,dh
+gpio=5=op,dh
+gpio=6=op,dh
+gpio=12=op,dh
+gpio=13=op,dh
+gpio=19=op,dh
+gpio=26=op,dh
+
+watchdog:
+Ouvrez le fichier  system.conf avec nano :
+
+sudo nano /etc/systemd/system.conf
+
+Ajoutez les deux lignes suivantes à la fin du fichier :
+
+RuntimeWatchdogSec=15
+RebootWatchdogSec=2min
+
+sudo systemctl daemon-reload
 
 prompt potentiel:
 
-Prompt pour l’évolution du projet "PhytoController"
+Prompt pour l'évolution du projet "PhytoController"
 
     🎯 Objectif :
 
@@ -17,21 +45,21 @@ Je souhaite faire évoluer mon projet PhytoController, actuellement basé sur ES
 
     🧠 Contexte du projet :
 
-PhytoController est un système de pilotage environnemental destiné à contrôler des cycles de lumière, d’arrosage ou de ventilation, selon des plages horaires (daily timers), des cycles périodiques (cyclic timers), ou des conditions environnementales (ex. température ambiante).
+PhytoController est un système de pilotage environnemental destiné à contrôler des cycles de lumière, d'arrosage ou de ventilation, selon des plages horaires (daily timers), des cycles périodiques (cyclic timers), ou des conditions environnementales (ex. température ambiante).
 
 Le projet est composé :
 
-    D’un contrôleur asynchrone principal (PuppetMaster)
+    D'un contrôleur asynchrone principal (PuppetMaster)
 
     De composants physiques reliés à des GPIO (relais, moteur pas-à-pas)
 
     De capteurs I2C (BME280, DS18B20, TSL2591, etc.)
 
-    D’une interface web simple pour la configuration
+    D'une interface web simple pour la configuration
 
-    D’un backend JSON (param.json) permettant de configurer l’ensemble du système
+    D'un backend JSON (param.json) permettant de configurer l'ensemble du système
 
-    D’un enregistrement de données vers InfluxDB
+    D'un enregistrement de données vers InfluxDB
 
 Le projet a déjà été porté de MicroPython vers Python 3 sur Raspberry Pi avec :
 
@@ -41,7 +69,7 @@ Le projet a déjà été porté de MicroPython vers Python 3 sur Raspberry Pi av
 
     intégration de librairies capteurs en Python standard
 
-    ✅ Ce que j’ai :
+    ✅ Ce que j'ai :
 
     Un fichier param.json décrivant tous les paramètres de configuration, y compris les GPIO
 
@@ -51,9 +79,9 @@ Le projet a déjà été porté de MicroPython vers Python 3 sur Raspberry Pi av
 
     Une base web avec HTML/CSS Bootstrap pour la configuration
 
-    ❌ Ce que je n’ai pas encore fait, mais que je souhaite :
+    ❌ Ce que je n'ai pas encore fait, mais que je souhaite :
 
-    Rendre l’interface Web réactive et moderne
+    Rendre l'interface Web réactive et moderne
 
         Passer à Flask, FastAPI ou autre serveur Python asynchrone
 
@@ -79,7 +107,7 @@ Le projet a déjà été porté de MicroPython vers Python 3 sur Raspberry Pi av
 
         Format JSON : topic /phyto/sensors/temp avec payload { "value": 27.3 }
 
-    Dockeriser l’ensemble du projet
+    Dockeriser l'ensemble du projet
 
         Pour standardiser le déploiement sur différents Raspberry Pi
 
@@ -97,11 +125,11 @@ Le projet a déjà été porté de MicroPython vers Python 3 sur Raspberry Pi av
 
     Analyse en profondeur le projet existant (structure, architecture, interactions entre modules)
 
-    Propose-moi une roadmap technique claire pour intégrer l'un des axes d’évolution ci-dessus (ex : Flask + SQLite + API REST)
+    Propose-moi une roadmap technique claire pour intégrer l'un des axes d'évolution ci-dessus (ex : Flask + SQLite + API REST)
 
-    Donne-moi le squelette du code refactoré, avec les nouveaux points d’entrée, les dépendances nécessaires, les modules à créer/modifier
+    Donne-moi le squelette du code refactoré, avec les nouveaux points d'entrée, les dépendances nécessaires, les modules à créer/modifier
 
-    Si je choisis l’option API REST, donne-moi :
+    Si je choisis l'option API REST, donne-moi :
 
         les routes nécessaires (GET /status, POST /config, etc.)
 
@@ -111,7 +139,7 @@ Le projet a déjà été porté de MicroPython vers Python 3 sur Raspberry Pi av
 
         les dépendances (flask, flask-cors, uvicorn, etc.)
 
-    Propose-moi des tests unitaires ou d’intégration à prévoir
+    Propose-moi des tests unitaires ou d'intégration à prévoir
 
     Optionnel : propose-moi une intégration CI/CD minimale (GitHub Actions, pre-commit, tests)
 

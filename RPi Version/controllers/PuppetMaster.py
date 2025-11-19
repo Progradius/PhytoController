@@ -7,14 +7,14 @@
 
 import asyncio
 
-from network.web.influx_handler         import write_sensor_values
-from components.dailytimer_handler      import timer_daily
-from components.cyclic_timer_handler    import timer_cyclic
-from components.MotorHandler            import temp_control
-from components.heater_control          import heat_control
-from network.web.server                 import Server
-from ui.pretty_console                  import info, warning, error
-from param.config                       import AppConfig
+from network.web.influx_handler import write_sensor_values
+from components.dailytimer_handler import timer_daily
+from components.cyclic_timer_handler import timer_cyclic
+from components.MotorHandler import temp_control
+from components.heater_control import heat_control
+from network.web.server import Server
+from utils.pretty_console import info, warning, error
+from param.config import AppConfig
 
 
 class PuppetMaster:
@@ -39,25 +39,30 @@ class PuppetMaster:
         motor_handler,
         heater_component
     ):
-        self.config            = config
-        self.controller_status = controller_status
-        self.sensor_handler    = sensor_handler
-        self.dailytimer1       = dailytimer1
-        self.dailytimer2       = dailytimer2
-        self.cyclic_timer1     = cyclic_timer1
-        self.cyclic_timer2     = cyclic_timer2
-        self.motor_handler     = motor_handler
-        self.heater            = heater_component
+        self.config             = config
+        self.controller_status  = controller_status
+        self.sensor_handler     = sensor_handler
+        self.dailytimer1        = dailytimer1
+        self.dailytimer2        = dailytimer2
+        self.cyclic_timer1      = cyclic_timer1
+        self.cyclic_timer2      = cyclic_timer2
+        self.motor_handler      = motor_handler
+        self.heater             = heater_component
 
         info("PuppetMaster initialisé")
 
     def _set_global_exception(self) -> None:
+        """
+        Avant : on arrêtait toute la boucle.
+        Maintenant : on log seulement.
+        """
         def _handler(loop, context):
             exc = context.get("exception")
-            error(f"Exception asyncio non gérée : {exc}")
-            import traceback
-            traceback.print_exception(type(exc), exc, exc.__traceback__)
-            loop.stop()
+            msg = context.get("message")
+            if exc:
+                error(f"Exception asyncio non gérée : {exc!r}")
+            else:
+                error(f"Erreur asyncio : {msg}")
 
         asyncio.get_event_loop().set_exception_handler(_handler)
 
@@ -67,8 +72,20 @@ class PuppetMaster:
 
         # --- Daily timers ---
         info("Démarrage des DailyTimers")
-        loop.create_task(timer_daily(self.dailytimer1, self.config, sampling_time=60))
-        loop.create_task(timer_daily(self.dailytimer2, self.config, sampling_time=60))
+        loop.create_task(
+            timer_daily(
+                self.dailytimer1,
+                self.config,
+                sampling_time=60,
+            )
+        )
+        loop.create_task(
+            timer_daily(
+                self.dailytimer2,
+                self.config,
+                sampling_time=60
+            )
+        )
 
         # --- Cyclic timers ---
         info("Démarrage des CyclicTimers")
@@ -79,9 +96,10 @@ class PuppetMaster:
         info("Démarrage du contrôle moteur")
         loop.create_task(
             temp_control(
-                self.motor_handler,
-                self.config,
-                sampling_time=15,
+                motor_handler=self.motor_handler,
+                config=self.config,
+                sensor_handler=self.sensor_handler,
+                sampling_time=15
             )
         )
 
@@ -92,7 +110,7 @@ class PuppetMaster:
                 heater_component=self.heater,
                 sensor_handler=self.sensor_handler,
                 config=self.config,
-                sampling_time=30,
+                sampling_time=30
             )
         )
 
@@ -113,6 +131,7 @@ class PuppetMaster:
             ).run()
         )
 
-        info("Toutes les tâches asynchrones sont démarrées ✔")
-        # Bloque indéfiniment (Ctrl-C pour quitter)
+        info("Toutes les tâches asynchrones sont démarrées")
+
+        # boucle infinie
         await asyncio.Event().wait()

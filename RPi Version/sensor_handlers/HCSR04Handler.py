@@ -7,7 +7,7 @@ Handler pour le capteur ultrason HC-SR04 (distance).
 """
 
 from lib.sensors.HCSR04 import HCSR04
-from ui import pretty_console as pc
+from utils import pretty_console as pc
 
 
 class HCSR04Handler:

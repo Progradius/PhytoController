@@ -6,7 +6,7 @@ Petite fonction utilitaire qui inverse l'état GPIO d'un composant et
 l'affiche joliment dans la console.
 """
 
-from ui import pretty_console as ui
+from utils import pretty_console as ui
 
 
 def toggle_state(component) -> None:

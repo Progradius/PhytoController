@@ -9,15 +9,24 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, validator
 
+
 # ────────────────────────────────────────────────────────────────
 #  Blocs de configurations dédiés
 # ────────────────────────────────────────────────────────────────
 
 class DailyTimerSettings(BaseModel):
+    # nouveau : on rend l'activation configurable
+    enabled: bool = Field(True, alias="enabled")
+
     start_hour: int
     start_minute: int
     stop_hour: int
     stop_minute: int
+
+    @validator("enabled", pre=True)
+    def _parse_enabled(cls, v):
+        # accepte "enabled"/"disabled", true/false, 1/0
+        return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
 class CyclicSettings(BaseModel):
@@ -26,6 +35,9 @@ class CyclicSettings(BaseModel):
       • **journalier**  : *triggers_per_day* activations chaque *period_days* (jour sur N)
       • **séquentiel**  : alternance ON/OFF jour-nuit avec des durées distinctes
     """
+    # nouveau : activable/désactivable
+    enabled: bool = Field(True, alias="enabled")
+
     mode: Literal["journalier", "séquentiel"] = Field("journalier", alias="mode")
 
     # —— mode « journalier » ——
@@ -39,6 +51,10 @@ class CyclicSettings(BaseModel):
     off_time_day:  int = Field(0, alias="off_time_day")
     on_time_night: int = Field(0, alias="on_time_night")
     off_time_night:int = Field(0, alias="off_time_night")
+
+    @validator("enabled", pre=True)
+    def _parse_enabled(cls, v):
+        return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
 class TemperatureSettings(BaseModel):
@@ -144,21 +160,38 @@ class AppConfig(BaseModel):
 
     def save(self) -> None:
         payload = self.model_dump(by_alias=True, exclude={"_path"})
+
+        # heater comme avant
         payload["Heater_Settings"]["enabled"] = (
             "enabled" if self.heater_settings.enabled else "disabled"
         )
+
+        # daily timers → on force le même formatage
+        payload["DailyTimer1_Settings"]["enabled"] = (
+            "enabled" if self.daily_timer1.enabled else "disabled"
+        )
+        payload["DailyTimer2_Settings"]["enabled"] = (
+            "enabled" if self.daily_timer2.enabled else "disabled"
+        )
+
+        # cyclic timers → idem
+        payload["Cyclic1_Settings"]["enabled"] = (
+            "enabled" if self.cyclic1.enabled else "disabled"
+        )
+        payload["Cyclic2_Settings"]["enabled"] = (
+            "enabled" if self.cyclic2.enabled else "disabled"
+        )
+
+        # capteurs comme avant
         payload["Sensor_State"] = {
             k: ("enabled" if v else "disabled")
             for k, v in self.sensors.model_dump().items()
         }
+
         self._path.write_text(
             json.dumps(payload, indent=4, ensure_ascii=False),
             encoding="utf-8"
         )
 
-
-# ────────────────────────────────────────────────────────────────
-#  Reconstruction du modèle (Pydantic v2)
-# ────────────────────────────────────────────────────────────────
 
 AppConfig.model_rebuild()

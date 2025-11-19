@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 from param.config                 import AppConfig
 from controllers.SensorController import SensorController
-from ui.pretty_console            import info, warning, error
+from utils.pretty_console            import info, warning, error
 
 
 class API:

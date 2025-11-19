@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import subprocess
 
-from ui.pretty_console import info, success, warning, error, action
+from utils.pretty_console import info, success, warning, error, action
 from param.config       import AppConfig
 
 def do_connect() -> None:

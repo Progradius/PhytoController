@@ -6,7 +6,7 @@
 # -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
-from ui.pretty_console import action, info, warning
+from utils.pretty_console import action, info, warning
 
 # ─────────────────────────── init GPIO global ─────────────────
 GPIO.setwarnings(False)

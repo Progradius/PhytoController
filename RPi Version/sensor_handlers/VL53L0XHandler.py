@@ -12,7 +12,7 @@ Wrapper pour le télémètre laser VL53L0X.
 
 import smbus2
 from lib.sensors.VL53L0X import VL53L0X, TimeoutError
-from ui.pretty_console import info, warning, error
+from utils.pretty_console import info, warning, error
 
 
 class VL53L0XHandler:

@@ -1,7 +1,7 @@
 # controller/components/heater_control.py
 import asyncio
 from datetime import datetime
-from ui.pretty_console import info, warning
+from utils.pretty_console import info, warning
 
 
 async def heat_control(
@@ -17,7 +17,7 @@ async def heat_control(
       • Sinon :
           - Allume si T ≤ temp_min
           - Éteint si T > temp_min + hysteresis
-          - Sinon conserve l’état précédent
+          - Sinon conserve l'état précédent
     """
     current_state = heater_component.get_state()  # récupération initiale
 

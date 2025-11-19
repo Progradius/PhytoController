@@ -6,7 +6,7 @@ import glob
 from pathlib import Path
 from typing import List, Optional
 
-from ui.pretty_console import info, warning, error
+from utils.pretty_console import info, warning, error
 
 SYSFS_GLOB = "/sys/bus/w1/devices/28-*"
 

@@ -10,7 +10,7 @@
 
 from typing import Union
 from param.config      import AppConfig
-from ui.pretty_console import info, action, warning, success
+from utils.pretty_console import info, action, warning, success
 
 class CyclicTimer:
     """

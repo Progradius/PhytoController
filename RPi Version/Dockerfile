@@ -3,7 +3,7 @@
 ########################################
 # 1) Base Python slim
 ########################################
-FROM python:3.11-slim
+FROM python:3.9.22-slim-bullseye
 
 ########################################
 # 2) Variables d'environnement

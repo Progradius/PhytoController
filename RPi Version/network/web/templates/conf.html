@@ -35,7 +35,34 @@
                    value="disabled"
                    {% if section.enabled == 'disabled' %}checked{% endif %}>
             <label class="switch-label" for="heater_disabled">Disabled</label>
-          </div>          
+          </div>
+
+          {# === Daily timer toggle + fields === #}
+          {% elif section.type == "daily" %}
+            <label>{{ section.title }} Enabled</label>
+            <div class="switch-group" data-target="{{ section.id }}">
+              <input type="radio"
+                     id="{{ section.id }}_enabled"
+                     name="{{ section.id }}.enabled"
+                     value="enabled"
+                     {% if section.enabled == 'enabled' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_enabled">Enabled</label>
+
+              <input type="radio"
+                     id="{{ section.id }}_disabled"
+                     name="{{ section.id }}.enabled"
+                     value="disabled"
+                     {% if section.enabled == 'disabled' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_disabled">Disabled</label>
+            </div>
+
+            {% for field in section.fields %}
+              {# on ne réaffiche pas le champ .enabled s'il existe déjà #}
+              {% if not field.name.endswith(".enabled") %}
+                <label for="{{ field.name }}">{{ field.label }}</label>
+                {{ field.input_html|safe }}
+              {% endif %}
+            {% endfor %}
 
           {# === Motor toggle + manual speed === #}
           {% elif section.type == "motor" %}
@@ -69,8 +96,25 @@
                      value="{{ section.user_speed }}">
             </div>
 
-          {# === Cyclic toggle + fields === #}
+          {# === Cyclic toggle + mode + fields === #}
           {% elif section.type == "cyclic" %}
+            <label>{{ section.title }} Enabled</label>
+            <div class="switch-group" data-target="{{ section.id }}_enabled_block">
+              <input type="radio"
+                     id="{{ section.id }}_on"
+                     name="{{ section.id }}.enabled"
+                     value="enabled"
+                     {% if section.enabled == 'enabled' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_on">Enabled</label>
+
+              <input type="radio"
+                     id="{{ section.id }}_off"
+                     name="{{ section.id }}.enabled"
+                     value="disabled"
+                     {% if section.enabled == 'disabled' %}checked{% endif %}>
+              <label class="switch-label" for="{{ section.id }}_off">Disabled</label>
+            </div>
+
             <label>Mode</label>
             <div class="switch-group" data-target="{{ section.id }}">
               <input type="radio"
@@ -86,7 +130,6 @@
                      value="séquentiel"
                      {% if section.mode == 'séquentiel' %}checked{% endif %}>
               <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
-
             </div>
 
             <div id="{{ section.id }}_journalier_fields">
@@ -221,14 +264,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // affichage conditionnel motor/cyclic
         if (target === "Motor_Settings") {
-          document.getElementById("Motor_Settings_manual_fields")
-            .style.display = (r.value === "manual" ? "block" : "none");
+          const manu = document.getElementById("Motor_Settings_manual_fields");
+          if (manu) {
+            manu.style.display = (r.value === "manual" ? "block" : "none");
+          }
         } else if (target && target.startsWith("Cyclic")) {
-          document.getElementById(target + "_journalier_fields")
-            .style.display = (r.value === "journalier" ? "block" : "none");
-          document.getElementById(target + "_séquentiel_fields")
-            .style.display = (r.value === "séquentiel" ? "block" : "none");
+          const j = document.getElementById(target + "_journalier_fields");
+          const s = document.getElementById(target + "_séquentiel_fields");
+          if (j && s) {
+            j.style.display = (r.value === "journalier" ? "block" : "none");
+            s.style.display = (r.value === "séquentiel" ? "block" : "none");
+          }
         }
+        // pour les daily : rien de particulier à afficher/masquer pour l'instant
       });
     });
 

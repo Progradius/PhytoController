@@ -19,7 +19,7 @@ from sensor_handlers.TSL2591Handler  import TSL2591Handler
 from sensor_handlers.HCSR04Handler   import HCSR04Handler
 
 # Affichage « Pretty »
-from ui.pretty_console import info, warning, error
+from utils.pretty_console import info, warning, error
 
 # Votre modèle de config
 from param.config import AppConfig
