@@ -1,4 +1,4 @@
-# controller/web/server.py
+# network/web/server.py
 # Author : Progradius
 # License: AGPL-3.0
 # -------------------------------------------------------------
@@ -16,21 +16,21 @@ import subprocess
 import urllib.parse
 from collections import deque
 
-from utils.pretty_console            import success, warning, error, action, info
-from network.web.pages            import (
+from utils.pretty_console import success, warning, error, action, info
+from network.web.pages import (
     main_page,
     conf_page,
     monitor_page,
-    console_page
+    console_page,
 )
-from model.SensorStats            import SensorStats
-from param.config                 import AppConfig
+from model.SensorStats import SensorStats
+from param.config import AppConfig
 from controllers.SensorController import SensorController
-from network.web                  import influx_handler
+from network.web import influx_handler
 
 # Chemin vers votre script main.py
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-MAIN_PY  = os.path.join(BASE_DIR, "main.py")
+MAIN_PY = os.path.join(BASE_DIR, "main.py")
 
 
 class Server:
@@ -49,13 +49,13 @@ class Server:
         sensor_handler,
         config: AppConfig,
         host: str = "0.0.0.0",
-        port: int = 8123
+        port: int = 8123,
     ):
         self.controller_status = controller_status
-        self.sensor_handler    = sensor_handler
-        self.config            = config
-        self.host              = host
-        self.port              = port
+        self.sensor_handler = sensor_handler
+        self.config = config
+        self.host = host
+        self.port = port
 
         # Min/max stats
         self.stats = SensorStats()
@@ -67,29 +67,65 @@ class Server:
         self._console_history = deque(maxlen=1000)
 
     async def run(self) -> None:
-        # démarre la tâche PTY → broadcast
-        asyncio.create_task(self._spawn_pty_and_broadcast())
+        """
+        En mode normal (développement / lancé à la main) → on ouvre un PTY,
+        on lance main.py et on broadcast les logs.
+        En mode service (systemd) → on ne lance PAS un second main.py.
+        On tolère le cas où le port est déjà pris (par un autre process).
+        """
+        run_mode = os.getenv("PHYTO_RUN_MODE", "").lower()
+
+        # démarre la tâche PTY → broadcast seulement si on n'est pas en mode service
+        if run_mode != "service":
+            asyncio.create_task(self._spawn_pty_and_broadcast())
+        else:
+            info("Mode service détecté → pas de PTY ni de sous-processus main.py")
+
         # démarre le serveur HTTP
-        srv = await asyncio.start_server(self._handle, self.host, self.port)
+        try:
+            srv = await asyncio.start_server(self._handle, self.host, self.port)
+        except OSError as e:
+            # cas typique: [Errno 98] address already in use
+            if e.errno == 98:
+                error(
+                    f"Impossible d'ouvrir le serveur HTTP sur {self.host}:{self.port} "
+                    f"(déjà utilisé). Le reste du système continue."
+                )
+                # on sort proprement de run() sans faire planter la boucle
+                return
+            # autre erreur → on laisse remonter
+            raise
+
         success(f"HTTP prêt sur {self.host}:{self.port}")
         async with srv:
             await srv.serve_forever()
 
     async def _spawn_pty_and_broadcast(self) -> None:
-        """Ouvre un PTY, lance main.py et diffuse chaque ligne ANSI."""
+        """Ouvre un PTY, lance main.py et diffuse chaque ligne ANSI.
+
+        ATTENTION : ne doit pas être appelé en mode service/systemd, sinon on se
+        retrouve avec un main.py qui lance un main.py.
+        """
+        # double protection au cas où
+        if os.getenv("PHYTO_RUN_MODE", "").lower() == "service":
+            info("Mode service -> _spawn_pty_and_broadcast() ignoré.")
+            return
+
         master_fd, slave_fd = pty.openpty()
         proc = subprocess.Popen(
             ["python3", "-u", MAIN_PY],
             cwd=BASE_DIR,
-            stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
             close_fds=True,
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
         os.close(slave_fd)
 
-        loop   = asyncio.get_event_loop()
-        reader = os.fdopen(master_fd, 'rb', buffering=0)
-        buf    = b""
+        loop = asyncio.get_event_loop()
+        reader = os.fdopen(master_fd, "rb", buffering=0)
+        buf = b""
         try:
             while True:
                 chunk = await loop.run_in_executor(None, reader.read, 1024)
@@ -119,20 +155,23 @@ class Server:
     async def _handle(
         self,
         reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter
+        writer: asyncio.StreamWriter,
     ) -> None:
         # --- Request line & headers ---
         line = await reader.readline()
         try:
             method, path, _ = line.decode("ascii").split()
         except ValueError:
-            error("Requête malformée détectée"); writer.close(); return
+            error("Requête malformée détectée")
+            writer.close()
+            return
 
         headers = {}
         while True:
             h = await reader.readline()
-            if h in (b"\r\n", b"\n", b""): break
-            k, v = h.decode("ascii").split(":",1)
+            if h in (b"\r\n", b"\n", b""):
+                break
+            k, v = h.decode("ascii").split(":", 1)
             headers[k.lower().strip()] = v.strip()
 
         action(f"{method} {path}")
@@ -140,19 +179,23 @@ class Server:
         # POST parsing
         posted = {}
         if method == "POST":
-            l = int(headers.get("content-length","0"))
+            l = int(headers.get("content-length", "0"))
             raw = await reader.readexactly(l) if l else b""
             posted = urllib.parse.parse_qs(raw.decode(), keep_blank_values=True)
 
         # --- ROUTING ---
-        if method=="GET" and path in ("/","/index.html"):
+        if method == "GET" and path in ("/", "/index.html"):
             body, ctype, status = (
-                main_page(self.controller_status, self.sensor_handler, self.stats, self.config)
-                    .encode("utf-8"),
+                main_page(
+                    self.controller_status,
+                    self.sensor_handler,
+                    self.stats,
+                    self.config,
+                ).encode("utf-8"),
                 "text/html; charset=utf-8",
-                "200 OK"
+                "200 OK",
             )
-            
+
         elif method == "GET" and path.startswith("/static/"):
             filepath = os.path.join(os.path.dirname(__file__), path.lstrip("/"))
             if os.path.isfile(filepath):
@@ -174,47 +217,54 @@ class Server:
                 ctype = "text/plain"
                 status = "404 Not Found"
 
-
-        elif path=="/conf":
-            if method=="POST":
+        elif path == "/conf":
+            if method == "POST":
                 self._apply_conf_changes(posted)
-            body,ctype,status = (
+            body, ctype, status = (
                 conf_page(self.config).encode("utf-8"),
-                "text/html; charset=utf-8","200 OK"
+                "text/html; charset=utf-8",
+                "200 OK",
             )
 
-        elif method=="GET" and path.startswith("/monitor"):
+        elif method == "GET" and path.startswith("/monitor"):
             # resets
-            qs = urllib.parse.parse_qs(urllib.parse.urlparse(path).query, keep_blank_values=True)
+            qs = urllib.parse.parse_qs(
+                urllib.parse.urlparse(path).query, keep_blank_values=True
+            )
             for p in qs:
                 if p.startswith("reset_"):
-                    k = "DS18B#3" if p=="reset_DS18B3" else p.split("reset_",1)[1]
+                    k = "DS18B#3" if p == "reset_DS18B3" else p.split("reset_", 1)[1]
                     self.stats.clear_key(k)
                     val = self.sensor_handler.get_sensor_value(k)
-                    if val is not None: self.stats.update(k,float(val))
+                    if val is not None:
+                        self.stats.update(k, float(val))
                     success(f"Stat {k} réinitialisée")
-            if qs.get("reboot",["0"])[0]=="1":
-                info("Reboot via web"); os.system("sudo reboot")
-            if qs.get("poweroff",["0"])[0]=="1":
-                info("Poweroff via web"); os.system("/sbin/shutdown -h now")
+            if qs.get("reboot", ["0"])[0] == "1":
+                info("Reboot via web")
+                os.system("sudo reboot")
+            if qs.get("poweroff", ["0"])[0] == "1":
+                info("Poweroff via web")
+                os.system("/sbin/shutdown -h now")
 
-            body,ctype,status = (
+            body, ctype, status = (
                 monitor_page(
                     self.sensor_handler,
                     self.stats,
                     self.config,
-                    self.controller_status
+                    self.controller_status,
                 ).encode("utf-8"),
-                "text/html; charset=utf-8","200 OK"
+                "text/html; charset=utf-8",
+                "200 OK",
             )
 
-        elif method=="GET" and path=="/console":
-            body,ctype,status = (
+        elif method == "GET" and path == "/console":
+            body, ctype, status = (
                 console_page().encode("utf-8"),
-                "text/html; charset=utf-8","200 OK"
+                "text/html; charset=utf-8",
+                "200 OK",
             )
 
-        elif method=="GET" and path.startswith("/console/stream"):
+        elif method == "GET" and path.startswith("/console/stream"):
             # SSE headers
             writer.write(
                 b"HTTP/1.1 200 OK\r\n"
@@ -236,7 +286,7 @@ class Server:
                 while True:
                     try:
                         line = await asyncio.wait_for(queue.get(), timeout=15.0)
-                        msg  = f"data: {line}\n\n"
+                        msg = f"data: {line}\n\n"
                     except asyncio.TimeoutError:
                         # keep-alive comment
                         msg = ": keep-alive\n\n"
@@ -249,35 +299,38 @@ class Server:
                 writer.close()
             return
 
-        elif method=="GET" and path.startswith("/status"):
+        elif method == "GET" and path.startswith("/status"):
             cs = self.controller_status
             payload = {
                 "component_state": cs.get_component_state(),
-                "motor_speed"   : cs.get_motor_speed(),
-                "dailytimer1"   : {
+                "motor_speed": cs.get_motor_speed(),
+                "dailytimer1": {
                     "start": cs.get_dailytimer_current_start_time(),
-                    "stop" : cs.get_dailytimer_current_stop_time(),
+                    "stop": cs.get_dailytimer_current_stop_time(),
                 },
                 "cyclic": {
-                    "period"  : cs.get_cyclic_period(),
-                    "duration": cs.get_cyclic_duration(),
-                }
+                    # attention: ces getters étaient faits pour l’ancien modèle
+                    # laisse comme ça si tu ne t’en sers pas
+                    "period": getattr(self.config.cyclic1, "period_days", 1),
+                    "duration": self.config.cyclic1.action_duration_seconds,
+                },
             }
-            body,ctype,status = (
+            body, ctype, status = (
                 json.dumps(payload).encode("utf-8"),
-                "application/json","200 OK"
+                "application/json",
+                "200 OK",
             )
 
         else:
-            body,ctype,status = b"Not found","text/plain","404 Not Found"
+            body, ctype, status = b"Not found", "text/plain", "404 Not Found"
 
         # réponse standard
         writer.write(
             f"HTTP/1.1 {status}\r\n"
             f"Content-Type: {ctype}\r\n"
             f"Content-Length: {len(body)}\r\n"
-            "Connection: close\r\n\r\n"
-            .encode("utf-8") + body
+            "Connection: close\r\n\r\n".encode("utf-8")
+            + body
         )
         await writer.drain()
         writer.close()
@@ -320,18 +373,19 @@ class Server:
                     ann = fld.annotation
                     val = (
                         raw.lower() in ("1", "true", "enabled", "yes")
-                        if ann is bool else
-                        int(raw)   if ann is int   else
-                        float(raw) if ann is float else
-                        raw
+                        if ann is bool
+                        else int(raw)
+                        if ann is int
+                        else float(raw)
+                        if ann is float
+                        else raw
                     )
                     setattr(mdl, nest, val)
                     success(f"{alias} ← {raw}")
                     continue
 
                 # ------------------------------------------------------------------
-                # ICI: champ non défini dans le modèle (c’est notre cas pour .enabled)
-                # On l’accepte quand même pour DailyTimer* et Cyclic*.
+                # Champ non défini dans le modèle (ex. .enabled pour Daily/Cyclic)
                 # ------------------------------------------------------------------
                 if top.startswith("DailyTimer") and nest == "enabled":
                     val = raw.lower() in ("1", "true", "enabled", "yes")
@@ -345,7 +399,6 @@ class Server:
                     success(f"{alias} (custom) ← {val}")
                     continue
 
-                # sinon on ignore
                 warning(f"Ignoré champ imbriqué «{nest}» sur «{top}»")
                 continue
 
@@ -357,13 +410,15 @@ class Server:
                 continue
 
             fldinfo = self.config.model_fields[alias2field[alias]]
-            ann     = fldinfo.annotation
+            ann = fldinfo.annotation
             val = (
                 raw.lower() in ("1", "true", "enabled", "yes")
-                if ann is bool else
-                int(raw)   if ann is int   else
-                float(raw) if ann is float else
-                raw
+                if ann is bool
+                else int(raw)
+                if ann is int
+                else float(raw)
+                if ann is float
+                else raw
             )
             setattr(self.config, alias2field[alias], val)
             success(f"{alias} ← {raw}")
@@ -380,4 +435,3 @@ class Server:
         self.sensor_handler.sensor_dict = self.sensor_handler._build_sensor_dict()
         influx_handler.reload_sensor_handler(self.config)
         success("Nouvelle configuration appliquée")
-

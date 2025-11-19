@@ -3,29 +3,33 @@
         "stage": "veg"
     },
     "DailyTimer1_Settings": {
-        "start_hour": 17,
+        "enabled": "enabled",
+        "start_hour": 19,
         "start_minute": 0,
-        "stop_hour": 12,
+        "stop_hour": 7,
         "stop_minute": 0
     },
     "DailyTimer2_Settings": {
-        "start_hour": 17,
+        "enabled": "disabled",
+        "start_hour": 19,
         "start_minute": 0,
         "stop_hour": 11,
         "stop_minute": 0
     },
     "Cyclic1_Settings": {
+        "enabled": "enabled",
         "mode": "séquentiel",
         "period_days": 1,
         "triggers_per_day": 1,
         "first_trigger_hour": 8,
         "action_duration_seconds": 30,
-        "on_time_day": 600,
-        "off_time_day": 10,
-        "on_time_night": 5,
-        "off_time_night": 9
+        "on_time_day": 9999,
+        "off_time_day": 600,
+        "on_time_night": 3600,
+        "off_time_night": 600
     },
     "Cyclic2_Settings": {
+        "enabled": "disabled",
         "mode": "journalier",
         "period_days": 10,
         "triggers_per_day": 1,
@@ -37,9 +41,9 @@
         "off_time_night": 0
     },
     "Temperature_Settings": {
-        "target_temp_min_day": 21.0,
+        "target_temp_min_day": 23.0,
         "target_temp_max_day": 25.0,
-        "target_temp_min_night": 19.0,
+        "target_temp_min_night": 21.0,
         "target_temp_max_night": 25.0,
         "hysteresis_offset": 2.0
     },
@@ -64,17 +68,17 @@
         "hcsr_echo_pin": 27,
         "dailytimer1_pin": 17,
         "dailytimer2_pin": 18,
-        "cyclic1_pin": 5,
-        "cyclic2_pin": 16,
+        "cyclic1_pin": 27,
+        "cyclic2_pin": 22,
         "heater_pin": 23,
-        "motor_pin1": 32,
-        "motor_pin2": 33,
-        "motor_pin3": 14,
-        "motor_pin4": 25
+        "motor_pin1": 25,
+        "motor_pin2": 8,
+        "motor_pin3": 7,
+        "motor_pin4": 1
     },
     "Motor_Settings": {
         "motor_mode": "manual",
-        "motor_user_speed": 2,
+        "motor_user_speed": 1,
         "target_temp": 25.0,
         "hysteresis": 2.0,
         "min_speed": 0,
@@ -82,10 +86,10 @@
     },
     "Sensor_State": {
         "bme280_state": "enabled",
-        "ds18b20_state": "enabled",
+        "ds18b20_state": "disabled",
         "veml6075_state": "disabled",
         "vl53L0x_state": "disabled",
-        "mlx90614_state": "enabled",
+        "mlx90614_state": "disabled",
         "tsl2591_state": "disabled",
         "hcsr04_state": "disabled"
     }

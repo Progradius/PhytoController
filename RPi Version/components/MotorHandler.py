@@ -53,7 +53,7 @@ class MotorHandler:
         """
         speed 0..4
         0 → tout LOW
-        N → d’abord tout LOW, puis une seule pin HIGH
+        N → d'abord tout LOW, puis une seule pin HIGH
         """
         speed = max(0, min(speed, 4))
 

@@ -17,7 +17,7 @@ async def heat_control(
       • Sinon :
           - Allume si T ≤ temp_min
           - Éteint si T > temp_min + hysteresis
-          - Sinon conserve l’état précédent
+          - Sinon conserve l'état précédent
     """
     current_state = heater_component.get_state()  # récupération initiale
 

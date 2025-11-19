@@ -50,9 +50,9 @@ class Motor:
     # ───────────────────────── getters ────────────────────────
     def get_motor_speed(self) -> int:
         """
-        Ici on lit l’état sans RIEN ÉCRIRE.
+        Ici on lit l'état sans RIEN ÉCRIRE.
         Comme la carte est active-HIGH, une pin à HIGH = vitesse correspondante.
-        S’il y en a plusieurs → on loggue, on renvoie 0.
+        S'il y en a plusieurs → on loggue, on renvoie 0.
         """
         try:
             states = {
@@ -72,12 +72,12 @@ class Motor:
         if len(active) == 1:
             return active[0]
 
-        # plusieurs pins à HIGH → c’est dangereux, mais ON NE TOUCHE PAS
+        # plusieurs pins à HIGH → c'est dangereux, mais ON NE TOUCHE PAS
         error(f"[MOTOR] État dangereux : plusieurs relais moteur actifs : {active}")
         return 0
 
     # ───────────────────────── utilitaire ─────────────────────
     def all_off(self) -> None:
-        """Force l’état sûr : tout LOW."""
+        """Force l'état sûr : tout LOW."""
         for p in (self.pin1, self.pin2, self.pin3, self.pin4):
             self._set_pin(p, False)

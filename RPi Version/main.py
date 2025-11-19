@@ -9,6 +9,7 @@ import sys
 import atexit
 import threading
 import time
+import os   # ← ajouté
 
 import RPi.GPIO as GPIO
 from utils.pretty_console import title, action, success, warning, error, clock
@@ -29,6 +30,11 @@ from param.config import AppConfig
 # =============================================================
 #                  VARIABLES GLOBALES SÉCURITÉ
 # =============================================================
+
+# mode de run (pour désactiver certaines fonctions en service)
+RUN_AS_SERVICE = os.getenv("PHYTO_RUN_MODE", "").lower() == "service"
+# si PHYTO_HW_WATCHDOG=0 → on ne lance pas le thread watchdog
+DISABLE_HW_WATCHDOG = os.getenv("PHYTO_HW_WATCHDOG", "0") == "0"
 
 # Pins non-moteur qu'on peut forcer à HIGH sans danger
 GENERIC_SAFE_PINS = []          # on remplira après chargement config
@@ -236,8 +242,11 @@ check_ram_usage()
 print()
 
 # Lancement du watchdog dans un thread
-watchdog_thread = threading.Thread(target=watchdog_worker, daemon=True)
-watchdog_thread.start()
+if not DISABLE_HW_WATCHDOG:
+    watchdog_thread = threading.Thread(target=watchdog_worker, daemon=True)
+    watchdog_thread.start()
+else:
+    print("Watchdog matériel désactivé (mode service ou variable d'env).")
 
 # =============================================================
 #                   BOUCLE PRINCIPALE ASYNCIO
