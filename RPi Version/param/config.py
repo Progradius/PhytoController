@@ -15,7 +15,6 @@ from pydantic import BaseModel, Field, validator
 # ────────────────────────────────────────────────────────────────
 
 class DailyTimerSettings(BaseModel):
-    # nouveau : on rend l'activation configurable
     enabled: bool = Field(True, alias="enabled")
 
     start_hour: int
@@ -25,25 +24,23 @@ class DailyTimerSettings(BaseModel):
 
     @validator("enabled", pre=True)
     def _parse_enabled(cls, v):
-        # accepte "enabled"/"disabled", true/false, 1/0
         return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
 class CyclicSettings(BaseModel):
     """
     Deux modes :
-      • **journalier**  : *triggers_per_day* activations chaque *period_days* (jour sur N)
-      • **séquentiel**  : alternance ON/OFF jour-nuit avec des durées distinctes
+      • **journalier**  : *triggers_per_day* activations chaque *period_days*
+      • **séquentiel**  : alternance ON/OFF jour-nuit
     """
-    # nouveau : activable/désactivable
     enabled: bool = Field(True, alias="enabled")
 
     mode: Literal["journalier", "séquentiel"] = Field("journalier", alias="mode")
 
     # —— mode « journalier » ——
-    period_days: int  = Field(1,  alias="period_days", ge=1, description="1 = tous les jours, 2 = 1 jour / 2 …")
-    triggers_per_day: int = Field(1,  alias="triggers_per_day", ge=1, description="Nombre d'actions par journée")
-    first_trigger_hour: int = Field(8, alias="first_trigger_hour", ge=0, le=23, description="Heure (0-23) du 1ᵉʳ déclenchement")
+    period_days: int  = Field(1,  alias="period_days", ge=1)
+    triggers_per_day: int = Field(1,  alias="triggers_per_day", ge=1)
+    first_trigger_hour: int = Field(8, alias="first_trigger_hour", ge=0, le=23)
     action_duration_seconds: int = Field(..., alias="action_duration_seconds", gt=0)
 
     # —— mode « séquentiel » ——
@@ -94,12 +91,20 @@ class GPIOSettings(BaseModel):
 
 
 class MotorSettings(BaseModel):
-    motor_mode: str
+    motor_mode: Literal["manual", "auto", "winter"] = Field("auto", alias="motor_mode")
+
     motor_user_speed: int
     target_temp: float
     hysteresis: float
     min_speed: int
     max_speed: int
+
+    # — Paramètres « hiver » —
+    winter_default_speed: int = Field(1, ge=0, le=4, alias="winter_default_speed")
+    winter_temp_margin: float = Field(2.0, ge=0.0, alias="winter_temp_margin")
+    winter_refresh_speed: int = Field(4, ge=0, le=4, alias="winter_refresh_speed")
+    winter_refresh_minutes_per_hour: int = Field(5, ge=0, le=60, alias="winter_refresh_minutes_per_hour")
+    winter_humidity_threshold: float = Field(65.0, ge=0.0, le=100.0, alias="winter_humidity_threshold")
 
 
 class LifePeriod(BaseModel):
@@ -161,12 +166,12 @@ class AppConfig(BaseModel):
     def save(self) -> None:
         payload = self.model_dump(by_alias=True, exclude={"_path"})
 
-        # heater comme avant
+        # heater
         payload["Heater_Settings"]["enabled"] = (
             "enabled" if self.heater_settings.enabled else "disabled"
         )
 
-        # daily timers → on force le même formatage
+        # daily timers
         payload["DailyTimer1_Settings"]["enabled"] = (
             "enabled" if self.daily_timer1.enabled else "disabled"
         )
@@ -174,7 +179,7 @@ class AppConfig(BaseModel):
             "enabled" if self.daily_timer2.enabled else "disabled"
         )
 
-        # cyclic timers → idem
+        # cyclic timers
         payload["Cyclic1_Settings"]["enabled"] = (
             "enabled" if self.cyclic1.enabled else "disabled"
         )
@@ -182,7 +187,7 @@ class AppConfig(BaseModel):
             "enabled" if self.cyclic2.enabled else "disabled"
         )
 
-        # capteurs comme avant
+        # capteurs
         payload["Sensor_State"] = {
             k: ("enabled" if v else "disabled")
             for k, v in self.sensors.model_dump().items()

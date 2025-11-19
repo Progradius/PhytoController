@@ -11,33 +11,29 @@
         <form method="post" action="/conf">
           <h2>{{ section.title }}</h2><hr>
 
-          {# === Default fields === #}
           {% if section.type == "default" %}
             {% for field in section.fields %}
               <label for="{{ field.name }}">{{ field.label }}</label>
               {{ field.input_html|safe }}
             {% endfor %}
 
-          {# === Heater toggle === #}
           {% elif section.type == "heater" %}
-          <label>Heater</label>
-          <div class="switch-group" data-target="Heater_Settings">
-            <input type="radio"
-                   id="heater_enabled"
-                   name="Heater_Settings.enabled"
-                   value="enabled"
-                   {% if section.enabled == 'enabled' %}checked{% endif %}>
-            <label class="switch-label" for="heater_enabled">Enabled</label>
-          
-            <input type="radio"
-                   id="heater_disabled"
-                   name="Heater_Settings.enabled"
-                   value="disabled"
-                   {% if section.enabled == 'disabled' %}checked{% endif %}>
-            <label class="switch-label" for="heater_disabled">Disabled</label>
-          </div>
+            <label>Heater</label>
+            <div class="switch-group" data-target="Heater_Settings">
+              <input type="radio"
+                     id="heater_enabled"
+                     name="Heater_Settings.enabled"
+                     value="enabled"
+                     {% if section.enabled == 'enabled' %}checked{% endif %}>
+              <label class="switch-label" for="heater_enabled">Enabled</label>
+              <input type="radio"
+                     id="heater_disabled"
+                     name="Heater_Settings.enabled"
+                     value="disabled"
+                     {% if section.enabled == 'disabled' %}checked{% endif %}>
+              <label class="switch-label" for="heater_disabled">Disabled</label>
+            </div>
 
-          {# === Daily timer toggle + fields === #}
           {% elif section.type == "daily" %}
             <label>{{ section.title }} Enabled</label>
             <div class="switch-group" data-target="{{ section.id }}">
@@ -57,14 +53,12 @@
             </div>
 
             {% for field in section.fields %}
-              {# on ne réaffiche pas le champ .enabled s'il existe déjà #}
               {% if not field.name.endswith(".enabled") %}
                 <label for="{{ field.name }}">{{ field.label }}</label>
                 {{ field.input_html|safe }}
               {% endif %}
             {% endfor %}
 
-          {# === Motor toggle + manual speed === #}
           {% elif section.type == "motor" %}
             <label>Motor Mode</label>
             <div class="switch-group" data-target="Motor_Settings">
@@ -82,6 +76,13 @@
                      {% if section.mode == 'auto' %}checked{% endif %}>
               <label class="switch-label" for="motor_auto">Auto</label>
 
+              <input type="radio"
+                     id="motor_winter"
+                     name="Motor_Settings_mode_switch"
+                     value="winter"
+                     {% if section.mode == 'winter' %}checked{% endif %}>
+              <label class="switch-label" for="motor_winter">Winter</label>
+
               <input type="hidden"
                      name="Motor_Settings.motor_mode"
                      id="Motor_Settings_mode_input"
@@ -96,7 +97,41 @@
                      value="{{ section.user_speed }}">
             </div>
 
-          {# === Cyclic toggle + mode + fields === #}
+            <div id="Motor_Settings_winter_fields">
+              <div class="grid2">
+                <div>
+                  <label for="Motor_Settings.winter_default_speed">Winter Default Speed</label>
+                  <input type="number" min="0" max="4"
+                         name="Motor_Settings.winter_default_speed"
+                         value="{{ section.winter_default_speed }}">
+                </div>
+                <div>
+                  <label for="Motor_Settings.winter_temp_margin">Winter Temp Margin (°C)</label>
+                  <input type="number" step="0.1" min="0"
+                         name="Motor_Settings.winter_temp_margin"
+                         value="{{ section.winter_temp_margin }}">
+                </div>
+                <div>
+                  <label for="Motor_Settings.winter_refresh_speed">Refresh Speed</label>
+                  <input type="number" min="0" max="4"
+                         name="Motor_Settings.winter_refresh_speed"
+                         value="{{ section.winter_refresh_speed }}">
+                </div>
+                <div>
+                  <label for="Motor_Settings.winter_refresh_minutes_per_hour">Refresh Minutes / Hour</label>
+                  <input type="number" min="0" max="60"
+                         name="Motor_Settings.winter_refresh_minutes_per_hour"
+                         value="{{ section.winter_refresh_minutes_per_hour }}">
+                </div>
+                <div>
+                  <label for="Motor_Settings.winter_humidity_threshold">Humidity Threshold (%)</label>
+                  <input type="number" step="0.1" min="0" max="100"
+                         name="Motor_Settings.winter_humidity_threshold"
+                         value="{{ section.winter_humidity_threshold }}">
+                </div>
+              </div>
+            </div>
+
           {% elif section.type == "cyclic" %}
             <label>{{ section.title }} Enabled</label>
             <div class="switch-group" data-target="{{ section.id }}_enabled_block">
@@ -145,26 +180,24 @@
               {% endfor %}
             </div>
 
-          {# === Sensor State toggle === #}
           {% elif section.type == "sensor_state" %}
             {% for s in section.sensors %}
-            <label>{{ s.attr }}</label>
-            <div class="switch-group" data-target="{{ section.id }}_{{ s.attr }}">
-              <input type="radio"
-                     id="{{ section.id }}_{{ s.attr }}_enabled"
-                     name="{{ section.id }}.{{ s.attr }}"
-                     value="enabled"
-                     {% if s.enabled %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_enabled">Enabled</label>
-            
-              <input type="radio"
-                     id="{{ section.id }}_{{ s.attr }}_disabled"
-                     name="{{ section.id }}.{{ s.attr }}"
-                     value="disabled"
-                     {% if not s.enabled %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_disabled">Disabled</label>
-            </div>
-            
+              <label>{{ s.attr }}</label>
+              <div class="switch-group" data-target="{{ section.id }}_{{ s.attr }}">
+                <input type="radio"
+                       id="{{ section.id }}_{{ s.attr }}_enabled"
+                       name="{{ section.id }}.{{ s.attr }}"
+                       value="enabled"
+                       {% if s.enabled %}checked{% endif %}>
+                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_enabled">Enabled</label>
+              
+                <input type="radio"
+                       id="{{ section.id }}_{{ s.attr }}_disabled"
+                       name="{{ section.id }}.{{ s.attr }}"
+                       value="disabled"
+                       {% if not s.enabled %}checked{% endif %}>
+                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_disabled">Disabled</label>
+              </div>
             {% endfor %}
           {% endif %}
 
@@ -177,97 +210,51 @@
 </div>
 
 <style>
-.conf-wrapper {
-  position: relative;
-}
-
-/* flèches carousel mobile */
+.conf-wrapper { position: relative; }
 .carousel-arrow {
-  display: none;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(0,0,0,0.5);
-  border: none;
-  color: #00FF55;
-  font-size: 2rem;
-  padding: 0 .5rem;
-  cursor: pointer;
-  z-index: 10;
+  display: none; position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(0,0,0,0.5); border: none; color: #00FF55; font-size: 2rem;
+  padding: 0 .5rem; cursor: pointer; z-index: 10;
 }
 .carousel-arrow.left  { left: .5rem; }
 .carousel-arrow.right { right: .5rem; }
 
-/* Grille desktop : 4 colonnes fixes */
-.scroll-container {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-}
+.scroll-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.card { background: rgba(0,0,0,0.8); padding: 1rem; }
 
-/* Cartes */
-.card {
-  background: rgba(0,0,0,0.8);
-  padding: 1rem;
-}
-
-/* responsive : sur mobile slider */
 @media (max-width: 767px) {
-  .scroll-container {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-  }
-  .card {
-    flex: 0 0 100%;
-    min-width: 100%;
-    scroll-snap-align: start;
-  }
+  .scroll-container { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
+  .card { flex: 0 0 100%; min-width: 100%; scroll-snap-align: start; }
   .carousel-arrow { display: block; }
 }
 
-/* Groupes de toggles */
-.switch-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 1rem 0;
-}
-.switch-group input[type="radio"] {
-  display: none;
-}
+.switch-group { display: flex; flex-wrap: wrap; gap: 8px; margin: 1rem 0; }
+.switch-group input[type="radio"] { display: none; }
 .switch-label {
-  padding: 8px 16px;
-  border: 2px solid #00FF88;
-  background: #000;
-  color: #00FF88;
-  cursor: pointer;
-  font-family: 'VisitorTT1BRK', monospace;
-  text-transform: uppercase;
-  transition: 0.2s;
+  padding: 8px 16px; border: 2px solid #00FF88; background: #000; color: #00FF88;
+  cursor: pointer; font-family: 'VisitorTT1BRK', monospace; text-transform: uppercase; transition: 0.2s;
 }
-.switch-group input[type="radio"]:checked + .switch-label {
-  background: #00FF88;
-  color: #000;
-}
+.switch-group input[type="radio"]:checked + .switch-label { background: #00FF88; color: #000; }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+@media (max-width: 767px) { .grid2 { grid-template-columns: 1fr; } }
 </style>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".switch-group").forEach(group => {
     const target = group.dataset.target;
-    const hidden = document.getElementById(target + "_mode_input");
+    const hidden = document.getElementById("Motor_Settings_mode_input");
 
     group.querySelectorAll('input[type="radio"]').forEach(r => {
       r.addEventListener("change", () => {
-        if (hidden) hidden.value = r.value;
+        if (hidden && r.name === "Motor_Settings_mode_switch") hidden.value = r.value;
 
-        // affichage conditionnel motor/cyclic
         if (target === "Motor_Settings") {
-          const manu = document.getElementById("Motor_Settings_manual_fields");
-          if (manu) {
-            manu.style.display = (r.value === "manual" ? "block" : "none");
-          }
+          const manu   = document.getElementById("Motor_Settings_manual_fields");
+          const winter = document.getElementById("Motor_Settings_winter_fields");
+          if (manu)   manu.style.display   = (r.value === "manual" ? "block" : "none");
+          if (winter) winter.style.display = (r.value === "winter" ? "block" : "none");
         } else if (target && target.startsWith("Cyclic")) {
           const j = document.getElementById(target + "_journalier_fields");
           const s = document.getElementById(target + "_séquentiel_fields");
@@ -276,7 +263,6 @@ document.addEventListener("DOMContentLoaded", () => {
             s.style.display = (r.value === "séquentiel" ? "block" : "none");
           }
         }
-        // pour les daily : rien de particulier à afficher/masquer pour l'instant
       });
     });
 

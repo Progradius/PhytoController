@@ -2,7 +2,7 @@
 # Author  : Progradius
 # Licence : AGPL-3.0
 """
-Pilotage d'un moteur 4 pas + régulation automatique (manuel / auto)
+Pilotage d'un moteur 4 pas + régulation automatique (manuel / auto / winter)
 pour une CARTE RELAIS ACTIVE-HAUT.
 
 Règle matérielle :
@@ -14,12 +14,13 @@ Règle matérielle :
 
 import asyncio
 from time import sleep
+from datetime import datetime, timedelta
 
 import RPi.GPIO as GPIO
 
 from model.Motor import Motor
 from param.config import AppConfig
-from utils.pretty_console import info, warning, success, error
+from utils.pretty_console import info, warning, success, error, action
 
 
 class MotorHandler:
@@ -71,7 +72,6 @@ class MotorHandler:
             warning("Vitesse moteur : 0 (tout OFF)")
         else:
             try:
-                # nom de la méthode dans Motor : set_pin{n}_value(True/False)
                 getattr(self.motor, f"set_pin{speed}_value")(True)  # True → HIGH → ON
                 success(f"Vitesse moteur réglée : {speed}")
             except AttributeError:
@@ -81,7 +81,7 @@ class MotorHandler:
 
 
 # ─────────────────────────────────────────────────────────────
-#  Contrôle température (version qui réutilise le SensorController du main)
+#  Contrôle moteur (manual / auto / winter)
 # ─────────────────────────────────────────────────────────────
 async def temp_control(
     motor_handler: MotorHandler,
@@ -91,53 +91,153 @@ async def temp_control(
 ):
     """
     • manual : vitesse imposée par l'utilisateur (config.motor.motor_user_speed)
-    • auto   : vitesse décidée à partir de BME280 (day/night possible + hyst)
-    On réutilise le sensor_handler existant → pas de 3e ouverture I2C,
-    pas de double init, pas de doublons dans les logs.
+    • auto   : vitesse décidée à partir de BME280 (hystérésis)
+    • winter : limite les entrées d’air + renouvellement régulier + gestion humidité
 
-    IMPORTANT : on fait un PREMIER CHECK avant le premier sleep.
+    IMPORTANT :
+    - On recharge la config à chaque boucle (prise en compte à chaud).
+    - On comptabilise un quota de minutes de ventilation par heure en mode winter.
     """
 
+    def _is_day_from(cfg: AppConfig) -> bool:
+        now = datetime.now()
+        start = cfg.daily_timer1.start_hour * 60 + cfg.daily_timer1.start_minute
+        stop  = cfg.daily_timer1.stop_hour  * 60 + cfg.daily_timer1.stop_minute
+        now_m = now.hour * 60 + now.minute
+        return (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)
+
+    # État interne du quota « minutes par heure » pour winter
+    refresh_window_start: datetime | None = None
+    refresh_minutes_done_this_hour: float = 0.0
+
     async def _apply_once():
-        mode = (config.motor.motor_mode or "").lower()
+        nonlocal refresh_window_start, refresh_minutes_done_this_hour
+
+        # recharge dynamique
+        cfg = config.__class__.load()
+        ms  = cfg.motor
+
+        # clamp utilitaire
+        def clamp_speed(x: int) -> int:
+            lo, hi = max(0, ms.min_speed), min(4, ms.max_speed)
+            return max(lo, min(hi, x))
+
+        # lecture capteurs
+        T  = sensor_handler.get_sensor_value("BME280T")
+        RH = sensor_handler.get_sensor_value("BME280H")
+
+        # fallback capteurs
+        try:
+            T = float(T)
+        except (TypeError, ValueError):
+            T = None
+        try:
+            RH = float(RH)
+        except (TypeError, ValueError):
+            RH = None
+
+        mode = (ms.motor_mode or "").lower()
 
         if mode == "manual":
-            s = config.motor.motor_user_speed
-            info(f"[MOTOR] [MANUAL] Vitesse demandée : {s}")
+            s = clamp_speed(ms.motor_user_speed)
+            action(f"[MOTOR][MANUAL] Vitesse demandée : {s}")
             motor_handler.set_motor_speed(s)
             return
 
         if mode == "auto":
-            raw = sensor_handler.get_sensor_value("BME280T")
-            try:
-                temp_val = float(raw)
-            except (TypeError, ValueError):
-                error(f"[MOTOR] Temp invalide pour le contrôle moteur : {raw}")
-                motor_handler.set_motor_speed(0)
+            if T is None:
+                warning("[MOTOR][AUTO] Temp indisponible → fallback 1")
+                motor_handler.set_motor_speed(clamp_speed(1))
                 return
 
-            ts = config.temperature
-            tmin = ts.target_temp_min_day
-            tmax = ts.target_temp_max_day
-            hyst = ts.hysteresis_offset
+            tmin = cfg.temperature.target_temp_min_day if _is_day_from(cfg) else cfg.temperature.target_temp_min_night
+            tmax = cfg.temperature.target_temp_max_day if _is_day_from(cfg) else cfg.temperature.target_temp_max_night
+            hyst = cfg.temperature.hysteresis_offset
 
-            if temp_val < tmin:
+            if T < tmin:
                 wanted = 0
-                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C < {tmin}°C → OFF")
-            elif temp_val <= tmax:
+                info(f"[MOTOR][AUTO] {T:.1f}°C < {tmin}°C → OFF")
+            elif T <= tmax:
                 wanted = 1
-                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C dans [{tmin},{tmax}] → speed 1")
-            elif temp_val <= tmax + hyst:
+                info(f"[MOTOR][AUTO] {T:.1f}°C dans [{tmin},{tmax}] → speed 1")
+            elif T <= tmax + hyst:
                 wanted = 2
-                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C ≤ {tmax+hyst:.1f} → speed 2")
-            elif temp_val <= tmax + 2 * hyst:
+                info(f"[MOTOR][AUTO] {T:.1f}°C ≤ {tmax+hyst:.1f} → speed 2")
+            elif T <= tmax + 2 * hyst:
                 wanted = 3
-                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C ≤ {tmax+2*hyst:.1f} → speed 3")
+                info(f"[MOTOR][AUTO] {T:.1f}°C ≤ {tmax+2*hyst:.1f} → speed 3")
             else:
                 wanted = 4
-                info(f"[MOTOR] [AUTO] {temp_val:.1f}°C > {tmax+2*hyst:.1f} → speed 4")
+                info(f"[MOTOR][AUTO] {T:.1f}°C > {tmax+2*hyst:.1f} → speed 4")
 
-            motor_handler.set_motor_speed(wanted)
+            motor_handler.set_motor_speed(clamp_speed(wanted))
+            return
+
+        if mode == "winter":
+            # Fenêtre « heure civile »
+            now = datetime.now()
+            if refresh_window_start is None or now - refresh_window_start >= timedelta(hours=1):
+                refresh_window_start = datetime(now.year, now.month, now.day, now.hour, 0, 0)
+                refresh_minutes_done_this_hour = 0.0
+
+            add_minutes = sampling_time / 60.0
+
+            # bornes hiver
+            is_day = _is_day_from(cfg)
+            tmin = cfg.temperature.target_temp_min_day if is_day else cfg.temperature.target_temp_min_night
+            tmax = cfg.temperature.target_temp_max_day if is_day else cfg.temperature.target_temp_max_night
+            hyst = cfg.temperature.hysteresis_offset
+
+            temp_margin = ms.winter_temp_margin
+            default_speed = clamp_speed(ms.winter_default_speed)
+            refresh_speed = clamp_speed(ms.winter_refresh_speed)
+            refresh_quota = float(ms.winter_refresh_minutes_per_hour)
+            humidity_thr  = float(ms.winter_humidity_threshold)
+
+            too_hot  = (T is not None and T > (tmax + hyst))
+            too_cold = (T is not None and T < (tmin - temp_margin))
+            humidity_high = (RH is not None and RH >= humidity_thr)
+
+            # Priorités
+            if too_hot:
+                # sécurité : ventiler fort
+                desired = clamp_speed(max(3, ms.min_speed))
+                action(f"[MOTOR][WINTER] Sécurité haute T (T={T:.1f}°C) → speed {desired}")
+                motor_handler.set_motor_speed(desired)
+
+            elif too_cold:
+                # on ferme, sauf si humidité haute ou quota pas atteint
+                if humidity_high or refresh_minutes_done_this_hour < refresh_quota:
+                    desired = refresh_speed
+                    motor_handler.set_motor_speed(desired)
+                    refresh_minutes_done_this_hour += add_minutes
+                    action(f"[MOTOR][WINTER] Froid + renouvellement (T={T:.1f}°C, RH={RH if RH is not None else 0:.1f}%) "
+                           f"→ speed {desired} | quota {refresh_minutes_done_this_hour:.1f}/{refresh_quota} min")
+                else:
+                    desired = 0
+                    motor_handler.set_motor_speed(desired)
+                    action(f"[MOTOR][WINTER] Froid, quota atteint → speed 0")
+
+            else:
+                # T ok → humidité prioritaire, sinon renouvellement régulier, sinon vitesse par défaut
+                if humidity_high:
+                    desired = refresh_speed
+                    motor_handler.set_motor_speed(desired)
+                    refresh_minutes_done_this_hour += add_minutes
+                    action(f"[MOTOR][WINTER] Humidité {RH:.1f}% ≥ {humidity_thr:.1f}% → speed {desired} "
+                           f"(quota {refresh_minutes_done_this_hour:.1f}/{refresh_quota} min)")
+                else:
+                    if refresh_minutes_done_this_hour < refresh_quota:
+                        desired = refresh_speed
+                        motor_handler.set_motor_speed(desired)
+                        refresh_minutes_done_this_hour += add_minutes
+                        action(f"[MOTOR][WINTER] Renouvellement régulier → speed {desired} "
+                               f"(quota {refresh_minutes_done_this_hour:.1f}/{refresh_quota} min)")
+                    else:
+                        desired = default_speed
+                        motor_handler.set_motor_speed(desired)
+                        action(f"[MOTOR][WINTER] Par défaut → speed {desired}")
+
             return
 
         # mode inconnu

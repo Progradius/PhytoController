@@ -85,15 +85,12 @@ class Server:
         try:
             srv = await asyncio.start_server(self._handle, self.host, self.port)
         except OSError as e:
-            # cas typique: [Errno 98] address already in use
             if e.errno == 98:
                 error(
                     f"Impossible d'ouvrir le serveur HTTP sur {self.host}:{self.port} "
                     f"(déjà utilisé). Le reste du système continue."
                 )
-                # on sort proprement de run() sans faire planter la boucle
                 return
-            # autre erreur → on laisse remonter
             raise
 
         success(f"HTTP prêt sur {self.host}:{self.port}")
@@ -106,7 +103,6 @@ class Server:
         ATTENTION : ne doit pas être appelé en mode service/systemd, sinon on se
         retrouve avec un main.py qui lance un main.py.
         """
-        # double protection au cas où
         if os.getenv("PHYTO_RUN_MODE", "").lower() == "service":
             info("Mode service -> _spawn_pty_and_broadcast() ignoré.")
             return
@@ -135,9 +131,7 @@ class Server:
                 while b"\n" in buf:
                     line, buf = buf.split(b"\n", 1)
                     text = line.decode("utf-8", errors="ignore")
-                    # on stocke dans l'historique
                     self._console_history.append(text)
-                    # on broadcast à tous les clients
                     for q in list(self._console_queues):
                         await q.put(text)
         except OSError as e:
@@ -227,7 +221,6 @@ class Server:
             )
 
         elif method == "GET" and path.startswith("/monitor"):
-            # resets
             qs = urllib.parse.parse_qs(
                 urllib.parse.urlparse(path).query, keep_blank_values=True
             )
@@ -265,7 +258,6 @@ class Server:
             )
 
         elif method == "GET" and path.startswith("/console/stream"):
-            # SSE headers
             writer.write(
                 b"HTTP/1.1 200 OK\r\n"
                 b"Content-Type: text/event-stream\r\n"
@@ -274,10 +266,8 @@ class Server:
             )
             await writer.drain()
 
-            # nouveau client
             queue = asyncio.Queue()
             self._console_queues.append(queue)
-            # on lui envoie en backlog tout l'historique
             for past in self._console_history:
                 writer.write(f"data: {past}\n\n".encode("utf-8"))
             await writer.drain()
@@ -288,7 +278,6 @@ class Server:
                         line = await asyncio.wait_for(queue.get(), timeout=15.0)
                         msg = f"data: {line}\n\n"
                     except asyncio.TimeoutError:
-                        # keep-alive comment
                         msg = ": keep-alive\n\n"
                     writer.write(msg.encode("utf-8"))
                     await writer.drain()
@@ -309,8 +298,6 @@ class Server:
                     "stop": cs.get_dailytimer_current_stop_time(),
                 },
                 "cyclic": {
-                    # attention: ces getters étaient faits pour l’ancien modèle
-                    # laisse comme ça si tu ne t’en sers pas
                     "period": getattr(self.config.cyclic1, "period_days", 1),
                     "duration": self.config.cyclic1.action_duration_seconds,
                 },
@@ -324,7 +311,6 @@ class Server:
         else:
             body, ctype, status = b"Not found", "text/plain", "404 Not Found"
 
-        # réponse standard
         writer.write(
             f"HTTP/1.1 {status}\r\n"
             f"Content-Type: {ctype}\r\n"
@@ -348,27 +334,20 @@ class Server:
 
         for alias, vals in posted.items():
             if alias.endswith("_switch"):
-                # champs radio "visuels" → ignorés
                 continue
 
             raw = vals[0]
 
-            # ------------------------------------------------------------------
-            # Cas imbriqué : ex. DailyTimer1_Settings.enabled
-            # ------------------------------------------------------------------
             if "." in alias:
                 top, nest = alias.split(".", 1)
 
-                # on retrouve le vrai nom du champ dans AppConfig
                 if top not in alias2field:
                     warning(f"Ignoré alias «{top}»")
                     continue
 
                 mdl = getattr(self.config, alias2field[top])
 
-                # champ connu dans le modèle ?
                 fld = mdl.__class__.model_fields.get(nest)
-
                 if fld:
                     ann = fld.annotation
                     val = (
@@ -384,9 +363,6 @@ class Server:
                     success(f"{alias} ← {raw}")
                     continue
 
-                # ------------------------------------------------------------------
-                # Champ non défini dans le modèle (ex. .enabled pour Daily/Cyclic)
-                # ------------------------------------------------------------------
                 if top.startswith("DailyTimer") and nest == "enabled":
                     val = raw.lower() in ("1", "true", "enabled", "yes")
                     setattr(mdl, "enabled", val)
@@ -402,9 +378,6 @@ class Server:
                 warning(f"Ignoré champ imbriqué «{nest}» sur «{top}»")
                 continue
 
-            # ------------------------------------------------------------------
-            # Cas non imbriqué : ex. Heater_Settings, Motor_Settings
-            # ------------------------------------------------------------------
             if alias not in alias2field:
                 warning(f"Ignoré alias «{alias}»")
                 continue
@@ -423,13 +396,9 @@ class Server:
             setattr(self.config, alias2field[alias], val)
             success(f"{alias} ← {raw}")
 
-        # ----------------------------------------------------------------------
-        # Sauvegarde + ré-init capteurs
-        # ----------------------------------------------------------------------
         self.config.save()
         info("Configuration sauvegardée")
 
-        # recharger les capteurs avec la nouvelle config
         self.sensor_handler = SensorController(self.config)
         setattr(self.sensor_handler, "stats", self.stats)
         self.sensor_handler.sensor_dict = self.sensor_handler._build_sensor_dict()

@@ -82,7 +82,13 @@
         "target_temp": 25.0,
         "hysteresis": 2.0,
         "min_speed": 0,
-        "max_speed": 4
+        "max_speed": 4,
+
+        "winter_default_speed": 1,
+        "winter_temp_margin": 2.0,
+        "winter_refresh_speed": 4,
+        "winter_refresh_minutes_per_hour": 5,
+        "winter_humidity_threshold": 65.0
     },
     "Sensor_State": {
         "bme280_state": "enabled",
