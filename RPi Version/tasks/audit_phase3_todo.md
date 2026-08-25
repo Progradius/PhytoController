@@ -71,12 +71,27 @@ demande de l'utilisateur — voir « Reste à faire » en fin de document.
 
 Pas de suite de tests dans cet arbre (`CLAUDE.md`). Vérifications menées :
 
-- [x] `python3 -m compileall` sur les fichiers touchés.
+- [x] **`pyflakes` sur tout l'arbre : 0 « undefined name ».** `compileall` seul avait laissé passer un
+      import manquant qui a tué le service au boot — voir `tasks/lessons.md`. C'est désormais la
+      vérification minimale de tout changement Python sur cet arbre.
 - [x] Banc à blanc hors matériel : chargement, `refresh()` sans changement (aucune relecture),
       modification externe du fichier (prise en compte), fichier tronqué (configuration courante
       conservée, aucune exception), candidate invalide (refus + instance intacte), `param.json` détruit
       au boot (restauration depuis `.bak`).
 - [x] `diff -u CLAUDE.md AGENTS.md` vide.
+- [x] **Vérifié sur le Pi de production** (commit `0ffd74a`, 2026-08-26 01:52) :
+      * service `active (running)`, `/health/ready` = 200, les **8 tâches supervisées** vivantes et
+        saines — 0 redémarrage, 0 blocage, aucune erreur ;
+      * broches réelles cohérentes avec l'état logique : génériques actifs-BAS 5=0/18=0/27=0 (ON),
+        22=1/23=1 (OFF), moteur une seule broche haute (8=1 → vitesse 2), toutes en `OUTPUT` ;
+      * **banc rejoué sur le Pi**, avec son pydantic et une copie de la vraie config de prod : 11/11,
+        dont le round-trip `to_json()` **identique** sur la configuration de production — c'était le
+        risque de compatibilité le plus sérieux du remplacement de `save()` ;
+      * **rechargement à chaud prouvé sur le processus vivant** : édition externe de
+        `target_temp_max_day` (25 → 26) reprise par la boucle thermique et publiée dans
+        `/api/v1/state`, puis restaurée. Aucun organe n'a bougé (moteur en `MANUEL`, chauffage
+        désactivé), et `param.json` est revenu au même MD5 ;
+      * régime établi après 260 s : 0,7 % CPU, 52 Mo RSS — pas de boucle folle.
 - [x] `param/param.json.bak` ajouté au `.gitignore` — il porte les mêmes secrets en clair que
       `param.json` (voir E14 ci-dessous), il n'a aucune raison d'entrer dans l'historique à son tour.
 
