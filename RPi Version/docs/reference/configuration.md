@@ -73,6 +73,10 @@ Une désactivation peut être prise en compte tardivement si la boucle dort sur 
 
 Un validateur de modèle refuse un minimum supérieur au maximum, de jour comme de nuit. **La cohérence chauffage/ventilation n'est plus à la charge de l'exploitant** : le seuil de ventilation effectif vaut `max(target_temp_max, target_temp_min + hysteresis_offset + vent_deadband)`. Si la consigne haute est trop basse, le seuil est relevé, un WARNING dédupliqué le signale et `/api/v1/state` publie la valeur effective — la configuration n'est jamais refusée pour autant.
 
+**Exception** : `Heater_Settings.enabled` à faux, le seuil de ventilation vaut `target_temp_max` sans relèvement. Il n'y a alors pas deux organes à séparer, et décaler la ventilation ne ferait que laisser monter la serre.
+
+**Le fichier n'est pas la référence de ce qui s'applique.** Un champ absent de `param.json` prend sa valeur par défaut et régule immédiatement ; il n'apparaît dans le fichier qu'au premier enregistrement d'une section depuis `/conf`. C'est ce qui s'est produit au déploiement de la phase 2 sur le Pi : les sept nouveaux champs étaient actifs avant d'être écrits. Pour savoir ce qui s'applique réellement, lire `/api/v1/state`, pas le fichier.
+
 `Heater_Settings.enabled` active la régulation. Les limites de sécurité -20/60 °C, cinq échecs, 120 minutes ON et 15 minutes OFF sont des constantes de code (`components/climate_policy.py`), pas des champs de configuration.
 
 ## Moteur

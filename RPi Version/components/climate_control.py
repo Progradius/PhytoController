@@ -235,13 +235,15 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
     store = store if store is not None else shared_store()
     memory = _restore_memory(store)
     last_cfg = config
-    threshold_state = StateLogger(
-        "Zone morte chauffage/ventilation", name=LOGGER_NAME, level="warning"
-    )
     temp_state = StateLogger(
         "Lecture de la température ambiante", name=LOGGER_NAME, level="warning"
     )
     previous_signature = None
+    # Seuil de ventilation relevé déjà signalé : on journalise le changement de
+    # valeur, pas chaque tick. Ce n'est pas une panne — `StateLogger` parlerait
+    # d'« échec » et de « rétablissement », vocabulaire trompeur pour un
+    # ajustement volontaire.
+    reported_raised_threshold: float | None = None
     previous_window = memory.quota_window_start
 
     while True:
@@ -259,14 +261,24 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
         is_day = _is_day(cfg)
         settings = settings_from_config(cfg, is_day)
         if settings.vent_threshold_raised:
-            threshold_state.fail(
-                f"consigne haute ({settings.temp_max:.1f}°C) sous le seuil "
-                f"d'extinction du chauffage + zone morte : ventilation relevée à "
-                f"{settings.vent_threshold:.1f}°C pour ne pas chauffer et ventiler "
-                "en même temps"
+            if reported_raised_threshold != settings.vent_threshold:
+                reported_raised_threshold = settings.vent_threshold
+                warning(
+                    f"Consigne haute ({settings.temp_max:.1f}°C) trop basse pour "
+                    f"laisser une zone morte : la ventilation démarrera à "
+                    f"{settings.vent_threshold:.1f}°C, le chauffage s'éteignant à "
+                    f"{settings.heater_off_threshold:.1f}°C. Relever "
+                    "« Jour/Nuit · maximum » ou réduire « Zone morte » pour "
+                    "piloter ce seuil.",
+                    name=LOGGER_NAME,
+                )
+        elif reported_raised_threshold is not None:
+            reported_raised_threshold = None
+            info(
+                f"Consignes cohérentes : la ventilation démarre à la consigne "
+                f"haute ({settings.vent_threshold:.1f}°C), seuil non relevé",
+                name=LOGGER_NAME,
             )
-        else:
-            threshold_state.ok()
 
         # 2) lecture capteurs (une seule fois pour les deux organes) -------
         temperature = await sensor_handler.fresh_value("BME280T", max_age=20.0)

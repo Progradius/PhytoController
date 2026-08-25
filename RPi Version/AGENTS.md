@@ -101,7 +101,10 @@ to `PuppetMaster`.
   * **dead zone by construction** — `vent_threshold = max(target_temp_max, target_temp_min +
     hysteresis_offset + vent_deadband)`, so no temperature can have heater and extractor on at once. A
     *blocking* validator was deliberately rejected: a refused config is a dead boot. The raised threshold
-    is logged (deduplicated) and published in `/api/v1/state`;
+    is logged (deduplicated on its value — it is an adjustment, **not** a failure, so no `StateLogger`)
+    and published in `/api/v1/state`. **Exception**: with the heater disabled the threshold stays at
+    `target_temp_max` — there are no two organs to separate, and raising it would only let the
+    greenhouse run a degree hotter for nothing;
   * temperature outside `]-20 ; 60[` counts as a missed read; `MAX_CONSECUTIVE_SENSOR_FAILURES` missed
     reads force the heater OFF with a persistent alarm (`get_climate_alarm()`, aliased as the historical
     `get_heater_alarm()`) and the motor to `sensor_fallback_speed` — the named `REPLI_CAPTEUR` policy;

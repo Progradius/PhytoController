@@ -3,18 +3,18 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 25 août 2026, après la refonte de l'interface web.
+**Dernière vérification documentaire** : 26 août 2026, après le déploiement de l'arbitre thermique.
 
 **Écart entre le dépôt et la production, au 26 août 2026 :**
 
 | Chantier | Code | Déployé sur le Pi |
 |---|---|---|
 | Refonte web et acquisition capteurs | `ad39de2` | **Oui**, vérifié — [relevé](operations/web-baseline-2026-08-25.md) |
-| Arbitre thermique unifié (phase 2) | `e93644a` | **Non** — vérifié hors matériel seulement |
+| Arbitre thermique unifié (phase 2) | `a04abbd` | **Oui**, vérifié — [relevé](operations/climate-baseline-2026-08-26.md) |
+| Correctifs issus du relevé (zone morte sans chauffage, vocabulaire du seuil) | à venir | **Non** |
 
-Le Pi exécute donc encore le chauffage et la ventilation en deux boucles séparées. Ne pas lire la
-documentation de `climate_control` comme une description de la production tant que ce déploiement
-n'est pas consigné.
+Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique. Deux correctifs mineurs
+identifiés par le relevé du 26 août attendent un déploiement ; ils sont décrits dans ce relevé.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -48,6 +48,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [systemd et watchdog](operations/systemd.md)
 - [Baseline de production du 25 août 2026](operations/production-baseline-2026-08-25.md)
 - [Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md)
+- [Relevé de l'arbitre thermique du 26 août 2026](operations/climate-baseline-2026-08-26.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
 - [Monitoring](operations/monitoring.md)
 - [Sauvegarde et restauration](operations/backup-and-restore.md)

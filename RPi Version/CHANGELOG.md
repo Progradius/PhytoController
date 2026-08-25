@@ -8,9 +8,11 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ### Arbitre thermique unifié (audit — phase 2)
 
-**Code, branche `audit-phase2-thermique` ; non déployé.** Vérifié par rejeu de 27 scénarios sur la
-fonction de décision pure (banc hors dépôt), rendu des pages et aller-retour `save()`/`load()` de la
-configuration.
+**Code `e93644a` ; déployé et vérifié sur le Pi le 26 août 2026** (`a04abbd`) — relevé dans
+`docs/operations/climate-baseline-2026-08-26.md`. Vérifié par rejeu de 35 scénarios sur la fonction
+de décision pure (banc hors dépôt), rendu des pages, aller-retour `save()`/`load()`, puis en
+production : huit travaux sains, cohérence entre l'état publié et `pinctrl`, état persisté,
+rechargement à chaud sans coupure de sortie.
 
 - `climate_control` remplace `motor_temp_control` et `heat_control` : un **seul** travail supervisé
   lit la température une fois et pilote chauffage **et** ventilation de façon cohérente. *(C9)*
@@ -37,6 +39,15 @@ configuration.
   `winter_humidity_minutes_per_hour` — tous exposés dans `/conf`. `hysteresis_offset` ne porte plus
   qu'une seule sémantique, la bande morte du chauffage. *(M11)*
 - Tableau de bord : carte « Régulation thermique » (état, motif, seuils effectifs, budgets).
+
+#### Correctifs issus du relevé de production (non déployés)
+
+- **Zone morte inapplicable sans chauffage** : le seuil de ventilation était relevé même
+  `Heater_Settings.enabled` à faux — la serre montait d'un degré de plus que la consigne sans que
+  rien ne soit protégé. Chauffage désactivé, la consigne haute s'applique désormais telle quelle.
+- **Vocabulaire d'alarme pour un ajustement volontaire** : le relèvement du seuil passait par
+  `StateLogger`, qui journalise « … en échec » puis « rétabli après N échec(s) ». Le message est
+  maintenant dédupliqué sur la valeur du seuil et dit quel réglage modifier.
 
 ### Interface web et acquisition capteurs
 

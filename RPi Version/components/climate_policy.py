@@ -140,7 +140,14 @@ class ClimateSettings:
         23 / 25 / 2) ferait sinon ventiler pendant que le chauffage chauffe.
         Relever le seuil est préférable à un validateur qui refuserait la
         configuration : une config refusée, c'est un boot mort.
+
+        Chauffage désactivé, en revanche, il n'y a **pas deux organes à
+        séparer** : relever le seuil ne ferait que laisser monter la serre d'un
+        degré sans rien protéger. La consigne haute s'applique alors telle
+        quelle.
         """
+        if not self.heater_enabled:
+            return self.temp_max
         return max(self.temp_max, self.heater_off_threshold + self.vent_deadband)
 
     @property

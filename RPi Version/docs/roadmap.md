@@ -75,8 +75,9 @@ Un chantier n'est terminé que si :
 
 ### Arbitre thermique
 
-*(Phase 2, commit `e93644a` : implémenté et vérifié hors matériel, **non encore déployé**.
-Décision consignée dans [ADR-0004](decisions/ADR-0004-unified-climate-arbiter.md).)*
+*(Phase 2, commit `a04abbd` : implémenté, **déployé et vérifié sur le Pi** le 26 août 2026 —
+[relevé](operations/climate-baseline-2026-08-26.md). Décision consignée dans
+[ADR-0004](decisions/ADR-0004-unified-climate-arbiter.md).)*
 
 - [x] Extraire une fonction pure — `components/climate_policy.decide()`, sans GPIO, disque ni horloge implicite
 - [x] Garantir l'exclusion chauffage/extraction — travail unique `climate_control`
@@ -86,7 +87,11 @@ Décision consignée dans [ADR-0004](decisions/ADR-0004-unified-climate-arbiter.
 - [x] Ajouter une hystérésis à état — seuil de relâchement distinct et `min_dwell_seconds`
 - [x] Persister quota hiver et phase cyclique — `utils/state_store.py`
 - [x] Définir le comportement sur capteur absent, hors plage ou figé — repli nommé `REPLI_CAPTEUR`
-- [ ] Essai sur plages limites avec le matériel réel, et observation d'un épisode froid/humide
+- [x] Vérification en production : huit travaux sains, cohérence décision ↔ `pinctrl`, état persisté,
+      rechargement à chaud sans coupure de sortie
+- [ ] Essai sur plages limites avec le matériel réel : la serre est en chauffage désactivé et moteur
+      manuel, donc ni les seuils de chauffe, ni les paliers de ventilation, ni les budgets hiver
+      n'ont encore été exercés en conditions réelles
 
 ### Configuration
 

@@ -1,7 +1,8 @@
 # ADR-0004 — Arbitre thermique unifié et politique en fonction pure
 
 **Statut** : accepté. **Date** : 26 août 2026. **Commit** : `e93644a`.
-**Déploiement** : non exercé sur le Pi au moment de la rédaction.
+**Déploiement** : exercé et vérifié sur le Pi le 26 août 2026 (`a04abbd`) —
+[relevé](../operations/climate-baseline-2026-08-26.md).
 
 ## Contexte
 
@@ -27,7 +28,9 @@ deux tâches décident séparément d'un même équilibre.
    aucune lecture disque, aucune horloge implicite. Le temps entre par `ClimateInputs`, l'état par
    une `ClimateMemory` gelée. La coroutine ne fait qu'appliquer le résultat.
 3. **La zone morte est garantie par construction, pas par validation** :
-   `seuil_ventilation = max(target_temp_max, target_temp_min + hysteresis_offset + vent_deadband)`.
+   `seuil_ventilation = max(target_temp_max, target_temp_min + hysteresis_offset + vent_deadband)`
+   — **sauf chauffage désactivé**, où le seuil vaut la consigne haute telle quelle : il n'y a alors
+   pas deux organes à séparer, et relever le seuil ne ferait que laisser monter la serre.
 4. **Deux budgets horaires distincts et bornés** en mode hiver — renouvellement
    (`winter_refresh_minutes_per_hour`) et déshumidification (`winter_humidity_minutes_per_hour`) —
    comptés en minutes réellement écoulées, avec un plancher thermique absolu
@@ -39,13 +42,15 @@ deux tâches décident séparément d'un même équilibre.
 
 ## Conséquences
 
-La régulation devient rejouable : 27 scénarios ont pu être rejoués sur `decide()` sans matériel,
+La régulation devient rejouable : 35 scénarios ont pu être rejoués sur `decide()` sans matériel,
 ce qui était impossible tant que la décision était mêlée aux écritures GPIO. Toute évolution de la
 politique thermique doit désormais passer par cette fonction et être accompagnée de ses scénarios.
 
-Sur la configuration déployée, la ventilation démarre à **26 °C au lieu de 25 °C** : c'est le seuil
-relevé par la garantie de zone morte. Le changement est visible — journalisé en WARNING dédupliqué
-et publié dans le bloc `climate` de `/api/v1/state` — et non silencieux.
+Sur la configuration déployée **chauffage autorisé**, la ventilation démarre à **26 °C au lieu de
+25 °C** : c'est le seuil relevé par la garantie de zone morte. Le changement est visible —
+journalisé en WARNING dédupliqué et publié dans le bloc `climate` de `/api/v1/state` — et non
+silencieux. Chauffage désactivé, la consigne haute s'applique inchangée : c'est le cas de la serre
+au 26 août 2026, et l'oublier revenait à décaler la ventilation d'un degré sans rien protéger.
 
 `hysteresis_offset` ne porte plus qu'une seule sémantique, la bande morte du chauffage. Sept
 nouveaux champs de configuration apparaissent dans `/conf`.

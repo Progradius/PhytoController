@@ -161,10 +161,32 @@ menées hors dépôt, dans le scratchpad de session :
   rendu de `/conf` (7 nouveaux champs présents) et du tableau de bord (carte arbitre).
 - **Imports** de `PuppetMaster`, `server` et `cyclic_timer_handler` avec un stub GPIO.
 
+### Vérification en production — 26 août 2026
+
+Déployé (`a04abbd`) et vérifié sur le Pi : huit travaux sains sans redémarrage, cohérence complète
+entre l'état publié et `pinctrl`, `runtime_state.json` créé avec ses deux sections, rechargement à
+chaud sans coupure de sortie, journal muet (65 lignes en 3 min, aucune erreur). Relevé détaillé :
+`docs/operations/climate-baseline-2026-08-26.md`.
+
+**Deux défauts trouvés par ce relevé, corrigés depuis :**
+
+1. La zone morte était appliquée **même chauffage désactivé** — la serre montait d'un degré de plus
+   que la consigne sans que rien ne soit protégé. Le seuil vaut désormais `target_temp_max` tel quel
+   quand le chauffage est interdit. C'est exactement le cas de la serre aujourd'hui : le défaut était
+   actif en production.
+2. Le relèvement du seuil était journalisé par `StateLogger` (« … en échec », « rétabli après N
+   échec(s) ») : vocabulaire de panne pour un ajustement volontaire. Message dédupliqué sur la valeur
+   du seuil, et il dit maintenant quel réglage modifier.
+
+Leçon : la fonction pure était juste sur tous ses scénarios *avec chauffage autorisé*. Le banc ne
+couvrait pas le cas « organe désactivé », qui est pourtant l'état réel de la serre. Quatre scénarios
+ont été ajoutés (35 au total).
+
 ### Reste ouvert (hors périmètre Phase 2)
 
-- Essai sur matériel réel : la ventilation démarre désormais à 26 °C au lieu de 25 sur la
-  configuration déployée — à confirmer en conditions réelles avant déploiement.
+- Essai sur plages limites : la serre tourne en chauffage désactivé et moteur manuel, donc ni les
+  seuils de chauffe, ni les paliers de ventilation, ni les budgets hiver n'ont été exercés en
+  conditions réelles.
 - E7 (relecture de configuration par cycle métier) et l'ordonnanceur cyclique à échéances absolues
   (E6 complet) relèvent du chantier « configuration » (Phase 3).
 - R-SAFE-06 : le verrouillage dégradé sur état multi-relais reste à faire ; seule une consigne
