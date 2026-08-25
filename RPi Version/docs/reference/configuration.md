@@ -19,11 +19,11 @@ Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `po
 | `DailyTimer2_Settings` | `DailyTimerSettings` | Sortie journalière 2 | Relue en boucle |
 | `Cyclic1_Settings` | `CyclicSettings` | Sortie cyclique 1 | Relue par itération, parfois tardivement |
 | `Cyclic2_Settings` | `CyclicSettings` | Sortie cyclique 2 | Relue par itération, parfois tardivement |
-| `Temperature_Settings` | `TemperatureSettings` | Consignes moteur/chauffage | À chaud : relance de `motor_temp_control` et `heat_control` |
-| `Heater_Settings` | `HeaterSettings` | Activation chauffage | À chaud : relance de `heat_control` |
+| `Temperature_Settings` | `TemperatureSettings` | Consignes et arbitrage thermique | À chaud : relance de `climate_control` |
+| `Heater_Settings` | `HeaterSettings` | Activation chauffage | À chaud : relance de `climate_control` |
 | `Network_Settings` | `NetworkSettings` | Wi-Fi et InfluxDB | Influx à chaud ; Wi-Fi au redémarrage ; secrets présents |
 | `GPIO_Settings` | `GPIOSettings` | Broches | **Lecture seule dans l'IHM** ; redémarrage et intervention matérielle |
-| `Motor_Settings` | `MotorSettings` | Modes et consignes moteur | À chaud : relance de `motor_temp_control` |
+| `Motor_Settings` | `MotorSettings` | Modes et consignes moteur | À chaud : relance de `climate_control` |
 | `Sensor_State` | `SensorState` | Capteurs activés | À chaud : `SensorController.reconfigure()` sur l'instance unique, puis rechargement Influx |
 | `Log_Settings` | `LogSettings` | Niveau et rétention | À chaud |
 
@@ -58,9 +58,22 @@ Une désactivation peut être prise en compte tardivement si la boucle dort sur 
 
 ## Température et chauffage
 
-`Temperature_Settings` contient cinq flottants : minimum et maximum jour/nuit, plus `hysteresis_offset`. Les températures sont bornées à -20/60 °C, l'hystérésis à 0/20 °C, et un validateur de modèle refuse un minimum supérieur au maximum, de jour comme de nuit. Reste à la charge de l'exploitant : vérifier que les seuils n'ordonnent pas chauffage et ventilation simultanément.
+`Temperature_Settings` porte les consignes jour/nuit **et** l'arbitrage entre chauffage et ventilation.
 
-`Heater_Settings.enabled` active la régulation. Les limites de sécurité -20/60 °C, cinq échecs, 120 minutes ON et 15 minutes OFF sont des constantes de code, pas des champs de configuration.
+| Champ | Type / borne | Rôle |
+|---|---|---|
+| `target_temp_min_day` / `_night` | -20 à 60 °C | Seuil d'allumage du chauffage |
+| `target_temp_max_day` / `_night` | -20 à 60 °C | Consigne haute, base du seuil de ventilation |
+| `hysteresis_offset` | 0 à 20 °C | Bande morte du **chauffage** seul : extinction à `min + hysteresis_offset` |
+| `vent_deadband` | 0 à 20 °C | Écart minimal entre extinction du chauffage et démarrage de la ventilation |
+| `vent_step` | > 0 à 20 °C | Largeur d'un palier de vitesse |
+| `vent_release` | 0 à 20 °C | Seuil de relâchement d'un palier (hystérésis à état) |
+| `absolute_floor_temp` | -20 à 60 °C | Plancher absolu : aucune ventilation au-dessous |
+| `min_dwell_seconds` | 0 à 3600 s | Temps de maintien minimal entre deux changements de vitesse |
+
+Un validateur de modèle refuse un minimum supérieur au maximum, de jour comme de nuit. **La cohérence chauffage/ventilation n'est plus à la charge de l'exploitant** : le seuil de ventilation effectif vaut `max(target_temp_max, target_temp_min + hysteresis_offset + vent_deadband)`. Si la consigne haute est trop basse, le seuil est relevé, un WARNING dédupliqué le signale et `/api/v1/state` publie la valeur effective — la configuration n'est jamais refusée pour autant.
+
+`Heater_Settings.enabled` active la régulation. Les limites de sécurité -20/60 °C, cinq échecs, 120 minutes ON et 15 minutes OFF sont des constantes de code (`components/climate_policy.py`), pas des champs de configuration.
 
 ## Moteur
 
@@ -70,15 +83,17 @@ Une désactivation peut être prise en compte tardivement si la boucle dort sur 
 | `motor_user_speed` | 0–4 | Vitesse manuelle |
 | `target_temp` | -20 à 60 °C | Consigne auto |
 | `hysteresis` | 0 à 20 °C | Hystérésis auto |
-| `min_speed` | 0–4 | Borné dans le modèle |
+| `min_speed` | 0–4 | Borné dans le modèle ; ne remonte **jamais** un ordre d'arrêt |
+| `sensor_fallback_speed` | 0–4 | Vitesse en état `REPLI_CAPTEUR` (défaut 0) |
 | `max_speed` | 0–4 | Borné, et `min_speed <= max_speed` vérifié par validateur de modèle |
 | `winter_default_speed` | 0–4 | Vitesse hors renouvellement |
 | `winter_temp_margin` | >= 0 | Marge froid |
 | `winter_refresh_speed` | 0–4 | Vitesse renouvellement |
-| `winter_refresh_minutes_per_hour` | 0–60 | Quota |
-| `winter_humidity_threshold` | 0–100 | Seuil RH |
+| `winter_refresh_minutes_per_hour` | 0–60 | Budget horaire de renouvellement d'air |
+| `winter_humidity_threshold` | 0–100 | Seuil RH déclenchant la déshumidification |
+| `winter_humidity_minutes_per_hour` | 0–60 | Budget horaire de déshumidification, **distinct** du précédent (0 = désactivée) |
 
-`target_temp` et `hysteresis` ne sont pas exposés par l'IHM : la régulation automatique utilise `Temperature_Settings`. La politique thermique d'ensemble reste ouverte.
+`target_temp` et `hysteresis` ne sont pas exposés par l'IHM et ne sont plus lus par la régulation : celle-ci utilise `Temperature_Settings`. Les deux budgets hiver sont comptés en minutes **réellement écoulées** sur une fenêtre glissante d'une heure, et persistés dans `param/runtime_state.json` : un redémarrage ne réaccorde plus une fenêtre complète.
 
 ## GPIO
 

@@ -6,10 +6,43 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Arbitre thermique unifié (audit — phase 2)
+
+**Code, branche `audit-phase2-thermique` ; non déployé.** Vérifié par rejeu de 27 scénarios sur la
+fonction de décision pure (banc hors dépôt), rendu des pages et aller-retour `save()`/`load()` de la
+configuration.
+
+- `climate_control` remplace `motor_temp_control` et `heat_control` : un **seul** travail supervisé
+  lit la température une fois et pilote chauffage **et** ventilation de façon cohérente. *(C9)*
+- Décision extraite en fonction **pure** `climate_policy.decide()` — sans GPIO, sans disque, sans
+  horloge implicite, donc rejouable et auditable.
+- **Zone morte garantie par construction** : le seuil de ventilation ne descend jamais sous
+  `minimum + hystérésis + zone morte`. Sur la configuration déployée (23/25/2), la ventilation
+  démarre désormais à 26 °C au lieu de 25 — un WARNING le signale et `/api/v1/state` publie le seuil
+  effectif. Aucune configuration existante n'est refusée. *(C9)*
+- Mode hiver : deux budgets horaires **bornés et distincts** (renouvellement, déshumidification)
+  comptés en minutes réellement écoulées, plus un **plancher thermique absolu**. L'humidité ne
+  court-circuite plus le quota. *(C8, M14)*
+- Hystérésis à état avec seuil de relâchement distinct et temps de maintien minimal
+  (`min_dwell_seconds`) : fin du battement de relais au seuil. *(E9)*
+- Chauffage et moteur resynchronisés sur leur **état GPIO réel** à chaque tick, écriture vérifiée et
+  alarme CRITICAL si la sortie ne suit pas. *(E8)*
+- `clamp_speed` ne remonte plus un ordre d'arrêt vers `min_speed`. *(M13)*
+- Repli capteur nommé `REPLI_CAPTEUR` : chauffage coupé, moteur à `sensor_fallback_speed`, alarme
+  persistante ; garde-fous de durée maximale d'allumage conservés. *(C10)*
+- `utils/state_store.py` (`param/runtime_state.json`, atomique et throttlé) : budgets hiver et phase
+  séquentielle des minuteurs cycliques survivent à un redémarrage. *(E10, E6)*
+- Nouveaux champs de configuration : `vent_deadband`, `vent_step`, `vent_release`,
+  `absolute_floor_temp`, `min_dwell_seconds`, `sensor_fallback_speed`,
+  `winter_humidity_minutes_per_hour` — tous exposés dans `/conf`. `hysteresis_offset` ne porte plus
+  qu'une seule sémantique, la bande morte du chauffage. *(M11)*
+- Tableau de bord : carte « Régulation thermique » (état, motif, seuils effectifs, budgets).
+
 ### Interface web et acquisition capteurs
 
-**Code présent dans l'arbre de travail ; non commité, non déployé.** Vérifié par une passe de
-fumigation HTTP hors matériel (aiohttp `TestClient`, stubs GPIO/I²C).
+**Code `7d455e4` et `ad39de2` ; déployé et vérifié matériellement le 25 août 2026.** Vérifié en
+local par fumigation HTTP (aiohttp `TestClient`, stubs GPIO/I²C) puis sur le Pi — relevé dans
+`docs/operations/web-baseline-2026-08-25.md`.
 
 - Serveur `aiohttp` à routes explicites en remplacement du serveur artisanal : jeton CSRF,
   contrôle d'`Origin`, validation du `Host` (DNS rebinding fermé), corps limité à 64 Kio,

@@ -70,8 +70,8 @@ Le verrou est volontairement pris avant l'enregistrement des handlers de sortie 
 | `daily_timer_2` | Deuxième sortie journalière | Sortie OFF, GPIO HIGH |
 | `cyclic_timer_1` | Première sortie cyclique | Sortie OFF, GPIO HIGH |
 | `cyclic_timer_2` | Deuxième sortie cyclique | Sortie OFF, GPIO HIGH |
-| `motor_temp_control` | Régulation moteur | Quatre relais LOW |
-| `heat_control` | Régulation chauffage | Chauffage OFF, GPIO HIGH |
+| `climate_control` | Arbitre thermique : chauffage **et** ventilation | Chauffage OFF (GPIO HIGH) puis quatre relais moteur LOW |
+| `sensor_snapshot` | Acquisition partagée des capteurs | Aucun GPIO |
 | `influx_push` | Export des mesures, si hôte déclaré online | Aucun GPIO |
 | `http_server` | Interface sur le port 8123 | Aucun GPIO |
 
@@ -105,7 +105,27 @@ Le système ne possède pas encore de magasin de configuration unique, mais l'é
 - les travaux concernés sont ensuite relancés par `supervisor.request_reload()`, état sûr réappliqué, de sorte que moteur, chauffage et minuteries repartent sur la nouvelle consigne sans redémarrage ;
 - le `SensorController` est unique et **reconfiguré en place** : le bus I²C n'est jamais rouvert.
 
-Reste ouvert : la validation croisée complète du domaine (arbitrage chauffage/ventilation) et la séparation des secrets.
+Reste ouvert : la séparation des secrets et le magasin de configuration unique (chantier « configuration »).
+
+## Arbitre thermique
+
+Chauffage et ventilation régulent la même température : ils sont pilotés par un **unique** travail supervisé, `climate_control`.
+
+- `components/climate_policy.py` porte toute la décision sous forme d'une fonction **pure** `decide(settings, inputs, memory)`. Aucun GPIO, aucun disque, aucune horloge implicite : la régulation est rejouable à la main.
+- `components/climate_control.py` ne fait qu'appliquer : une lecture T/RH par tick, resynchronisation sur l'état réel des sorties, écriture vérifiée, persistance des budgets.
+- La **zone morte** est garantie par construction : le seuil de ventilation ne descend jamais sous `target_temp_min + hysteresis_offset + vent_deadband`. Aucune température ne peut donc voir chauffage et extracteur actifs ensemble. Quand la consigne haute est trop basse pour tenir cette contrainte, le seuil est relevé, journalisé et publié dans `/api/v1/state` plutôt que de refuser la configuration — une configuration refusée est un boot mort.
+- Les paliers de ventilation ont une **hystérésis à état** (seuil d'engagement, seuil de relâchement distinct) et un **temps de maintien minimal** : plus de battement de relais au seuil.
+- En mode hiver, deux budgets horaires **bornés et distincts** gouvernent l'air neuf : renouvellement et déshumidification. L'humidité ne peut plus court-circuiter le quota. Sous le **plancher absolu**, aucune ventilation n'est autorisée, budget restant ou non.
+- États publiés : `DESACTIVE`, `CHAUFFER`, `NEUTRE`, `VENTILER`, `RENOUVELER`, `DESHUMIDIFIER`, `SECURITE_HAUTE`, `PLANCHER_THERMIQUE`, `REPLI_CAPTEUR`, `MANUEL`.
+
+## État reporté d'un démarrage à l'autre
+
+`utils/state_store.py` persiste dans `param/runtime_state.json` (écriture atomique, throttlée à une par minute) ce qui ne doit pas repartir de zéro :
+
+- les budgets hiver de l'arbitre thermique — sinon chaque relance réaccorde une fenêtre complète de ventilation ;
+- la phase séquentielle des minuteurs cycliques — sinon chaque relance rejoue une phase ON complète.
+
+Un enregistrement absent, illisible ou échu est ignoré : la reprise ne peut que raccourcir un cycle, jamais en inventer un.
 
 ## Flux HTTP
 

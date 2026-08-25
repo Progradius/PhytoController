@@ -12,8 +12,7 @@ from network.web import influx_handler
 from network.web.influx_handler import write_sensor_values
 from components.dailytimer_handler import timer_daily
 from components.cyclic_timer_handler import timer_cyclic
-from components.MotorHandler import temp_control
-from components.heater_control import heat_control
+from components.climate_control import climate_control
 from network.web.server import Server
 from utils.pretty_console import debug, info, warning, error
 from utils.supervisor import TaskSupervisor
@@ -115,6 +114,19 @@ class PuppetMaster:
         """État sûr moteur : les 4 relais actifs-HAUT à LOW."""
         self.motor_handler.all_off()
 
+    def _climate_off(self) -> None:
+        """
+        État sûr de l'arbitre thermique : les **deux** organes coupés.
+
+        L'ordre compte : le chauffage d'abord (c'est lui qui peut brûler une
+        culture), la ventilation ensuite. Une exception sur le premier ne doit
+        pas empêcher le second — le superviseur journalise et poursuit.
+        """
+        try:
+            self.heater.set_state(0)
+        finally:
+            self.motor_handler.all_off()
+
     # ──────────────────────────────────────────────────────────
     def _register_jobs(self) -> None:
         sup = self.supervisor
@@ -147,29 +159,20 @@ class PuppetMaster:
             max_silence=MAX_SILENCE_SECONDS,
         )
 
-        # --- Contrôle moteur ---
+        # --- Arbitre thermique (chauffage + ventilation) ---
+        # Un seul travail pour les deux organes : ils régulent la même
+        # température et se contredisaient tant qu'ils étaient supervisés
+        # séparément (audit C9).
         sup.register(
-            "motor_temp_control",
-            lambda: temp_control(
-                motor_handler=self.motor_handler,
-                config=self.config,
-                sensor_handler=self.sensor_handler,
-                sampling_time=15,
-            ),
-            safe_state=self._motor_off,
-            max_silence=MAX_SILENCE_SECONDS,
-        )
-
-        # --- Contrôle chauffage ---
-        sup.register(
-            "heat_control",
-            lambda: heat_control(
+            "climate_control",
+            lambda: climate_control(
                 heater_component=self.heater,
+                motor_handler=self.motor_handler,
                 sensor_handler=self.sensor_handler,
                 config=self.config,
                 sampling_time=30,
             ),
-            safe_state=self._component_off(self.heater),
+            safe_state=self._climate_off,
             max_silence=MAX_SILENCE_SECONDS,
         )
 

@@ -3,8 +3,10 @@
 # License : AGPL-3.0
 
 from datetime import datetime, timedelta, time, date
+from time import time as epoch_now
 
 from utils.pretty_console import box, debug, info, error
+from utils.state_store import shared_store
 from utils.supervisor import beat, sleep as hb_sleep
 from param.config import AppConfig
 
@@ -20,12 +22,57 @@ aSYNC_COL_WARN = "red"
 aSYNC_SLEEP_TEMPLATE = "[J] #{tid} SLEEP {msg}"
 
 
+def _save_phase(store, section: str, phase: str, duration: float) -> None:
+    """
+    Note la phase en cours et son échéance.
+
+    L'écriture est **throttlée** par le magasin (une par minute au plus) : ces
+    phases peuvent durer quelques secondes, et graver la carte SD à chaque
+    bascule l'userait pour rien. La conséquence est bornée et va dans le bon
+    sens : un enregistrement pas encore écrit est simplement échu au
+    redémarrage, donc ignoré — on repart d'un cycle complet, jamais d'une
+    attente fantôme.
+    """
+    store.save(section, {"phase": phase, "ends_at": epoch_now() + duration})
+
+
+def _resume_sequential(saved: dict) -> tuple[str, float] | None:
+    """
+    Reprend la phase séquentielle interrompue par un redémarrage (audit E6).
+
+    Sans cette reprise, chaque relance de tâche (superviseur, `systemctl
+    restart`, coupure secteur) redémarrait une phase ON **complète** : un
+    arrosage de 15 min pouvait être rejoué plusieurs fois d'affilée.
+
+    Retourne `(phase, secondes_restantes)` ou `None` si l'enregistrement est
+    absent, illisible ou déjà échu — l'échéance dépassée est le cas nominal
+    d'un long arrêt, et la reprise doit alors être un cycle normal.
+    """
+    phase = saved.get("phase")
+    if phase not in ("on", "off"):
+        return None
+    try:
+        remaining = float(saved.get("ends_at", 0.0)) - epoch_now()
+    except (TypeError, ValueError):
+        return None
+    # Une échéance très lointaine trahit une horloge fausse (pas de RTC sur ce
+    # Pi) : on repart d'un cycle propre plutôt que d'attendre des heures.
+    if remaining <= 0 or remaining > 24 * 3600:
+        return None
+    return phase, remaining
+
+
 async def timer_cyclic(cyclic_timer) -> None:
     """Coroutine de pilotage du CyclicTimer (mode journalier ou séquentiel)."""
 
     tid    = cyclic_timer.timer_id
     comp   = cyclic_timer.component
     disabled_reported = False
+    store = shared_store()
+    state_section = f"cyclic_{tid}"
+    # La reprise n'a de sens qu'au tout premier passage : ensuite, c'est cette
+    # boucle elle-même qui tient la phase.
+    pending_resume = _resume_sequential(store.load(state_section))
     # Dernière config valide : filet quand param.json est momentanément
     # illisible (POST /conf en cours, fichier tronqué…). Sans ce repli, la
     # JSONDecodeError tue la tâche définitivement — plus rien ne repilote la
@@ -126,13 +173,31 @@ async def timer_cyclic(cyclic_timer) -> None:
                 off_d = cyclic_timer.get_off_time_night()
                 phase = "Nuit"
 
+            # Reprise éventuelle de la phase interrompue par un redémarrage.
+            on_remaining, off_remaining = on_d, off_d
+            if pending_resume is not None:
+                resumed_phase, remaining = pending_resume
+                pending_resume = None
+                info(f"Cyclic #{tid} : reprise de la phase {resumed_phase.upper()} "
+                     f"({remaining:.0f} s restantes)", name=LOGGER_NAME)
+                if resumed_phase == "on":
+                    on_remaining = min(on_d, remaining)
+                else:
+                    # La phase ON du cycle interrompu est déjà passée : on
+                    # termine l'attente OFF avant de reprendre le cycle normal.
+                    _save_phase(store, state_section, "off", remaining)
+                    await hb_sleep(remaining)
+                    continue
+
             # ON → attente → OFF garanti (audit E5)
             box(f"[S][{phase}] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
+            _save_phase(store, state_section, "on", on_remaining)
             with comp.energized():
-                await hb_sleep(on_d)
+                await hb_sleep(on_remaining)
 
             box(f"[S][{phase}] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
-            await hb_sleep(off_d)
+            _save_phase(store, state_section, "off", off_remaining)
+            await hb_sleep(off_remaining)
 
         else:
             error(f"CyclicTimer #{tid} mode inconnu : « {mode} » → arrêt du timer", name=LOGGER_NAME)

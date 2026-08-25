@@ -59,6 +59,20 @@
       <h3>Ventilation</h3>
       <progress id="motor-progress" max="4" value="{{ state.motor.speed }}">{{ state.motor.percent }} %</progress>
     </article>
+    <article class="card climate-card">
+      <div class="card-kicker"><span>ARBITRE</span><span id="climate-state">{{ state.climate.state or '—' }}</span></div>
+      <h3>Régulation thermique</h3>
+      <p class="card-meta" id="climate-reason">{{ state.climate.reason or 'En attente du premier cycle de régulation.' }}</p>
+      <p class="card-meta" id="climate-thresholds">
+        {%- if state.climate.vent_threshold is not none -%}
+        Chauffage OFF &gt; {{ state.climate.heater_off_threshold }} °C · ventilation ≥ {{ state.climate.vent_threshold }} °C
+        {%- else -%}—{%- endif -%}
+      </p>
+      <p class="card-meta" id="climate-budgets">
+        Renouvellement {{ state.climate.renew_minutes_used }}/{{ state.climate.renew_minutes_quota }} min/h ·
+        déshumidification {{ state.climate.humidity_minutes_used }}/{{ state.climate.humidity_minutes_quota }} min/h
+      </p>
+    </article>
   </div>
 </section>
 

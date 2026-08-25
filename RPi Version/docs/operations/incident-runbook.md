@@ -100,7 +100,8 @@ sudo systemctl restart phyto
 ### Diagnostic
 
 ```bash
-curl -fsS http://127.0.0.1:8123/status | jq '{heater_alarm, healthy, tasks: .tasks.heat_control}'
+curl -fsS http://127.0.0.1:8123/status | jq '{heater_alarm, healthy, tasks: .tasks.climate_control}'
+curl -fsS http://127.0.0.1:8123/api/v1/state | jq '.climate'
 journalctl -u phyto --since '2 hours ago' --no-pager -o cat
 ```
 

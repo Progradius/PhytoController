@@ -87,6 +87,23 @@
     text(".section-count", `${sensors.length} mesure(s)`);
   };
 
+  const updateClimate = (climate) => {
+    if (!climate) return;
+    text("#climate-state", climate.state || "—");
+    text("#climate-reason", climate.reason || "En attente du premier cycle de régulation.");
+    text(
+      "#climate-thresholds",
+      climate.vent_threshold === null || climate.vent_threshold === undefined
+        ? "—"
+        : `Chauffage OFF > ${climate.heater_off_threshold} °C · ventilation ≥ ${climate.vent_threshold} °C`
+    );
+    text(
+      "#climate-budgets",
+      `Renouvellement ${climate.renew_minutes_used}/${climate.renew_minutes_quota} min/h · ` +
+      `déshumidification ${climate.humidity_minutes_used}/${climate.humidity_minutes_quota} min/h`
+    );
+  };
+
   const updateState = (state) => {
     lastGeneratedAt = state.generated_at;
     fetchFailed = false;
@@ -103,6 +120,7 @@
     const progress = document.getElementById("motor-progress");
     if (progress) { progress.value = state.motor.speed; progress.textContent = `${state.motor.percent} %`; }
     text("#motor-level", `Niveau ${state.motor.speed}/4`);
+    updateClimate(state.climate);
     state.stats.forEach((stat) => {
       const card = document.querySelector(`[data-stat="${CSS.escape(stat.key)}"]`);
       if (!card) return;

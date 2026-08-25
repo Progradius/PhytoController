@@ -85,16 +85,20 @@ with component.energized():
 
 Une séquence manuelle `set_state(1)`, attente, `set_state(0)` est interdite.
 
-## Garde-fous chauffage
+## Garde-fous thermiques
 
-Les protections implémentées sont :
+Chauffage et ventilation sont décidés ensemble par `components/climate_policy.py`. Les protections implémentées sont :
 
 - plage valide strictement comprise entre -20 °C et 60 °C ;
-- cinq lectures manquées ou invalides consécutives avant arrêt forcé ;
-- alarme persistante accessible dans `/status` ;
+- cinq lectures manquées ou invalides consécutives avant arrêt forcé, état nommé `REPLI_CAPTEUR` : chauffage OFF, moteur à `sensor_fallback_speed` ;
+- alarme persistante accessible dans `/status` et `/api/v1/state` ;
 - maximum de 120 minutes d'allumage continu ;
 - repos forcé de 15 minutes après dépassement ;
-- calcul des durées par horloge monotone.
+- calcul des durées par horloge monotone ;
+- **zone morte garantie par construction** entre extinction du chauffage et démarrage de la ventilation : aucune température ne peut voir les deux organes actifs ;
+- **plancher thermique absolu** : au-dessous, aucune ventilation, quel que soit le budget de renouvellement restant ;
+- budgets de renouvellement et de déshumidification **bornés**, comptés en temps réellement écoulé et persistés (`param/runtime_state.json`) ;
+- écriture du chauffage **vérifiée** après coup : une sortie qui ne suit pas lève une alarme CRITICAL, et l'état mémorisé est recalé sur le GPIO réel à chaque tick.
 
 Ces protections ne couvrent pas :
 
@@ -114,12 +118,13 @@ Un thermostat ou fusible thermique indépendant et câblé en série reste requi
 | Annulation pendant un cycle | `energized()` exécute son `finally` | Sortie HIGH/OFF | Dépend de la réussite GPIO |
 | Tâche silencieuse > 300 s | Annulation et relance | État sûr de la tâche | Event loop fonctionnel requis |
 | Event loop bloqué | Plus de caresse watchdog | Redémarrage après timeout | Niveaux au reset à garantir matériellement |
-| Cinq mesures T invalides | Chauffage forcé OFF, alarme | Chauffage HIGH/OFF | Thermostat indépendant requis |
+| Cinq mesures T invalides | `REPLI_CAPTEUR` : chauffage forcé OFF, moteur au repli, alarme | Chauffage HIGH/OFF | Thermostat indépendant requis |
+| Écriture GPIO chauffage sans effet | Alarme CRITICAL, mémoire recalée au tick suivant | Écart signalé, pas corrigé | Intervention physique requise |
 | Chauffe > 120 min | OFF pendant 15 min | Chauffage HIGH/OFF | Relais collé non couvert |
 | SIGTERM/SIGINT/SIGHUP | Fermeture watchdog et état sûr | Génériques HIGH, moteur LOW | Vérifié sur Pi le 25/08/2026 |
 | SIGKILL/OOM | Aucun handler Python | Latches potentiellement conservés | Watchdog, pulls et protections matérielles |
 | Mise sous tension | Aucun code avant Python | Non garanti actuellement | Pulls externes et boot config correcte |
-| Plusieurs relais moteur HIGH | Erreur journalisée, lecture renvoyée comme vitesse 0 | État physique dangereux persistant | Interlock et coupure immédiate à implémenter |
+| Plusieurs relais moteur HIGH | Erreur journalisée ; une consigne d'arrêt passe par `all_off()`, qui réécrit les quatre broches | Rattrapé sur consigne 0, sinon persistant | Interlock et verrouillage dégradé à implémenter |
 
 ## Invariants de développement
 

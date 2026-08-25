@@ -56,7 +56,7 @@ to `PuppetMaster`.
   and a power cut mid-write would leave a truncated `param.json`, i.e. a dead boot. `SensorStats._dump()`
   uses the same helper.
 - `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
-  one supervised job per concern (2 daily timers, 2 cyclic timers, motor `temp_control`, `heat_control`,
+  one supervised job per concern (2 daily timers, 2 cyclic timers, the `climate_control` thermal arbiter,
   shared sensor snapshot, Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
   `sd_notify(READY=1)`, then awaits the supervisor. Its asyncio exception handler logs and keeps the loop
   alive on purpose — a crashing task must never take the greenhouse down.
@@ -89,14 +89,34 @@ to `PuppetMaster`.
   **re-read `AppConfig.load()` from disk on every iteration**, which is how web-UI config edits take
   effect without a restart. Objects holding a config reference (motor, heater, server) do not see those
   edits unless explicitly refreshed. Every one of those reloads is wrapped in `try/except` with a
-  **fallback to the last valid config** (`timer_cyclic`, `temp_control`, `timer_daily`): an unreadable
+  **fallback to the last valid config** (`timer_cyclic`, `climate_control`, `timer_daily`): an unreadable
   `param.json` must never kill a control task, because nothing would ever drive that output again.
-- `components/heater_control.py` — beyond the hysteresis, three safety guards that must survive any
-  refactor: temperature outside `]-20 ; 60[` counts as a missed read; `MAX_CONSECUTIVE_SENSOR_FAILURES`
-  missed reads force the heater OFF with a persistent alarm (`get_heater_alarm()`); an uninterrupted ON
-  cannot exceed `MAX_CONTINUOUS_ON_MINUTES`, followed by `FORCED_OFF_COOLDOWN_MINUTES` of forced rest.
-  All durations use `time.monotonic()`, never `datetime.now()` — an NTP jump must not extend a heating
-  window.
+- `components/climate_policy.py` + `components/climate_control.py` — the **thermal arbiter**. Heater and
+  ventilation regulate the same temperature, so they are one supervised job, not two. All the logic lives
+  in the **pure** `decide(settings, inputs, memory)` of `climate_policy` (no GPIO, no disk, no implicit
+  clock — time enters through `ClimateInputs`, state through a frozen `ClimateMemory`); `climate_control`
+  only reads T/RH once, resynchronises on the **real** output states, applies, verifies the write and
+  persists the winter budgets. Never put a regulation rule in the coroutine: a rule outside the pure
+  function cannot be replayed or reviewed. Invariants that must survive any refactor:
+  * **dead zone by construction** — `vent_threshold = max(target_temp_max, target_temp_min +
+    hysteresis_offset + vent_deadband)`, so no temperature can have heater and extractor on at once. A
+    *blocking* validator was deliberately rejected: a refused config is a dead boot. The raised threshold
+    is logged (deduplicated) and published in `/api/v1/state`;
+  * temperature outside `]-20 ; 60[` counts as a missed read; `MAX_CONSECUTIVE_SENSOR_FAILURES` missed
+    reads force the heater OFF with a persistent alarm (`get_climate_alarm()`, aliased as the historical
+    `get_heater_alarm()`) and the motor to `sensor_fallback_speed` — the named `REPLI_CAPTEUR` policy;
+  * an uninterrupted ON cannot exceed `MAX_CONTINUOUS_ON_MINUTES`, followed by
+    `FORCED_OFF_COOLDOWN_MINUTES` of forced rest. All durations use `time.monotonic()`, never
+    `datetime.now()` — an NTP jump must not extend a heating window;
+  * winter renewal and dehumidification draw from **two distinct bounded hourly budgets**, counted in
+    really elapsed minutes; below `absolute_floor_temp` nothing ventilates at all. Humidity can no longer
+    short-circuit the quota;
+  * ventilation steps have a state hysteresis (distinct release threshold) and a `min_dwell_seconds` hold;
+    `clamp_speed` never turns a 0 into `min_speed` — a stop order stays a stop.
+- `utils/state_store.py` — `param/runtime_state.json` (atomic, throttled to one write per minute), the
+  regulation state that must **not** restart from zero: winter budgets, and the cyclic timers' sequential
+  phase. A missing, unreadable or expired record is ignored — a resume can only shorten a cycle, never
+  invent one.
 - `model/` — thin GPIO/state wrappers: `Component` (one relay pin), `Motor` (4 pins = 4 speeds),
   `DailyTimer`/`CyclicTimer` (schedule logic), `SensorStats` (min/max, persisted to
   `param/sensor_stats.json`).

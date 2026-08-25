@@ -81,7 +81,8 @@ intacts. Les sections connues sont : `life`, `daily-timer-1`, `daily-timer-2`, `
 | `logs` | `apply_log_settings()` : niveau et rétention |
 | `sensors` | `SensorController.reconfigure()` sur la même instance, puis rechargement Influx |
 | `influx` | Rechargement de l'endpoint Influx |
-| `daily-timer-*`, `cyclic-*`, `temperature`, `heater`, `motor` | `supervisor.request_reload()` du ou des travaux concernés |
+| `daily-timer-*`, `cyclic-*` | `supervisor.request_reload()` du minuteur concerné |
+| `temperature`, `heater`, `motor`, `sensors` | `supervisor.request_reload()` de `climate_control` : chauffage et ventilation repartent ensemble sur la nouvelle consigne |
 | `wifi` | Aucun : redémarrage requis, la page l'indique |
 
 `request_reload()` annule puis relance le travail **sans repositionner son état sûr** : la

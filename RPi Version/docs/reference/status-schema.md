@@ -15,7 +15,7 @@ Exemple abrégé, sans valeurs de production :
     "healthy": true,
     "heater_alarm": null,
     "tasks": {
-      "heat_control": {
+      "climate_control": {
         "alive": true, "healthy": true, "silence_s": 4.2, "max_silence_s": 300.0,
         "restarts": 0, "reloads": 1, "stalls": 0, "last_error": null
       }
@@ -26,6 +26,16 @@ Exemple abrégé, sans valeurs de production :
     "cyclic_1": "off", "cyclic_2": "off", "heater": "off"
   },
   "motor": {"speed": 2, "percent": 50},
+  "climate": {
+    "state": "VENTILER",
+    "reason": "chauffage : 27.4°C > 25.0°C · ventilation : 27.4°C ≥ 26.0°C → palier 2",
+    "heater_on": false, "motor_speed": 2,
+    "temperature": 27.4, "humidity": 52.1,
+    "vent_threshold": 26.0, "heater_off_threshold": 25.0,
+    "renew_minutes_used": 0.0, "renew_minutes_quota": 5.0,
+    "humidity_minutes_used": 0.0, "humidity_minutes_quota": 15.0,
+    "updated_at": "2026-08-25T21:14:00"
+  },
   "timers": [
     {"id": "daily-1", "kind": "daily", "enabled": true, "output": "daily_timer_1",
      "schedule": {"start": "19:00", "stop": "07:00"}},
@@ -51,10 +61,16 @@ Exemple abrégé, sans valeurs de production :
 | `schema_version` | Entier ; toute évolution non additive doit l'incrémenter |
 | `generated_at` | Instant de génération, UTC ISO 8601 suffixé `Z` |
 | `health.healthy` | Santé agrégée du superviseur |
-| `health.heater_alarm` | `null` ou texte d'alarme chauffage persistante |
+| `health.heater_alarm` | `null` ou texte d'alarme thermique persistante (nom historique conservé) |
 | `health.tasks` | Snapshot par travail supervisé |
 | `outputs` | État **logique** de chaque sortie : `on`, `off` ou `unknown` |
 | `motor.speed` / `motor.percent` | Vitesse logique 0–4 et son pourcentage |
+| `climate.state` | État de l'arbitre : `DESACTIVE`, `CHAUFFER`, `NEUTRE`, `VENTILER`, `RENOUVELER`, `DESHUMIDIFIER`, `SECURITE_HAUTE`, `PLANCHER_THERMIQUE`, `REPLI_CAPTEUR`, `MANUEL` |
+| `climate.reason` | Motif lisible de la décision, chauffage puis ventilation |
+| `climate.vent_threshold` | Seuil de ventilation **effectif** (relevé si la consigne haute ne laissait pas de zone morte) |
+| `climate.heater_off_threshold` | Seuil d'extinction du chauffage |
+| `climate.*_minutes_used` / `_quota` | Budgets hiver consommés et alloués sur la fenêtre d'une heure en cours |
+| `climate.updated_at` | Horodatage local du dernier tick de régulation ; `null` avant le premier |
 | `timers` | Planification effective, telle que la lira la boucle |
 | `sensors` | Uniquement les mesures **activées**, dans l'ordre du catalogue |
 | `stats` | Min/max suivis et leurs horodatages locaux |
@@ -89,7 +105,7 @@ Pour une tâche :
 
 ```json
 {"live": true}
-{"ready": false, "unhealthy": ["heat_control"]}
+{"ready": false, "unhealthy": ["climate_control"]}
 ```
 
 `/health/live` répond 200 tant que le serveur HTTP tourne : il ne prouve rien sur la

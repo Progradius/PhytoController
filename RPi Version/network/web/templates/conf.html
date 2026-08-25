@@ -107,7 +107,16 @@
       {{ number('target_temp_max_day', 'Jour · maximum', config.temperature.target_temp_max_day, '°C', -20, 60, '0.1') }}
       {{ number('target_temp_min_night', 'Nuit · minimum', config.temperature.target_temp_min_night, '°C', -20, 60, '0.1') }}
       {{ number('target_temp_max_night', 'Nuit · maximum', config.temperature.target_temp_max_night, '°C', -20, 60, '0.1') }}
-      {{ number('hysteresis_offset', 'Hystérésis', config.temperature.hysteresis_offset, '°C', 0, 20, '0.1') }}
+      {{ number('hysteresis_offset', 'Hystérésis chauffage', config.temperature.hysteresis_offset, '°C', 0, 20, '0.1') }}
+    </div>
+    <h3>Arbitrage chauffage / ventilation</h3>
+    <p class="field-help">La ventilation ne démarre jamais avant le minimum + l’hystérésis + la zone morte : les deux organes ne peuvent pas être actifs en même temps.</p>
+    <div class="field-grid two">
+      {{ number('vent_deadband', 'Zone morte', config.temperature.vent_deadband, '°C', 0, 20, '0.1') }}
+      {{ number('vent_step', 'Largeur d’un palier', config.temperature.vent_step, '°C', 0.1, 20, '0.1') }}
+      {{ number('vent_release', 'Relâchement de palier', config.temperature.vent_release, '°C', 0, 20, '0.1') }}
+      {{ number('absolute_floor_temp', 'Plancher absolu', config.temperature.absolute_floor_temp, '°C', -20, 60, '0.1') }}
+      {{ number('min_dwell_seconds', 'Maintien minimal', config.temperature.min_dwell_seconds, 's', 0, 3600) }}
     </div>{{ save_button() }}</form>
   </details>
   <details class="config-section" id="heater"{% if active_section == 'heater' %} open{% endif %}><summary><span>Chauffage</span><span class="summary-value">{{ 'Activé' if config.heater_settings.enabled else 'Désactivé' }}</span></summary>
@@ -119,14 +128,15 @@
         {% for value, label in (('manual','Manuel'),('auto','Automatique'),('winter','Hiver')) %}<input class="visually-hidden" type="radio" id="motor-{{ value }}" name="motor_mode" value="{{ value }}"{% if config.motor.motor_mode == value %} checked{% endif %}><label for="motor-{{ value }}">{{ label }}</label>{% endfor %}
       </div></fieldset>
       <div data-motor-fields="manual"{% if config.motor.motor_mode != 'manual' %} hidden{% endif %}>{{ number('motor_user_speed', 'Vitesse manuelle', config.motor.motor_user_speed, '/ 4', 0, 4) }}</div>
-      <div class="field-grid two">{{ number('min_speed', 'Vitesse minimale', config.motor.min_speed, '/ 4', 0, 4) }}{{ number('max_speed', 'Vitesse maximale', config.motor.max_speed, '/ 4', 0, 4) }}</div>
+      <div class="field-grid two">{{ number('min_speed', 'Vitesse minimale', config.motor.min_speed, '/ 4', 0, 4) }}{{ number('max_speed', 'Vitesse maximale', config.motor.max_speed, '/ 4', 0, 4) }}{{ number('sensor_fallback_speed', 'Vitesse de repli capteur', config.motor.sensor_fallback_speed, '/ 4', 0, 4) }}</div>
       <div data-motor-fields="winter"{% if config.motor.motor_mode != 'winter' %} hidden{% endif %}><h3>Paramètres hiver</h3><div class="field-grid two">
         {{ number('winter_default_speed', 'Vitesse par défaut', config.motor.winter_default_speed, '/ 4', 0, 4) }}
         {{ number('winter_temp_margin', 'Marge basse', config.motor.winter_temp_margin, '°C', 0, 20, '0.1') }}
         {{ number('winter_refresh_speed', 'Vitesse de renouvellement', config.motor.winter_refresh_speed, '/ 4', 0, 4) }}
         {{ number('winter_refresh_minutes_per_hour', 'Renouvellement par heure', config.motor.winter_refresh_minutes_per_hour, 'min', 0, 60) }}
         {{ number('winter_humidity_threshold', 'Seuil d’humidité', config.motor.winter_humidity_threshold, '%', 0, 100, '0.1') }}
-      </div></div>{{ save_button() }}
+        {{ number('winter_humidity_minutes_per_hour', 'Déshumidification par heure', config.motor.winter_humidity_minutes_per_hour, 'min', 0, 60) }}
+      </div><p class="field-help">Renouvellement et déshumidification consomment deux budgets horaires distincts et bornés : l’humidité ne peut plus faire ventiler en continu par grand froid.</p></div>{{ save_button() }}
     </form>
   </details>
 </section>

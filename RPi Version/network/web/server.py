@@ -14,7 +14,7 @@ from pathlib import Path
 from aiohttp import web
 from pydantic import ValidationError
 
-from components.heater_control import get_heater_alarm
+from components.climate_control import get_climate_alarm, get_climate_snapshot
 from controllers.sensor_catalog import SENSOR_CATALOG
 from network.web import influx_handler
 from network.web.pages import conf_page, console_page, error_page, main_page
@@ -79,6 +79,8 @@ SECTION_FIELDS: dict[str, dict[str, tuple[str, str] | str]] = {
         for name in (
             "target_temp_min_day", "target_temp_max_day",
             "target_temp_min_night", "target_temp_max_night", "hysteresis_offset",
+            "vent_deadband", "vent_step", "vent_release", "absolute_floor_temp",
+            "min_dwell_seconds",
         )
     },
     "heater": {"enabled": ("Heater_Settings", "enabled")},
@@ -86,8 +88,10 @@ SECTION_FIELDS: dict[str, dict[str, tuple[str, str] | str]] = {
         name: ("Motor_Settings", name)
         for name in (
             "motor_mode", "motor_user_speed", "min_speed", "max_speed",
+            "sensor_fallback_speed",
             "winter_default_speed", "winter_temp_margin", "winter_refresh_speed",
             "winter_refresh_minutes_per_hour", "winter_humidity_threshold",
+            "winter_humidity_minutes_per_hour",
         )
     },
     "sensors": {},
@@ -119,10 +123,10 @@ RELOAD_JOBS = {
     "daily-timer-2": ("daily_timer_2",),
     "cyclic-1": ("cyclic_timer_1",),
     "cyclic-2": ("cyclic_timer_2",),
-    "temperature": ("motor_temp_control", "heat_control"),
-    "heater": ("heat_control",),
-    "motor": ("motor_temp_control",),
-    "sensors": ("motor_temp_control", "heat_control"),
+    "temperature": ("climate_control",),
+    "heater": ("climate_control",),
+    "motor": ("climate_control",),
+    "sensors": ("climate_control",),
 }
 
 
@@ -500,7 +504,7 @@ class Server:
             "generated_at": _utc_now(),
             "health": {
                 "healthy": self.supervisor.is_healthy() if self.supervisor else True,
-                "heater_alarm": get_heater_alarm(),
+                "heater_alarm": get_climate_alarm(),
                 "tasks": self.supervisor.snapshot() if self.supervisor else {},
             },
             "outputs": {
@@ -511,6 +515,7 @@ class Server:
                 "heater": self._logical_state(self.heater_component),
             },
             "motor": {"speed": speed, "percent": int(speed / 4 * 100)},
+            "climate": get_climate_snapshot(),
             "timers": self._timer_payload(),
             "sensors": sensors,
             "stats": stats,
@@ -614,7 +619,7 @@ class Server:
                 "period": self.config.cyclic1.period_days,
                 "duration": self.config.cyclic1.action_duration_seconds,
             },
-            "heater_alarm": get_heater_alarm(),
+            "heater_alarm": get_climate_alarm(),
         }
         if self.supervisor is not None:
             payload["healthy"] = self.supervisor.is_healthy()

@@ -71,7 +71,28 @@ class TemperatureSettings(ValidatedModel):
     target_temp_max_day: float = Field(ge=-20, le=60)
     target_temp_min_night: float = Field(ge=-20, le=60)
     target_temp_max_night: float = Field(ge=-20, le=60)
+    # Bande morte du **chauffage** uniquement : il s'éteint à
+    # `target_temp_min + hysteresis_offset`. Avant l'arbitre thermique, ce seul
+    # champ portait trois sémantiques incompatibles (audit M11) ; les paliers de
+    # ventilation ont désormais les leurs.
     hysteresis_offset: float = Field(ge=0, le=20)
+
+    # — Arbitre thermique (audit C9, E9) —
+    # Écart minimal entre l'extinction du chauffage et le démarrage de la
+    # ventilation : c'est lui qui interdit de chauffer et d'extraire en même
+    # temps. Le seuil de ventilation effectif ne descend jamais en dessous de
+    # `target_temp_min + hysteresis_offset + vent_deadband`.
+    vent_deadband: float = Field(1.0, alias="vent_deadband", ge=0, le=20)
+    # Largeur d'un palier de vitesse au-dessus du seuil de ventilation.
+    vent_step: float = Field(1.0, alias="vent_step", gt=0, le=20)
+    # Seuil de relâchement d'un palier : sans lui, une température qui oscille
+    # d'un dixième fait battre le relais des centaines de fois par heure.
+    vent_release: float = Field(0.5, alias="vent_release", ge=0, le=20)
+    # Plancher absolu : au-dessous, aucune ventilation n'est autorisée, quel que
+    # soit le budget de renouvellement restant (audit C8).
+    absolute_floor_temp: float = Field(5.0, alias="absolute_floor_temp", ge=-20, le=60)
+    # Temps de maintien minimal entre deux changements de vitesse (audit E9).
+    min_dwell_seconds: int = Field(120, alias="min_dwell_seconds", ge=0, le=3600)
 
     @model_validator(mode="after")
     def _validate_ranges(self):
@@ -128,6 +149,10 @@ class MotorSettings(ValidatedModel):
     hysteresis: float = Field(ge=0, le=20)
     min_speed: int = Field(ge=0, le=4)
     max_speed: int = Field(ge=0, le=4)
+    # Vitesse appliquée quand la température devient illisible durablement
+    # (état `REPLI_CAPTEUR`). 0 par défaut : sans mesure, on ne ventile pas une
+    # serre qu'on ne sait plus lire.
+    sensor_fallback_speed: int = Field(0, alias="sensor_fallback_speed", ge=0, le=4)
 
     # — Paramètres « hiver » —
     winter_default_speed: int = Field(1, ge=0, le=4, alias="winter_default_speed")
@@ -135,6 +160,12 @@ class MotorSettings(ValidatedModel):
     winter_refresh_speed: int = Field(4, ge=0, le=4, alias="winter_refresh_speed")
     winter_refresh_minutes_per_hour: int = Field(5, ge=0, le=60, alias="winter_refresh_minutes_per_hour")
     winter_humidity_threshold: float = Field(65.0, ge=0.0, le=100.0, alias="winter_humidity_threshold")
+    # Budget de déshumidification, **distinct et borné** (audit C8) : l'humidité
+    # ne court-circuite plus le quota de renouvellement, elle dispose de son
+    # propre crédit horaire. 0 = déshumidification désactivée.
+    winter_humidity_minutes_per_hour: int = Field(
+        15, ge=0, le=60, alias="winter_humidity_minutes_per_hour"
+    )
 
     @model_validator(mode="after")
     def _validate_speed_range(self):
