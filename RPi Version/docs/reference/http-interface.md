@@ -2,8 +2,8 @@
 
 **Implémentation** : serveur `aiohttp` (`network/web/server.py`), écoute `0.0.0.0:8123`.
 **Contrainte** : LAN de confiance uniquement, aucune authentification.
-**Statut** : implémenté et vérifié par une passe de fumigation hors matériel (voir
-[Vérification](../development/verification.md)) ; non encore rejoué sur le Pi de production.
+**Statut** : implémenté, **déployé et vérifié sur le Pi** le 25 août 2026 (commit `ad39de2`) —
+relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-25.md).
 
 ## Routes
 

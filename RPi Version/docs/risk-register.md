@@ -4,9 +4,10 @@
 **Référence initiale** : audit du 25 août 2026, recalé sur le commit `61ad3df`.
 **Dernière mise à jour** : 25 août 2026, après la refonte de l'interface web.
 
-⚠️ Les réductions apportées par la refonte web sont **implémentées et vérifiées hors matériel**,
-mais **pas encore déployées** sur le Pi de production. Tant que le déploiement et son relevé ne
-sont pas consignés, elles restent surveillées et non fermées.
+Les réductions apportées par la refonte web sont **implémentées, déployées et vérifiées** sur le
+Pi le 25 août 2026 (commit `ad39de2`, service démarré à 23:36 CEST). Preuve :
+[Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md). Elles restent en
+« réduites, à surveiller » : chacune conserve une limite résiduelle explicite.
 
 Ce document décrit l'état courant. L'audit historique conserve les preuves détaillées et les identifiants d'origine. Un risque n'est fermé que lorsque la correction, le déploiement et la preuve requise sont tous consignés.
 

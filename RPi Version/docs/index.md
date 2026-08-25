@@ -5,9 +5,9 @@
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
 **Dernière vérification documentaire** : 25 août 2026, après la refonte de l'interface web.
 
-⚠️ La refonte de l'interface web et de l'acquisition capteurs est **implémentée dans l'arbre de
-travail et vérifiée hors matériel**, mais **pas encore déployée**. Les documents qui la décrivent
-le signalent ; le Pi de production exécute encore la version antérieure.
+La refonte de l'interface web et de l'acquisition capteurs est **implémentée, déployée et
+vérifiée sur le Pi** le 25 août 2026 (commit `ad39de2`). Relevé dans
+[Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md).
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -40,6 +40,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Installation Raspberry Pi](operations/install-raspberry-pi.md)
 - [systemd et watchdog](operations/systemd.md)
 - [Baseline de production du 25 août 2026](operations/production-baseline-2026-08-25.md)
+- [Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
 - [Monitoring](operations/monitoring.md)
 - [Sauvegarde et restauration](operations/backup-and-restore.md)
