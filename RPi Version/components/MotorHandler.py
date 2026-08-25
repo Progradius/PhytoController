@@ -21,6 +21,7 @@ import RPi.GPIO as GPIO
 from model.Motor import Motor
 from param.config import AppConfig
 from utils.pretty_console import debug, info, warning, error
+from utils.supervisor import beat, sleep as hb_sleep
 
 LOGGER_NAME = "motor"
 
@@ -124,6 +125,7 @@ async def temp_control(
     async def _apply_once():
         nonlocal refresh_window_start, refresh_minutes_done_this_hour
         nonlocal unknown_mode_reported, last_cfg
+        beat()
 
         # recharge dynamique
         try:
@@ -263,5 +265,5 @@ async def temp_control(
 
     # puis boucle régulière
     while True:
-        await asyncio.sleep(sampling_time)
+        await hb_sleep(sampling_time)
         await _apply_once()

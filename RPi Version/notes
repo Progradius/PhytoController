@@ -6,6 +6,26 @@ Activer OneWire via raspi-config ou en ajoutant dans /boot/config.txt :
 
 dtoverlay=w1-gpio
 
+### ⛔ NE PAS RECOPIER LE BLOC CI-DESSOUS TEL QUEL — audit 2026-08-25, C2b ⛔
+#
+# Trois défauts, dont un dangereux :
+#
+#  1. `dh` (HIGH) est l'état sûr des sorties actives-BAS (Component : lumières,
+#     cyclics, chauffage) mais c'est l'état de COMMANDE du moteur, qui est
+#     actif-HAUT. La ligne `gpio=25=op,dh` FERME le relais de vitesse 1 au boot.
+#     Les broches moteur veulent `op,dl`.
+#  2. `gpio=17` : ce canal a été migré vers GPIO 5 (broche 17 HS sous charge).
+#  3. Sous Bookworm la partition de boot est /boot/firmware/config.txt ;
+#     /boot/config.txt est ignoré. Le bloc ci-dessous n'a donc AUCUN effet
+#     aujourd'hui — la fenêtre entre la mise sous tension et le lancement de
+#     Python n'est protégée par rien.
+#
+# Correctif prévu (phase 1 de l'audit) : générer ces lignes depuis param.json
+# (`op,dh` pour les actifs-BAS, `op,dl` pour le moteur) au lieu d'une liste
+# figée, et écrire dans /boot/firmware/config.txt.
+#
+# Conservé ci-dessous à titre d'historique uniquement.
+
 a ajouter au boot.txt:
 # Force GPIOs HIGH au boot (sécurité relais OFF)
 gpio=4=op,dh

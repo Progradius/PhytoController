@@ -1,8 +1,8 @@
 # components/dailytimer_handler.py
-import asyncio
 from datetime import datetime, timedelta
 
 from utils import pretty_console as ui
+from utils.supervisor import beat, sleep as hb_sleep
 from param.config import AppConfig
 
 LOGGER_NAME = "timer.daily"
@@ -17,6 +17,7 @@ async def timer_daily(
     disabled_reported = False
 
     while True:
+        beat()
         now_dt = datetime.now()
         ui.debug(f"DailyTimer #{tid} – vérification @ {now_dt:%H:%M:%S}", name=LOGGER_NAME)
 
@@ -41,7 +42,7 @@ async def timer_daily(
                     f"{getattr(dailytimer.component, 'pin', '?')} échouée → {e}",
                     name=LOGGER_NAME,
                 )
-            await asyncio.sleep(sampling_time)
+            await hb_sleep(sampling_time)
             continue
 
         if disabled_reported:
@@ -59,4 +60,4 @@ async def timer_daily(
         next_dt = now_dt + timedelta(seconds=sampling_time)
         ui.debug(f"Prochaine vérification : {next_dt:%H:%M:%S}", name=LOGGER_NAME)
 
-        await asyncio.sleep(sampling_time)
+        await hb_sleep(sampling_time)

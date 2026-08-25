@@ -2,6 +2,9 @@
 
 Plan source : `AUDIT-2026-08-25.md` § 8.
 
+**Statut : phase 0 terminée, déployée et vérifiée sur le matériel** (commit `649eb20`, Pi sur `master`,
+déploiement du 2026-08-25 ~20:54 via `scripts/deploy.sh`). Détail des preuves en fin de fichier.
+
 ## Fait
 
 - [x] **0.1 Verrou d'instance** *(C4)* — `utils/single_instance.py`, socket Unix
@@ -66,3 +69,28 @@ Plan source : `AUDIT-2026-08-25.md` § 8.
 - L'alarme chauffage est exposée par `heater_control.get_heater_alarm()` mais
   n'est **pas encore publiée sur `/status`** — à câbler avec le superviseur de
   tâches de la Phase 1.
+
+## Vérification sur le matériel — 2026-08-25, 20:54 → 21:00
+
+Pi sur `master` à `649eb20`, service `active`, `NRestarts=0`, une seule instance.
+
+| Point | Preuve |
+|---|---|
+| 0.1 Verrou | `@phyto-controller` présent dans `/proc/net/unix`, détenu par le service ; une 2ᵉ acquisition depuis un autre process renvoie `False` ; le verrou disparaît à l'arrêt et est repris au démarrage suivant |
+| 0.2 Écriture atomique | `sensor_stats.json` réécrit toutes les ~15-30 s, **mode 644 préservé**, **0 résidu `.tmp`** sur relevés espacés |
+| 0.3 Garde de lecture | les 8 tâches démarrées et actives ; `cyclic_timer_1/2` et `motor_temp_control` tournent |
+| 0.4 État sûr terminal | **coupure réelle du service** : les 9 broches restent `op` (sorties), génériques à `hi`, moteur à `lo`. GPIO 5/18/27 étaient `lo` (actifs) et 8 était `hi` (vitesse 2) avant l'arrêt → niveaux **écrits**, pas hérités. Journal : `Broches maintenues à l'état sûr (sorties pilotées)` une seule fois → `cleanup_gpio()` idempotent confirmé |
+| 0.5 Chauffage | T = 27,1 °C (dans `]-20 ; 60[`), chauffage `disabled` → OFF forcé, GPIO 23 = `hi`. Aucune alarme |
+| 0.6 `/monitor` | `GET /monitor?reboot=1&poweroff=1` → **200, le Pi n'a pas redémarré** (uptime 9292 → 9295 s). `POST` origine tierce → **403** journalisé. `POST` → **303 + `Location`**. `DELETE` → **405 + `Allow`** |
+
+Sans le correctif 0.4, `systemctl stop phyto` laissait le **chauffage 230 V en
+état de commande** (GPIO 23 retombant au pull-down) sans régulateur jusqu'au
+démarrage suivant. C'est le mode de panne le plus coûteux de la phase 0.
+
+## Suite
+
+Phase 1 (« état sûr » structurel : PinRegistry, superviseur de tâches,
+`energized()`, watchdog par heartbeats) — voir `AUDIT-2026-08-25.md` § 8.
+**Des travaux de phase 1 sont en cours dans l'arbre de travail** (`utils/supervisor.py`,
+`beat()`/`hb_sleep()` dans les handlers, `Component.energized()`) : non commités
+au moment de la rédaction de ce bilan, donc non vérifiés ici.

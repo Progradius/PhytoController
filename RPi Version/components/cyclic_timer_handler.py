@@ -2,10 +2,10 @@
 # Author  : Progradius
 # License : AGPL-3.0
 
-import asyncio
 from datetime import datetime, timedelta, time, date
 
 from utils.pretty_console import box, debug, info, error
+from utils.supervisor import beat, sleep as hb_sleep
 from param.config import AppConfig
 
 LOGGER_NAME = "timer.cyclic"
@@ -33,13 +33,14 @@ async def timer_cyclic(cyclic_timer) -> None:
     last_cfg = getattr(cyclic_timer, "_config", None)
 
     while True:
+        beat()
         # recharger complètement la conf
         try:
             cfg = AppConfig.load()
         except Exception:
             # AppConfig.load() a déjà journalisé (dédupliqué) la cause.
             if last_cfg is None:
-                await asyncio.sleep(5)
+                await hb_sleep(5)
                 continue
             cfg = last_cfg
         else:
@@ -64,7 +65,7 @@ async def timer_cyclic(cyclic_timer) -> None:
             except Exception as e:
                 error(f"Cyclic #{tid} : extinction du GPIO {gpio_pin} échouée → {e}",
                       name=LOGGER_NAME)
-            await asyncio.sleep(5)
+            await hb_sleep(5)
             continue
 
         if disabled_reported:
@@ -90,7 +91,7 @@ async def timer_cyclic(cyclic_timer) -> None:
             if days_offset:
                 msg = f"{days_offset} jour{'s' if days_offset > 1 else ''}"
                 debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=msg), name=LOGGER_NAME)
-                await asyncio.sleep(days_offset * aSYNC_DAY)
+                await hb_sleep(days_offset * aSYNC_DAY)
 
             # on refait la journée
             day0 = date.today()
@@ -101,27 +102,19 @@ async def timer_cyclic(cyclic_timer) -> None:
                 if trig_time > now:
                     delay = (trig_time - now).total_seconds()
                     debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{int(delay)} s"), name=LOGGER_NAME)
-                    await asyncio.sleep(delay)
+                    await hb_sleep(delay)
 
-                # ON
+                # ON → attente → OFF garanti : le `finally` du contexte coupe
+                # la sortie même si la tâche est annulée ou lève pendant
+                # l'attente (audit E5).
                 box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
-                try:
-                    comp.set_state(1)
-                except Exception as e:
-                    error(f"CyclicTimer #{tid} activation échouée : {e}", name=LOGGER_NAME)
-
-                await asyncio.sleep(action_duration)
-
-                # OFF
+                with comp.energized():
+                    await hb_sleep(action_duration)
                 box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
-                try:
-                    comp.set_state(0)
-                except Exception as e:
-                    error(f"CyclicTimer #{tid} désactivation échouée : {e}", name=LOGGER_NAME)
 
             # fin de journée
             debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{period_days} jour(s)"), name=LOGGER_NAME)
-            await asyncio.sleep(period_days * aSYNC_DAY)
+            await hb_sleep(period_days * aSYNC_DAY)
 
         elif mode == "séquentiel":
             if _is_day_from(cfg):
@@ -133,21 +126,13 @@ async def timer_cyclic(cyclic_timer) -> None:
                 off_d = cyclic_timer.get_off_time_night()
                 phase = "Nuit"
 
-            # ON
+            # ON → attente → OFF garanti (audit E5)
             box(f"[S][{phase}] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
-            try:
-                comp.set_state(1)
-            except Exception as e:
-                error(f"CyclicTimer #{tid} activation échouée : {e}", name=LOGGER_NAME)
-            await asyncio.sleep(on_d)
+            with comp.energized():
+                await hb_sleep(on_d)
 
-            # OFF
             box(f"[S][{phase}] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
-            try:
-                comp.set_state(0)
-            except Exception as e:
-                error(f"CyclicTimer #{tid} désactivation échouée : {e}", name=LOGGER_NAME)
-            await asyncio.sleep(off_d)
+            await hb_sleep(off_d)
 
         else:
             error(f"CyclicTimer #{tid} mode inconnu : « {mode} » → arrêt du timer", name=LOGGER_NAME)

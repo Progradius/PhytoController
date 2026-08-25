@@ -5,8 +5,10 @@
 #  Abstraction d'un composant commandé par une sortie GPIO
 # -------------------------------------------------------------
 
+from contextlib import contextmanager
+
 import RPi.GPIO as GPIO
-from utils.pretty_console import debug, error, info
+from utils.pretty_console import critical, debug, error, info
 
 # ─────────────────────────── init GPIO global ─────────────────
 GPIO.setwarnings(False)
@@ -63,3 +65,43 @@ class Component:
         - 0 = OFF (si GPIO HIGH → relais inactif)
         """
         return 1 if GPIO.input(self.pin) == GPIO.LOW else 0
+
+    @contextmanager
+    def energized(self):
+        """
+        Contexte à sûreté intégrée (audit E5) : la sortie est activée à l'entrée
+        et **toujours** coupée à la sortie — exception, annulation de la tâche
+        (relance par le superviseur, arrêt du processus) ou fin normale.
+
+            with cyclic_out.energized():
+                await asyncio.sleep(duree_arrosage)
+
+        Sans ce contexte, une exception ou une annulation pendant l'attente
+        laissait le relais collé : une électrovanne d'arrosage restait ouverte
+        indéfiniment. C'est le seul motif autorisé pour un couple ON/attente/OFF.
+
+        Le `finally` vérifie que la coupure a bien pris (`set_state` avale les
+        erreurs GPIO pour ne pas tuer la boucle) : si la sortie est toujours
+        active, on tente une seconde écriture puis on lève une alarme CRITICAL —
+        une sortie collée doit être bruyante.
+        """
+        self.set_state(1)
+        try:
+            yield self
+        finally:
+            self.set_state(0)
+            try:
+                if self.get_state() == 1:
+                    self.set_state(0)
+                    if self.get_state() == 1:
+                        critical(
+                            f"GPIO {self.pin} TOUJOURS ACTIF après coupure — "
+                            "sortie potentiellement collée, intervention requise",
+                            name=LOGGER_NAME,
+                        )
+            except (RuntimeError, ValueError, OSError) as e:
+                critical(
+                    f"GPIO {self.pin} : état de sortie invérifiable après "
+                    f"coupure ({e})",
+                    name=LOGGER_NAME,
+                )

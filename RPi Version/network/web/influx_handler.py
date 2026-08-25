@@ -7,6 +7,7 @@ import requests
 
 from utils.pretty_console import debug, info, warning, error
 from utils.log_dedup import StateLogger
+from utils.supervisor import beat, sleep as hb_sleep
 from param.config import AppConfig
 from controllers.SensorController import SensorController
 
@@ -94,6 +95,7 @@ def _send_grouped_point(measurement: str, values: dict[str, float]) -> None:
 async def write_sensor_values(period: int = 60) -> None:
     info(f"Boucle de collecte démarrée (intervalle : {period} s)", name=LOGGER_NAME)
     while True:
+        beat()
         if _sensor_handler is None:
             warning("Handler InfluxDB non initialisé → collecte ignorée", name=LOGGER_NAME)
         else:
@@ -104,4 +106,4 @@ async def write_sensor_values(period: int = 60) -> None:
                 _send_grouped_point(measurement, sensor_values)
 
         gc.collect()
-        await asyncio.sleep(period)
+        await hb_sleep(period)

@@ -1,12 +1,12 @@
 # controller/components/heater_control.py
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from time import monotonic
 
 from utils.pretty_console import debug, error, info, warning
 from utils.log_dedup import StateLogger
+from utils.supervisor import beat, sleep as hb_sleep
 
 LOGGER_NAME = "heater"
 
@@ -96,12 +96,13 @@ async def heat_control(
         info(message, name=LOGGER_NAME)
 
     while True:
+        beat()
         if not config.heater_settings.enabled:
             if current_state != 0:
                 _switch(0, "Chauffage désactivé manuellement → OFF")
             sensor_failures = 0
             _clear_alarm()
-            await asyncio.sleep(sampling_time)
+            await hb_sleep(sampling_time)
             continue
 
         now_mono = monotonic()
@@ -116,7 +117,7 @@ async def heat_control(
                 f"repos forcé de {FORCED_OFF_COOLDOWN_MINUTES} min "
                 "(capteur bloqué ? puissance de chauffe insuffisante ?)"
             )
-            await asyncio.sleep(sampling_time)
+            await hb_sleep(sampling_time)
             continue
 
         in_cooldown = cooldown_until is not None and now_mono < cooldown_until
@@ -188,4 +189,4 @@ async def heat_control(
             else:
                 debug(f"État conservé : {'ON' if current_state else 'OFF'}", name=LOGGER_NAME)
 
-        await asyncio.sleep(sampling_time)
+        await hb_sleep(sampling_time)

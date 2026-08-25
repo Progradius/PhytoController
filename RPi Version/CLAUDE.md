@@ -20,29 +20,65 @@ pip install -r requirements.txt
 docker build -t phyto . && docker run --privileged -p 8123:8123 phyto
 ```
 
-Web UI: `http://<pi>:8123` — `/` state, `/conf` config form, `/monitor` live values, `/console` (SSE log
-stream), `/status` (JSON).
+Web UI: `http://<pi>:8123` — `/` state, `/conf` config form, `/monitor` live values (GET renders only;
+reset/reboot/poweroff are **POST**), `/console` (SSE log stream), `/status` (JSON).
 
 There is **no test suite and no linter configured** in this tree. Do not invent one; verify changes by
 reading the code and, when hardware is involved, by describing the expected GPIO transitions.
 
 ## Architecture
 
-Boot sequence lives entirely in `main.py` (module-level, not in a `main()`): load config → force GPIO to
-safe states → Wi-Fi → NTP → build components/timers/sensors → hand everything to `PuppetMaster`.
+Boot sequence lives entirely in `main.py` (module-level, not in a `main()`): **take the instance lock** →
+load config → force GPIO to safe states → Wi-Fi → NTP → build components/timers/sensors → hand everything
+to `PuppetMaster`.
 
+- `utils/single_instance.py` — **exactly one controller process at a time**. The lock is an abstract Unix
+  socket (`\0phyto-controller`), taken before any GPIO access and before the signal/`atexit` handlers are
+  registered, so a surplus instance exits without touching a pin. It waits up to 15 s (an old process may
+  still be dying during a `systemctl restart`), then `sys.exit(1)` — a **non-zero** code on purpose, so
+  systemd and `scripts/deploy.sh`'s health check see a failure instead of a silent "exited". Two live
+  instances fight over the same pins: each forces the generics HIGH (cutting what the other held ON) and
+  resets the motor. Nothing in `/dev/gpiomem` prevents that, hence the lock.
 - `param/config.py` — `AppConfig` (Pydantic v2, still using v1-style `@validator`). Single source of truth,
   loaded from and saved to `param/param.json`. JSON keys are PascalCase aliases (`DailyTimer1_Settings`,
   `GPIO_Settings`, …); Python field names are snake_case. `save()` re-serializes booleans back to the
-  legacy `"enabled"`/`"disabled"` strings — any new boolean field needs the same treatment there.
-- `controllers/PuppetMaster.py` — the only orchestrator. Spawns one asyncio task per concern (2 daily
-  timers, 2 cyclic timers, motor `temp_control`, `heat_control`, Influx push, HTTP server) then blocks
-  forever. Its asyncio exception handler logs and keeps the loop alive on purpose — a crashing task must
-  never take the greenhouse down.
+  legacy `"enabled"`/`"disabled"` strings — any new boolean field needs the same treatment there. It
+  writes through `utils/atomic_io.write_text_atomic()` (tmp + `fsync` + `os.replace`, existing file mode
+  preserved) — **never** go back to `write_text()`: a control loop can re-read the file at any instant,
+  and a power cut mid-write would leave a truncated `param.json`, i.e. a dead boot. `SensorStats._dump()`
+  uses the same helper.
+- `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
+  one supervised job per concern (2 daily timers, 2 cyclic timers, motor `temp_control`, `heat_control`,
+  Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
+  `sd_notify(READY=1)`, then awaits the supervisor. Its asyncio exception handler logs and keeps the loop
+  alive on purpose — a crashing task must never take the greenhouse down.
+- `utils/supervisor.py` — **the reason a dead control loop can no longer go unnoticed.** Every job runs
+  inside `while True: try/except` with capped exponential back-off; its **safe state is re-applied before
+  each restart** (`safe_state=` — output OFF, motor OFF); it publishes a heartbeat, and a job that is
+  alive but silent past `max_silence` is cancelled and restarted by a watcher. Register with a *factory*
+  (`lambda: coro(...)`), never a coroutine — a coroutine is consumable once, so it could not be relaunched.
+  Business loops call `beat()` each iteration and `await supervisor.sleep(...)` instead of
+  `asyncio.sleep(...)` so a long *intended* wait (up to 10 days for a cyclic timer) is not mistaken for a
+  block. The job is carried by a `contextvars` variable, so no business signature has to thread it through.
+  `snapshot()` / `is_healthy()` feed `/status` and gate the watchdog.
+- `utils/watchdog.py` — the watchdog is **conditional**: it only pets (systemd `WATCHDOG=1` if
+  `NOTIFY_SOCKET`/`WATCHDOG_USEC` are set, otherwise `/dev/watchdog`) while `supervisor.is_healthy()`.
+  A blind pet is worse than none: it certifies a process whose regulation may be dead. The `/dev/watchdog`
+  fd is opened once and kept at module level — the magic close (`V`) *must* go to that same fd, which is
+  why the old reopen-then-write failed with `EBUSY` and left the watchdog armed. Petting runs in the event
+  loop, not a thread, so a blocked loop stops petting.
 - `components/*_handler.py` — the long-running coroutines. Note that `timer_cyclic` and `timer_daily`
   **re-read `AppConfig.load()` from disk on every iteration**, which is how web-UI config edits take
   effect without a restart. Objects holding a config reference (motor, heater, server) do not see those
-  edits unless explicitly refreshed.
+  edits unless explicitly refreshed. Every one of those reloads is wrapped in `try/except` with a
+  **fallback to the last valid config** (`timer_cyclic`, `temp_control`, `timer_daily`): an unreadable
+  `param.json` must never kill a control task, because nothing would ever drive that output again.
+- `components/heater_control.py` — beyond the hysteresis, three safety guards that must survive any
+  refactor: temperature outside `]-20 ; 60[` counts as a missed read; `MAX_CONSECUTIVE_SENSOR_FAILURES`
+  missed reads force the heater OFF with a persistent alarm (`get_heater_alarm()`); an uninterrupted ON
+  cannot exceed `MAX_CONTINUOUS_ON_MINUTES`, followed by `FORCED_OFF_COOLDOWN_MINUTES` of forced rest.
+  All durations use `time.monotonic()`, never `datetime.now()` — an NTP jump must not extend a heating
+  window.
 - `model/` — thin GPIO/state wrappers: `Component` (one relay pin), `Motor` (4 pins = 4 speeds),
   `DailyTimer`/`CyclicTimer` (schedule logic), `SensorStats` (min/max, persisted to
   `param/sensor_stats.json`).
@@ -63,21 +99,38 @@ safe states → Wi-Fi → NTP → build components/timers/sensors → hand every
 Two opposite polarities coexist and mixing them can close relays on high voltage:
 
 - **`Component` (lights, cyclic outputs, heater) is active-LOW**: `set_state(1)` → `GPIO.LOW`. Safe/OFF
-  state is HIGH, which is why boot and `cleanup_gpio()` drive these pins HIGH.
+  state is HIGH, which is why boot and `cleanup_gpio()` drive these pins HIGH. Any ON → wait → OFF
+  sequence **must** go through `Component.energized()` (a context manager whose `finally` cuts the output
+  on exception, on task cancellation and on normal exit, then verifies the pin actually went back and
+  raises a CRITICAL alarm if not). Writing `set_state(1)` / `await` / `set_state(0)` by hand leaves the
+  relay stuck ON the day the wait is interrupted — that is a flooded greenhouse.
 - **`Motor` (4 speed relays) is active-HIGH**: safe/OFF state is all four pins LOW, and exactly one pin
   goes HIGH for speeds 1–4. Motor pins are deliberately excluded from `GENERIC_SAFE_PINS` in `main.py`.
 
 `main.py` installs SIGINT/SIGTERM/SIGHUP handlers plus `atexit` hooks so both polarities are restored to
 their safe state on any exit path. Preserve that guarantee in any change to shutdown or pin setup.
-`notes` documents the matching `/boot/config.txt` `gpio=N=op,dh` lines and the systemd watchdog setup.
+`cleanup_gpio()` is idempotent (three call paths converge on one run).
+
+**Never call `GPIO.cleanup()`.** It puts every pin back to *input* with its default pull, which for both
+polarities is the **command** level: GPIO 18/22/23/27 fall to the pull-down (`LOW` = active for
+active-LOW `Component`s, heater included) and the motor pins rise to the pull-up. The safe state must be
+**terminal**: pins stay driven outputs until power is cut. Verified live — after `systemctl stop phyto`,
+all nine pins still read `op` with generics `hi` and motor `lo`. Releasing the pins only becomes
+acceptable if external resistors guarantee the safe state (pull-up on active-LOW inputs, pull-down on
+motor inputs) — a **hardware** dependency, not a software option.
+
+⚠️ The `gpio=N=op,dh` block in `notes` is **wrong and dangerous** — see the header added there. Under
+Bookworm the boot partition is `/boot/firmware/config.txt` and `/boot/config.txt` is ignored, so nothing
+protects the power-on window today. Generating those lines from `param.json` is Phase 1 of the audit.
 
 ## Run modes
 
 `PHYTO_RUN_MODE=service` (systemd) is still read by `main.py`, but the server no longer forks anything:
 `/console` streams the **current** process's logs through `utils/log_stream.ConsoleStream`, a logging
-handler plugged onto the `phyto` logger (deque of the last 1000 lines + SSE queues). xterm.js is vendored
-in `network/web/static/`, so the page works without Internet. `PHYTO_HW_WATCHDOG=0` (the default) skips
-the `/dev/watchdog` thread.
+handler plugged onto the `phyto` logger (deque of the last 1000 lines + SSE queues). The page uses a
+plain native renderer (xterm.js was dropped in `bfc0978`); `network/web/static/` only holds `css/` and
+`fonts/`, so the page works without Internet. The hardware watchdog now lives in `utils/watchdog.py` and
+is **enabled by default**, with `PHYTO_HW_WATCHDOG=0` as the explicit opt-out.
 
 ## Known rough edges (don't mistake these for your own breakage)
 
@@ -90,8 +143,13 @@ the `/dev/watchdog` thread.
   relative to the current directory, not `param/param.json`. Run it from `param/` or copy the result.
 - `param/param.json` holds Wi-Fi and InfluxDB credentials in clear text and **is tracked in git**. Never
   paste its values into logs, issues, or commits.
-- The `/monitor` route shells out to `sudo reboot` / `shutdown -h now` on a query parameter, and the HTTP
-  server has no authentication — treat 8123 as LAN-only.
+- The `/monitor` route still shells out to `sudo reboot` / `shutdown -h now`, but only on **POST**
+  (`303 See Other` on success, `405 + Allow` on other methods) and only when `Origin` matches `Host`
+  (`403` otherwise). The HTTP server has **no authentication** — a deliberate choice, 8123 is LAN-only.
+  Do not add a destructive action behind a GET: a browser prefetch or an `<img src>` on any LAN page is
+  enough to fire it. `Host` allow-listing (DNS rebinding) is still open — see
+  `tasks/audit_phase0_todo.md`.
+- `GET /static/` has no path confinement and the server may run as root — open finding (audit C11).
 
 ## Style
 

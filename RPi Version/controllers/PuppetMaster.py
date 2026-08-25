@@ -16,9 +16,16 @@ from components.MotorHandler import temp_control
 from components.heater_control import heat_control
 from network.web.server import Server
 from utils.pretty_console import debug, info, warning, error
+from utils.supervisor import TaskSupervisor
+from utils import watchdog
 from param.config import AppConfig
 
 LOGGER_NAME = "puppetmaster"
+
+# Silence toléré avant de considérer une tâche bloquée. Chaque boucle bat le
+# cœur à chaque tour **et** pendant ses attentes (`utils.supervisor.sleep`) :
+# un silence de plusieurs minutes n'est donc jamais un fonctionnement normal.
+MAX_SILENCE_SECONDS = 300.0
 
 
 class PuppetMaster:
@@ -29,6 +36,10 @@ class PuppetMaster:
       • Régulation du chauffage
       • Push InfluxDB
       • Serveur HTTP (pages + API)
+
+    Chaque job est confié au `TaskSupervisor` : il est relancé après remise à
+    l'état sûr, son battement de cœur est surveillé, et sa santé conditionne le
+    coup de patte au watchdog. Une régulation ne peut plus s'arrêter en silence.
     """
 
     def __init__(
@@ -53,14 +64,16 @@ class PuppetMaster:
         self.motor_handler      = motor_handler
         self.heater             = heater_component
 
-        self._tasks: list[asyncio.Task] = []
+        self.supervisor = TaskSupervisor()
 
         info("PuppetMaster initialisé", name=LOGGER_NAME)
 
     def _set_global_exception(self) -> None:
         """
-        Avant : on arrêtait toute la boucle.
-        Maintenant : on log seulement.
+        Filet de dernier recours : le superviseur attrape déjà tout ce qui vient
+        des tâches métier. Ce qui remonte ici (callbacks, tâches nues) est
+        journalisé sans arrêter la boucle — une serre ne s'éteint pas sur une
+        exception isolée.
         """
         def _handler(loop, context):
             exc = context.get("exception")
@@ -79,78 +92,76 @@ class PuppetMaster:
 
         asyncio.get_event_loop().set_exception_handler(_handler)
 
-    def _spawn(self, loop, coro, name: str) -> asyncio.Task:
-        """
-        Crée une tâche nommée, en garde la référence (sinon le GC peut la
-        collecter) et signale toute terminaison : ces boucles sont infinies,
-        leur fin est TOUJOURS une anomalie.
-        """
-        task = loop.create_task(coro, name=name)
-        task.add_done_callback(self._task_finished)
-        self._tasks.append(task)
-        return task
-
+    # ──────────────────────────────────────────────────────────
+    #  États sûrs, appliqués AVANT chaque relance de tâche
+    # ──────────────────────────────────────────────────────────
     @staticmethod
-    def _task_finished(task: asyncio.Task) -> None:
-        name = task.get_name()
-        if task.cancelled():
-            # Seul l'arrêt du processus annule ces tâches : c'est le déroulé normal
-            debug(f"Tâche « {name} » annulée (arrêt)", name=LOGGER_NAME)
-            return
+    def _component_off(component):
+        """Coupe une sortie active-BAS (`set_state(0)` → GPIO HIGH)."""
+        def _safe():
+            component.set_state(0)
+        return _safe
 
-        exc = task.exception()
-        if exc is not None:
-            tb = "".join(
-                traceback.format_exception(type(exc), exc, exc.__traceback__)
-            ).strip()
-            error(f"Tâche « {name} » interrompue par une exception :\n{tb}",
-                  name=LOGGER_NAME)
-        else:
-            error(f"Tâche « {name} » terminée alors qu'elle ne devrait jamais s'arrêter",
-                  name=LOGGER_NAME)
+    def _motor_off(self) -> None:
+        """État sûr moteur : les 4 relais actifs-HAUT à LOW."""
+        self.motor_handler.all_off()
 
-    async def main_loop(self) -> None:
-        self._set_global_exception()
-        loop = asyncio.get_event_loop()
+    # ──────────────────────────────────────────────────────────
+    def _register_jobs(self) -> None:
+        sup = self.supervisor
 
         # --- Daily timers ---
-        self._spawn(
-            loop,
-            timer_daily(self.dailytimer1, self.config, sampling_time=60),
+        sup.register(
             "daily_timer_1",
+            lambda: timer_daily(self.dailytimer1, self.config, sampling_time=60),
+            safe_state=self._component_off(self.dailytimer1.component),
+            max_silence=MAX_SILENCE_SECONDS,
         )
-        self._spawn(
-            loop,
-            timer_daily(self.dailytimer2, self.config, sampling_time=60),
+        sup.register(
             "daily_timer_2",
+            lambda: timer_daily(self.dailytimer2, self.config, sampling_time=60),
+            safe_state=self._component_off(self.dailytimer2.component),
+            max_silence=MAX_SILENCE_SECONDS,
         )
 
         # --- Cyclic timers ---
-        self._spawn(loop, timer_cyclic(self.cyclic_timer1), "cyclic_timer_1")
-        self._spawn(loop, timer_cyclic(self.cyclic_timer2), "cyclic_timer_2")
+        sup.register(
+            "cyclic_timer_1",
+            lambda: timer_cyclic(self.cyclic_timer1),
+            safe_state=self._component_off(self.cyclic_timer1.component),
+            max_silence=MAX_SILENCE_SECONDS,
+        )
+        sup.register(
+            "cyclic_timer_2",
+            lambda: timer_cyclic(self.cyclic_timer2),
+            safe_state=self._component_off(self.cyclic_timer2.component),
+            max_silence=MAX_SILENCE_SECONDS,
+        )
 
         # --- Contrôle moteur ---
-        self._spawn(
-            loop,
-            temp_control(
+        sup.register(
+            "motor_temp_control",
+            lambda: temp_control(
                 motor_handler=self.motor_handler,
                 config=self.config,
                 sensor_handler=self.sensor_handler,
-                sampling_time=15
+                sampling_time=15,
             ),
-            "motor_temp_control",
+            safe_state=self._motor_off,
+            max_silence=MAX_SILENCE_SECONDS,
         )
 
         # --- Contrôle chauffage ---
-        self._spawn(
-            loop,
-            heat_control(
+        sup.register(
+            "heat_control",
+            lambda: heat_control(
                 heater_component=self.heater,
                 sensor_handler=self.sensor_handler,
                 config=self.config,
-                sampling_time=30
+                sampling_time=30,
             ),
-            "heat_control",
+            safe_state=self._component_off(self.heater),
+            max_silence=MAX_SILENCE_SECONDS,
         )
 
         # --- InfluxDB push ---
@@ -163,26 +174,51 @@ class PuppetMaster:
                   name=LOGGER_NAME)
 
         if self.config.network.host_machine_state.lower() == "online":
-            self._spawn(loop, write_sensor_values(period=60), "influx_push")
+            # Pas d'état sûr : l'export ne pilote aucune sortie. Le silence
+            # toléré couvre largement les 20 s de gel possibles (audit E4).
+            sup.register(
+                "influx_push",
+                lambda: write_sensor_values(period=60),
+                max_silence=MAX_SILENCE_SECONDS,
+            )
         else:
             warning("InfluxDB : hôte hors-ligne → export désactivé", name=LOGGER_NAME)
 
         # --- Serveur HTTP ---
-        self._spawn(
-            loop,
-            Server(
-                controller_status=self.controller_status,
-                sensor_handler=self.sensor_handler,
-                config=self.config,
-            ).run(),
-            "http_server",
+        # `max_silence=None` : rester en attente de connexion **est** son
+        # fonctionnement normal, un silence n'y prouve rien.
+        # Instance unique : `run()` referme sa socket en sortant (`async with`),
+        # donc une relance rouvre proprement le port sans recréer les stats.
+        server = Server(
+            controller_status=self.controller_status,
+            sensor_handler=self.sensor_handler,
+            config=self.config,
+            supervisor=self.supervisor,
+        )
+        sup.register("http_server", server.run, max_silence=None)
+
+    # ──────────────────────────────────────────────────────────
+    async def main_loop(self) -> None:
+        self._set_global_exception()
+        loop = asyncio.get_event_loop()
+
+        self._register_jobs()
+        self.supervisor.start()
+
+        # Watchdog : tâche nue et volontairement non supervisée — si elle meurt,
+        # plus personne ne caresse et le redémarrage survient. C'est le bon sens
+        # de la panne (audit E2).
+        loop.create_task(
+            watchdog.watchdog_loop(
+                self.supervisor.is_healthy,
+                self.supervisor.unhealthy_names,
+            ),
+            name="watchdog",
         )
 
-        info(
-            "Tâches démarrées : "
-            + ", ".join(t.get_name() for t in self._tasks),
-            name=LOGGER_NAME,
-        )
+        # systemd `Type=notify` : le service n'est déclaré prêt qu'une fois les
+        # tâches de régulation lancées, pas au démarrage du processus.
+        watchdog.notify_ready()
 
-        # boucle infinie
-        await asyncio.Event().wait()
+        debug("Boucle principale : attente des tâches supervisées", name=LOGGER_NAME)
+        await self.supervisor.wait()

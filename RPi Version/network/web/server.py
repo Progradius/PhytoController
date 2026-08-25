@@ -25,6 +25,7 @@ from model.SensorStats import SensorStats
 from param.config import AppConfig
 from controllers.SensorController import SensorController
 from network.web import influx_handler
+from components.heater_control import get_heater_alarm
 
 LOGGER_NAME = "http"
 
@@ -53,12 +54,15 @@ class Server:
         config: AppConfig,
         host: str = "0.0.0.0",
         port: int = 8123,
+        supervisor=None,
     ):
         self.controller_status = controller_status
         self.sensor_handler = sensor_handler
         self.config = config
         self.host = host
         self.port = port
+        # `TaskSupervisor` (optionnel) : publie la santé des tâches sur /status.
+        self.supervisor = supervisor
 
         # Min/max stats
         self.stats = SensorStats()
@@ -279,7 +283,15 @@ class Server:
                     "period": getattr(self.config.cyclic1, "period_days", 1),
                     "duration": self.config.cyclic1.action_duration_seconds,
                 },
+                # Alarme chauffage persistante (audit C10) : None si tout va bien.
+                "heater_alarm": get_heater_alarm(),
             }
+            # Santé des tâches supervisées (audit C6) : c'est ici, et nulle part
+            # ailleurs, qu'on voit qu'une régulation s'est arrêtée ou redémarre
+            # en boucle.
+            if self.supervisor is not None:
+                payload["healthy"] = self.supervisor.is_healthy()
+                payload["tasks"] = self.supervisor.snapshot()
             body, ctype, status = (
                 json.dumps(payload).encode("utf-8"),
                 "application/json",

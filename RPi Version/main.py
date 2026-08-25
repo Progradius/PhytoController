@@ -6,17 +6,16 @@ import asyncio
 import signal
 import sys
 import atexit
-import threading
-import time
-import os   # ← ajouté
+import os
 
 import RPi.GPIO as GPIO
 from utils import pretty_console as ui
 from utils.pretty_console import (
-    title, action, debug, success, warning, error, exception, clock,
+    title, action, success, warning, error, exception, clock,
 )
 from utils.log_stream import console_stream
 from utils.single_instance import ensure_single_instance
+from utils import watchdog
 from function import motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
 from network.network_handler import do_connect, is_host_connected
 
@@ -49,15 +48,10 @@ ensure_single_instance()
 
 # mode de run (pour désactiver certaines fonctions en service)
 RUN_AS_SERVICE = os.getenv("PHYTO_RUN_MODE", "").lower() == "service"
-# si PHYTO_HW_WATCHDOG=0 → on ne lance pas le thread watchdog
-DISABLE_HW_WATCHDOG = os.getenv("PHYTO_HW_WATCHDOG", "0") == "0"
 
 # Pins non-moteur qu'on peut forcer à HIGH sans danger
 GENERIC_SAFE_PINS = []          # on remplira après chargement config
 MOTOR_PINS = []                 # on remplira après chargement config
-watchdog_thread = None
-watchdog_active = False
-watchdog_stop = threading.Event()
 # `cleanup_gpio()` est atteignable par trois chemins (handler de signal,
 # `atexit`, `finally` de la boucle principale) : on ne rejoue pas la séquence.
 gpio_safe_state_done = False
@@ -118,23 +112,9 @@ def cleanup_gpio():
     success("Broches maintenues à l'état sûr (sorties pilotées)", name=LOGGER_NAME)
 
 
-def disable_watchdog():
-    """Désactive /dev/watchdog si possible"""
-    global watchdog_active
-    if not watchdog_active:
-        return
-    try:
-        with open("/dev/watchdog", "w") as f:
-            f.write("V")
-        success("Watchdog matériel désactivé proprement", name=LOGGER_NAME)
-    except Exception as e:
-        warning(f"Impossible de désactiver le watchdog : {e}", name=LOGGER_NAME)
-
-
 def handle_exit_signal(signum, frame):
     warning(f"Signal {signum} reçu → arrêt sécurisé", name=LOGGER_NAME)
-    disable_watchdog()
-    watchdog_stop.set()
+    watchdog.close_hw_watchdog()
     cleanup_gpio()
     sys.exit(0)
 
@@ -143,25 +123,12 @@ def handle_exit_signal(signum, frame):
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
     signal.signal(sig, handle_exit_signal)
 
-# Enregistrement automatique à la fin du programme
-atexit.register(disable_watchdog)
+# Enregistrement automatique à la fin du programme.
+# `close_hw_watchdog()` écrit le « magic close » sur le descripteur conservé par
+# `utils.watchdog` : il désarme le watchdog au lieu de laisser la machine
+# redémarrer après un arrêt volontaire.
+atexit.register(watchdog.close_hw_watchdog)
 atexit.register(cleanup_gpio)
-
-
-def watchdog_worker():
-    """Thread d'écriture régulière sur /dev/watchdog"""
-    global watchdog_active
-    try:
-        with open("/dev/watchdog", "w") as f:
-            watchdog_active = True
-            success("Watchdog matériel activé", name=LOGGER_NAME)
-            while not watchdog_stop.is_set():
-                f.write("\n")
-                f.flush()
-                time.sleep(10)
-    except Exception as e:
-        warning(f"Watchdog matériel non disponible : {e}", name=LOGGER_NAME)
-        watchdog_active = False
 
 
 # =============================================================
@@ -282,12 +249,9 @@ puppet_master = PuppetMaster(
 # (12) Info mémoire
 check_ram_usage()
 
-# Lancement du watchdog dans un thread
-if not DISABLE_HW_WATCHDOG:
-    watchdog_thread = threading.Thread(target=watchdog_worker, daemon=True)
-    watchdog_thread.start()
-else:
-    debug("Watchdog matériel désactivé (mode service ou variable d'env)", name=LOGGER_NAME)
+# Le watchdog n'est plus un thread aveugle : il est armé et caressé depuis
+# l'event loop par `PuppetMaster`, et **uniquement** si toutes les tâches
+# supervisées sont vivantes et récentes (audit E2).
 
 # =============================================================
 #                   BOUCLE PRINCIPALE ASYNCIO
@@ -300,9 +264,7 @@ except KeyboardInterrupt:
 except Exception as e:
     exception(f"Crash : {e}", name=LOGGER_NAME)
 finally:
-    watchdog_stop.set()
-    if watchdog_thread and watchdog_thread.is_alive():
-        watchdog_thread.join(timeout=2)
-    # idempotent : `atexit` et le handler de signal l'ont peut-être déjà fait
+    # idempotents : `atexit` et le handler de signal les ont peut-être déjà appelés
+    watchdog.close_hw_watchdog()
     cleanup_gpio()
-    success("Programme terminé (watchdog arrêté, GPIO à l'état sûr)", name=LOGGER_NAME)
+    success("Programme terminé (watchdog désarmé, GPIO à l'état sûr)", name=LOGGER_NAME)
