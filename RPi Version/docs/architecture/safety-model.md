@@ -56,7 +56,8 @@ Limite : aucun code Python ne s'exécute entre la mise sous tension du Pi et ce 
 
 - une tâche de contrôle publie des heartbeats ;
 - si elle lève une exception, le superviseur applique son état sûr puis la relance avec back-off ;
-- si elle reste silencieuse trop longtemps, le veilleur l'annule et la relance ;
+- si elle reste silencieuse trop longtemps, le veilleur l'annule, applique l'état sûr et la relance ;
+- si une sauvegarde de configuration demande un rechargement volontaire (`request_reload()`), la tâche est annulée et relancée **sans** repositionnement de l'état sûr : elle était saine, et couper la charge à chaque enregistrement ferait clignoter le relais. Ce qui doit être relâché l'est déjà par les `finally` de la tâche — le contexte `energized()` coupe sa sortie à l'annulation ;
 - si le superviseur devient malsain, le watchdog n'est plus caressé ;
 - si l'event loop entier est bloqué, ni le veilleur ni la caresse ne progressent, ce qui laisse systemd déclencher le redémarrage.
 

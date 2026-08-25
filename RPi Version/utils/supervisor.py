@@ -289,8 +289,14 @@ class TaskSupervisor:
                     name=LOGGER_NAME,
                 )
 
-            self._to_safe_state(job)
             if manual_reload:
+                # Pas d'état sûr ici, contrairement à une panne : le travail
+                # était sain, il est relancé volontairement pour prendre une
+                # nouvelle consigne. Repositionner l'état sûr couperait la
+                # charge à chaque sauvegarde d'une section de configuration —
+                # une lampe qui cligne à chaque clic. Ce qui *doit* être
+                # relâché l'est déjà par les `finally` du travail lui-même :
+                # le contexte `energized()` coupe sa sortie à l'annulation.
                 job.reloads += 1
                 job.last_error = None
                 info(
@@ -299,6 +305,11 @@ class TaskSupervisor:
                     name=LOGGER_NAME,
                 )
                 continue
+
+            # Panne, blocage ou terminaison anormale : l'état sûr est repositionné
+            # avant toute relance, et avant le back-off — la charge ne reste pas
+            # alimentée pendant que le superviseur attend.
+            self._to_safe_state(job)
             job.restarts += 1
 
             if monotonic() - started >= BACKOFF_RESET_AFTER_SECONDS:

@@ -45,3 +45,11 @@ Les commandes d'écrasement sont volontairement absentes de cette première vers
 ## Critère de réussite
 
 Une sauvegarde n'est qualifiée que si elle peut restaurer configuration, statistiques et unité systemd sur un Pi de remplacement, avec secrets injectés séparément et vérifications matérielles avant raccordement des charges.
+
+## `param/.csrf_token`
+
+Ce fichier contient le jeton CSRF de l'interface web (mode 0600, ignoré par git). Il **n'est pas
+sauvegardé** par `scripts/deploy.sh` et n'a pas à l'être : `git reset --hard` et `git checkout` ne
+suppriment pas les fichiers ignorés, il survit donc à un déploiement. S'il disparaît, le serveur en
+génère un nouveau au démarrage ; la seule conséquence est que les pages laissées ouvertes devront
+être rechargées. Ne pas le recopier vers une autre machine.

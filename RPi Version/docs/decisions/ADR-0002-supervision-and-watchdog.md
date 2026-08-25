@@ -9,7 +9,8 @@ Des tâches asyncio pouvaient mourir tandis que le processus et HTTP restaient v
 ## Décision
 
 - Chaque travail métier long est lancé par une fabrique sous `TaskSupervisor`.
-- Une sortie reçoit un état sûr appliqué avant relance.
+- Une sortie reçoit un état sûr appliqué avant relance **après une panne, un blocage ou une terminaison anormale**.
+- Un rechargement volontaire après changement de configuration ne repositionne pas l'état sûr : la tâche était saine, et le `finally` d'`energized()` couvre déjà ce qui doit être relâché.
 - Heartbeats et silence maximal détectent les blocages.
 - Le watchdog tourne dans l'event loop et n'est caressé que si le superviseur est sain.
 - systemd utilise 600 s, supérieur aux 300 s du superviseur ; caresse plafonnée à 30 s.

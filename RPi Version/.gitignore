@@ -69,6 +69,7 @@ logs/
 
 # Paramètres locaux & secrets
 *.env
+param/.csrf_token
 
 # MicroPython precompiled files (si présents)
 *.mpy

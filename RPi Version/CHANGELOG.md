@@ -31,6 +31,13 @@ fumigation HTTP hors matériel (aiohttp `TestClient`, stubs GPIO/I²C).
 - Code mort supprimé : `network/web/api_handler.py`, `templates/monitor.html`, et
   `SystemStatus.get_cyclic_period()` qui lisait un champ inexistant.
 - `requirements.txt` : `requests` retiré, `jinja2` et `aiohttp>=3.12.15,<3.14` requis.
+- Jeton CSRF persistant (`utils/csrf.py`, `param/.csrf_token` en 0600, hors git) : un redémarrage
+  du service n'invalide plus les pages laissées ouvertes.
+- Rechargement volontaire d'une tâche : l'état sûr n'est plus repositionné, une sauvegarde de
+  configuration ne fait donc plus clignoter la sortie concernée. L'état sûr reste appliqué sur
+  panne, blocage et terminaison anormale.
+- `SensorStats` sérialisé par un `RLock` et `get_all()` renvoyant une copie : plus de mise à jour
+  perdue entre le fil des capteurs et la réinitialisation depuis l'IHM.
 
 ### Documentation
 

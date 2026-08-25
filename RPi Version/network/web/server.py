@@ -6,7 +6,6 @@ import asyncio
 import hmac
 import ipaddress
 import os
-import secrets
 import socket
 import urllib.parse
 from datetime import datetime, timezone
@@ -20,6 +19,7 @@ from controllers.sensor_catalog import SENSOR_CATALOG
 from network.web import influx_handler
 from network.web.pages import conf_page, console_page, error_page, main_page
 from utils import pretty_console as ui
+from utils.csrf import load_or_create_token
 from utils.log_stream import console_stream
 from utils.pretty_console import debug, error, info, success, warning
 
@@ -167,7 +167,9 @@ class Server:
         self.cyclic_timer2 = cyclic_timer2
         self.heater_component = heater_component
         self.stats = sensor_handler.stats
-        self.csrf_token = secrets.token_urlsafe(32)
+        # Jeton persistant : un redémarrage du service ne doit pas invalider
+        # les pages laissées ouvertes (voir utils/csrf.py).
+        self.csrf_token = load_or_create_token()
         self._runner: web.AppRunner | None = None
         self._allowed_names = self._build_allowed_names()
         console_stream.install()

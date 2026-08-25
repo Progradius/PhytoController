@@ -2,7 +2,9 @@
 # Author: Progradius
 # License: AGPL-3.0
 
+import copy
 import json
+import threading
 from pathlib import Path
 from datetime import datetime
 from utils.pretty_console import warning
@@ -27,6 +29,14 @@ class SensorStats:
     KEYS = ("BME280T", "BME280H", "DS18B#3")
 
     def __init__(self):
+        # Les min/max sont mis à jour depuis le fil d'exécution des capteurs et
+        # remis à zéro depuis l'event loop (bouton du tableau de bord). Sans
+        # verrou, deux `_dump()` concurrents restent atomiques au niveau du
+        # fichier, mais la dernière écriture écrase silencieusement l'autre
+        # mise à jour. Un `RLock` sérialise lecture, modification et écriture,
+        # et supporte les appels imbriqués (`update()` → `_dump()`).
+        self._lock = threading.RLock()
+
         # 1) S'assure que le dossier existe
         self.FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -58,11 +68,9 @@ class SensorStats:
         prochain boot, perdant l'historique min/max).
         """
         try:
-            write_text_atomic(
-                self.FILE,
-                json.dumps(self.data, indent=4),
-                encoding="utf-8",
-            )
+            with self._lock:
+                payload = json.dumps(self.data, indent=4)
+                write_text_atomic(self.FILE, payload, encoding="utf-8")
         except OSError as e:
             _dump_state.fail(f"{e.__class__.__name__} : {e}")
         else:
@@ -76,42 +84,49 @@ class SensorStats:
             return
 
         now = datetime.now().isoformat()
-        entry = self.data[key]
+        with self._lock:
+            entry = self.data[key]
 
-        if entry["min"] is None or value < entry["min"]:
-            entry["min"] = value
-            entry["min_date"] = now
+            if entry["min"] is None or value < entry["min"]:
+                entry["min"] = value
+                entry["min_date"] = now
 
-        if entry["max"] is None or value > entry["max"]:
-            entry["max"] = value
-            entry["max_date"] = now
+            if entry["max"] is None or value > entry["max"]:
+                entry["max"] = value
+                entry["max_date"] = now
 
-        self._dump()
+            self._dump()
 
     def clear_key(self, key: str = None):
         """
         Remet à None le min/max pour une clé donnée,
         ou pour toutes les clés si key est None.
         """
-        if key is None:
-            for k in self.KEYS:
-                self.data[k] = {"min": None, "min_date": None, "max": None, "max_date": None}
-        elif key in self.data:
-            self.data[key] = {"min": None, "min_date": None, "max": None, "max_date": None}
-        self._dump()
+        with self._lock:
+            if key is None:
+                for k in self.KEYS:
+                    self.data[k] = {"min": None, "min_date": None, "max": None, "max_date": None}
+            elif key in self.data:
+                self.data[key] = {"min": None, "min_date": None, "max": None, "max_date": None}
+            self._dump()
 
     @property
     def stats(self) -> dict:
         """
-        Expose le dictionnaire interne de stats.
+        Copie des statistiques, sûre à parcourir depuis un autre fil.
         """
-        return self.data
+        return self.get_all()
 
     def get_all(self) -> dict:
         """
-        Retourne tout le dictionnaire de stats.
+        Retourne une **copie** des statistiques.
+
+        Rendre le dictionnaire interne exposerait l'appelant à une modification
+        concurrente pendant qu'il le parcourt (l'IHM lit pendant que le fil des
+        capteurs écrit).
         """
-        return self.data
+        with self._lock:
+            return copy.deepcopy(self.data)
     
     def _default_data(self) -> dict:
         return {

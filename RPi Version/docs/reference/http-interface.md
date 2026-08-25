@@ -32,9 +32,12 @@ est la liste exhaustive des chemins servis, ce qui remplace l'ancien `/static/` 
 ## Règles de sécurité appliquées
 
 - Aucun effet persistant ou destructeur derrière un GET.
-- **CSRF** : jeton par processus, comparé en temps constant sur `POST`, `PUT`, `PATCH`, `DELETE`.
-  Il est présent dans chaque formulaire et dans `<meta name="csrf-token">`. Un redémarrage du
-  service invalide les pages ouvertes : recharger avant de soumettre.
+- **CSRF** : jeton comparé en temps constant sur `POST`, `PUT`, `PATCH`, `DELETE`, présent dans
+  chaque formulaire et dans `<meta name="csrf-token">`. Il est **persistant** : conservé dans
+  `param/.csrf_token` (mode 0600, hors git), il survit à un redémarrage du service, de sorte
+  qu'une page laissée ouverte pendant un `systemctl restart` reste valide. Un fichier absent,
+  illisible ou corrompu entraîne la génération d'un nouveau jeton ; si l'écriture échoue, le
+  serveur retombe sur un jeton en mémoire et le journalise.
 - **Origin** : un `Origin` présent et différent du `Host` est refusé (403). Une requête sans
   `Origin`, telle que `curl`, reste acceptée : le jeton CSRF est alors la seule barrière.
 - **Host** : seuls `localhost`, le nom de la machine, `<nom>.local`, les adresses privées, de
@@ -81,10 +84,14 @@ intacts. Les sections connues sont : `life`, `daily-timer-1`, `daily-timer-2`, `
 | `daily-timer-*`, `cyclic-*`, `temperature`, `heater`, `motor` | `supervisor.request_reload()` du ou des travaux concernés |
 | `wifi` | Aucun : redémarrage requis, la page l'indique |
 
-`request_reload()` **repasse la sortie concernée par son état sûr** avant de relancer le
-travail : une sortie peut donc être brièvement coupée puis rétablie à la sauvegarde d'une
-section de planification. C'est délibéré — l'alternative serait de relancer une boucle en
-gardant un relais fermé sur une consigne périmée.
+`request_reload()` annule puis relance le travail **sans repositionner son état sûr** : la
+tâche était saine, et couper la charge à chaque enregistrement ferait clignoter le relais. Une
+sortie garde donc son état pendant que la boucle repart et le réévalue immédiatement.
+
+Une exception subsiste, et elle est voulue : un timer cyclique annulé **pendant sa fenêtre ON**
+voit le `finally` de `Component.energized()` couper sa sortie. Une sortie ne doit jamais rester
+fermée alors que la boucle qui la surveille a disparu ; la fenêtre suivante reprend
+normalement.
 
 ## Actions système
 

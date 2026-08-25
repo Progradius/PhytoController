@@ -69,7 +69,10 @@ to `PuppetMaster`.
   `asyncio.sleep(...)` so a long *intended* wait (up to 10 days for a cyclic timer) is not mistaken for a
   block. The job is carried by a `contextvars` variable, so no business signature has to thread it through.
   `snapshot()` / `is_healthy()` feed the state/health APIs and gate the watchdog. `request_reload()`
-  deliberately cancels and restarts a control job after reapplying its safe state when configuration changes.
+  cancels and restarts a control job when configuration changes and **deliberately skips the safe state**:
+  the job was healthy, and re-applying OFF on every save would blink the relay. The safe state is for
+  faults, stalls and abnormal returns only — what must be released on cancellation is already released by
+  the job's own `finally` (`energized()`). Do not "restore symmetry" here.
 - `utils/watchdog.py` — the watchdog is **conditional**: it only pets (systemd `WATCHDOG=1` if
   `NOTIFY_SOCKET`/`WATCHDOG_USEC` are set, otherwise `/dev/watchdog`) while `supervisor.is_healthy()`.
   A blind pet is worse than none: it certifies a process whose regulation may be dead. The `/dev/watchdog`
@@ -109,7 +112,9 @@ to `PuppetMaster`.
   security headers and no-store on dynamic responses. `/conf/{section}` builds and validates a complete
   candidate `AppConfig` before the atomic save; blank secret fields mean “unchanged”, and GPIO is read-only.
   Errors ≥400 render `templates/error.html` for a browser and stay plain text for anything else —
-  redirects are `HTTPException`s too and must never go through that path.
+  redirects are `HTTPException`s too and must never go through that path. The CSRF token comes from
+  `utils/csrf.py` and is **persisted** in `param/.csrf_token` (0600, gitignored) so a `systemctl restart`
+  does not 403 every page left open; a fresh token per process was pure friction, not extra safety.
 - `network/web/pages.py` — Jinja2 with autoescape; asset URLs carry a content hash so a redeployed
   CSS/JS file is not served from cache. Every page must stay inline-script/style free: the CSP has
   no `unsafe-inline`.

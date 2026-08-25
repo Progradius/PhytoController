@@ -200,13 +200,29 @@ restaurés) : **55 contrôles, aucun échec**.
 - `pages.error_page()` et `templates/error.html` étaient du code mort : ils rendent maintenant
   les erreurs ≥ 400 destinées à un navigateur, redirections exclues.
 
-**Points d'attention non corrigés** :
+**Points d'attention traités ensuite** (correctifs suivants, mêmes conditions de vérification —
+harnais `/tmp/claude-1000/phyto/test_fixes.py`, **21 contrôles, aucun échec**) :
 
-- Le jeton CSRF est régénéré à chaque démarrage : une page laissée ouverte pendant un
-  redémarrage du service donne un 403 à la soumission. Recharger avant d'enregistrer.
-- Sauvegarder une section de planification **coupe brièvement la sortie concernée** : la relance
-  volontaire réapplique l'état sûr avant de repartir. C'est délibéré, mais visible sur une charge.
-- `SensorStats` est écrit depuis le fil des capteurs et depuis l'event loop (réinitialisation
-  web) sans verrou. L'écriture reste atomique ; seule une mise à jour peut être perdue.
+- [x] **Jeton CSRF régénéré à chaque démarrage** → `utils/csrf.py` : jeton persistant dans
+      `param/.csrf_token` (0600, ignoré par git). Un `systemctl restart` n'invalide plus les
+      pages ouvertes. Fichier absent, tronqué ou corrompu → régénération ; écriture impossible →
+      repli sur un jeton en mémoire, journalisé, jamais fatal.
+      *Vérifié* : jeton identique après relecture, mode 0600, régénération sur contenu invalide,
+      repli sans exception sur chemin non inscriptible.
+- [x] **Sauvegarde d'une section coupant brièvement la sortie** → `TaskSupervisor._runner()` ne
+      repositionne plus l'état sûr sur un rechargement **volontaire**. Il le fait toujours sur
+      panne, blocage et terminaison anormale, et toujours **avant** le back-off.
+      *Vérifié* : `request_reload()` relance sans appeler `safe_state`, `reloads=1`,
+      `restarts=0` ; une panne simulée appelle bien `safe_state` et incrémente `restarts`.
+      *Résidu voulu* : un timer cyclique annulé pendant sa fenêtre ON voit sa sortie coupée par
+      le `finally` d'`energized()` — une sortie ne doit pas rester fermée sans boucle pour la
+      surveiller.
+- [x] **`SensorStats` sans verrou** → `RLock` autour de `update()`, `clear_key()` et `_dump()`,
+      et `get_all()`/`stats` renvoient une copie profonde.
+      *Vérifié* : 4 fils concurrents (2 écrivains, 2 lecteurs, 800 mises à jour), aucune
+      exception, min/max exacts, copie non partagée, fichier relu cohérent.
+
+**Points d'attention restants** :
+
 - Le Pi exécute `aiohttp 3.11.18`, sous le plancher `>=3.12.15` du nouveau `requirements.txt` :
   `scripts/deploy.sh` met le venv à jour automatiquement, une installation manuelle non.
