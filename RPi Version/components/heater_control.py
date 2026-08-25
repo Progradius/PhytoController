@@ -1,7 +1,10 @@
 # controller/components/heater_control.py
 import asyncio
 from datetime import datetime
-from utils.pretty_console import info, warning
+from utils.pretty_console import debug, info
+from utils.log_dedup import StateLogger
+
+LOGGER_NAME = "heater"
 
 
 async def heat_control(
@@ -20,13 +23,15 @@ async def heat_control(
           - Sinon conserve l'état précédent
     """
     current_state = heater_component.get_state()  # récupération initiale
+    temp_state = StateLogger("Lecture de la température ambiante (chauffage)",
+                             name=LOGGER_NAME, level="warning")
 
     while True:
         if not config.heater_settings.enabled:
             if current_state != 0:
                 heater_component.set_state(0)
                 current_state = 0
-                info("Chauffage désactivé manuellement → OFF")
+                info("Chauffage désactivé manuellement → OFF", name=LOGGER_NAME)
             await asyncio.sleep(sampling_time)
             continue
 
@@ -43,22 +48,24 @@ async def heat_control(
         # Lecture température
         temp = sensor_handler.get_sensor_value("BME280T")
         if temp is None:
-            warning("Chauffage - lecture de la T ambiante échouée")
+            temp_state.fail()
         else:
+            temp_state.ok()
             seuil_off = temp_min + hysteresis
-            info(f"Chauffage – T={temp:.1f}°C, min={temp_min:.1f}, seuil OFF={seuil_off:.1f}")
+            debug(f"T={temp:.1f}°C, min={temp_min:.1f}, seuil OFF={seuil_off:.1f}",
+                  name=LOGGER_NAME)
 
             if temp <= temp_min and current_state == 0:
                 heater_component.set_state(1)
                 current_state = 1
-                info("Chauffage → ON")
+                info(f"Chauffage → ON (T={temp:.1f}°C ≤ {temp_min:.1f}°C)", name=LOGGER_NAME)
 
             elif temp > seuil_off and current_state == 1:
                 heater_component.set_state(0)
                 current_state = 0
-                info("Chauffage → OFF")
+                info(f"Chauffage → OFF (T={temp:.1f}°C > {seuil_off:.1f}°C)", name=LOGGER_NAME)
 
             else:
-                info(f"Chauffage → État conservé : {'ON' if current_state else 'OFF'}")
+                debug(f"État conservé : {'ON' if current_state else 'OFF'}", name=LOGGER_NAME)
 
         await asyncio.sleep(sampling_time)

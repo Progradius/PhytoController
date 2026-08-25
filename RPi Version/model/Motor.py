@@ -1,9 +1,11 @@
 
 import RPi.GPIO as GPIO
-from utils.pretty_console import info, warning, error
+from utils.pretty_console import debug, info, error
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
+
+LOGGER_NAME = "motor"
 
 
 class Motor:
@@ -28,7 +30,8 @@ class Motor:
         for p in (self.pin1, self.pin2, self.pin3, self.pin4):
             GPIO.setup(p, GPIO.OUT, initial=GPIO.LOW)
 
-        info(f"Moteur (active-HIGH) initialisé sur BCM {pin1}, {pin2}, {pin3}, {pin4}")
+        info(f"Moteur (active-HIGH) initialisé sur BCM {pin1}, {pin2}, {pin3}, {pin4}",
+             name=LOGGER_NAME)
 
     # ───────────────────── helpers internes ──────────────────
     def _set_pin(self, pin: int, high: bool) -> None:
@@ -37,9 +40,14 @@ class Motor:
         high=False → GPIO.LOW   → relais OFF
         """
         try:
+            changed = (GPIO.input(pin) == GPIO.HIGH) != high
             GPIO.output(pin, GPIO.HIGH if high else GPIO.LOW)
-        except RuntimeError as e:
-            warning(f"[MOTOR] GPIO {pin} non prêt : {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            error(f"GPIO {pin} non pilotable : {e}", name=LOGGER_NAME)
+            return
+
+        if changed:
+            debug(f"GPIO {pin} ← {'HIGH' if high else 'LOW'}", name=LOGGER_NAME)
 
     # setters simples
     def set_pin1_value(self, high: bool): self._set_pin(self.pin1, high)
@@ -61,8 +69,8 @@ class Motor:
                 3: GPIO.input(self.pin3) == GPIO.HIGH,
                 4: GPIO.input(self.pin4) == GPIO.HIGH,
             }
-        except RuntimeError as e:
-            warning(f"[MOTOR] Lecture vitesse impossible (GPIO nettoyés ?) : {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            error(f"Lecture vitesse impossible (GPIO nettoyés ?) : {e}", name=LOGGER_NAME)
             return 0
 
         active = [spd for spd, on in states.items() if on]
@@ -73,7 +81,7 @@ class Motor:
             return active[0]
 
         # plusieurs pins à HIGH → c'est dangereux, mais ON NE TOUCHE PAS
-        error(f"[MOTOR] État dangereux : plusieurs relais moteur actifs : {active}")
+        error(f"État dangereux : plusieurs relais moteur actifs : {active}", name=LOGGER_NAME)
         return 0
 
     # ───────────────────────── utilitaire ─────────────────────

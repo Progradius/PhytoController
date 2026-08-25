@@ -19,7 +19,10 @@ from sensor_handlers.TSL2591Handler  import TSL2591Handler
 from sensor_handlers.HCSR04Handler   import HCSR04Handler
 
 # Affichage « Pretty »
-from utils.pretty_console import info, warning, error
+from utils.pretty_console import debug, info, warning, error
+from utils.log_dedup import StateLogger
+
+LOGGER_NAME = "sensors"
 
 # Votre modèle de config
 from param.config import AppConfig
@@ -41,10 +44,16 @@ class SensorController:
         # ── Bus I2C (/dev/i2c-1) ───────────────────────────────────────
         try:
             self.i2c = smbus2.SMBus(1)
-            info("Bus I²C /dev/i2c-1 ouvert")
-        except FileNotFoundError as e:
-            error(f"Impossible d'ouvrir /dev/i2c-1 → {e}")
+            info("Bus I²C /dev/i2c-1 ouvert", name=LOGGER_NAME)
+        except (FileNotFoundError, PermissionError, OSError) as e:
+            error(f"Impossible d'ouvrir /dev/i2c-1 → {e.__class__.__name__} : {e}",
+                  name=LOGGER_NAME)
             self.i2c = None
+
+        # Échecs de lecture : une ligne à l'entrée en panne, une au rétablissement
+        self._read_states: Dict[str, StateLogger] = {}
+        self._stats_state = StateLogger("Mise à jour des min/max capteurs",
+                                        name=LOGGER_NAME, level="warning")
 
         # ── Activation selon AppConfig.sensors ─────────────────────────
         s = self.config.sensors
@@ -57,6 +66,12 @@ class SensorController:
         self.hcsr_enabled = s.hcsr04_state
 
         # Instanciation conditionnelle
+        i2c_users = (self.bme_enabled or self.veml_enabled
+                     or self.mlx_enabled or self.tsl_enabled)
+        if self.i2c is None and i2c_users:
+            warning("Bus I²C indisponible → capteurs I²C en mode dégradé (lectures None)",
+                    name=LOGGER_NAME)
+
         self.bme  = BME280Handler(i2c=self.i2c)   if self.bme_enabled else None
         self.ds18 = DS18Handler()                 if self.ds18_enabled else None
         self.veml = VEMLHandler(i2c=self.i2c)     if self.veml_enabled else None
@@ -70,7 +85,19 @@ class SensorController:
 
         # ── Dictionnaire de mesures pour Influx / Web ─────────────────
         self.sensor_dict = self._build_sensor_dict()
-        info(f"SensorController initialisé avec : {self.sensor_dict}")
+
+        # État des capteurs journalisé UNE fois, à l'init (et non en boucle)
+        etats = {
+            "BME280": self.bme_enabled, "DS18B20": self.ds18_enabled,
+            "VEML6075": self.veml_enabled, "VL53L0X": self.vl53_enabled,
+            "MLX90614": self.mlx_enabled, "TSL2591": self.tsl_enabled,
+            "HC-SR04": self.hcsr_enabled,
+        }
+        actifs   = [n for n, on in etats.items() if on] or ["aucun"]
+        inactifs = [n for n, on in etats.items() if not on] or ["aucun"]
+        info(f"Capteurs actifs : {', '.join(actifs)}", name=LOGGER_NAME)
+        info(f"Capteurs désactivés : {', '.join(inactifs)}", name=LOGGER_NAME)
+        debug(f"Mesures exportées : {self.sensor_dict}", name=LOGGER_NAME)
 
     def _is_sensor_enabled(self, sensor_name: str) -> bool:
         sensor_mapping = {
@@ -151,18 +178,33 @@ class SensorController:
                 result = self.hcsr.get_distance_cm()
 
         except Exception as e:
-            error(f"Erreur lecture capteur {sensor_key}: {e}")
-            result = None
+            self._state_for(sensor_key).fail(f"{e.__class__.__name__} : {e}")
+            return None
 
         if result is None:
-            warning(f"{sensor_key} désactivé ou introuvable")
+            if not self._is_sensor_enabled(sensor_key):
+                # Capteur volontairement désactivé : ce n'est pas une anomalie
+                debug(f"{sensor_key} désactivé", name=LOGGER_NAME)
+            else:
+                self._state_for(sensor_key).fail("lecture vide")
             return None
+
+        self._state_for(sensor_key).ok()
 
         stats = getattr(self, "stats", None)
         if stats and sensor_key in stats.KEYS:
             try:
                 stats.update(sensor_key, float(result))
-            except Exception:
-                pass
+                self._stats_state.ok()
+            except Exception as e:
+                self._stats_state.fail(f"{sensor_key} → {e.__class__.__name__} : {e}")
 
         return result
+
+    def _state_for(self, sensor_key: str) -> StateLogger:
+        """StateLogger dédié à un capteur (créé à la volée)."""
+        state = self._read_states.get(sensor_key)
+        if state is None:
+            state = StateLogger(f"Lecture {sensor_key}", name=LOGGER_NAME, level="warning")
+            self._read_states[sensor_key] = state
+        return state

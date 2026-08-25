@@ -9,6 +9,13 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, validator
 
+from utils import pretty_console as ui
+from utils.log_dedup import StateLogger
+
+# `load()` est appelée en boucle (toutes les 5-60 s) : on ne veut qu'une ligne
+# à l'entrée en panne et une au rétablissement.
+_load_state = StateLogger("Chargement de param.json", name="config")
+
 
 # ────────────────────────────────────────────────────────────────
 #  Blocs de configurations dédiés
@@ -119,6 +126,16 @@ class HeaterSettings(BaseModel):
         return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
+class LogSettings(BaseModel):
+    """Journalisation : niveau et rétention des archives quotidiennes."""
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field("INFO", alias="level")
+    retention_days: int = Field(14, alias="retention_days", ge=1)
+
+    @validator("level", pre=True)
+    def _normalise_level(cls, v):
+        return str(v).strip().upper() if v is not None else "INFO"
+
+
 class SensorState(BaseModel):
     bme280_state: bool
     ds18b20_state: bool
@@ -151,6 +168,7 @@ class AppConfig(BaseModel):
     gpio: GPIOSettings = Field(..., alias="GPIO_Settings")
     motor: MotorSettings = Field(..., alias="Motor_Settings")
     sensors: SensorState = Field(..., alias="Sensor_State")
+    logs: LogSettings = Field(default_factory=LogSettings, alias="Log_Settings")
 
     _path: ClassVar[Path] = Path(__file__).parent.parent / "param" / "param.json"
 
@@ -160,8 +178,15 @@ class AppConfig(BaseModel):
 
     @classmethod
     def load(cls) -> "AppConfig":
-        raw = json.loads(cls._path.read_text(encoding="utf-8"))
-        return cls.model_validate(raw)
+        try:
+            raw = json.loads(cls._path.read_text(encoding="utf-8"))
+            config = cls.model_validate(raw)
+        except Exception as exc:
+            # Appelée en boucle : on déduplique pour ne pas noyer le journal
+            _load_state.fail(f"{exc.__class__.__name__} : {exc}")
+            raise
+        _load_state.ok()
+        return config
 
     def save(self) -> None:
         payload = self.model_dump(by_alias=True, exclude={"_path"})
@@ -193,10 +218,18 @@ class AppConfig(BaseModel):
             for k, v in self.sensors.model_dump().items()
         }
 
-        self._path.write_text(
-            json.dumps(payload, indent=4, ensure_ascii=False),
-            encoding="utf-8"
-        )
+        try:
+            self._path.write_text(
+                json.dumps(payload, indent=4, ensure_ascii=False),
+                encoding="utf-8"
+            )
+        except OSError as exc:
+            ui.error(
+                f"Écriture de param.json impossible : {exc.__class__.__name__} : {exc}",
+                name="config",
+            )
+            raise
+        ui.debug("param.json enregistré", name="config")
 
 
 AppConfig.model_rebuild()

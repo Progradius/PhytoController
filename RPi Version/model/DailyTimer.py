@@ -9,7 +9,9 @@
 from datetime import datetime
 from function import convert_time_to_minutes
 from param.config import AppConfig
-from utils.pretty_console import info, warning, clock, action, success
+from utils.pretty_console import debug, info, error
+
+LOGGER_NAME = "timer.daily"
 
 
 class DailyTimer:
@@ -45,7 +47,8 @@ class DailyTimer:
             f"DailyTimer #{self.timer_id} chargé : "
             f"enabled={self.enabled} "
             f"{self.start_hour:02d}:{self.start_minute:02d} → "
-            f"{self.stop_hour:02d}:{self.stop_minute:02d}"
+            f"{self.stop_hour:02d}:{self.stop_minute:02d}",
+            name=LOGGER_NAME,
         )
 
         # Synchronisation immédiate
@@ -53,14 +56,18 @@ class DailyTimer:
             changed = self.toggle_state_daily()
             if changed:
                 state = "ON" if self.component.get_state() else "OFF"
-                success(f"DailyTimer #{self.timer_id} initialisé → {state}")
+                info(f"DailyTimer #{self.timer_id} initialisé → {state}", name=LOGGER_NAME)
         else:
             # si désactivé on force OFF tout de suite
-            action(f"DailyTimer #{self.timer_id} désactivé au chargement → OFF")
+            info(f"DailyTimer #{self.timer_id} désactivé au chargement → OFF", name=LOGGER_NAME)
             try:
                 self.component.set_state(0)
             except Exception as e:
-                warning(f"Impossible de forcer OFF le composant du DailyTimer #{self.timer_id} : {e}")
+                error(
+                    f"Impossible de forcer OFF le composant du DailyTimer "
+                    f"#{self.timer_id} : {e}",
+                    name=LOGGER_NAME,
+                )
 
     def refresh_from_config(self):
         """
@@ -76,11 +83,12 @@ class DailyTimer:
         self.stop_hour = blk.stop_hour
         self.stop_minute = blk.stop_minute
 
-        success(
-            f"DailyTimer #{self.timer_id} rafraîchi depuis AppConfig: "
+        debug(
+            f"DailyTimer #{self.timer_id} rafraîchi depuis AppConfig : "
             f"enabled={self.enabled} "
             f"{self.start_hour:02d}:{self.start_minute:02d} → "
-            f"{self.stop_hour:02d}:{self.stop_minute:02d}"
+            f"{self.stop_hour:02d}:{self.stop_minute:02d}",
+            name=LOGGER_NAME,
         )
 
     def get_component_state(self) -> bool:
@@ -92,7 +100,7 @@ class DailyTimer:
         blk.start_hour = h
         blk.start_minute = m
         self._config.save()
-        info(f"DailyTimer #{self.timer_id} start → {h:02d}:{m:02d}")
+        info(f"DailyTimer #{self.timer_id} start → {h:02d}:{m:02d}", name=LOGGER_NAME)
 
     def set_stop_time(self, h: int, m: int):
         self.stop_hour, self.stop_minute = h, m
@@ -100,7 +108,7 @@ class DailyTimer:
         blk.stop_hour = h
         blk.stop_minute = m
         self._config.save()
-        info(f"DailyTimer #{self.timer_id} stop → {h:02d}:{m:02d}")
+        info(f"DailyTimer #{self.timer_id} stop → {h:02d}:{m:02d}", name=LOGGER_NAME)
 
     def toggle_state_daily(self) -> bool:
         """
@@ -111,8 +119,8 @@ class DailyTimer:
         if not self.enabled:
             current = bool(self.component.get_state())
             if current:
-                clock(f"DailyTimer #{self.timer_id} désactivé → OFF")
-                action(f"Désactivation GPIO {self.component.pin}")
+                debug(f"DailyTimer #{self.timer_id} désactivé → extinction GPIO "
+                      f"{self.component.pin}", name=LOGGER_NAME)
                 self.component.set_state(0)
                 return True
             # rien à faire
@@ -132,14 +140,14 @@ class DailyTimer:
         changed = False
 
         if active and not current:
-            clock(f"DailyTimer #{self.timer_id} → ON")
-            action(f"Activation GPIO {self.component.pin}")
+            debug(f"DailyTimer #{self.timer_id} → ON (GPIO {self.component.pin})",
+                  name=LOGGER_NAME)
             self.component.set_state(1)
             changed = True
 
         if not active and current:
-            clock(f"DailyTimer #{self.timer_id} → OFF")
-            action(f"Désactivation GPIO {self.component.pin}")
+            debug(f"DailyTimer #{self.timer_id} → OFF (GPIO {self.component.pin})",
+                  name=LOGGER_NAME)
             self.component.set_state(0)
             changed = True
 

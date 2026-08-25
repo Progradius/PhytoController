@@ -13,6 +13,8 @@ pour :
 """
 
 from utils.pretty_console import error, warning, info
+
+LOGGER_NAME = "sensors.bme280"
 from typing import Optional, Callable
 
 
@@ -30,7 +32,7 @@ class BME280Handler:
         try:
             from lib.sensors.BME280 import BME280
         except ModuleNotFoundError as e:
-            error("Driver lib.sensors.BME280 introuvable : " + str(e))
+            error("Driver lib.sensors.BME280 introuvable : " + str(e), name=LOGGER_NAME)
             self.available = False
             self._sensor: Optional["BME280"] = None
             return
@@ -42,12 +44,12 @@ class BME280Handler:
             try:
                 self._sensor = BME280(i2c_bus=i2c)    # Variante adafruit
             except Exception as ex:                   # Autre problème
-                error(f"❌ Init BME280 impossible : {ex}")
+                error(f"Init BME280 impossible : {ex}", name=LOGGER_NAME)
                 self.available = False
                 self._sensor = None
                 return
 
-        info("✅ BME280 détecté et initialisé")
+        info("BME280 détecté et initialisé", name=LOGGER_NAME)
         self.available = True
 
         # Petites lambdas pour unifier l'API (lecture paresseuse)
@@ -80,7 +82,7 @@ class BME280Handler:
             val = self._read[key]()
             return round(val, 2) if isinstance(val, (int, float)) else val
         except Exception as e:
-            warning(f"BME280 : erreur lecture {label_fr} → {e}")
+            warning(f"BME280 : erreur lecture {label_fr} → {e}", name=LOGGER_NAME)
             return None
 
     def _probe_method(self, names: tuple[str, str]) -> Callable[[], float]:

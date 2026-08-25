@@ -20,4 +20,4 @@ def toggle_state(component) -> None:
     component.set_state(new_state)
 
     txt = "ON" if new_state else "OFF"
-    ui.action(f"Toggling component → {txt}")
+    ui.debug(f"Bascule du composant → {txt}", name="gpio")

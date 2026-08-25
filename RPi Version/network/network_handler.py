@@ -10,7 +10,9 @@ from __future__ import annotations
 import os
 import subprocess
 
-from utils.pretty_console import info, success, warning, error, action
+from utils.pretty_console import debug, success, warning, error, action
+
+LOGGER_NAME = "network"
 from param.config       import AppConfig
 
 def do_connect() -> None:
@@ -23,12 +25,12 @@ def do_connect() -> None:
     ssid     = config.network.wifi_ssid
     password = config.network.wifi_password
 
-    action(f"Tentative de connexion au Wi-Fi SSID : '{ssid}'")
+    action(f"Tentative de connexion au Wi-Fi SSID : '{ssid}'", name=LOGGER_NAME)
 
     if os.geteuid() != 0:
         warning(
-            "Exécutez le script en root pour activer le Wi-Fi :\n"
-            "  sudo python3 main.py"
+            "Exécutez le script en root pour activer le Wi-Fi : sudo python3 main.py",
+            name=LOGGER_NAME,
         )
         return
 
@@ -40,10 +42,10 @@ def do_connect() -> None:
             ["nmcli", "device", "wifi", "connect", ssid, "password", password],
             check=True
         )
-        success("Connexion Wi-Fi réussie ✅")
+        success("Connexion Wi-Fi réussie", name=LOGGER_NAME)
 
     except subprocess.CalledProcessError as exc:
-        error(f"Erreur de connexion Wi-Fi : {exc}")
+        error(f"Erreur de connexion Wi-Fi : {exc}", name=LOGGER_NAME)
 
 
 def is_host_connected() -> str:
@@ -55,7 +57,7 @@ def is_host_connected() -> str:
     config = AppConfig.load()
     host = config.network.host_machine_address
 
-    info(f"Ping vers {host} …")
+    debug(f"Ping vers {host} …", name=LOGGER_NAME)
     try:
         ret = subprocess.run(
             ["ping", "-c", "1", "-W", "1", host],
@@ -63,12 +65,12 @@ def is_host_connected() -> str:
         ).returncode
 
         if ret == 0:
-            success("Hôte joignable 🎯")
+            success("Hôte joignable", name=LOGGER_NAME)
             return "online"
 
-        warning("Hôte injoignable")
+        warning("Hôte injoignable", name=LOGGER_NAME)
         return "offline"
 
     except Exception as exc:
-        error(f"Erreur ping : {exc}")
+        error(f"Erreur ping : {exc}", name=LOGGER_NAME)
         return "offline"

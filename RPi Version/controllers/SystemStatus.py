@@ -10,7 +10,9 @@ Fournit une vue « statut système » centralisée :
 
 from __future__             import annotations
 
-from utils.pretty_console      import info, warning
+from utils.pretty_console import debug, info
+
+LOGGER_NAME = "status"
 from param.config           import AppConfig
 
 
@@ -31,7 +33,7 @@ class SystemStatus:
         self._comp     = component
         self._motor    = motor
 
-        info("SystemStatus initialisé")
+        info("SystemStatus initialisé", name=LOGGER_NAME)
 
     # ──────────────────────────────────────────────────────────
     #  Lectures simples
@@ -44,7 +46,7 @@ class SystemStatus:
     def get_motor_speed(self) -> int | None:
         """Vitesse actuelle du moteur (0–4), ou None si aucun moteur."""
         if self._motor is None:
-            warning("get_motor_speed : aucun moteur déclaré")
+            debug("get_motor_speed : aucun moteur déclaré", name=LOGGER_NAME)
             return None
         return self._motor.get_motor_speed()
 

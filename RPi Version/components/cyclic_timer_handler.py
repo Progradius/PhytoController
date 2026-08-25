@@ -5,8 +5,10 @@
 import asyncio
 from datetime import datetime, timedelta, time, date
 
-from utils.pretty_console import box, warning
+from utils.pretty_console import box, debug, info, error
 from param.config import AppConfig
+
+LOGGER_NAME = "timer.cyclic"
 
 aSYNC_DAY = 24 * 3600
 
@@ -23,6 +25,7 @@ async def timer_cyclic(cyclic_timer) -> None:
 
     tid    = cyclic_timer.timer_id
     comp   = cyclic_timer.component
+    disabled_reported = False
 
     while True:
         # recharger complètement la conf
@@ -37,14 +40,21 @@ async def timer_cyclic(cyclic_timer) -> None:
         # ----- gestion du enabled -----
         enabled = getattr(cyc_conf, "enabled", True)
         if not enabled:
-            # on force OFF et on redort un peu
-            box(f"Cyclic #{tid} désactivé → GPIO {gpio_pin} OFF", color=aSYNC_COL_INFO)
+            # on force OFF puis on redort : un seul log à la transition
+            if not disabled_reported:
+                info(f"Cyclic #{tid} désactivé → GPIO {gpio_pin} OFF", name=LOGGER_NAME)
+                disabled_reported = True
             try:
                 comp.set_state(0)
             except Exception as e:
-                warning(f"Cyclic #{tid} OFF échoué: {e}")
+                error(f"Cyclic #{tid} : extinction du GPIO {gpio_pin} échouée → {e}",
+                      name=LOGGER_NAME)
             await asyncio.sleep(5)
             continue
+
+        if disabled_reported:
+            info(f"Cyclic #{tid} réactivé", name=LOGGER_NAME)
+            disabled_reported = False
         # ------------------------------
 
         # si activé → on réinjecte la conf dans l'instance existante
@@ -64,7 +74,7 @@ async def timer_cyclic(cyclic_timer) -> None:
             days_offset = (period_days - (today_ord % period_days)) % period_days
             if days_offset:
                 msg = f"{days_offset} jour{'s' if days_offset > 1 else ''}"
-                box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=msg), color=aSYNC_COL_INFO)
+                debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=msg), name=LOGGER_NAME)
                 await asyncio.sleep(days_offset * aSYNC_DAY)
 
             # on refait la journée
@@ -75,27 +85,27 @@ async def timer_cyclic(cyclic_timer) -> None:
                 now = datetime.now()
                 if trig_time > now:
                     delay = (trig_time - now).total_seconds()
-                    box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{int(delay)} s"), color=aSYNC_COL_INFO)
+                    debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{int(delay)} s"), name=LOGGER_NAME)
                     await asyncio.sleep(delay)
 
                 # ON
-                box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT)
+                box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
                 try:
                     comp.set_state(1)
                 except Exception as e:
-                    warning(f"CyclicTimer #{tid} activation échouée : {e}")
+                    error(f"CyclicTimer #{tid} activation échouée : {e}", name=LOGGER_NAME)
 
                 await asyncio.sleep(action_duration)
 
                 # OFF
-                box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF)
+                box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
                 try:
                     comp.set_state(0)
                 except Exception as e:
-                    warning(f"CyclicTimer #{tid} désactivation échouée : {e}")
+                    error(f"CyclicTimer #{tid} désactivation échouée : {e}", name=LOGGER_NAME)
 
             # fin de journée
-            box(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{period_days} jour(s)"), color=aSYNC_COL_INFO)
+            debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{period_days} jour(s)"), name=LOGGER_NAME)
             await asyncio.sleep(period_days * aSYNC_DAY)
 
         elif mode == "séquentiel":
@@ -109,23 +119,23 @@ async def timer_cyclic(cyclic_timer) -> None:
                 phase = "Nuit"
 
             # ON
-            box(f"[S][{phase}] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT)
+            box(f"[S][{phase}] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
             try:
                 comp.set_state(1)
             except Exception as e:
-                warning(f"CyclicTimer #{tid} activation échouée : {e}")
+                error(f"CyclicTimer #{tid} activation échouée : {e}", name=LOGGER_NAME)
             await asyncio.sleep(on_d)
 
             # OFF
-            box(f"[S][{phase}] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF)
+            box(f"[S][{phase}] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
             try:
                 comp.set_state(0)
             except Exception as e:
-                warning(f"CyclicTimer #{tid} désactivation échouée : {e}")
+                error(f"CyclicTimer #{tid} désactivation échouée : {e}", name=LOGGER_NAME)
             await asyncio.sleep(off_d)
 
         else:
-            warning(f"CyclicTimer #{tid} mode inconnu : « {mode} » → arrêt du timer")
+            error(f"CyclicTimer #{tid} mode inconnu : « {mode} » → arrêt du timer", name=LOGGER_NAME)
             return
 
 

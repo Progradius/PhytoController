@@ -10,7 +10,9 @@
 
 from typing import Union
 from param.config      import AppConfig
-from utils.pretty_console import info, action, warning, success
+from utils.pretty_console import debug, info, warning
+
+LOGGER_NAME = "timer.cyclic"
 
 class CyclicTimer:
     """
@@ -34,7 +36,7 @@ class CyclicTimer:
         self.timer_id  = str(timer_id)
         self._config   = config
         self._load_from_config_block()
-        info(f"CyclicTimer #{self.timer_id} chargé → {self}")
+        info(f"CyclicTimer #{self.timer_id} chargé → {self}", name=LOGGER_NAME)
 
     def _config_block(self):
         if self.timer_id == "1":
@@ -67,7 +69,7 @@ class CyclicTimer:
         """
         self._config = AppConfig.load()
         self._load_from_config_block()
-        success(f"CyclicTimer #{self.timer_id} rafraîchi depuis AppConfig")
+        debug(f"CyclicTimer #{self.timer_id} rafraîchi depuis AppConfig", name=LOGGER_NAME)
 
     # ───────────────────────── getters ───────────────────────
     def get_mode(self):               return self.mode
@@ -91,57 +93,57 @@ class CyclicTimer:
 
     def set_mode(self, mode: str):
         if mode not in ("journalier", "séquentiel"):
-            warning(f"Mode invalide : {mode}"); return
+            warning(f"Mode invalide : {mode}", name=LOGGER_NAME); return
         self._set_and_save("mode", mode)
-        action(f"CyclicTimer #{self.timer_id} mode → {mode}")
+        info(f"CyclicTimer #{self.timer_id} mode → {mode}", name=LOGGER_NAME)
 
     def set_period_days(self, days: int):
         if days <= 0:
-            warning(f"period_days invalide : {days}"); return
+            warning(f"period_days invalide : {days}", name=LOGGER_NAME); return
         self._set_and_save("period_days", days)
-        action(f"CyclicTimer #{self.timer_id} period_days → {days}")
+        info(f"CyclicTimer #{self.timer_id} period_days → {days}", name=LOGGER_NAME)
 
     def set_triggers_per_day(self, n: int):
         if n <= 0:
-            warning(f"triggers_per_day invalide : {n}"); return
+            warning(f"triggers_per_day invalide : {n}", name=LOGGER_NAME); return
         self._set_and_save("triggers_per_day", n)
-        action(f"CyclicTimer #{self.timer_id} triggers_per_day → {n}")
+        info(f"CyclicTimer #{self.timer_id} triggers_per_day → {n}", name=LOGGER_NAME)
 
     def set_first_trigger_hour(self, h: int):
         if not 0 <= h < 24:
-            warning(f"first_trigger_hour invalide : {h}"); return
+            warning(f"first_trigger_hour invalide : {h}", name=LOGGER_NAME); return
         self._set_and_save("first_trigger_hour", h)
-        action(f"CyclicTimer #{self.timer_id} first_trigger_hour → {h}h")
+        info(f"CyclicTimer #{self.timer_id} first_trigger_hour → {h}h", name=LOGGER_NAME)
 
     def set_action_duration_seconds(self, sec: int):
         if sec <= 0:
-            warning(f"action_duration invalide : {sec}"); return
+            warning(f"action_duration invalide : {sec}", name=LOGGER_NAME); return
         self._set_and_save("action_duration", sec)
-        action(f"CyclicTimer #{self.timer_id} action_duration → {sec}s")
+        info(f"CyclicTimer #{self.timer_id} action_duration → {sec}s", name=LOGGER_NAME)
 
     def set_on_time_day(self, sec: int):
         if sec < 0:
-            warning(f"on_time_day invalide : {sec}"); return
+            warning(f"on_time_day invalide : {sec}", name=LOGGER_NAME); return
         self._set_and_save("on_time_day", sec)
-        action(f"CyclicTimer #{self.timer_id} on_time_day → {sec}s")
+        info(f"CyclicTimer #{self.timer_id} on_time_day → {sec}s", name=LOGGER_NAME)
 
     def set_off_time_day(self, sec: int):
         if sec < 0:
-            warning(f"off_time_day invalide : {sec}"); return
+            warning(f"off_time_day invalide : {sec}", name=LOGGER_NAME); return
         self._set_and_save("off_time_day", sec)
-        action(f"CyclicTimer #{self.timer_id} off_time_day → {sec}s")
+        info(f"CyclicTimer #{self.timer_id} off_time_day → {sec}s", name=LOGGER_NAME)
 
     def set_on_time_night(self, sec: int):
         if sec < 0:
-            warning(f"on_time_night invalide : {sec}"); return
+            warning(f"on_time_night invalide : {sec}", name=LOGGER_NAME); return
         self._set_and_save("on_time_night", sec)
-        action(f"CyclicTimer #{self.timer_id} on_time_night → {sec}s")
+        info(f"CyclicTimer #{self.timer_id} on_time_night → {sec}s", name=LOGGER_NAME)
 
     def set_off_time_night(self, sec: int):
         if sec < 0:
-            warning(f"off_time_night invalide : {sec}"); return
+            warning(f"off_time_night invalide : {sec}", name=LOGGER_NAME); return
         self._set_and_save("off_time_night", sec)
-        action(f"CyclicTimer #{self.timer_id} off_time_night → {sec}s")
+        info(f"CyclicTimer #{self.timer_id} off_time_night → {sec}s", name=LOGGER_NAME)
 
     # ───────────────────────── debug repr ─────────────────────
     def __repr__(self):

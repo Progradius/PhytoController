@@ -3,20 +3,18 @@
 # License: AGPL-3.0
 # -------------------------------------------------------------
 # Serveur HTTP ultra-léger basé sur asyncio, utilisant AppConfig
-# + PTY pour console ANSI → SSE avec historique & keep-alive
+# + console SSE alimentée par les logs du PROCESSUS COURANT
 # -------------------------------------------------------------
 
 from __future__ import annotations
 import asyncio
-import errno
 import json
 import os
-import pty
-import subprocess
 import urllib.parse
-from collections import deque
 
-from utils.pretty_console import success, warning, error, action, info
+from utils import pretty_console as ui
+from utils.pretty_console import success, warning, error, debug, info
+from utils.log_stream import console_stream
 from network.web.pages import (
     main_page,
     conf_page,
@@ -28,9 +26,13 @@ from param.config import AppConfig
 from controllers.SensorController import SensorController
 from network.web import influx_handler
 
-# Chemin vers votre script main.py
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-MAIN_PY = os.path.join(BASE_DIR, "main.py")
+LOGGER_NAME = "http"
+
+
+def _sse(line: str) -> bytes:
+    """Encode une ligne de log en évènement SSE (multi-ligne découpé)."""
+    chunks = "".join(f"data: {part}\n" for part in str(line).splitlines() or [""])
+    return (chunks + "\n").encode("utf-8")
 
 
 class Server:
@@ -39,7 +41,7 @@ class Server:
         GET,POST /conf         → Configuration
         GET  /monitor          → Monitored Values
         GET  /console          → Console (xterm.js + SSE)
-        GET  /console/stream   → Flux SSE des logs ANSI (historique + live)
+        GET  /console/stream   → Flux SSE des logs du processus (historique + live)
         GET  /status           → JSON status
     """
 
@@ -61,90 +63,29 @@ class Server:
         self.stats = SensorStats()
         setattr(self.sensor_handler, "stats", self.stats)
 
-        # pour lister les clients SSE
-        self._console_queues: list[asyncio.Queue[str]] = []
-        # pour stocker les dernières lignes (taille max configurable)
-        self._console_history = deque(maxlen=1000)
+        # Les logs diffusés à /console viennent du processus courant
+        console_stream.install()
 
     async def run(self) -> None:
         """
-        En mode normal (développement / lancé à la main) → on ouvre un PTY,
-        on lance main.py et on broadcast les logs.
-        En mode service (systemd) → on ne lance PAS un second main.py.
+        Démarre le serveur HTTP.
         On tolère le cas où le port est déjà pris (par un autre process).
         """
-        run_mode = os.getenv("PHYTO_RUN_MODE", "").lower()
-
-        # démarre la tâche PTY → broadcast seulement si on n'est pas en mode service
-        if run_mode != "service":
-            asyncio.create_task(self._spawn_pty_and_broadcast())
-        else:
-            info("Mode service détecté → pas de PTY ni de sous-processus main.py")
-
-        # démarre le serveur HTTP
         try:
             srv = await asyncio.start_server(self._handle, self.host, self.port)
         except OSError as e:
             if e.errno == 98:
                 error(
                     f"Impossible d'ouvrir le serveur HTTP sur {self.host}:{self.port} "
-                    f"(déjà utilisé). Le reste du système continue."
+                    f"(déjà utilisé). Le reste du système continue.",
+                    name=LOGGER_NAME,
                 )
                 return
             raise
 
-        success(f"HTTP prêt sur {self.host}:{self.port}")
+        success(f"HTTP prêt sur {self.host}:{self.port}", name=LOGGER_NAME)
         async with srv:
             await srv.serve_forever()
-
-    async def _spawn_pty_and_broadcast(self) -> None:
-        """Ouvre un PTY, lance main.py et diffuse chaque ligne ANSI.
-
-        ATTENTION : ne doit pas être appelé en mode service/systemd, sinon on se
-        retrouve avec un main.py qui lance un main.py.
-        """
-        if os.getenv("PHYTO_RUN_MODE", "").lower() == "service":
-            info("Mode service -> _spawn_pty_and_broadcast() ignoré.")
-            return
-
-        master_fd, slave_fd = pty.openpty()
-        proc = subprocess.Popen(
-            ["python3", "-u", MAIN_PY],
-            cwd=BASE_DIR,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            close_fds=True,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
-        os.close(slave_fd)
-
-        loop = asyncio.get_event_loop()
-        reader = os.fdopen(master_fd, "rb", buffering=0)
-        buf = b""
-        try:
-            while True:
-                chunk = await loop.run_in_executor(None, reader.read, 1024)
-                if not chunk:
-                    break  # EOF
-                buf += chunk
-                while b"\n" in buf:
-                    line, buf = buf.split(b"\n", 1)
-                    text = line.decode("utf-8", errors="ignore")
-                    self._console_history.append(text)
-                    for q in list(self._console_queues):
-                        await q.put(text)
-        except OSError as e:
-            if e.errno == errno.EIO:
-                info("PTY EOF détecté, arrêt du broadcast console")
-            else:
-                error(f"PTY broadcast erreur inattendue: {e!r}")
-        except Exception as e:
-            error(f"PTY broadcast erreur: {e!r}")
-        finally:
-            reader.close()
-            proc.terminate()
-            proc.wait()
 
     async def _handle(
         self,
@@ -153,11 +94,16 @@ class Server:
     ) -> None:
         # --- Request line & headers ---
         line = await reader.readline()
+        if not line.strip():
+            # Connexion ouverte puis abandonnée (pré-connexion navigateur) : non-évènement
+            debug("Connexion fermée avant la requête", name=LOGGER_NAME)
+            await self._close(writer)
+            return
         try:
             method, path, _ = line.decode("ascii").split()
-        except ValueError:
-            error("Requête malformée détectée")
-            writer.close()
+        except (ValueError, UnicodeDecodeError):
+            warning(f"Requête malformée ignorée : {line[:60]!r}", name=LOGGER_NAME)
+            await self._close(writer)
             return
 
         headers = {}
@@ -165,17 +111,36 @@ class Server:
             h = await reader.readline()
             if h in (b"\r\n", b"\n", b""):
                 break
-            k, v = h.decode("ascii").split(":", 1)
+            try:
+                k, v = h.decode("ascii").split(":", 1)
+            except (ValueError, UnicodeDecodeError):
+                debug(f"En-tête HTTP ignoré (malformé) : {h[:60]!r}", name=LOGGER_NAME)
+                continue
             headers[k.lower().strip()] = v.strip()
 
-        action(f"{method} {path}")
+        # Les assets statiques ne méritent pas une ligne de log
+        if not path.startswith("/static/"):
+            debug(f"{method} {path}", name=LOGGER_NAME)
 
         # POST parsing
         posted = {}
         if method == "POST":
-            l = int(headers.get("content-length", "0"))
-            raw = await reader.readexactly(l) if l else b""
-            posted = urllib.parse.parse_qs(raw.decode(), keep_blank_values=True)
+            try:
+                length = int(headers.get("content-length", "0"))
+            except ValueError:
+                warning("Content-Length invalide → corps ignoré", name=LOGGER_NAME)
+                length = 0
+            try:
+                raw = await reader.readexactly(length) if length else b""
+            except asyncio.IncompleteReadError as e:
+                warning(
+                    f"Corps de requête tronqué ({len(e.partial)}/{length} octets)",
+                    name=LOGGER_NAME,
+                )
+                await self._close(writer)
+                return
+            posted = urllib.parse.parse_qs(raw.decode(errors="replace"),
+                                           keep_blank_values=True)
 
         # --- ROUTING ---
         if method == "GET" and path in ("/", "/index.html"):
@@ -207,12 +172,14 @@ class Server:
                 }.get(ext, "application/octet-stream")
                 status = "200 OK"
             else:
+                debug(f"Asset statique introuvable : {path}", name=LOGGER_NAME)
                 body = b"Not found"
                 ctype = "text/plain"
                 status = "404 Not Found"
 
         elif path == "/conf":
             if method == "POST":
+                info("POST /conf → application de la configuration", name=LOGGER_NAME)
                 self._apply_conf_changes(posted)
             body, ctype, status = (
                 conf_page(self.config).encode("utf-8"),
@@ -231,13 +198,17 @@ class Server:
                     val = self.sensor_handler.get_sensor_value(k)
                     if val is not None:
                         self.stats.update(k, float(val))
-                    success(f"Stat {k} réinitialisée")
+                    info(f"Stat {k} réinitialisée", name=LOGGER_NAME)
             if qs.get("reboot", ["0"])[0] == "1":
-                info("Reboot via web")
-                os.system("sudo reboot")
+                warning("Redémarrage demandé via l'interface web", name=LOGGER_NAME)
+                rc = os.system("sudo reboot")
+                if rc != 0:
+                    error(f"« sudo reboot » a échoué (code {rc})", name=LOGGER_NAME)
             if qs.get("poweroff", ["0"])[0] == "1":
-                info("Poweroff via web")
-                os.system("/sbin/shutdown -h now")
+                warning("Extinction demandée via l'interface web", name=LOGGER_NAME)
+                rc = os.system("/sbin/shutdown -h now")
+                if rc != 0:
+                    error(f"« shutdown -h now » a échoué (code {rc})", name=LOGGER_NAME)
 
             body, ctype, status = (
                 monitor_page(
@@ -266,26 +237,29 @@ class Server:
             )
             await writer.drain()
 
-            queue = asyncio.Queue()
-            self._console_queues.append(queue)
-            for past in self._console_history:
-                writer.write(f"data: {past}\n\n".encode("utf-8"))
-            await writer.drain()
-
+            queue = console_stream.subscribe()
             try:
+                # Historique rejoué : une ligne = un évènement SSE
+                for past in list(console_stream.history):
+                    writer.write(_sse(past))
+                await writer.drain()
+
                 while True:
                     try:
                         line = await asyncio.wait_for(queue.get(), timeout=15.0)
-                        msg = f"data: {line}\n\n"
+                        payload = _sse(line)
                     except asyncio.TimeoutError:
-                        msg = ": keep-alive\n\n"
-                    writer.write(msg.encode("utf-8"))
+                        payload = b": keep-alive\n\n"
+                    writer.write(payload)
                     await writer.drain()
+            except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
+                debug("Client SSE déconnecté", name=LOGGER_NAME)
             except Exception as e:
-                error(f"SSE console erreur: {e!r}")
+                warning(f"Flux SSE console interrompu : {e.__class__.__name__} : {e}",
+                        name=LOGGER_NAME)
             finally:
-                self._console_queues.remove(queue)
-                writer.close()
+                console_stream.unsubscribe(queue)
+                await self._close(writer)
             return
 
         elif method == "GET" and path.startswith("/status"):
@@ -309,6 +283,7 @@ class Server:
             )
 
         else:
+            debug(f"404 : {method} {path}", name=LOGGER_NAME)
             body, ctype, status = b"Not found", "text/plain", "404 Not Found"
 
         writer.write(
@@ -318,8 +293,20 @@ class Server:
             "Connection: close\r\n\r\n".encode("utf-8")
             + body
         )
-        await writer.drain()
-        writer.close()
+        try:
+            await writer.drain()
+        except (ConnectionResetError, BrokenPipeError):
+            debug("Client HTTP parti avant la fin de la réponse", name=LOGGER_NAME)
+        await self._close(writer)
+
+    @staticmethod
+    async def _close(writer: asyncio.StreamWriter) -> None:
+        """Fermeture propre : on attend réellement la fin de la connexion."""
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except (ConnectionResetError, BrokenPipeError, OSError):
+            pass
 
     def _apply_conf_changes(self, posted: dict[str, list[str]]) -> None:
         """ Mise à jour partielle de la config via POST (clé alias → champ). """
@@ -331,6 +318,7 @@ class Server:
             for name, fi in self.config.model_fields.items()
             if fi.alias
         }
+        changes: list[str] = []
 
         for alias, vals in posted.items():
             if alias.endswith("_switch"):
@@ -342,65 +330,70 @@ class Server:
                 top, nest = alias.split(".", 1)
 
                 if top not in alias2field:
-                    warning(f"Ignoré alias «{top}»")
+                    warning(f"Ignoré alias «{top}»", name=LOGGER_NAME)
                     continue
 
                 mdl = getattr(self.config, alias2field[top])
 
                 fld = mdl.__class__.model_fields.get(nest)
                 if fld:
-                    ann = fld.annotation
-                    val = (
-                        raw.lower() in ("1", "true", "enabled", "yes")
-                        if ann is bool
-                        else int(raw)
-                        if ann is int
-                        else float(raw)
-                        if ann is float
-                        else raw
-                    )
+                    ok, val = _coerce(raw, fld.annotation)
+                    if not ok:
+                        warning(f"Valeur invalide pour «{alias}» : {raw!r} → ignorée",
+                                name=LOGGER_NAME)
+                        continue
                     setattr(mdl, nest, val)
-                    success(f"{alias} ← {raw}")
+                    changes.append(f"{alias} ← {raw}")
                     continue
 
-                if top.startswith("DailyTimer") and nest == "enabled":
+                if (top.startswith("DailyTimer") or top.startswith("Cyclic")) and nest == "enabled":
                     val = raw.lower() in ("1", "true", "enabled", "yes")
                     setattr(mdl, "enabled", val)
-                    success(f"{alias} (custom) ← {val}")
+                    changes.append(f"{alias} ← {val}")
                     continue
 
-                if top.startswith("Cyclic") and nest == "enabled":
-                    val = raw.lower() in ("1", "true", "enabled", "yes")
-                    setattr(mdl, "enabled", val)
-                    success(f"{alias} (custom) ← {val}")
-                    continue
-
-                warning(f"Ignoré champ imbriqué «{nest}» sur «{top}»")
+                warning(f"Ignoré champ imbriqué «{nest}» sur «{top}»", name=LOGGER_NAME)
                 continue
 
             if alias not in alias2field:
-                warning(f"Ignoré alias «{alias}»")
+                warning(f"Ignoré alias «{alias}»", name=LOGGER_NAME)
                 continue
 
             fldinfo = self.config.model_fields[alias2field[alias]]
-            ann = fldinfo.annotation
-            val = (
-                raw.lower() in ("1", "true", "enabled", "yes")
-                if ann is bool
-                else int(raw)
-                if ann is int
-                else float(raw)
-                if ann is float
-                else raw
-            )
+            ok, val = _coerce(raw, fldinfo.annotation)
+            if not ok:
+                warning(f"Valeur invalide pour «{alias}» : {raw!r} → ignorée",
+                        name=LOGGER_NAME)
+                continue
             setattr(self.config, alias2field[alias], val)
-            success(f"{alias} ← {raw}")
+            changes.append(f"{alias} ← {raw}")
 
         self.config.save()
-        info("Configuration sauvegardée")
+        info(f"Configuration sauvegardée : {', '.join(changes) or 'aucun changement'}",
+             name=LOGGER_NAME)
+
+        # Niveau / rétention de log applicables à chaud
+        ui.apply_log_settings(self.config.logs.level, self.config.logs.retention_days)
 
         self.sensor_handler = SensorController(self.config)
         setattr(self.sensor_handler, "stats", self.stats)
         self.sensor_handler.sensor_dict = self.sensor_handler._build_sensor_dict()
         influx_handler.reload_sensor_handler(self.config)
-        success("Nouvelle configuration appliquée")
+        info("Nouvelle configuration appliquée", name=LOGGER_NAME)
+
+
+def _coerce(raw: str, annotation):
+    """
+    Convertit une valeur POSTée selon l'annotation du champ.
+    Retourne (ok, valeur) — jamais d'exception sur une saisie utilisateur.
+    """
+    try:
+        if annotation is bool:
+            return True, raw.lower() in ("1", "true", "enabled", "yes")
+        if annotation is int:
+            return True, int(raw)
+        if annotation is float:
+            return True, float(raw)
+        return True, raw
+    except (TypeError, ValueError):
+        return False, None

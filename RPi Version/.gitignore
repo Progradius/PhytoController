@@ -63,8 +63,9 @@ venv.bak/
 *~
 .DS_Store
 
-# Logs
+# Logs (le dossier est recréé au démarrage par pretty_console)
 *.log
+logs/
 
 # Paramètres locaux & secrets
 *.env

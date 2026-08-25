@@ -5,7 +5,15 @@
 import json
 from pathlib import Path
 from datetime import datetime
-from utils.pretty_console            import warning
+from utils.pretty_console import warning
+from utils.log_dedup import StateLogger
+
+LOGGER_NAME = "stats"
+
+# `_dump()` est appelé à chaque lecture de capteur : on déduplique les échecs
+# d'écriture (disque plein, permissions…).
+_dump_state = StateLogger("Écriture de sensor_stats.json",
+                          name=LOGGER_NAME, level="warning")
 
 class SensorStats:
     """
@@ -27,7 +35,7 @@ class SensorStats:
                 with self.FILE.open(encoding="utf-8") as f:
                     self.data = json.load(f)
             except Exception as e:
-                warning(f"Stats corrompues : {e} → Réinitialisation")
+                warning(f"Stats corrompues : {e} → réinitialisation", name=LOGGER_NAME)
                 self.data = self._default_data()
                 self._dump()
             else:
@@ -40,11 +48,16 @@ class SensorStats:
             self._dump()
 
     def _dump(self):
-        """Écrit self.data dans le fichier JSON."""
-        # En cas d'appel isolé on recrée aussi le dossier
-        self.FILE.parent.mkdir(parents=True, exist_ok=True)
-        with self.FILE.open("w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=4)
+        """Écrit self.data dans le fichier JSON (échec non bloquant)."""
+        try:
+            # En cas d'appel isolé on recrée aussi le dossier
+            self.FILE.parent.mkdir(parents=True, exist_ok=True)
+            with self.FILE.open("w", encoding="utf-8") as f:
+                json.dump(self.data, f, indent=4)
+        except OSError as e:
+            _dump_state.fail(f"{e.__class__.__name__} : {e}")
+        else:
+            _dump_state.ok()
 
     def update(self, key: str, value: float):
         """

@@ -13,6 +13,8 @@ import RPi.GPIO as GPIO
 from param.config import AppConfig
 from utils.pretty_console import info, success, warning, error
 
+LOGGER_NAME = "system"
+
 # ───────────────────────────────────────────────────────────────
 #  Init GPIO global – BCM & warnings off
 # ───────────────────────────────────────────────────────────────
@@ -51,7 +53,7 @@ def check_ram_usage() -> None:
     avail = mem.get("MemAvailable", mem.get("MemFree", 0))
     pct   = avail / total * 100 if total else 0
 
-    info(f"RAM Total : {total/1024:.1f} MB | Libre : {avail/1024:.1f} MB ({pct:.1f} %)")
+    info(f"RAM Total : {total/1024:.1f} MB | Libre : {avail/1024:.1f} MB ({pct:.1f} %)", name=LOGGER_NAME)
 
 # ==================================================================
 #                       SYNCHRONISATION NTP
@@ -67,11 +69,11 @@ def set_ntp_time() -> None:
             ["timedatectl", "show", "-p", "NTPSynchronized"],
             capture_output=True, text=True, check=True
         )
-        success(f"NTP synchronisé : {status.stdout.strip()}")
+        success(f"NTP synchronisé : {status.stdout.strip()}", name=LOGGER_NAME)
     except subprocess.CalledProcessError as e:
-        error(f"timedatectl a échoué : {e}")
+        error(f"timedatectl a échoué : {e}", name=LOGGER_NAME)
     except Exception as e:
-        error(f"Erreur synchro NTP : {e}")
+        error(f"Erreur synchro NTP : {e}", name=LOGGER_NAME)
 
 # ==================================================================
 #                   SÉCURITÉ MOTEUR AU DÉMARRAGE
@@ -93,4 +95,4 @@ def motor_all_pin_down_at_boot(config: AppConfig | None = None) -> None:
     for pin in pins:
         GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
 
-    warning("Broches moteur forcées à LOW au démarrage.")
+    info("Broches moteur forcées à LOW au démarrage", name=LOGGER_NAME)

@@ -12,7 +12,9 @@ Wrapper pour le télémètre laser VL53L0X.
 
 import smbus2
 from lib.sensors.VL53L0X import VL53L0X, TimeoutError
-from utils.pretty_console import info, warning, error
+from utils.pretty_console import debug, info, warning, error
+
+LOGGER_NAME = "sensors.vl53l0x"
 
 
 class VL53L0XHandler:
@@ -35,9 +37,9 @@ class VL53L0XHandler:
             self._bus = smbus2.SMBus(1)
             self._vl53 = VL53L0X(i2c_bus=self._bus, i2c_address=addr)
             self.available = True
-            info(f"VL53L0X ready @0x{addr:02X} ✔")
+            info(f"VL53L0X prêt @0x{addr:02X}", name=LOGGER_NAME)
         except Exception as exc:
-            warning(f"VL53L0X init failed → capteur désactivé ({exc})")
+            warning(f"Initialisation VL53L0X échouée → capteur désactivé ({exc})", name=LOGGER_NAME)
             self._vl53 = None
             self._bus  = None
 
@@ -52,16 +54,16 @@ class VL53L0XHandler:
             Distance en millimètres ou `None` si erreur/timeout.
         """
         if not self.available:
-            warning("VL53L0X indisponible")
+            debug("VL53L0X indisponible", name=LOGGER_NAME)
             return None
 
         try:
             return self._vl53.read()
         except TimeoutError:
-            warning("VL53L0X : délai d'attente dépassé")
+            warning("VL53L0X : délai d'attente dépassé", name=LOGGER_NAME)
             return None
         except Exception as exc:
-            error(f"VL53L0X read error : {exc}")
+            error(f"Lecture VL53L0X échouée : {exc}", name=LOGGER_NAME)
             return None
 
     # ------------------------------------------------------------------
@@ -70,5 +72,5 @@ class VL53L0XHandler:
         if self._bus:
             try:
                 self._bus.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                debug(f"Fermeture du bus I²C VL53L0X : {exc}", name=LOGGER_NAME)

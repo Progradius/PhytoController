@@ -12,6 +12,8 @@ Expose deux méthodes :
 
 from utils import pretty_console as pc
 
+LOGGER_NAME = "sensors.tsl2591"
+
 
 class TSL2591Handler:
     """
@@ -32,11 +34,11 @@ class TSL2591Handler:
             from lib.sensors.TSL2591 import Tsl2591
             self.tsl = Tsl2591(i2c=i2c)
             self.available = True
-            pc.success("TSL2591 détecté et initialisé")
+            pc.success("TSL2591 détecté et initialisé", name=LOGGER_NAME)
         except Exception as e:  # ImportError, OSError, ...
             self.available = False
             self.tsl = None
-            pc.error(f"TSL2591 indisponible : {e}")
+            pc.error(f"TSL2591 indisponible : {e}", name=LOGGER_NAME)
 
     # ──────────────────────────────────────────────────────────
     def get_ir(self):
@@ -44,12 +46,12 @@ class TSL2591Handler:
         Retourne la mesure infrarouge brute (int) ou `None` si erreur/indispo.
         """
         if not self.available:
-            pc.warning("Demande IR → capteur non initialisé")
+            pc.debug("Demande IR → capteur non initialisé", name=LOGGER_NAME)
             return None
         try:
             return self.tsl.get_luminosity(channel="INFRARED")
         except Exception as e:
-            pc.error(f"Lecture IR TSL2591 échouée : {e}")
+            pc.error(f"Lecture IR TSL2591 échouée : {e}", name=LOGGER_NAME)
             return None
 
     # ──────────────────────────────────────────────────────────
@@ -59,12 +61,12 @@ class TSL2591Handler:
         Retourne un float ou `None` si indisponible.
         """
         if not self.available:
-            pc.warning("Demande lux → capteur non initialisé")
+            pc.debug("Demande lux → capteur non initialisé", name=LOGGER_NAME)
             return None
         try:
             full, ir = self.tsl.get_full_luminosity()
             lux = self.tsl.calculate_lux(full, ir)
             return lux
         except Exception as e:
-            pc.error(f"Calcul lux TSL2591 échoué : {e}")
+            pc.error(f"Calcul lux TSL2591 échoué : {e}", name=LOGGER_NAME)
             return None

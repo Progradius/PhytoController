@@ -12,7 +12,9 @@ Wrapper pour le capteur UV VEML6075.
 """
 
 from lib.sensors.VEML6075 import VEML6075
-from utils.pretty_console import info, warning, error
+from utils.pretty_console import debug, info, warning, error
+
+LOGGER_NAME = "sensors.veml6075"
 
 
 class VEMLHandler:
@@ -41,21 +43,21 @@ class VEMLHandler:
                 high_dynamic=high_dynamic
             )
             self.available = True
-            info("VEML6075 ready ✔")
+            info("VEML6075 prêt", name=LOGGER_NAME)
         except Exception as exc:
-            warning(f"VEML6075 init failed → capteur désactivé ({exc})")
+            warning(f"Initialisation VEML6075 échouée → capteur désactivé ({exc})", name=LOGGER_NAME)
             self._veml = None
 
     # ──────────────────────────────────────────────────────────
     def _safe_read(self, attr: str, label: str):
         """Lecture protégée; retourne None si indisponible/erreur."""
         if not self.available:
-            warning(f"VEML6075 indisponible pour {label}")
+            debug(f"VEML6075 indisponible pour {label}", name=LOGGER_NAME)
             return None
         try:
             return getattr(self._veml, attr)
         except Exception as exc:
-            error(f"Lecture {label} VEML6075 impossible: {exc}")
+            error(f"Lecture {label} VEML6075 impossible : {exc}", name=LOGGER_NAME)
             return None
 
     # ───────────────────────────────────── Lectures publiques ─

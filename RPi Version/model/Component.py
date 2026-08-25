@@ -6,11 +6,13 @@
 # -------------------------------------------------------------
 
 import RPi.GPIO as GPIO
-from utils.pretty_console import action, info, warning
+from utils.pretty_console import debug, error, info
 
 # ─────────────────────────── init GPIO global ─────────────────
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
+
+LOGGER_NAME = "gpio"
 
 class Component:
     """
@@ -28,20 +30,31 @@ class Component:
 
         # Par défaut, le composant est désactivé (GPIO HIGH pour relais actif bas)
         GPIO.output(self.pin, GPIO.HIGH)
-        info(f"[Component] Initialisé sur GPIO {self.pin} → état par défaut : OFF (niveau HIGH)")
+        info(f"Initialisé sur GPIO {self.pin} → état par défaut : OFF (niveau HIGH)",
+             name=LOGGER_NAME)
 
     def set_state(self, value: int) -> None:
         """
         Définit l'état du composant :
         - 1 = ON (GPIO LOW, active le relais)
         - 0 = OFF (GPIO HIGH, coupe le relais)
+
+        On ne journalise que les *transitions* réelles : réécrire le même niveau
+        est un non-évènement (c'est l'amplificateur n°1 du volume de logs).
         """
+        wanted = 1 if value == 1 else 0
         try:
-            GPIO.output(self.pin, GPIO.LOW if value == 1 else GPIO.HIGH)
-            state_txt = "ON  (LOW - actif)" if value == 1 else "OFF (HIGH - inactif)"
-            action(f"[Component] GPIO {self.pin} ← {state_txt}")
-        except RuntimeError as e:
-            warning(f"[Component] Erreur lors de l'écriture sur GPIO {self.pin} : {e}")
+            changed = self.get_state() != wanted
+            GPIO.output(self.pin, GPIO.LOW if wanted == 1 else GPIO.HIGH)
+        except (RuntimeError, ValueError, OSError) as e:
+            error(f"Écriture impossible sur GPIO {self.pin} : {e}", name=LOGGER_NAME)
+            return
+
+        state_txt = "ON  (LOW - actif)" if wanted == 1 else "OFF (HIGH - inactif)"
+        if changed:
+            info(f"GPIO {self.pin} ← {state_txt}", name=LOGGER_NAME)
+        else:
+            debug(f"GPIO {self.pin} déjà {state_txt}", name=LOGGER_NAME)
 
     def get_state(self) -> int:
         """

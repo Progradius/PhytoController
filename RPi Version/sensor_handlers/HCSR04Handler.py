@@ -9,6 +9,8 @@ Handler pour le capteur ultrason HC-SR04 (distance).
 from lib.sensors.HCSR04 import HCSR04
 from utils import pretty_console as pc
 
+LOGGER_NAME = "sensors.hcsr04"
+
 
 class HCSR04Handler:
     """
@@ -30,9 +32,9 @@ class HCSR04Handler:
                                  echo_pin=echo_pin,
                                  echo_timeout_us=echo_timeout_us)
             self.available = True
-            pc.success(f"HC-SR04 initialisé (TRIG {trigger_pin} / ECHO {echo_pin})")
+            pc.success(f"HC-SR04 initialisé (TRIG {trigger_pin} / ECHO {echo_pin})", name=LOGGER_NAME)
         except Exception as exc:
-            pc.error(f"Impossible d'initialiser le HC-SR04 : {exc}")
+            pc.error(f"Impossible d'initialiser le HC-SR04 : {exc}", name=LOGGER_NAME)
             self.available = False
             self.sensor = None
 
@@ -42,14 +44,14 @@ class HCSR04Handler:
     def get_distance_cm(self):
         """Renvoie la distance en cm, None en cas d'erreur ou de capteur absent."""
         if not self.available:
-            pc.warning("HC-SR04 indisponible")
+            pc.debug("HC-SR04 indisponible", name=LOGGER_NAME)
             return None
         try:
             dist = self.sensor.distance_cm()
-            pc.info(f"Distance mesurée : {dist:.1f} cm")
+            pc.debug(f"Distance mesurée : {dist:.1f} cm", name=LOGGER_NAME)
             return dist
         except Exception as exc:
-            pc.error(f"Lecture HC-SR04 échouée : {exc}")
+            pc.error(f"Lecture HC-SR04 échouée : {exc}", name=LOGGER_NAME)
             return None
 
     # ------------------------------------------------------------------
@@ -60,6 +62,6 @@ class HCSR04Handler:
         try:
             if self.sensor and hasattr(self.sensor, "cleanup"):
                 self.sensor.cleanup()
-                pc.success("GPIO HC-SR04 libérés")
+                pc.debug("GPIO HC-SR04 libérés", name=LOGGER_NAME)
         except Exception as exc:
-            pc.error(f"Problème durant cleanup HC-SR04 : {exc}")
+            pc.error(f"Problème durant cleanup HC-SR04 : {exc}", name=LOGGER_NAME)

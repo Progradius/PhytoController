@@ -98,5 +98,9 @@
         "mlx90614_state": "disabled",
         "tsl2591_state": "disabled",
         "hcsr04_state": "disabled"
+    },
+    "Log_Settings": {
+        "level": "INFO",
+        "retention_days": 14
     }
 }

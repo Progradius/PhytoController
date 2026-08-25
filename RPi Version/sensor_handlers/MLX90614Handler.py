@@ -10,6 +10,8 @@ Expose :
 
 from utils import pretty_console as pc
 
+LOGGER_NAME = "sensors.mlx90614"
+
 
 class MLX90614Handler:
     """
@@ -34,9 +36,9 @@ class MLX90614Handler:
         try:
             self.mlx = MLX90614(i2c, address=self.ADDR)
             self.available = True
-            pc.success("MLX90614 initialisé")
+            pc.success("MLX90614 initialisé", name=LOGGER_NAME)
         except Exception as exc:
-            pc.error(f"Impossible d'initialiser le MLX90614 : {exc}")
+            pc.error(f"Impossible d'initialiser le MLX90614 : {exc}", name=LOGGER_NAME)
             self.mlx = None
 
     # ------------------------------------------------------------------
@@ -45,26 +47,26 @@ class MLX90614Handler:
     def get_ambient_temp(self):
         """Température ambiante en °C, ou None si lecture impossible."""
         if not self.available:
-            pc.warning("MLX90614 non disponible (ambiante)")
+            pc.debug("MLX90614 non disponible (ambiante)", name=LOGGER_NAME)
             return None
         try:
             value = self.mlx.read_ambient_temp()
-            pc.info(f"MLX90614 ambiant : {value:.2f} °C")
+            pc.debug(f"MLX90614 ambiant : {value:.2f} °C", name=LOGGER_NAME)
             return value
         except Exception as exc:
-            pc.error(f"Lecture ambiante MLX90614 échouée : {exc}")
+            pc.error(f"Lecture ambiante MLX90614 échouée : {exc}", name=LOGGER_NAME)
             return None
 
     # ------------------------------------------------------------------
     def get_object_temp(self):
         """Température objet en °C, ou None si lecture impossible."""
         if not self.available:
-            pc.warning("MLX90614 non disponible (objet)")
+            pc.debug("MLX90614 non disponible (objet)", name=LOGGER_NAME)
             return None
         try:
             value = self.mlx.read_object_temp()
-            pc.info(f"MLX90614 objet : {value:.2f} °C")
+            pc.debug(f"MLX90614 objet : {value:.2f} °C", name=LOGGER_NAME)
             return value
         except Exception as exc:
-            pc.error(f"Lecture objet MLX90614 échouée : {exc}")
+            pc.error(f"Lecture objet MLX90614 échouée : {exc}", name=LOGGER_NAME)
             return None

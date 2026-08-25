@@ -3,7 +3,6 @@
 # License: AGPL-3.0
 
 import asyncio
-import traceback
 import signal
 import sys
 import atexit
@@ -12,7 +11,11 @@ import time
 import os   # ← ajouté
 
 import RPi.GPIO as GPIO
-from utils.pretty_console import title, action, success, warning, error, clock
+from utils import pretty_console as ui
+from utils.pretty_console import (
+    title, action, debug, success, warning, error, exception, clock,
+)
+from utils.log_stream import console_stream
 from function import motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
 from network.network_handler import do_connect, is_host_connected
 
@@ -30,6 +33,8 @@ from param.config import AppConfig
 # =============================================================
 #                  VARIABLES GLOBALES SÉCURITÉ
 # =============================================================
+
+LOGGER_NAME = "main"
 
 # mode de run (pour désactiver certaines fonctions en service)
 RUN_AS_SERVICE = os.getenv("PHYTO_RUN_MODE", "").lower() == "service"
@@ -54,12 +59,12 @@ def cleanup_gpio():
       - pour TOUT ce qui n'est PAS le moteur → HIGH (OFF relai)
       - pour les pins moteur → on les met comme au boot (LOW chez toi)
     """
-    print("🧹 Cleanup GPIO avant extinction…")
+    action("Nettoyage GPIO avant extinction…", name=LOGGER_NAME)
     try:
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
     except Exception as e:
-        print(f"⚠️ Impossible de remettre le mode GPIO : {e}")
+        error(f"Impossible de remettre le mode GPIO : {e}", name=LOGGER_NAME)
 
     # 1) Pins non moteur → HIGH
     for pin in GENERIC_SAFE_PINS:
@@ -67,7 +72,7 @@ def cleanup_gpio():
             GPIO.setup(pin, GPIO.OUT)
             GPIO.output(pin, GPIO.HIGH)
         except Exception as e:
-            print(f"⚠️ Erreur GPIO (generic) {pin} : {e}")
+            error(f"Erreur GPIO (générique) {pin} : {e}", name=LOGGER_NAME)
 
     # 2) Pins moteur → état sécurisé (LOW chez toi)
     for pin in MOTOR_PINS:
@@ -75,13 +80,13 @@ def cleanup_gpio():
             GPIO.setup(pin, GPIO.OUT)
             GPIO.output(pin, GPIO.LOW)
         except Exception as e:
-            print(f"⚠️ Erreur GPIO (motor) {pin} : {e}")
+            error(f"Erreur GPIO (moteur) {pin} : {e}", name=LOGGER_NAME)
 
     # 3) cleanup final
     try:
         GPIO.cleanup()
     except Exception as e:
-        print(f"⚠️ GPIO.cleanup() a échoué : {e}")
+        error(f"GPIO.cleanup() a échoué : {e}", name=LOGGER_NAME)
 
 
 def disable_watchdog():
@@ -92,13 +97,13 @@ def disable_watchdog():
     try:
         with open("/dev/watchdog", "w") as f:
             f.write("V")
-        print("🛡️  Watchdog matériel désactivé proprement")
+        success("Watchdog matériel désactivé proprement", name=LOGGER_NAME)
     except Exception as e:
-        print(f"⚠️ Impossible de désactiver le watchdog : {e}")
+        warning(f"Impossible de désactiver le watchdog : {e}", name=LOGGER_NAME)
 
 
 def handle_exit_signal(signum, frame):
-    print(f"\n🛑 Signal {signum} reçu → arrêt sécurisé.")
+    warning(f"Signal {signum} reçu → arrêt sécurisé", name=LOGGER_NAME)
     disable_watchdog()
     watchdog_stop.set()
     cleanup_gpio()
@@ -120,24 +125,33 @@ def watchdog_worker():
     try:
         with open("/dev/watchdog", "w") as f:
             watchdog_active = True
-            print("🛡️  Watchdog matériel activé")
+            success("Watchdog matériel activé", name=LOGGER_NAME)
             while not watchdog_stop.is_set():
                 f.write("\n")
                 f.flush()
                 time.sleep(10)
     except Exception as e:
-        warning(f"Watchdog matériel non disponible : {e}")
+        warning(f"Watchdog matériel non disponible : {e}", name=LOGGER_NAME)
         watchdog_active = False
 
 
 # =============================================================
 #                    INITIALISATION SYSTÈME
 # =============================================================
-title("Phyto-Controller - Boot")
+title("Phyto-Controller - Boot", name=LOGGER_NAME)
 
 # (1) Chargement de la configuration
 config = AppConfig.load()
-success("Configuration chargée")
+
+# Niveau et rétention de log : env PHYTO_LOG_LEVEL > param.json > INFO
+ui.apply_log_settings(config.logs.level, config.logs.retention_days)
+# Diffusion des logs du processus courant vers la page /console
+console_stream.install()
+success(
+    f"Configuration chargée (log : {config.logs.level}, "
+    f"rétention {config.logs.retention_days} j)",
+    name=LOGGER_NAME,
+)
 
 # Maintenant qu'on a la config, on sait quelles sont les pins moteur
 MOTOR_PINS[:] = [
@@ -173,27 +187,26 @@ for pin in GENERIC_SAFE_PINS:
 for pin in MOTOR_PINS:
     GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
 
-success("GPIO initialisés (génériques=HIGH, moteur=LOW)")
+success("GPIO initialisés (génériques=HIGH, moteur=LOW)", name=LOGGER_NAME)
 
 # (4) Wi-Fi
 try:
-    action("Connexion Wi-Fi…")
+    action("Connexion Wi-Fi…", name=LOGGER_NAME)
     do_connect()
-    success("Interface Wi-Fi prête")
+    success("Interface Wi-Fi prête", name=LOGGER_NAME)
 except Exception:
-    error("Connexion Wi-Fi échouée")
-    traceback.print_exc()
+    exception("Connexion Wi-Fi échouée", name=LOGGER_NAME)
 
 # (5) NTP
 try:
-    action("Synchronisation NTP…")
+    action("Synchronisation NTP…", name=LOGGER_NAME)
     set_ntp_time()
 except Exception:
-    warning("NTP indisponible → heure non synchronisée")
+    warning("NTP indisponible → heure non synchronisée", name=LOGGER_NAME)
 
 # (6) Vérification de la reachabilité de l'hôte
 if is_host_connected() == "offline":
-    warning("Machine hôte hors-ligne → mode dégradé")
+    warning("Machine hôte hors-ligne → mode dégradé", name=LOGGER_NAME)
 
 # (7) Initialisation des composants physiques
 light1       = Component(pin=config.gpio.dailytimer1_pin)
@@ -205,7 +218,7 @@ heater       = Component(pin=config.gpio.heater_pin)
 # ATTENTION : MotorHandler va réutiliser les pins moteur, mais on les a déjà
 # mises dans l'état sûr juste au-dessus
 motor_handler = MotorHandler(config)
-success("Composants physiques initialisés")
+success("Composants physiques initialisés", name=LOGGER_NAME)
 
 # (8) Timers
 dailytimer1   = DailyTimer(light1,       timer_id="1", config=config)
@@ -215,7 +228,7 @@ cyclic_timer2 = CyclicTimer(cyclic_out2, timer_id="2", config=config)
 
 # (9) Capteurs
 sensor_handler = SensorController(config)
-success("Bus capteurs prêt")
+success("Bus capteurs prêt", name=LOGGER_NAME)
 
 # (10) Statut système
 controller_status = SystemStatus(
@@ -239,30 +252,28 @@ puppet_master = PuppetMaster(
 
 # (12) Info mémoire
 check_ram_usage()
-print()
 
 # Lancement du watchdog dans un thread
 if not DISABLE_HW_WATCHDOG:
     watchdog_thread = threading.Thread(target=watchdog_worker, daemon=True)
     watchdog_thread.start()
 else:
-    print("Watchdog matériel désactivé (mode service ou variable d'env).")
+    debug("Watchdog matériel désactivé (mode service ou variable d'env)", name=LOGGER_NAME)
 
 # =============================================================
 #                   BOUCLE PRINCIPALE ASYNCIO
 # =============================================================
 try:
-    clock("Démarrage boucle principale… (Ctrl-C pour quitter)")
+    clock("Démarrage boucle principale… (Ctrl-C pour quitter)", name=LOGGER_NAME)
     asyncio.run(puppet_master.main_loop())
 except KeyboardInterrupt:
-    warning("Arrêt demandé par l'utilisateur (Ctrl-C)")
+    warning("Arrêt demandé par l'utilisateur (Ctrl-C)", name=LOGGER_NAME)
 except Exception as e:
-    error(f"Crash : {e}")
-    traceback.print_exc()
+    exception(f"Crash : {e}", name=LOGGER_NAME)
 finally:
     watchdog_stop.set()
     if watchdog_thread and watchdog_thread.is_alive():
         watchdog_thread.join(timeout=2)
     # on appelle quand même cleanup GPIO (c’est déjà enregistré dans atexit)
     cleanup_gpio()
-    success("Programme terminé (watchdog & GPIO nettoyés)")
+    success("Programme terminé (watchdog & GPIO nettoyés)", name=LOGGER_NAME)
