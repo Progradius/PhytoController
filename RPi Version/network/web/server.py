@@ -39,7 +39,8 @@ class Server:
     """ Routes :
         GET  /                 → System State
         GET,POST /conf         → Configuration
-        GET  /monitor          → Monitored Values
+        GET  /monitor          → Monitored Values (rendu seul, sans effet de bord)
+        POST /monitor          → Actions : reset de stat, reboot, extinction
         GET  /console          → Console (xterm.js + SSE)
         GET  /console/stream   → Flux SSE des logs du processus (historique + live)
         GET  /status           → JSON status
@@ -142,6 +143,9 @@ class Server:
             posted = urllib.parse.parse_qs(raw.decode(errors="replace"),
                                            keep_blank_values=True)
 
+        # En-têtes de réponse supplémentaires (Location, Allow…)
+        headers_out: list = []
+
         # --- ROUTING ---
         if method == "GET" and path in ("/", "/index.html"):
             body, ctype, status = (
@@ -187,39 +191,39 @@ class Server:
                 "200 OK",
             )
 
-        elif method == "GET" and path.startswith("/monitor"):
-            qs = urllib.parse.parse_qs(
-                urllib.parse.urlparse(path).query, keep_blank_values=True
-            )
-            for p in qs:
-                if p.startswith("reset_"):
-                    k = "DS18B#3" if p == "reset_DS18B3" else p.split("reset_", 1)[1]
-                    self.stats.clear_key(k)
-                    val = self.sensor_handler.get_sensor_value(k)
-                    if val is not None:
-                        self.stats.update(k, float(val))
-                    info(f"Stat {k} réinitialisée", name=LOGGER_NAME)
-            if qs.get("reboot", ["0"])[0] == "1":
-                warning("Redémarrage demandé via l'interface web", name=LOGGER_NAME)
-                rc = os.system("sudo reboot")
-                if rc != 0:
-                    error(f"« sudo reboot » a échoué (code {rc})", name=LOGGER_NAME)
-            if qs.get("poweroff", ["0"])[0] == "1":
-                warning("Extinction demandée via l'interface web", name=LOGGER_NAME)
-                rc = os.system("/sbin/shutdown -h now")
-                if rc != 0:
-                    error(f"« shutdown -h now » a échoué (code {rc})", name=LOGGER_NAME)
+        elif path.startswith("/monitor"):
+            if method == "POST":
+                if self._is_cross_origin(headers):
+                    warning(
+                        "POST /monitor refusé : origine "
+                        f"{headers.get('origin')!r} ≠ hôte {headers.get('host')!r}",
+                        name=LOGGER_NAME,
+                    )
+                    body, ctype, status = b"Forbidden", "text/plain", "403 Forbidden"
+                else:
+                    self._apply_monitor_actions(posted)
+                    # Post/Redirect/Get : un F5 après un reset de stat ne
+                    # rejoue pas l'action.
+                    headers_out.append(("Location", "/monitor"))
+                    body, ctype, status = b"", "text/plain", "303 See Other"
 
-            body, ctype, status = (
-                monitor_page(
-                    self.sensor_handler,
-                    self.stats,
-                    self.config,
-                    self.controller_status,
-                ).encode("utf-8"),
-                "text/html; charset=utf-8",
-                "200 OK",
-            )
+            elif method == "GET":
+                # Rendu seul : plus AUCUN effet de bord en GET (audit C12).
+                body, ctype, status = (
+                    monitor_page(
+                        self.sensor_handler,
+                        self.stats,
+                        self.config,
+                        self.controller_status,
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                    "200 OK",
+                )
+            else:
+                headers_out.append(("Allow", "GET, POST"))
+                body, ctype, status = (
+                    b"Method not allowed", "text/plain", "405 Method Not Allowed",
+                )
 
         elif method == "GET" and path == "/console":
             body, ctype, status = (
@@ -286,10 +290,12 @@ class Server:
             debug(f"404 : {method} {path}", name=LOGGER_NAME)
             body, ctype, status = b"Not found", "text/plain", "404 Not Found"
 
+        extra = "".join(f"{k}: {v}\r\n" for k, v in headers_out)
         writer.write(
             f"HTTP/1.1 {status}\r\n"
             f"Content-Type: {ctype}\r\n"
             f"Content-Length: {len(body)}\r\n"
+            f"{extra}"
             "Connection: close\r\n\r\n".encode("utf-8")
             + body
         )
@@ -307,6 +313,48 @@ class Server:
             await writer.wait_closed()
         except (ConnectionResetError, BrokenPipeError, OSError):
             pass
+
+    @staticmethod
+    def _is_cross_origin(headers: dict) -> bool:
+        """
+        Vrai si la requête vient manifestement d'une autre origine.
+
+        Il n'y a pas d'authentification sur cette IHM (choix assumé : accès LAN
+        uniquement). Le passage des actions destructrices en POST bloque déjà
+        les déclenchements passifs — préchargement de navigateur, scanner de
+        réseau, balise `<img src="http://pi:8123/monitor?reboot=1">`. Reste le
+        formulaire POST hébergé sur un site tiers : les navigateurs envoient
+        systématiquement `Origin` sur un POST, il suffit de le comparer à
+        `Host`. Absence d'`Origin` = appel non navigateur (curl, script) : on
+        laisse passer, l'IHM n'a pas vocation à être un pare-feu.
+        """
+        origin = headers.get("origin")
+        if not origin:
+            return False
+        return urllib.parse.urlsplit(origin).netloc != headers.get("host", "")
+
+    def _apply_monitor_actions(self, posted: dict) -> None:
+        """Actions de la page /monitor — POST uniquement (audit C12)."""
+        for p in posted:
+            if p.startswith("reset_"):
+                k = "DS18B#3" if p == "reset_DS18B3" else p.split("reset_", 1)[1]
+                self.stats.clear_key(k)
+                val = self.sensor_handler.get_sensor_value(k)
+                if val is not None:
+                    self.stats.update(k, float(val))
+                info(f"Stat {k} réinitialisée", name=LOGGER_NAME)
+
+        if posted.get("reboot", ["0"])[0] == "1":
+            warning("Redémarrage demandé via l'interface web", name=LOGGER_NAME)
+            rc = os.system("sudo reboot")
+            if rc != 0:
+                error(f"« sudo reboot » a échoué (code {rc})", name=LOGGER_NAME)
+
+        if posted.get("poweroff", ["0"])[0] == "1":
+            warning("Extinction demandée via l'interface web", name=LOGGER_NAME)
+            rc = os.system("/sbin/shutdown -h now")
+            if rc != 0:
+                error(f"« shutdown -h now » a échoué (code {rc})", name=LOGGER_NAME)
 
     def _apply_conf_changes(self, posted: dict[str, list[str]]) -> None:
         """ Mise à jour partielle de la config via POST (clé alias → champ). """

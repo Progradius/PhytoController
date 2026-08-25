@@ -10,6 +10,7 @@ from typing import ClassVar, Literal
 from pydantic import BaseModel, Field, validator
 
 from utils import pretty_console as ui
+from utils.atomic_io import write_text_atomic
 from utils.log_dedup import StateLogger
 
 # `load()` est appelée en boucle (toutes les 5-60 s) : on ne veut qu'une ligne
@@ -218,8 +219,12 @@ class AppConfig(BaseModel):
             for k, v in self.sensors.model_dump().items()
         }
 
+        # Écriture atomique : une boucle de contrôle peut relire param.json à
+        # n'importe quel instant, et une coupure secteur en pleine écriture
+        # laisserait un fichier tronqué — donc un boot mort.
         try:
-            self._path.write_text(
+            write_text_atomic(
+                self._path,
                 json.dumps(payload, indent=4, ensure_ascii=False),
                 encoding="utf-8"
             )

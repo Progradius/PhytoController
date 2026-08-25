@@ -16,6 +16,7 @@ from utils.pretty_console import (
     title, action, debug, success, warning, error, exception, clock,
 )
 from utils.log_stream import console_stream
+from utils.single_instance import ensure_single_instance
 from function import motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
 from network.network_handler import do_connect, is_host_connected
 
@@ -36,6 +37,16 @@ from param.config import AppConfig
 
 LOGGER_NAME = "main"
 
+# =============================================================
+#          VERROU D'INSTANCE (avant toute action GPIO)
+# =============================================================
+# Deux instances vivantes se battent pour les mêmes broches : chacune force les
+# génériques à HIGH (coupant ce que l'autre tenait ON) et remet le moteur à 0,
+# en boucle. Le verrou est pris ici, avant l'enregistrement des handlers de
+# signaux et d'`atexit`, pour qu'une instance surnuméraire sorte sans jamais
+# toucher une broche.
+ensure_single_instance()
+
 # mode de run (pour désactiver certaines fonctions en service)
 RUN_AS_SERVICE = os.getenv("PHYTO_RUN_MODE", "").lower() == "service"
 # si PHYTO_HW_WATCHDOG=0 → on ne lance pas le thread watchdog
@@ -47,6 +58,9 @@ MOTOR_PINS = []                 # on remplira après chargement config
 watchdog_thread = None
 watchdog_active = False
 watchdog_stop = threading.Event()
+# `cleanup_gpio()` est atteignable par trois chemins (handler de signal,
+# `atexit`, `finally` de la boucle principale) : on ne rejoue pas la séquence.
+gpio_safe_state_done = False
 
 
 # =============================================================
@@ -55,11 +69,28 @@ watchdog_stop = threading.Event()
 
 def cleanup_gpio():
     """
-    Sécurité de sortie :
+    Sécurité de sortie — l'état sûr est TERMINAL :
       - pour TOUT ce qui n'est PAS le moteur → HIGH (OFF relai)
       - pour les pins moteur → on les met comme au boot (LOW chez toi)
+
+    On n'appelle **jamais** `GPIO.cleanup()` ici (audit C3) : cette fonction
+    remet chaque broche en entrée avec son pull par défaut, ce qui *défait*
+    l'état sûr qu'on vient de poser — GPIO 18/22/23/27 retombent au pull-down
+    (niveau BAS = commande active pour les Component actifs-BAS, chauffage
+    compris) et les broches moteur remontent au pull-up. Les sorties doivent
+    rester **pilotées** jusqu'à la coupure d'alimentation.
+
+    Relâcher les broches ne redeviendra acceptable que si des résistances
+    externes garantissent l'état sûr (pull-up sur les entrées actives-BAS,
+    pull-down sur les entrées moteur) — c'est une dépendance MATÉRIELLE, pas
+    une option logicielle.
     """
-    action("Nettoyage GPIO avant extinction…", name=LOGGER_NAME)
+    global gpio_safe_state_done
+    if gpio_safe_state_done:
+        return
+    gpio_safe_state_done = True
+
+    action("Mise à l'état sûr des GPIO avant extinction…", name=LOGGER_NAME)
     try:
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
@@ -82,11 +113,9 @@ def cleanup_gpio():
         except Exception as e:
             error(f"Erreur GPIO (moteur) {pin} : {e}", name=LOGGER_NAME)
 
-    # 3) cleanup final
-    try:
-        GPIO.cleanup()
-    except Exception as e:
-        error(f"GPIO.cleanup() a échoué : {e}", name=LOGGER_NAME)
+    # 3) PAS de GPIO.cleanup() : voir le docstring. Les broches restent des
+    #    sorties pilotées à leur état sûr jusqu'à la coupure d'alimentation.
+    success("Broches maintenues à l'état sûr (sorties pilotées)", name=LOGGER_NAME)
 
 
 def disable_watchdog():
@@ -274,6 +303,6 @@ finally:
     watchdog_stop.set()
     if watchdog_thread and watchdog_thread.is_alive():
         watchdog_thread.join(timeout=2)
-    # on appelle quand même cleanup GPIO (c’est déjà enregistré dans atexit)
+    # idempotent : `atexit` et le handler de signal l'ont peut-être déjà fait
     cleanup_gpio()
-    success("Programme terminé (watchdog & GPIO nettoyés)", name=LOGGER_NAME)
+    success("Programme terminé (watchdog arrêté, GPIO à l'état sûr)", name=LOGGER_NAME)

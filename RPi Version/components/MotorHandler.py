@@ -115,13 +115,24 @@ async def temp_control(
     refresh_minutes_done_this_hour: float = 0.0
     # Mode invalide déjà signalé (pour ne pas répéter le warning à chaque tick)
     unknown_mode_reported: str | None = None
+    # Dernière config valide : si param.json est momentanément illisible (POST
+    # /conf en cours, fichier tronqué…), on continue de réguler sur la
+    # précédente plutôt que de laisser la JSONDecodeError tuer la tâche — un
+    # moteur figé sur sa dernière vitesse ne serait plus jamais repiloté.
+    last_cfg = config
 
     async def _apply_once():
         nonlocal refresh_window_start, refresh_minutes_done_this_hour
-        nonlocal unknown_mode_reported
+        nonlocal unknown_mode_reported, last_cfg
 
         # recharge dynamique
-        cfg = config.__class__.load()
+        try:
+            cfg = config.__class__.load()
+        except Exception:
+            # AppConfig.load() a déjà journalisé (dédupliqué) la cause.
+            cfg = last_cfg
+        else:
+            last_cfg = cfg
         ms  = cfg.motor
 
         # clamp utilitaire

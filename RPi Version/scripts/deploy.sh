@@ -198,8 +198,13 @@ if [[ $AVEC_RESTART -eq 0 ]]; then
 fi
 
 # --- 7. Redemarrage propre ---------------------------------------------------
-# main.py restaure les GPIO dans leur etat sur sur SIGTERM (relais OFF) :
-# systemctl stop/start laisse donc la serre dans un etat connu.
+# main.py pose l'etat sur des GPIO sur SIGTERM (relais OFF) et n'appelle plus
+# GPIO.cleanup() : les broches restent des SORTIES PILOTEES pendant toute la
+# fenetre stop -> start, au lieu de retomber en entree flottante. La serre reste
+# dans un etat connu pendant le redemarrage.
+# main.py prend aussi un verrou d'instance : si l'ancien processus n'est pas
+# encore mort, le nouveau attend 15 s puis sort en erreur (visible ici) plutot
+# que de piloter les memes broches en double.
 attendre_sante() {
     local limite=$1 i
     for ((i = 0; i < limite; i++)); do

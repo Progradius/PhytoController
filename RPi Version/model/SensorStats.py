@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from utils.pretty_console import warning
+from utils.atomic_io import write_text_atomic
 from utils.log_dedup import StateLogger
 
 LOGGER_NAME = "stats"
@@ -48,12 +49,20 @@ class SensorStats:
             self._dump()
 
     def _dump(self):
-        """Écrit self.data dans le fichier JSON (échec non bloquant)."""
+        """
+        Écrit self.data dans le fichier JSON (échec non bloquant).
+
+        Écriture atomique : `_dump()` est appelé à chaque lecture de capteur,
+        donc très souvent — une coupure secteur pendant l'une d'elles ne doit
+        pas laisser un fichier tronqué (qui serait ensuite réinitialisé au
+        prochain boot, perdant l'historique min/max).
+        """
         try:
-            # En cas d'appel isolé on recrée aussi le dossier
-            self.FILE.parent.mkdir(parents=True, exist_ok=True)
-            with self.FILE.open("w", encoding="utf-8") as f:
-                json.dump(self.data, f, indent=4)
+            write_text_atomic(
+                self.FILE,
+                json.dumps(self.data, indent=4),
+                encoding="utf-8",
+            )
         except OSError as e:
             _dump_state.fail(f"{e.__class__.__name__} : {e}")
         else:

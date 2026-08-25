@@ -45,7 +45,7 @@
     <h2>{{ name }}</h2>
     <p>Min : {{ stat.min }} le {{ stat.min_date }}</p>
     <p>Max : {{ stat.max }} le {{ stat.max_date }}</p>
-    <form method="get" action="/monitor">
+    <form method="post" action="/monitor">
       <input type="hidden" name="reset_{{ name|replace('#', '') }}" value="1">
       <button class="button_base" type="submit">Reset {{ name }}</button>
     </form>
@@ -66,11 +66,11 @@
 <h1>Actions système</h1>
 <hr>
 <div class="formwrap">
-  <form method="get" action="/monitor">
+  <form method="post" action="/monitor">
     <input type="hidden" name="poweroff" value="1">
     <button class="button_base" type="submit">Éteindre le Raspberry Pi</button>
   </form>
-  <form method="get" action="/monitor">
+  <form method="post" action="/monitor">
     <input type="hidden" name="reboot" value="1">
     <button class="button_base" type="submit">Redémarrer le Raspberry Pi</button>
   </form>

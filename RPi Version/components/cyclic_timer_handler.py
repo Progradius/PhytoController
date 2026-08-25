@@ -26,10 +26,25 @@ async def timer_cyclic(cyclic_timer) -> None:
     tid    = cyclic_timer.timer_id
     comp   = cyclic_timer.component
     disabled_reported = False
+    # Dernière config valide : filet quand param.json est momentanément
+    # illisible (POST /conf en cours, fichier tronqué…). Sans ce repli, la
+    # JSONDecodeError tue la tâche définitivement — plus rien ne repilote la
+    # sortie cyclique.
+    last_cfg = getattr(cyclic_timer, "_config", None)
 
     while True:
         # recharger complètement la conf
-        cfg = AppConfig.load()
+        try:
+            cfg = AppConfig.load()
+        except Exception:
+            # AppConfig.load() a déjà journalisé (dédupliqué) la cause.
+            if last_cfg is None:
+                await asyncio.sleep(5)
+                continue
+            cfg = last_cfg
+        else:
+            last_cfg = cfg
+
         if cyclic_timer.timer_id == "1":
             cyc_conf = cfg.cyclic1
             gpio_pin = cfg.gpio.cyclic1_pin
