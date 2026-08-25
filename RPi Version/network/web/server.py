@@ -293,9 +293,19 @@ class Server:
             warning(f"CSRF refusé sur {request.path}", name=LOGGER_NAME)
             raise web.HTTPForbidden(text="Jeton de formulaire invalide")
         origin = request.headers.get("Origin")
-        if origin and urllib.parse.urlsplit(origin).netloc.lower() != request.host.lower():
-            warning(f"Origine refusée sur {request.path}", name=LOGGER_NAME)
-            raise web.HTTPForbidden(text="Origine non autorisée")
+        if origin:
+            # Le refus doit être diagnostiquable : sans les deux valeurs, le log
+            # ne dit pas si c'est un `Origin: null` (iframe/webview) ou une
+            # adresse d'accès différente du `Host` reçu.
+            received = urllib.parse.urlsplit(origin).netloc.lower()
+            expected = request.host.lower()
+            if received != expected:
+                warning(
+                    f"Origine refusée sur {request.path} : "
+                    f"Origin={origin!r} (netloc {received!r}) ≠ Host attendu {expected!r}",
+                    name=LOGGER_NAME,
+                )
+                raise web.HTTPForbidden(text="Origine non autorisée")
         return await handler(request)
 
     @staticmethod
