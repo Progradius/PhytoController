@@ -214,9 +214,8 @@ async def temp_control(
                     action(f"[MOTOR][WINTER] Froid + renouvellement (T={T:.1f}°C, RH={RH if RH is not None else 0:.1f}%) "
                            f"→ speed {desired} | quota {refresh_minutes_done_this_hour:.1f}/{refresh_quota} min")
                 else:
-                    desired = 0
-                    motor_handler.set_motor_speed(desired)
-                    action(f"[MOTOR][WINTER] Froid, quota atteint → speed 0")
+                    motor_handler.set_motor_speed(default_speed)
+                    info(f"[MOTOR][WINTER] Froid, quota atteint → speed {default_speed}")
 
             else:
                 # T ok → humidité prioritaire, sinon renouvellement régulier, sinon vitesse par défaut
@@ -234,9 +233,8 @@ async def temp_control(
                         action(f"[MOTOR][WINTER] Renouvellement régulier → speed {desired} "
                                f"(quota {refresh_minutes_done_this_hour:.1f}/{refresh_quota} min)")
                     else:
-                        desired = default_speed
-                        motor_handler.set_motor_speed(desired)
-                        action(f"[MOTOR][WINTER] Par défaut → speed {desired}")
+                        motor_handler.set_motor_speed(default_speed)
+                        info(f"[MOTOR][WINTER] Par défaut → speed {default_speed}")
 
             return
 
