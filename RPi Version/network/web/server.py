@@ -253,7 +253,13 @@ class Server:
         except web.HTTPException as exc:
             response = self._error_response(request, exc)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        # `same-origin` et non `no-referrer` : Firefox applique la referrer
+        # policy à l'en-tête `Origin` des POST de formulaire, y compris
+        # same-origin. Avec `no-referrer` il envoie `Origin: null`, que le
+        # contrôle d'origine du middleware CSRF refuse — tout POST devenait un
+        # 403 sur ce navigateur. `same-origin` ne fuite toujours aucun referrer
+        # vers l'extérieur (et l'UI n'a aucun lien sortant).
+        response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault(
             "Content-Security-Policy",
