@@ -63,3 +63,18 @@ Si le rollback automatique a restauré le commit mais que le service reste indis
 ## Amélioration prioritaire
 
 Faire pointer le contrôle de déploiement vers une readiness qui renvoie un échec lorsque `healthy=false`. Une réponse HTTP du serveur ne doit pas certifier la régulation.
+
+## Dépendances retirées de `requirements.txt`
+
+`scripts/deploy.sh` rejoue `pip install -r requirements.txt` quand le fichier a changé, ce qui
+installe et met à jour, mais **ne désinstalle jamais** une dépendance qu'on en a retirée. Le
+paquet reste donc dans le venv du Pi, inutilisé.
+
+Ce n'est pas dangereux, mais c'est une divergence entre le fichier et l'environnement réel, et
+elle grandit à chaque nettoyage. Retirer explicitement le paquet après le déploiement :
+
+```bash
+"RPi Version/venv/bin/pip" uninstall -y <paquet>
+```
+
+Fait pour `requests` le 26 août 2026, après le passage de l'export InfluxDB à aiohttp.

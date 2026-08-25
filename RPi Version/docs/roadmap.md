@@ -2,7 +2,7 @@
 
 **Public** : pilotage et développement.
 **Référence initiale** : commit `61ad3df`, audit et plans au 25 août 2026.
-**Dernière mise à jour** : 25 août 2026, après la refonte de l'interface web.
+**Dernière mise à jour** : 26 août 2026, après l'arbitre thermique unifié.
 
 La roadmap privilégie la réduction du risque physique, puis la reproductibilité et enfin la modernisation. Chaque chantier doit rester livrable, réversible et vérifiable indépendamment.
 
@@ -75,14 +75,18 @@ Un chantier n'est terminé que si :
 
 ### Arbitre thermique
 
-- [ ] Extraire une fonction pure `decide(T, RH, quota, cfg, previous)`
-- [ ] Garantir l'exclusion chauffage/extraction
-- [ ] Définir une zone morte valide par contrainte de configuration
-- [ ] Définir la priorité humidité/froid avec un plancher absolu
-- [ ] Unifier le quota de renouvellement ou nommer deux budgets distincts
-- [ ] Ajouter une hystérésis à état
-- [ ] Persister quota hiver et phase cyclique
-- [ ] Définir le comportement sur capteur absent, hors plage ou figé
+*(Phase 2, commit `e93644a` : implémenté et vérifié hors matériel, **non encore déployé**.
+Décision consignée dans [ADR-0004](decisions/ADR-0004-unified-climate-arbiter.md).)*
+
+- [x] Extraire une fonction pure — `components/climate_policy.decide()`, sans GPIO, disque ni horloge implicite
+- [x] Garantir l'exclusion chauffage/extraction — travail unique `climate_control`
+- [x] Définir une zone morte valide — garantie **par construction** et non par un validateur bloquant, qui aurait rendu le `param.json` déployé illisible
+- [x] Définir la priorité humidité/froid avec un plancher absolu — `absolute_floor_temp`
+- [x] Nommer deux budgets distincts — renouvellement et déshumidification, bornés et comptés en temps réellement écoulé
+- [x] Ajouter une hystérésis à état — seuil de relâchement distinct et `min_dwell_seconds`
+- [x] Persister quota hiver et phase cyclique — `utils/state_store.py`
+- [x] Définir le comportement sur capteur absent, hors plage ou figé — repli nommé `REPLI_CAPTEUR`
+- [ ] Essai sur plages limites avec le matériel réel, et observation d'un épisode froid/humide
 
 ### Configuration
 

@@ -39,15 +39,15 @@
 ## P6 — Rétention
 - [x] `TimedRotatingFileHandler` (minuit) + archives gzip + `retention_days`
 - [x] Anciens `phyto.log.N` sortis de git, supprimés du Pi, `logs/` ajouté au `.gitignore`
-- [ ] **OUVERT — à vérifier le 26/08/2026 (après minuit) : la rotation quotidienne en conditions
-      réelles.** Seul maillon non testé en production (validé en local uniquement, en forçant
-      `doRollover()`). Attendu : `logs/phyto.log.2026-08-26.gz` de quelques Ko, un `phyto.log`
-      neuf qui repart à la ligne 1, et aucune erreur de rotation dans le fichier ni dans
-      `journalctl -u phyto`. Commande de contrôle depuis WSL :
-      `./scripts/phyto-ssh.sh 'ls -la ~/PhytoController/"RPi Version"/logs/'`
-      Si l'archive manque : vérifier que le processus n'a pas redémarré pile à minuit (le
-      handler ne rattrape pas une rotation manquée au démarrage) et que `logs/` est accessible
-      en écriture à `progradius`.
+- [x] **Rotation quotidienne vérifiée en conditions réelles le 26/08/2026 à 00:18.**
+      `logs/phyto.log.2026-08-25.gz` (4,6 Kio) contient l'intégralité de la journée,
+      `logs/phyto.log` repart à la ligne 1, aucune erreur de rotation dans le fichier ni dans
+      `journalctl -u phyto`.
+      **Enseignement** : à 00:17, aucune archive n'existait encore. `TimedRotatingFileHandler`
+      ne bascule pas sur une minuterie mais sur la **première écriture après minuit** ; les
+      boucles journalisant leurs ticks en DEBUG, un contrôleur calme n'écrit rien pendant des
+      dizaines de minutes. La bascule s'est produite immédiatement à l'émission d'une ligne
+      provoquée. Ne pas diagnostiquer une panne de rotation sur la seule absence d'archive.
 
 ---
 

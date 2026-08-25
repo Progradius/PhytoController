@@ -5,9 +5,16 @@
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
 **Dernière vérification documentaire** : 25 août 2026, après la refonte de l'interface web.
 
-La refonte de l'interface web et de l'acquisition capteurs est **implémentée, déployée et
-vérifiée sur le Pi** le 25 août 2026 (commit `ad39de2`). Relevé dans
-[Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md).
+**Écart entre le dépôt et la production, au 26 août 2026 :**
+
+| Chantier | Code | Déployé sur le Pi |
+|---|---|---|
+| Refonte web et acquisition capteurs | `ad39de2` | **Oui**, vérifié — [relevé](operations/web-baseline-2026-08-25.md) |
+| Arbitre thermique unifié (phase 2) | `e93644a` | **Non** — vérifié hors matériel seulement |
+
+Le Pi exécute donc encore le chauffage et la ventilation en deux boucles séparées. Ne pas lire la
+documentation de `climate_control` comme une description de la production tant que ce déploiement
+n'est pas consigné.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -71,6 +78,8 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 | Polarité des sorties | `model/Component.py` et `model/Motor.py` |
 | Routes HTTP et schémas d'état | `network/web/server.py` |
 | Catalogue des mesures capteurs | `controllers/sensor_catalog.py` |
+| Politique thermique (chauffage et ventilation) | `components/climate_policy.py` |
+| État de régulation reporté d'un démarrage à l'autre | `utils/state_store.py` et `param/runtime_state.json` sur le Pi |
 | Déploiement | `scripts/deploy.sh` |
 | Risques actuels | `docs/risk-register.md` |
 | Travaux ordonnés | `docs/roadmap.md` |

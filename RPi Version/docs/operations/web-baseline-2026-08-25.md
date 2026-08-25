@@ -100,8 +100,9 @@ Toutes les broches sont des sorties pilotées (`op`), aucune n'est relâchée en
 `aiohttp 3.13.5`, `jinja2 3.1.6`, `pydantic 2.11.3` dans le venv du service : la mise à jour
 automatique de `scripts/deploy.sh` sur changement de `requirements.txt` a fonctionné.
 
-`requests 2.32.3` est **encore installé** dans le venv : `pip install -r` ne désinstalle pas ce
-qui a été retiré du fichier. Sans effet, plus aucun import ne le référence.
+`requests 2.32.3` était **resté installé** dans le venv — `pip install -r` ne désinstalle pas ce
+qui a été retiré du fichier. Désinstallé le 26 août 2026 à 00:19 (`pip uninstall -y requests`) :
+`import requests` échoue désormais, les imports applicatifs et `influx_push` restent sains.
 
 ## Journal
 
@@ -113,14 +114,21 @@ antérieures au redéploiement, sur un capteur physiquement absent.
 
 NTP synchronisé, partition racine à 34 % (18 Gio libres), journald à 141,3 Mio.
 
+## Suites données le 26 août 2026
+
+- **Rotation quotidienne des logs** (`R-OPS-03`) : **constatée** à 00:18.
+  `phyto.log.2026-08-25.gz` (4,6 Kio) contient la journée entière, `phyto.log` repart à la
+  première ligne, aucune erreur. Elle ne s'est déclenchée qu'à la première écriture après
+  minuit — comportement normal de `TimedRotatingFileHandler`, désormais documenté.
+- **`requests`** désinstallé du venv du Pi.
+- **`param/param.json.bak-gpio17`** supprimé : ancienne copie de configuration contenant les
+  identifiants Wi-Fi et InfluxDB en clair, hors de tout suivi git.
+
 ## Points restés ouverts après ce relevé
 
-- **Rotation quotidienne des logs** (`R-OPS-03`) : `logs/` ne contenait encore que
-  `phyto.log`, le relevé étant antérieur à minuit. Inchangé par la refonte.
 - **Plafond journald** : 141,3 Mio ; vérifier que `SystemMaxUse=200M` est bien appliqué.
 - **Collisions GPIO déclarées** (`R-HW-01`) : `i2c_scl` et `cyclic2_pin` valent tous deux 22,
   `hcsr_echo_pin` et `cyclic1_pin` valent tous deux 27. Sans effet tant que HC-SR04 et l'I²C
   logiciel restent inutilisés, mais la configuration reste ambiguë.
 - **`motor_pin4` toujours sur BCM 1** (`ID_SC`) — migration prévue vers BCM 16.
 - **`scripts/deploy.sh`** interroge encore `/status` et non `/health/ready` (`R-OPS-02`).
-- Un fichier `param/param.json.bak-gpio17` non suivi traîne dans `param/` sur le Pi.

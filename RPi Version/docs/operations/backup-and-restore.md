@@ -46,6 +46,21 @@ Les commandes d'écrasement sont volontairement absentes de cette première vers
 
 Une sauvegarde n'est qualifiée que si elle peut restaurer configuration, statistiques et unité systemd sur un Pi de remplacement, avec secrets injectés séparément et vérifications matérielles avant raccordement des charges.
 
+## `param/runtime_state.json`
+
+État de régulation reporté d'un démarrage à l'autre : budgets horaires du mode hiver et phase
+séquentielle des minuteurs cycliques. Propre à la machine, ignoré par git, **non sauvegardé** par
+`scripts/deploy.sh` — comme `.csrf_token`, il survit aux déploiements parce que `git reset --hard`
+ne touche pas les fichiers ignorés.
+
+Sa perte n'est pas dangereuse : les budgets repartent pleins et la phase séquentielle recommence.
+La conséquence est celle que ce fichier existe précisément pour éviter — un redémarrage réaccorde
+un crédit de ventilation, ou relance une phase ON complète d'arrosage. À surveiller si des
+redémarrages se succèdent.
+
+Un fichier corrompu est détecté au chargement et réinitialisé plutôt que de lever : la régulation
+démarre toujours.
+
 ## `param/.csrf_token`
 
 Ce fichier contient le jeton CSRF de l'interface web (mode 0600, ignoré par git). Il **n'est pas

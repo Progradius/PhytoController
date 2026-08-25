@@ -12,9 +12,16 @@
 | `error`, `exception` | ERROR |
 | `critical` | CRITICAL |
 
-Les événements sont en français et utilisent `name=` pour obtenir des loggers `phyto.<nom>`. Les boucles doivent journaliser les transitions à INFO et les ticks à DEBUG. `StateLogger` produit une ligne à l'entrée en panne et une ligne au rétablissement.
+Les événements sont en français et utilisent `name=` pour obtenir des loggers `phyto.<nom>` :
+`phyto.climate` pour l'arbitre thermique, `phyto.state` pour la persistance de régulation,
+`phyto.http`, `phyto.sensors`, `phyto.influx`, `phyto.supervisor`, `phyto.timer.daily`,
+`phyto.timer.cyclic`. Les boucles doivent journaliser les transitions à INFO et les ticks à DEBUG. `StateLogger` produit une ligne à l'entrée en panne et une ligne au rétablissement.
 
-La rotation est quotidienne, compression gzip, rétention configurable. Au relevé du 25 août 2026 avant minuit, le fichier faisait 45 Kio et journald 141,3 Mio avec un plafond de 200 Mio. La première rotation réelle restait à constater.
+La rotation est quotidienne, compression gzip, rétention configurable.
+
+Elle est **paresseuse**, et c'est le comportement normal de `TimedRotatingFileHandler` : le basculement est déclenché par la première écriture *après* minuit, jamais par une minuterie. Sur un contrôleur en régime calme — les boucles journalisent leurs ticks en DEBUG, donc rien n'est écrit tant qu'aucun évènement ne survient — l'archive du jour précédent peut n'apparaître qu'avec plusieurs dizaines de minutes de retard. **Ne pas conclure à une panne de rotation sur la seule absence d'archive juste après minuit** : provoquer une ligne de log et vérifier à nouveau.
+
+Constatée en conditions réelles le 26 août 2026 à 00:18 : `logs/phyto.log.2026-08-25.gz` (4,6 Kio) contient l'intégralité de la journée, `logs/phyto.log` repart à la première ligne, aucune erreur de rotation dans le fichier ni dans `journalctl -u phyto`.
 
 ## Capteurs
 
