@@ -93,7 +93,7 @@ class SensorController:
         self.bme  = BME280Handler(i2c=self.i2c)   if self.bme_enabled else None
         self.ds18 = DS18Handler()                 if self.ds18_enabled else None
         self.veml = VEMLHandler(i2c=self.i2c)     if self.veml_enabled else None
-        self.vl53 = VL53L0XHandler(config)        if self.vl53_enabled else None
+        self.vl53 = VL53L0XHandler(self.config)   if self.vl53_enabled else None
         self.mlx  = MLX90614Handler(i2c=self.i2c) if self.mlx_enabled else None
         self.tsl  = TSL2591Handler(i2c=self.i2c)  if self.tsl_enabled else None
         self.hcsr = HCSR04Handler(

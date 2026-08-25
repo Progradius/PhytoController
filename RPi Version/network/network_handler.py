@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import subprocess
 
+from param.config_store import shared_config
 from utils.pretty_console import debug, success, warning, error, action
 
 LOGGER_NAME = "network"
