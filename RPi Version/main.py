@@ -29,7 +29,7 @@ from controllers.SystemStatus import SystemStatus
 from controllers.PuppetMaster import PuppetMaster
 from model.SensorStats import SensorStats
 
-from param.config import AppConfig
+from param.config_store import shared_config
 
 # =============================================================
 #                  VARIABLES GLOBALES SÉCURITÉ
@@ -138,7 +138,11 @@ atexit.register(cleanup_gpio)
 title("Phyto-Controller - Boot", name=LOGGER_NAME)
 
 # (1) Chargement de la configuration
-config = AppConfig.load()
+# `shared_config()` est le propriétaire unique de `param.json` pour tout le
+# processus : il charge, replie sur `param.json.bak` si le fichier principal est
+# inutilisable, et distribue **une seule** instance qu'il mutera en place à
+# chaque modification (audit C5, C7, M4).
+config = shared_config().current
 
 # Niveau et rétention de log : env PHYTO_LOG_LEVEL > param.json > INFO
 ui.apply_log_settings(config.logs.level, config.logs.retention_days)

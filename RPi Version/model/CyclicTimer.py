@@ -9,7 +9,8 @@
 # -------------------------------------------------------------
 
 from typing import Union
-from param.config      import AppConfig
+from param.config       import AppConfig
+from param.config_store import shared_config
 from utils.pretty_console import debug, info, warning
 
 LOGGER_NAME = "timer.cyclic"
@@ -63,11 +64,14 @@ class CyclicTimer:
 
     def refresh_from_config(self):
         """
-        Recharge les paramètres depuis le JSON en cours.
-        À appeler périodiquement pour prendre en compte
-        les changements faits à chaud via la page de conf.
+        Recharge les paramètres depuis le magasin partagé.
+
+        `self._config` reste **la même instance** que celle distribuée au boot :
+        `refresh()` la mute en place. L'ancienne version remplaçait la
+        référence, et le minuteur cessait alors de partager la configuration du
+        reste du processus (audit M4).
         """
-        self._config = AppConfig.load()
+        self._config = shared_config().refresh()
         self._load_from_config_block()
         debug(f"CyclicTimer #{self.timer_id} rafraîchi depuis AppConfig", name=LOGGER_NAME)
 
@@ -89,7 +93,9 @@ class CyclicTimer:
         # mapping interne → nom de champ JSON
         json_field = "action_duration_seconds" if attr == "action_duration" else attr
         setattr(blk, json_field, value)
-        self._config.save()
+        # Le magasin revalide le modèle complet — les validateurs croisés ne
+        # sont pas rejoués par une simple affectation de champ (audit C5).
+        shared_config().commit()
 
     def set_mode(self, mode: str):
         if mode not in ("journalier", "séquentiel"):

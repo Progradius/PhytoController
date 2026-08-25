@@ -9,6 +9,7 @@
 from datetime import datetime
 from function import convert_time_to_minutes
 from param.config import AppConfig
+from param.config_store import shared_config
 from utils.pretty_console import debug, info, error
 
 LOGGER_NAME = "timer.daily"
@@ -71,10 +72,13 @@ class DailyTimer:
 
     def refresh_from_config(self):
         """
-        Recharge les horaires depuis le JSON en cours.
-        À appeler à chaque boucle pour prise en compte à chaud.
+        Recharge les horaires depuis le magasin partagé.
+
+        `self._config` reste **la même instance** que celle distribuée au boot :
+        `refresh()` la mute en place, sans I/O si le fichier n'a pas bougé et
+        sans jamais lever (audit M4, C7).
         """
-        self._config = AppConfig.load()
+        self._config = shared_config().refresh()
         blk = self._config.daily_timer1 if self.timer_id == 1 else self._config.daily_timer2
 
         self.enabled = getattr(blk, "enabled", True)
@@ -99,7 +103,8 @@ class DailyTimer:
         blk = self._config.daily_timer1 if self.timer_id == 1 else self._config.daily_timer2
         blk.start_hour = h
         blk.start_minute = m
-        self._config.save()
+        # Revalidation intégrale par le magasin (audit C5).
+        shared_config().commit()
         info(f"DailyTimer #{self.timer_id} start → {h:02d}:{m:02d}", name=LOGGER_NAME)
 
     def set_stop_time(self, h: int, m: int):
@@ -107,7 +112,7 @@ class DailyTimer:
         blk = self._config.daily_timer1 if self.timer_id == 1 else self._config.daily_timer2
         blk.stop_hour = h
         blk.stop_minute = m
-        self._config.save()
+        shared_config().commit()
         info(f"DailyTimer #{self.timer_id} stop → {h:02d}:{m:02d}", name=LOGGER_NAME)
 
     def toggle_state_daily(self) -> bool:

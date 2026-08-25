@@ -18,6 +18,7 @@ from components.climate_control import get_climate_alarm, get_climate_snapshot
 from controllers.sensor_catalog import SENSOR_CATALOG
 from network.web import influx_handler
 from network.web.pages import conf_page, console_page, error_page, main_page
+from param.config_store import shared_config
 from utils import pretty_console as ui
 from utils.csrf import load_or_create_token
 from utils.log_stream import console_stream
@@ -161,6 +162,9 @@ class Server:
     ):
         self.controller_status = controller_status
         self.sensor_handler = sensor_handler
+        self.config_store = shared_config()
+        # Même instance que celle du magasin : elle est mutée en place, jamais
+        # remplacée, donc cette référence reste à jour indéfiniment.
         self.config = config
         self.host = host
         self.port = port
@@ -380,7 +384,10 @@ class Server:
             ), status=422)
 
         try:
-            candidate.save()
+            # Le magasin revalide, sauvegarde l'ancien contenu en `.bak`, écrit
+            # atomiquement puis adopte la candidate dans l'instance partagée —
+            # celle que tient déjà `self.config` (audit C5, M4).
+            self.config_store.save(candidate)
         except OSError:
             return self._html(conf_page(
                 self.config,
@@ -388,8 +395,6 @@ class Server:
                 errors={"__all__": "Écriture impossible : la configuration active est inchangée."},
                 active_section=section,
             ), status=500)
-
-        self.config.replace_from(candidate)
         await self._apply_runtime_changes(section)
         if changed_fields:
             safe_names = [f"{name} modifié" if name in SENSITIVE_FIELDS else name for name in changed_fields]

@@ -11,6 +11,7 @@ import subprocess
 import RPi.GPIO as GPIO
 
 from param.config import AppConfig
+from param.config_store import shared_config
 from utils.pretty_console import info, success, warning, error
 
 LOGGER_NAME = "system"
@@ -81,10 +82,10 @@ def set_ntp_time() -> None:
 def motor_all_pin_down_at_boot(config: AppConfig | None = None) -> None:
     """
     Met **toutes** les broches moteur à LOW au boot (sécurité).
-    Si `config` n'est pas fourni, on le charge depuis AppConfig.
+    Si `config` n'est pas fourni, on prend celle du magasin partagé.
     """
     if config is None:
-        config = AppConfig.load()
+        config = shared_config().current
 
     pins = [
         config.gpio.motor_pin1,

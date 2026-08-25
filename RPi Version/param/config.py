@@ -5,16 +5,14 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator, validator
 
-from utils import pretty_console as ui
-from utils.atomic_io import write_text_atomic
 from utils.log_dedup import StateLogger
 
-# `load()` est appelée en boucle (toutes les 5-60 s) : on ne veut qu'une ligne
-# à l'entrée en panne et une au rétablissement.
+# `load()` est relayée par `config_store`, qui l'appelle à chaque changement du
+# fichier : on ne veut qu'une ligne à l'entrée en panne et une au rétablissement.
 _load_state = StateLogger("Chargement de param.json", name="config")
 
 
@@ -104,7 +102,7 @@ class TemperatureSettings(ValidatedModel):
 
 
 class NetworkSettings(ValidatedModel):
-    host_machine_address: str
+    host_machine_address: str = Field(min_length=1)
     host_machine_state: Literal["online", "offline"]
     wifi_ssid: str
     wifi_password: str
@@ -124,21 +122,36 @@ class NetworkSettings(ValidatedModel):
         return str(port)
 
 
+# Broches BCM valides sur un en-tête 40 points : 0 à 27.
+BCMPin = Annotated[int, Field(ge=0, le=27)]
+
+
 class GPIOSettings(ValidatedModel):
-    i2c_sda: int
-    i2c_scl: int
-    ds18_pin: int
-    hcsr_trigger_pin: int
-    hcsr_echo_pin: int
-    dailytimer1_pin: int
-    dailytimer2_pin: int
-    cyclic1_pin: int
-    cyclic2_pin: int
-    heater_pin: int
-    motor_pin1: int
-    motor_pin2: int
-    motor_pin3: int
-    motor_pin4: int
+    """
+    Affectation des broches, en numérotation **BCM**.
+
+    Seules les bornes sont vérifiées ici. L'unicité ne l'est **pas**, et c'est
+    délibéré : la configuration en production porte aujourd'hui deux rôles sur
+    la 27 (cyclic1 / hcsr_echo) et deux sur la 22 (cyclic2 / i2c_scl). Un
+    validateur d'unicité refuserait cette configuration, donc tuerait le boot —
+    exactement ce que la Phase 2 avait déjà refusé de faire pour la zone morte
+    thermique. Les collisions relèvent du `PinRegistry` de la Phase 1, qui vient
+    avec la migration de broches correspondante (audit F1, M1).
+    """
+    i2c_sda: BCMPin
+    i2c_scl: BCMPin
+    ds18_pin: BCMPin
+    hcsr_trigger_pin: BCMPin
+    hcsr_echo_pin: BCMPin
+    dailytimer1_pin: BCMPin
+    dailytimer2_pin: BCMPin
+    cyclic1_pin: BCMPin
+    cyclic2_pin: BCMPin
+    heater_pin: BCMPin
+    motor_pin1: BCMPin
+    motor_pin2: BCMPin
+    motor_pin3: BCMPin
+    motor_pin4: BCMPin
 
 
 class MotorSettings(ValidatedModel):
@@ -233,18 +246,46 @@ class AppConfig(ValidatedModel):
     _path: ClassVar[Path] = Path(__file__).parent.parent / "param" / "param.json"
 
     @classmethod
-    def load(cls) -> "AppConfig":
+    def config_path(cls) -> Path:
+        """Emplacement canonique de `param.json`."""
+        return cls._path
+
+    @classmethod
+    def load(cls, path: Path | None = None) -> "AppConfig":
+        """
+        Lit et valide un fichier de configuration.
+
+        Primitive de lecture, sans mémoire : c'est `param.config_store` qui
+        possède l'instance vivante et décide quand relire. Les boucles de
+        contrôle ne doivent **pas** appeler cette méthode — elles feraient une
+        I/O disque et une validation complète à chaque tick, et devraient
+        rattraper l'exception elles-mêmes (audit C7, E7).
+        """
+        target = cls._path if path is None else Path(path)
         try:
-            raw = json.loads(cls._path.read_text(encoding="utf-8"))
+            raw = json.loads(target.read_text(encoding="utf-8"))
             config = cls.model_validate(raw)
         except Exception as exc:
-            # Appelée en boucle : on déduplique pour ne pas noyer le journal
-            _load_state.fail(f"{exc.__class__.__name__} : {exc}")
+            # Appelée en boucle par le magasin : on déduplique pour ne pas
+            # noyer le journal.
+            _load_state.fail(f"{target.name} : {exc.__class__.__name__} : {exc}")
             raise
         _load_state.ok()
         return config
 
-    def save(self) -> None:
+    def to_json(self) -> str:
+        """
+        Sérialisation JSON du modèle, dans le format historique du fichier.
+
+        Les booléens redeviennent les chaînes `"enabled"` / `"disabled"` : le
+        fichier reste lisible par l'`initial_setup_tool` et par la version
+        ESP32. **Tout nouveau champ booléen doit être traité ici aussi.**
+
+        L'écriture elle-même appartient à `param.config_store.ConfigStore` :
+        c'est lui qui revalide, sauvegarde l'ancien contenu et écrit
+        atomiquement. Un modèle qui s'écrit tout seul, c'est un second écrivain
+        de `param.json` — donc deux vérités possibles.
+        """
         payload = self.model_dump(by_alias=True, exclude={"_path"})
 
         # heater
@@ -274,25 +315,16 @@ class AppConfig(ValidatedModel):
             for k, v in self.sensors.model_dump().items()
         }
 
-        # Écriture atomique : une boucle de contrôle peut relire param.json à
-        # n'importe quel instant, et une coupure secteur en pleine écriture
-        # laisserait un fichier tronqué — donc un boot mort.
-        try:
-            write_text_atomic(
-                self._path,
-                json.dumps(payload, indent=4, ensure_ascii=False),
-                encoding="utf-8"
-            )
-        except OSError as exc:
-            ui.error(
-                f"Écriture de param.json impossible : {exc.__class__.__name__} : {exc}",
-                name="config",
-            )
-            raise
-        ui.debug("param.json enregistré", name="config")
+        return json.dumps(payload, indent=4, ensure_ascii=False)
 
     def replace_from(self, validated: "AppConfig") -> None:
-        """Remplace sans attente la configuration active par une candidate validée."""
+        """
+        Recopie champ par champ une configuration validée dans cette instance.
+
+        Mutation **en place** : l'identité de l'objet ne change jamais, ce qui
+        est toute la raison d'être du magasin. Les composants ont reçu cette
+        instance au boot et n'ont rien à réabonner (audit M4).
+        """
         for field_name in self.__class__.model_fields:
             setattr(self, field_name, getattr(validated, field_name))
 

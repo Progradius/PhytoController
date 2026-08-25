@@ -134,13 +134,13 @@ class PuppetMaster:
         # --- Daily timers ---
         sup.register(
             "daily_timer_1",
-            lambda: timer_daily(self.dailytimer1, self.config, sampling_time=60),
+            lambda: timer_daily(self.dailytimer1, sampling_time=60),
             safe_state=self._component_off(self.dailytimer1.component),
             max_silence=MAX_SILENCE_SECONDS,
         )
         sup.register(
             "daily_timer_2",
-            lambda: timer_daily(self.dailytimer2, self.config, sampling_time=60),
+            lambda: timer_daily(self.dailytimer2, sampling_time=60),
             safe_state=self._component_off(self.dailytimer2.component),
             max_silence=MAX_SILENCE_SECONDS,
         )
@@ -169,7 +169,6 @@ class PuppetMaster:
                 heater_component=self.heater,
                 motor_handler=self.motor_handler,
                 sensor_handler=self.sensor_handler,
-                config=self.config,
                 sampling_time=30,
             ),
             safe_state=self._climate_off,

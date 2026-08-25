@@ -11,7 +11,7 @@ lisaient la même température sans se connaître et se contredisaient.
 
 Le déroulé d'un tick est volontairement plat :
 
-  1. recharger la configuration (repli sur la dernière valide) ;
+  1. demander la configuration au magasin partagé (repli intégré) ;
   2. lire T/RH **une seule fois** ;
   3. resynchroniser la mémoire sur l'état **réel** des sorties (audit E8) ;
   4. appeler `climate_policy.decide()` — toute la logique est là, et elle est
@@ -39,6 +39,7 @@ from components.climate_policy import (
 )
 from utils.log_dedup import StateLogger
 from utils.pretty_console import critical, debug, error, info, warning
+from param.config_store import shared_config
 from utils.state_store import shared_store
 from utils.supervisor import beat, sleep as hb_sleep
 
@@ -223,18 +224,17 @@ def _apply_heater(heater_component, wanted: bool) -> bool:
 #  Coroutine supervisée
 # ─────────────────────────────────────────────────────────────
 async def climate_control(*, heater_component, motor_handler, sensor_handler,
-                          config, sampling_time: int = 30, store=None) -> None:
+                          sampling_time: int = 30, store=None) -> None:
     """
     Arbitre thermique : une lecture, une décision, deux organes cohérents.
 
-    `config` sert de repli : la configuration est rechargée depuis le disque à
-    chaque tick (prise en compte à chaud des modifications de l'IHM), et une
-    lecture impossible fait retomber sur la dernière version valide plutôt que
-    de tuer la régulation.
+    La configuration ne se passe plus en argument : le magasin partagé
+    (`param.config_store`) la détient et rend l'instance à jour à chaque tick,
+    sans I/O quand le fichier n'a pas changé et sans jamais lever.
     """
     store = store if store is not None else shared_store()
+    config_store = shared_config()
     memory = _restore_memory(store)
-    last_cfg = config
     temp_state = StateLogger(
         "Lecture de la température ambiante", name=LOGGER_NAME, level="warning"
     )
@@ -250,13 +250,10 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
         beat()
 
         # 1) configuration ------------------------------------------------
-        try:
-            cfg = config.__class__.load()
-        except Exception:
-            # AppConfig.load() a déjà journalisé (dédupliqué) la cause.
-            cfg = last_cfg
-        else:
-            last_cfg = cfg
+        # Aucune I/O tant que le fichier n'a pas bougé, et aucune exception
+        # possible : un `param.json` illisible rend la dernière configuration
+        # valide (audit C7, E7).
+        cfg = config_store.refresh()
 
         is_day = _is_day(cfg)
         settings = settings_from_config(cfg, is_day)

@@ -5,10 +5,11 @@
 from datetime import datetime, timedelta, time, date
 from time import time as epoch_now
 
-from utils.pretty_console import box, debug, info, error
+from utils.pretty_console import box, debug, info, error, warning
 from utils.state_store import shared_store
 from utils.supervisor import beat, sleep as hb_sleep
 from param.config import AppConfig
+from param.config_store import shared_config
 
 LOGGER_NAME = "timer.cyclic"
 
@@ -73,25 +74,18 @@ async def timer_cyclic(cyclic_timer) -> None:
     # La reprise n'a de sens qu'au tout premier passage : ensuite, c'est cette
     # boucle elle-même qui tient la phase.
     pending_resume = _resume_sequential(store.load(state_section))
-    # Dernière config valide : filet quand param.json est momentanément
-    # illisible (POST /conf en cours, fichier tronqué…). Sans ce repli, la
-    # JSONDecodeError tue la tâche définitivement — plus rien ne repilote la
-    # sortie cyclique.
-    last_cfg = getattr(cyclic_timer, "_config", None)
+    # Le magasin de configuration porte le repli : un `param.json`
+    # momentanément illisible (POST /conf en cours, fichier tronqué…) rend la
+    # dernière configuration valide au lieu de lever. Sans cela, la
+    # JSONDecodeError tuait la tâche définitivement — plus rien ne repilotait la
+    # sortie cyclique (audit C7, E7).
+    config_store = shared_config()
+    zero_cycle_reported = False
 
     while True:
         beat()
-        # recharger complètement la conf
-        try:
-            cfg = AppConfig.load()
-        except Exception:
-            # AppConfig.load() a déjà journalisé (dédupliqué) la cause.
-            if last_cfg is None:
-                await hb_sleep(5)
-                continue
-            cfg = last_cfg
-        else:
-            last_cfg = cfg
+        # Aucune I/O tant que le fichier n'a pas bougé.
+        cfg = config_store.refresh()
 
         if cyclic_timer.timer_id == "1":
             cyc_conf = cfg.cyclic1
@@ -172,6 +166,21 @@ async def timer_cyclic(cyclic_timer) -> None:
                 on_d  = cyclic_timer.get_on_time_night()
                 off_d = cyclic_timer.get_off_time_night()
                 phase = "Nuit"
+
+            # Un cycle de durée nulle enchaînerait deux `sleep(0)` : la boucle
+            # tournerait à vide, plein CPU, sans jamais rien piloter. Le cas est
+            # traité ici et non par un validateur : refuser la configuration
+            # ferait un boot mort, et `Cyclic2_Settings` porte déjà 0/0 (sans
+            # conséquence, il est en mode journalier).
+            if on_d + off_d <= 0:
+                if not zero_cycle_reported:
+                    warning(f"Cyclic #{tid} [{phase}] : durées ON et OFF nulles → "
+                            "rien à piloter, cycle en attente", name=LOGGER_NAME)
+                    zero_cycle_reported = True
+                comp.set_state(0)
+                await hb_sleep(60)
+                continue
+            zero_cycle_reported = False
 
             # Reprise éventuelle de la phase interrompue par un redémarrage.
             on_remaining, off_remaining = on_d, off_d

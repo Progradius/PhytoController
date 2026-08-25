@@ -73,6 +73,10 @@ param/.csrf_token
 # État de régulation reporté d'un démarrage à l'autre (budgets hiver, phase
 # séquentielle) : propre à la machine, jamais versionné.
 param/runtime_state.json
+# Copie de secours écrite par param/config_store.py avant chaque enregistrement.
+# Elle porte les mêmes identifiants en clair que param.json : aucune raison
+# qu'elle entre à son tour dans l'historique.
+param/param.json.bak
 
 # MicroPython precompiled files (si présents)
 *.mpy

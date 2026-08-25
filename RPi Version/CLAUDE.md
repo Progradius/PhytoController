@@ -47,14 +47,32 @@ to `PuppetMaster`.
   systemd and `scripts/deploy.sh`'s health check see a failure instead of a silent "exited". Two live
   instances fight over the same pins: each forces the generics HIGH (cutting what the other held ON) and
   resets the motor. Nothing in `/dev/gpiomem` prevents that, hence the lock.
-- `param/config.py` — `AppConfig` (Pydantic v2, still using v1-style `@validator`). Single source of truth,
-  loaded from and saved to `param/param.json`. JSON keys are PascalCase aliases (`DailyTimer1_Settings`,
-  `GPIO_Settings`, …); Python field names are snake_case. `save()` re-serializes booleans back to the
-  legacy `"enabled"`/`"disabled"` strings — any new boolean field needs the same treatment there. It
-  writes through `utils/atomic_io.write_text_atomic()` (tmp + `fsync` + `os.replace`, existing file mode
-  preserved) — **never** go back to `write_text()`: a control loop can re-read the file at any instant,
-  and a power cut mid-write would leave a truncated `param.json`, i.e. a dead boot. `SensorStats._dump()`
-  uses the same helper.
+- `param/config.py` — `AppConfig` (Pydantic v2, still using v1-style `@validator`): the *schema*, not the
+  owner. JSON keys are PascalCase aliases (`DailyTimer1_Settings`, `GPIO_Settings`, …); Python field names
+  are snake_case. `load(path)` is a stateless read+validate primitive and `to_json()` a stateless
+  serializer that re-emits booleans as the legacy `"enabled"`/`"disabled"` strings — **any new boolean
+  field needs the same treatment in `to_json()`**. `AppConfig` no longer writes itself: giving the model a
+  `save()` made it a second writer of `param.json`, hence two possible truths.
+  GPIO pins are bounded to BCM 0–27; **uniqueness is deliberately not validated** — 27 and 22 each carry
+  two roles in the production config, so a uniqueness validator would be a dead boot. Pin collisions
+  belong to Phase 1's `PinRegistry`, together with the pin migration that goes with them.
+- `param/config_store.py` — **`ConfigStore`, sole owner and sole writer of `param.json`** (Phase 3).
+  `shared_config()` is the process singleton; `main.py` takes `.current` at boot and hands that **one**
+  `AppConfig` instance to everyone. It is never replaced, only mutated in place (`replace_from`), so every
+  reference distributed at boot (motor, sensors, `SystemStatus`, server, timers) stays current with
+  nothing to subscribe to.
+  * `refresh()` — the control-path method: compares `(mtime_ns, size)`, does **no I/O at all** while the
+    file is unchanged, and **never raises**. A failed reread keeps the current config *and* records the
+    stamp anyway, so a broken file is not reparsed on every tick of every loop.
+  * `save(candidate)` / `commit()` — full `model_validate` of the whole model, previous content copied to
+    `param.json.bak`, then `utils/atomic_io.write_text_atomic()` (tmp + `fsync` + `os.replace`, existing
+    file mode preserved). **Never** go back to `write_text()`: a control loop can reread the file at any
+    instant, and a power cut mid-write would leave a truncated `param.json`, i.e. a dead boot.
+    `SensorStats._dump()` and `utils/state_store.py` use the same helper. A rejected `commit()` restores
+    the shared instance from disk rather than leaving an invalid config in memory.
+  * At boot an unusable `param.json` falls back to `param.json.bak` and **restores** it. There is nothing
+    safe to synthesize beyond that: without `GPIO_Settings` no pin is known, so no output can be put in a
+    safe state — refusing to start is the only honest answer, and `main.py` has touched no pin yet.
 - `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
   one supervised job per concern (2 daily timers, 2 cyclic timers, the `climate_control` thermal arbiter,
   shared sensor snapshot, Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
@@ -85,12 +103,17 @@ to `PuppetMaster`.
   persist for the whole `WatchdogSec` to reboot — the supervisor gets to recover first, systemd is the
   last resort. Keep `WatchdogSec` (unit drop-in, 600 s) **larger** than
   `PuppetMaster.MAX_SILENCE_SECONDS` (300 s) for the same reason.
-- `components/*_handler.py` — the long-running coroutines. Note that `timer_cyclic` and `timer_daily`
-  **re-read `AppConfig.load()` from disk on every iteration**, which is how web-UI config edits take
-  effect without a restart. Objects holding a config reference (motor, heater, server) do not see those
-  edits unless explicitly refreshed. Every one of those reloads is wrapped in `try/except` with a
-  **fallback to the last valid config** (`timer_cyclic`, `climate_control`, `timer_daily`): an unreadable
-  `param.json` must never kill a control task, because nothing would ever drive that output again.
+- `components/*_handler.py` — the long-running coroutines. `timer_cyclic`, `climate_control` and (through
+  `DailyTimer.refresh_from_config()`) `timer_daily` call `shared_config().refresh()` each iteration, which
+  is how web-UI config edits and hand edits of `param.json` take effect without a restart. **Never go back
+  to `AppConfig.load()` in a control loop**: that is a disk read plus a full validation on every tick, and
+  it forces each caller to re-invent its own `try/except` fallback — there were three different variants
+  of it before the store. The fallback now lives in one place. Because the store mutates the shared
+  instance in place, objects holding a config reference (motor, heater, server, `SystemStatus`) see those
+  edits with no refresh of their own.
+  `timer_cyclic` guards a zero-length sequential cycle (`on + off == 0`) by sleeping instead of chaining
+  two `sleep(0)` — a busy loop at full CPU. That guard is in the loop and not in a validator on purpose:
+  refusing the config would be a dead boot, and `Cyclic2_Settings` already carries `0/0` harmlessly.
 - `components/climate_policy.py` + `components/climate_control.py` — the **thermal arbiter**. Heater and
   ventilation regulate the same temperature, so they are one supervised job, not two. All the logic lives
   in the **pure** `decide(settings, inputs, memory)` of `climate_policy` (no GPIO, no disk, no implicit

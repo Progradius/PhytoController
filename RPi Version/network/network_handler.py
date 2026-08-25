@@ -13,7 +13,6 @@ import subprocess
 from utils.pretty_console import debug, success, warning, error, action
 
 LOGGER_NAME = "network"
-from param.config       import AppConfig
 
 def get_connected_wifi_device() -> str | None:
     """
@@ -53,8 +52,8 @@ def do_connect() -> None:
         success(f"Wi-Fi déjà connecté ({deja}) → aucune action", name=LOGGER_NAME)
         return
 
-    # Recharge la config à jour
-    config = AppConfig.load()
+    # Configuration à jour, servie par le magasin partagé
+    config = shared_config().refresh()
     ssid     = config.network.wifi_ssid
     password = config.network.wifi_password
 
@@ -86,8 +85,8 @@ def is_host_connected() -> str:
     Ping l'hôte configuré dans AppConfig.network.host_machine_address
     (1 paquet, timeout 1 s) ; renvoie « online » ou « offline ».
     """
-    # Recharge la config à jour
-    config = AppConfig.load()
+    # Configuration à jour, servie par le magasin partagé
+    config = shared_config().refresh()
     host = config.network.host_machine_address
 
     debug(f"Ping vers {host} …", name=LOGGER_NAME)

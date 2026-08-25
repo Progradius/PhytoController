@@ -3,16 +3,15 @@ from datetime import datetime, timedelta
 
 from utils import pretty_console as ui
 from utils.supervisor import beat, sleep as hb_sleep
-from param.config import AppConfig
 
 LOGGER_NAME = "timer.daily"
 
 
-async def timer_daily(
-    dailytimer,
-    config: AppConfig | None = None,
-    sampling_time: int = 60
-):
+async def timer_daily(dailytimer, sampling_time: int = 60):
+    """
+    La configuration arrive par `dailytimer.refresh_from_config()`, qui
+    interroge le magasin partagé : rien à passer en argument.
+    """
     tid = str(dailytimer.timer_id)
     disabled_reported = False
 
