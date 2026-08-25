@@ -1,32 +1,132 @@
 {% extends "base.html" %}
 
+{% block head_extra %}
+<style>
+  .console-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .console-toolbar .status { margin-left: auto; opacity: .7; }
+
+  #log {
+    height: 75vh;
+    overflow-y: auto;
+    overflow-x: hidden;          /* jamais de scroll latéral, même sur mobile */
+    background: #000;
+    border: 1px solid #00FF55;
+    padding: 8px;
+    font-family: monospace;      /* police lisible : chiffres non ambigus */
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  #log .line {
+    white-space: pre-wrap;       /* les longues lignes passent à la ligne */
+    overflow-wrap: anywhere;     /* et les tracebacks aussi */
+    padding: 1px 0;
+    border-bottom: 1px solid rgba(0, 255, 85, .07);
+  }
+  #log .t    { opacity: .55; }
+  #log .name { opacity: .55; }
+  #log .lvl  { font-weight: bold; }
+
+  .lvl-DEBUG    { color: #6f8f7a; }
+  .lvl-INFO     { color: #00FF55; }
+  .lvl-WARNING  { color: #FFD24A; }
+  .lvl-ERROR    { color: #FF5555; }
+  .lvl-CRITICAL { color: #FF5555; background: rgba(255, 85, 85, .15); }
+
+  @media (max-width: 767px) {
+    #log { height: 70vh; font-size: 12px; }
+    #log .name { display: none; }   /* on garde l'essentiel sur petit écran */
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<div class="row">
-  <div class="col" style="height:80vh; padding:0;">
-    <div id="terminal" style="width:100%; height:100%; background:#000;"></div>
-  </div>
+<div class="console-toolbar">
+  <button class="button_base" id="btn-scroll" type="button">Suivi auto : ON</button>
+  <button class="button_base" id="btn-clear" type="button">Effacer</button>
+  <span class="status" id="status">Connexion…</span>
 </div>
 
-<!-- xterm.js vendoré : le Pi doit fonctionner sans accès Internet -->
-<link rel="stylesheet" href="/static/css/xterm.css" />
-<script src="/static/js/xterm.js"></script>
+<div id="log"></div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const term = new Terminal({ convertEol: true });
-  term.open(document.getElementById('terminal'));
-  term.focus();
+(function () {
+  var MAX_LINES = 1000;
+  var log = document.getElementById('log');
+  var status = document.getElementById('status');
+  var btnScroll = document.getElementById('btn-scroll');
+  var btnClear = document.getElementById('btn-clear');
+  var follow = true;
 
-  const es = new EventSource('/console/stream');
-  es.onmessage = ev => {
-    term.write(ev.data + '\\r\\n');
-  };
-  es.onerror = _ => {
+  // "20:17:23 [INFO] [phyto.motor] Vitesse 1 ← consigne manuelle"
+  var RE = /^(\d\d:\d\d:\d\d) \[(\w+)\] \[([\w.]+)\] ([\s\S]*)$/;
+
+  function append(text) {
+    var m = RE.exec(text);
+    var line = document.createElement('div');
+    line.className = 'line';
+
+    if (m) {
+      var level = m[2];
+      line.classList.add('lvl-' + level);
+      line.appendChild(span('t', m[1] + ' '));
+      line.appendChild(span('lvl', level + ' '));
+      line.appendChild(span('name', m[3].replace(/^phyto\.?/, '') + ' '));
+      line.appendChild(document.createTextNode(m[4]));
+    } else {
+      line.textContent = text;
+    }
+
+    log.appendChild(line);
+    while (log.childElementCount > MAX_LINES) {
+      log.removeChild(log.firstChild);
+    }
+    if (follow) {
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  function span(cls, txt) {
+    var s = document.createElement('span');
+    s.className = cls;
+    s.textContent = txt;
+    return s;
+  }
+
+  btnScroll.addEventListener('click', function () {
+    follow = !follow;
+    btnScroll.textContent = 'Suivi auto : ' + (follow ? 'ON' : 'OFF');
+    if (follow) { log.scrollTop = log.scrollHeight; }
+  });
+
+  btnClear.addEventListener('click', function () {
+    log.textContent = '';
+  });
+
+  // Un scroll manuel vers le haut suspend le suivi, revenir en bas le rétablit
+  log.addEventListener('scroll', function () {
+    var atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 20;
+    if (follow !== atBottom) {
+      follow = atBottom;
+      btnScroll.textContent = 'Suivi auto : ' + (follow ? 'ON' : 'OFF');
+    }
+  });
+
+  var es = new EventSource('/console/stream');
+  es.onopen = function () { status.textContent = 'Connecté'; };
+  es.onmessage = function (ev) { append(ev.data); };
+  es.onerror = function () {
+    status.textContent = 'Déconnecté — rechargez la page';
     es.close();
-    term.write('\\r\\n[Disconnected from server]\\r\\n');
   };
-});
+})();
 </script>
 
 {% endblock %}
