@@ -88,6 +88,15 @@ le PinRegistry central et la migration des broches moteur sont relogés plus bas
       aucun `restart`/`stall` immédiatement après le redémarrage.
 - [ ] Contrôler `curl http://<pi>:8123/status | jq .tasks` après quelques heures :
       `restarts` et `stalls` doivent rester à 0.
+- [x] **Correctif issu de la vérification live : période de caresse plafonnée à
+      30 s** (`MAX_PET_PERIOD_SECONDS`). La convention systemd `WatchdogSec/2`
+      (300 s ici) suppose une caresse *inconditionnelle* : comme la nôtre dépend de
+      la santé applicative, **un seul contrôle malheureux** — une tâche muette que
+      le superviseur relance 30 s plus tard — portait l'écart entre deux caresses à
+      600 s, soit exactement l'expiration. Avec 30 s, il faut 20 contrôles en défaut
+      consécutifs : un défaut doit *persister* tout le `WatchdogSec` pour déclencher
+      un redémarrage, ce qui est bien l'intention (superviseur d'abord, systemd en
+      dernier recours). **Nécessite un redéploiement.**
 
 ## Relogés — Phase 1 non traitée (décision du 25/08/2026)
 

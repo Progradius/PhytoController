@@ -73,7 +73,13 @@ to `PuppetMaster`.
   A blind pet is worse than none: it certifies a process whose regulation may be dead. The `/dev/watchdog`
   fd is opened once and kept at module level — the magic close (`V`) *must* go to that same fd, which is
   why the old reopen-then-write failed with `EBUSY` and left the watchdog armed. Petting runs in the event
-  loop, not a thread, so a blocked loop stops petting.
+  loop, not a thread, so a blocked loop stops petting. The pet period is capped at
+  `MAX_PET_PERIOD_SECONDS` (30 s) and **not** systemd's `WatchdogSec/2` convention: that convention
+  assumes unconditional petting, so with a *conditional* pet a single unlucky health check would push the
+  gap between two pets right to the timeout. Petting far more often than required means a fault has to
+  persist for the whole `WatchdogSec` to reboot — the supervisor gets to recover first, systemd is the
+  last resort. Keep `WatchdogSec` (unit drop-in, 600 s) **larger** than
+  `PuppetMaster.MAX_SILENCE_SECONDS` (300 s) for the same reason.
 - `components/*_handler.py` — the long-running coroutines. Note that `timer_cyclic` and `timer_daily`
   **re-read `AppConfig.load()` from disk on every iteration**, which is how web-UI config edits take
   effect without a restart. Objects holding a config reference (motor, heater, server) do not see those

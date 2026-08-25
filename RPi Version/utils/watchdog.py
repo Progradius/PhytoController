@@ -50,6 +50,16 @@ HW_WATCHDOG_PATH = "/dev/watchdog"
 # expire typiquement à 15 s).
 DEFAULT_PET_PERIOD_SECONDS = 10.0
 
+# Plafond de la période de caresse. La convention systemd (`WatchdogSec/2`)
+# suppose une caresse **inconditionnelle** : elle ne laisse alors qu'un seul
+# raté avant l'expiration. Ici la caresse dépend de la santé applicative, donc
+# un unique contrôle malheureux (une tâche momentanément muette que le
+# superviseur relance 30 s plus tard) ferait redémarrer le service.
+# En caressant bien plus souvent que nécessaire, un défaut doit **persister**
+# tout le `WatchdogSec` pour provoquer un redémarrage : le superviseur agit
+# d'abord, systemd n'intervient que s'il a lui-même échoué.
+MAX_PET_PERIOD_SECONDS = 30.0
+
 _hw_fd: int | None = None
 _notify_socket_path: str | None = None
 
@@ -188,7 +198,8 @@ async def watchdog_loop(
 
     if use_systemd:
         info(
-            f"Watchdog systemd actif (caresse toutes les {systemd_period:.0f} s, "
+            f"Watchdog systemd actif (expiration {systemd_period * 2:.0f} s, "
+            f"caresse toutes les {min(systemd_period, MAX_PET_PERIOD_SECONDS):.0f} s, "
             "conditionnée à la santé des tâches)",
             name=LOGGER_NAME,
         )
@@ -205,7 +216,11 @@ async def watchdog_loop(
         )
         return
 
-    period = systemd_period if use_systemd else DEFAULT_PET_PERIOD_SECONDS
+    period = (
+        min(systemd_period, MAX_PET_PERIOD_SECONDS)
+        if use_systemd
+        else DEFAULT_PET_PERIOD_SECONDS
+    )
     was_healthy = True
 
     while True:
