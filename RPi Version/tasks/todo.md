@@ -38,7 +38,16 @@
 
 ## P6 — Rétention
 - [x] `TimedRotatingFileHandler` (minuit) + archives gzip + `retention_days`
-- [ ] *(hors code : nettoyage des anciens `phyto.log.N` et `~/app.log` sur le Pi)*
+- [x] Anciens `phyto.log.N` sortis de git, supprimés du Pi, `logs/` ajouté au `.gitignore`
+- [ ] **OUVERT — à vérifier le 26/08/2026 (après minuit) : la rotation quotidienne en conditions
+      réelles.** Seul maillon non testé en production (validé en local uniquement, en forçant
+      `doRollover()`). Attendu : `logs/phyto.log.2026-08-26.gz` de quelques Ko, un `phyto.log`
+      neuf qui repart à la ligne 1, et aucune erreur de rotation dans le fichier ni dans
+      `journalctl -u phyto`. Commande de contrôle depuis WSL :
+      `./scripts/phyto-ssh.sh 'ls -la ~/PhytoController/"RPi Version"/logs/'`
+      Si l'archive manque : vérifier que le processus n'a pas redémarré pile à minuit (le
+      handler ne rattrape pas une rotation manquée au démarrage) et que `logs/` est accessible
+      en écriture à `progradius`.
 
 ---
 
