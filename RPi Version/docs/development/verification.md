@@ -22,8 +22,13 @@ Il n'existe pas encore de suite de tests ou linter configurés. Ne pas déclarer
 - durée maximale de chauffe et cooldown ;
 - SIGTERM puis niveaux terminaux ;
 - watchdog sain, puis arrêt des caresses sur état malsain ;
-- `/monitor` GET sans effet, POST tiers refusé ;
-- `/status` cohérent avec le superviseur.
+- POST sans jeton CSRF, avec jeton mais `Origin` tiers, ou avec un `Host` étranger : tous refusés ;
+- `POST /conf/{section}` invalide : 422, `param.json` et configuration vivante inchangés ;
+- `POST /conf/{section}` valide : fichier réécrit, configuration vivante à jour, travaux concernés relancés ;
+- secret laissé vide dans `/conf` : valeur enregistrée conservée, et aucun secret présent dans le HTML servi ;
+- `/api/v1/state` et `/status` cohérents avec le superviseur ; `/health/ready` en 503 quand un travail est en défaut.
+
+Une passe de fumigation HTTP couvrant ces points existe sous forme de harnais jetable (aiohttp `TestClient`, stubs `RPi.GPIO`/`smbus2`, sauvegarde/restauration de `param.json`). Elle est à transformer en vérification reproductible : c'est le premier candidat d'une suite de tests, puisqu'elle protège des invariants durables.
 
 ## Traçabilité
 

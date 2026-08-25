@@ -3,7 +3,11 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 25 août 2026.
+**Dernière vérification documentaire** : 25 août 2026, après la refonte de l'interface web.
+
+⚠️ La refonte de l'interface web et de l'acquisition capteurs est **implémentée dans l'arbre de
+travail et vérifiée hors matériel**, mais **pas encore déployée**. Les documents qui la décrivent
+le signalent ; le Pi de production exécute encore la version antérieure.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -46,7 +50,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 
 - [AGENTS.md](../AGENTS.md), miroir exact de [CLAUDE.md](../CLAUDE.md)
 - [Référence de configuration](reference/configuration.md)
-- [Interface HTTP](reference/http-interface.md) et [schéma `/status`](reference/status-schema.md)
+- [Interface HTTP](reference/http-interface.md) et [schémas d'état JSON](reference/status-schema.md)
 - [Checklist de changement sûr](development/safe-change-checklist.md)
 - [Décisions d'architecture](decisions/README.md)
 - [Registre vivant des risques](risk-register.md)
@@ -64,7 +68,8 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 | Supervision | `utils/supervisor.py` |
 | Watchdog | `utils/watchdog.py` et configuration systemd installée |
 | Polarité des sorties | `model/Component.py` et `model/Motor.py` |
-| Routes HTTP | `network/web/server.py` |
+| Routes HTTP et schémas d'état | `network/web/server.py` |
+| Catalogue des mesures capteurs | `controllers/sensor_catalog.py` |
 | Déploiement | `scripts/deploy.sh` |
 | Risques actuels | `docs/risk-register.md` |
 | Travaux ordonnés | `docs/roadmap.md` |

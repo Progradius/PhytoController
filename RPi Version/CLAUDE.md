@@ -27,8 +27,9 @@ pip install -r requirements.txt
 docker build -t phyto . && docker run --privileged -p 8123:8123 phyto
 ```
 
-Web UI: `http://<pi>:8123` — `/` state, `/conf` config form, `/monitor` live values (GET renders only;
-reset/reboot/poweroff are **POST**), `/console` (SSE log stream), `/status` (JSON).
+Web UI: `http://<pi>:8123` — `/` dashboard with 5 s live refresh, `/conf` section-based config form,
+`/console` (SSE log stream), `/api/v1/state` (versioned JSON), `/health/live`, `/health/ready` and the
+legacy `/status`. `/monitor` redirects to the dashboard; reset/reboot/poweroff remain **POST-only**.
 
 There is **no test suite and no linter configured** in this tree. Do not invent one; verify changes by
 reading the code and, when hardware is involved, by describing the expected GPIO transitions.
@@ -56,7 +57,7 @@ to `PuppetMaster`.
   uses the same helper.
 - `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
   one supervised job per concern (2 daily timers, 2 cyclic timers, motor `temp_control`, `heat_control`,
-  Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
+  shared sensor snapshot, Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
   `sd_notify(READY=1)`, then awaits the supervisor. Its asyncio exception handler logs and keeps the loop
   alive on purpose — a crashing task must never take the greenhouse down.
 - `utils/supervisor.py` — **the reason a dead control loop can no longer go unnoticed.** Every job runs
@@ -67,7 +68,8 @@ to `PuppetMaster`.
   Business loops call `beat()` each iteration and `await supervisor.sleep(...)` instead of
   `asyncio.sleep(...)` so a long *intended* wait (up to 10 days for a cyclic timer) is not mistaken for a
   block. The job is carried by a `contextvars` variable, so no business signature has to thread it through.
-  `snapshot()` / `is_healthy()` feed `/status` and gate the watchdog.
+  `snapshot()` / `is_healthy()` feed the state/health APIs and gate the watchdog. `request_reload()`
+  deliberately cancels and restarts a control job after reapplying its safe state when configuration changes.
 - `utils/watchdog.py` — the watchdog is **conditional**: it only pets (systemd `WATCHDOG=1` if
   `NOTIFY_SOCKET`/`WATCHDOG_USEC` are set, otherwise `/dev/watchdog`) while `supervisor.is_healthy()`.
   A blind pet is worse than none: it certifies a process whose regulation may be dead. The `/dev/watchdog`
@@ -95,17 +97,24 @@ to `PuppetMaster`.
 - `model/` — thin GPIO/state wrappers: `Component` (one relay pin), `Motor` (4 pins = 4 speeds),
   `DailyTimer`/`CyclicTimer` (schedule logic), `SensorStats` (min/max, persisted to
   `param/sensor_stats.json`).
-- `controllers/SensorController.py` — opens `/dev/i2c-1` once, instantiates only the handlers enabled in
-  `Sensor_State`, and exposes `get_sensor_value("BME280T")`-style string keys. `sensor_dict` groups those
-  keys into InfluxDB *measurements* (`air`, `water`, `distance`, `lux`, `surface_temp`).
+- `controllers/SensorController.py` — owns the sensor hardware and a single-thread executor so blocking
+  reads never freeze asyncio and never run concurrently. It instantiates only the handlers enabled in
+  `Sensor_State`, maintains the shared timestamped snapshot consumed by HTTP and InfluxDB, and exposes
+  fresh cached reads to the motor/heater loops. `controllers/sensor_catalog.py` is the canonical mapping
+  for keys, activation flags, UI labels/units and InfluxDB measurements.
 - `sensor_handlers/` wrap the vendored drivers in `lib/sensors/`. A failed read returns `None` rather than
   raising — every consumer must handle `None`.
-- `network/web/server.py` — hand-rolled asyncio HTTP server (no framework): parses the request line by
-  hand, routes with if/elif, renders `network/web/pages.py` templates. `_apply_conf_changes()` maps POSTed
-  alias names (incl. dotted `DailyTimer1_Settings.enabled`) back onto the model, saves, then rebuilds the
-  sensor stack and calls `influx_handler.reload_sensor_handler()`.
-- `network/web/influx_handler.py` — InfluxDB **v1** line protocol over `requests` (blocking calls inside
-  the event loop). Module-level globals initialized at import time via `reload_sensor_handler()`.
+- `network/web/server.py` — aiohttp server with explicit routes and exact static-asset allow-list. It
+  enforces a 64 KiB body limit, per-process CSRF token, same-origin POSTs, private/LAN `Host` validation,
+  security headers and no-store on dynamic responses. `/conf/{section}` builds and validates a complete
+  candidate `AppConfig` before the atomic save; blank secret fields mean “unchanged”, and GPIO is read-only.
+  Errors ≥400 render `templates/error.html` for a browser and stay plain text for anything else —
+  redirects are `HTTPException`s too and must never go through that path.
+- `network/web/pages.py` — Jinja2 with autoescape; asset URLs carry a content hash so a redeployed
+  CSS/JS file is not served from cache. Every page must stay inline-script/style free: the CSP has
+  no `unsafe-inline`.
+- `network/web/influx_handler.py` — InfluxDB **v1** line protocol over async aiohttp with a bounded timeout.
+  It consumes the shared sensor snapshot and never performs or duplicates a hardware read.
 
 ## GPIO conventions — read before touching any pin code
 
@@ -141,28 +150,20 @@ protects the power-on window today. Generating those lines from `param.json` is 
 `PHYTO_RUN_MODE=service` (systemd) is still read by `main.py`, but the server no longer forks anything:
 `/console` streams the **current** process's logs through `utils/log_stream.ConsoleStream`, a logging
 handler plugged onto the `phyto` logger (deque of the last 1000 lines + SSE queues). The page uses a
-plain native renderer (xterm.js was dropped in `bfc0978`); `network/web/static/` only holds `css/` and
-`fonts/`, so the page works without Internet. The hardware watchdog now lives in `utils/watchdog.py` and
+plain native renderer (xterm.js was dropped in `bfc0978`); `network/web/static/` holds local CSS, JS,
+font and favicon assets, so the page works without Internet. The hardware watchdog now lives in `utils/watchdog.py` and
 is **enabled by default**, with `PHYTO_HW_WATCHDOG=0` as the explicit opt-out.
 
 ## Known rough edges (don't mistake these for your own breakage)
 
-- `SystemStatus.get_cyclic_period()` reads `config.cyclic1.period_minutes`, a field that no longer exists
-  on `CyclicSettings` (it is `period_days` now) — it raises if called. `/status` works around it with
-  `getattr`.
-- `network/web/api_handler.py` (the `API` class) is dead code: nothing imports it. Routing is done inline
-  in `server.py`.
 - `initial_setup_tool.py` is a straight carry-over from the ESP32 version: it reads/writes `param.json`
   relative to the current directory, not `param/param.json`. Run it from `param/` or copy the result.
 - `param/param.json` holds Wi-Fi and InfluxDB credentials in clear text and **is tracked in git**. Never
   paste its values into logs, issues, or commits.
-- The `/monitor` route still shells out to `sudo reboot` / `shutdown -h now`, but only on **POST**
-  (`303 See Other` on success, `405 + Allow` on other methods) and only when `Origin` matches `Host`
-  (`403` otherwise). The HTTP server has **no authentication** — a deliberate choice, 8123 is LAN-only.
-  Do not add a destructive action behind a GET: a browser prefetch or an `<img src>` on any LAN page is
-  enough to fire it. `Host` allow-listing (DNS rebinding) is still open — see
-  `tasks/audit_phase0_todo.md`.
-- `GET /static/` has no path confinement and the server may run as root — open finding (audit C11).
+- The HTTP server has **no authentication** — a deliberate choice, 8123 is LAN-only. Destructive actions
+  are dedicated POST routes protected by CSRF/origin checks and an explicit browser confirmation. Never
+  move one behind GET: a prefetch or an `<img src>` on any LAN page could fire it. Hostnames outside the
+  local/private allow-list require `PHYTO_ALLOWED_HOSTS`.
 
 ## Style
 
@@ -185,5 +186,5 @@ that. Never use bare `print` — `pretty_console` is the single logging façade 
   periodic loops log their ticks at DEBUG and the event (ON/OFF, speed change) at INFO.
 - Repeated failures (Influx push, sensor reads, `param.json` load, stats dump) go through
   `utils/log_dedup.StateLogger`: one ERROR/WARNING on entering failure, one INFO on recovery.
-- InfluxDB credentials never appear in a log line: they travel in `requests.post(params=…)`, and error
+- InfluxDB credentials never appear in a log line: they travel in aiohttp request parameters, and error
   messages only carry `host:port/db` plus the exception class.

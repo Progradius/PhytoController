@@ -1,293 +1,176 @@
 {% extends "base.html" %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
+{% macro switch(name, checked, label='État', id_prefix='', on_value='enabled', off_value='disabled') %}
+{% set control_id = id_prefix or name %}
+<fieldset class="segmented-field">
+  <legend>{{ label }}</legend>
+  <div class="segmented-control">
+    <input class="visually-hidden" type="radio" id="{{ control_id }}-on" name="{{ name }}" value="{{ on_value }}"{% if checked %} checked{% endif %}>
+    <label for="{{ control_id }}-on">Activé</label>
+    <input class="visually-hidden" type="radio" id="{{ control_id }}-off" name="{{ name }}" value="{{ off_value }}"{% if not checked %} checked{% endif %}>
+    <label for="{{ control_id }}-off">Désactivé</label>
+  </div>
+</fieldset>
+{% endmacro %}
+{% macro number(name, label, value, unit='', min='', max='', step='1', help='', id_prefix='') %}
+{% set control_id = id_prefix or name %}
+<div class="field">
+  <label for="{{ control_id }}">{{ label }}</label>
+  <div class="input-with-unit"><input id="{{ control_id }}" name="{{ name }}" type="number" value="{{ value }}" step="{{ step }}"{% if min != '' %} min="{{ min }}"{% endif %}{% if max != '' %} max="{{ max }}"{% endif %}><span>{{ unit }}</span></div>
+  {% if help %}<p class="field-help">{{ help }}</p>{% endif %}
+</div>
+{% endmacro %}
+{% macro save_button(restart=False) %}
+  {% if restart %}<p class="apply-note">Pris en compte au prochain redémarrage.</p>{% else %}<p class="apply-note">Les changements compatibles sont appliqués à chaud après validation.</p>{% endif %}
+  <button class="button" type="submit" data-save-button>Enregistrer cette section</button>
+{% endmacro %}
 
 {% block content %}
-<h1>Configuration</h1><hr>
+<section class="hero compact">
+  <div><p class="eyebrow">Paramètres validés</p><h1>Configuration</h1><p class="hero-copy">Chaque section est enregistrée et appliquée séparément.</p></div>
+</section>
 
-<div class="conf-wrapper">
-  <button class="carousel-arrow left" aria-label="Précédent">‹</button>
-  <div class="scroll-container">
-    {% for section in sections %}
-      <div class="card">
-        <form method="post" action="/conf">
-          <h2>{{ section.title }}</h2><hr>
-
-          {% if section.type == "default" %}
-            {% for field in section.fields %}
-              <label for="{{ field.name }}">{{ field.label }}</label>
-              {{ field.input_html|safe }}
-            {% endfor %}
-
-          {% elif section.type == "heater" %}
-            <label>Heater</label>
-            <div class="switch-group" data-target="Heater_Settings">
-              <input type="radio"
-                     id="heater_enabled"
-                     name="Heater_Settings.enabled"
-                     value="enabled"
-                     {% if section.enabled == 'enabled' %}checked{% endif %}>
-              <label class="switch-label" for="heater_enabled">Enabled</label>
-              <input type="radio"
-                     id="heater_disabled"
-                     name="Heater_Settings.enabled"
-                     value="disabled"
-                     {% if section.enabled == 'disabled' %}checked{% endif %}>
-              <label class="switch-label" for="heater_disabled">Disabled</label>
-            </div>
-
-          {% elif section.type == "daily" %}
-            <label>{{ section.title }} Enabled</label>
-            <div class="switch-group" data-target="{{ section.id }}">
-              <input type="radio"
-                     id="{{ section.id }}_enabled"
-                     name="{{ section.id }}.enabled"
-                     value="enabled"
-                     {% if section.enabled == 'enabled' %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_enabled">Enabled</label>
-
-              <input type="radio"
-                     id="{{ section.id }}_disabled"
-                     name="{{ section.id }}.enabled"
-                     value="disabled"
-                     {% if section.enabled == 'disabled' %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_disabled">Disabled</label>
-            </div>
-
-            {% for field in section.fields %}
-              {% if not field.name.endswith(".enabled") %}
-                <label for="{{ field.name }}">{{ field.label }}</label>
-                {{ field.input_html|safe }}
-              {% endif %}
-            {% endfor %}
-
-          {% elif section.type == "motor" %}
-            <label>Motor Mode</label>
-            <div class="switch-group" data-target="Motor_Settings">
-              <input type="radio"
-                     id="motor_manual"
-                     name="Motor_Settings_mode_switch"
-                     value="manual"
-                     {% if section.mode == 'manual' %}checked{% endif %}>
-              <label class="switch-label" for="motor_manual">Manual</label>
-
-              <input type="radio"
-                     id="motor_auto"
-                     name="Motor_Settings_mode_switch"
-                     value="auto"
-                     {% if section.mode == 'auto' %}checked{% endif %}>
-              <label class="switch-label" for="motor_auto">Auto</label>
-
-              <input type="radio"
-                     id="motor_winter"
-                     name="Motor_Settings_mode_switch"
-                     value="winter"
-                     {% if section.mode == 'winter' %}checked{% endif %}>
-              <label class="switch-label" for="motor_winter">Winter</label>
-
-              <input type="hidden"
-                     name="Motor_Settings.motor_mode"
-                     id="Motor_Settings_mode_input"
-                     value="{{ section.mode }}">
-            </div>
-
-            <div id="Motor_Settings_manual_fields">
-              <label for="Motor_Settings.motor_user_speed">Motor User Speed</label>
-              <input type="number"
-                     name="Motor_Settings.motor_user_speed"
-                     min="0" max="4"
-                     value="{{ section.user_speed }}">
-            </div>
-
-            <div id="Motor_Settings_winter_fields">
-              <div class="grid2">
-                <div>
-                  <label for="Motor_Settings.winter_default_speed">Winter Default Speed</label>
-                  <input type="number" min="0" max="4"
-                         name="Motor_Settings.winter_default_speed"
-                         value="{{ section.winter_default_speed }}">
-                </div>
-                <div>
-                  <label for="Motor_Settings.winter_temp_margin">Winter Temp Margin (°C)</label>
-                  <input type="number" step="0.1" min="0"
-                         name="Motor_Settings.winter_temp_margin"
-                         value="{{ section.winter_temp_margin }}">
-                </div>
-                <div>
-                  <label for="Motor_Settings.winter_refresh_speed">Refresh Speed</label>
-                  <input type="number" min="0" max="4"
-                         name="Motor_Settings.winter_refresh_speed"
-                         value="{{ section.winter_refresh_speed }}">
-                </div>
-                <div>
-                  <label for="Motor_Settings.winter_refresh_minutes_per_hour">Refresh Minutes / Hour</label>
-                  <input type="number" min="0" max="60"
-                         name="Motor_Settings.winter_refresh_minutes_per_hour"
-                         value="{{ section.winter_refresh_minutes_per_hour }}">
-                </div>
-                <div>
-                  <label for="Motor_Settings.winter_humidity_threshold">Humidity Threshold (%)</label>
-                  <input type="number" step="0.1" min="0" max="100"
-                         name="Motor_Settings.winter_humidity_threshold"
-                         value="{{ section.winter_humidity_threshold }}">
-                </div>
-              </div>
-            </div>
-
-          {% elif section.type == "cyclic" %}
-            <label>{{ section.title }} Enabled</label>
-            <div class="switch-group" data-target="{{ section.id }}_enabled_block">
-              <input type="radio"
-                     id="{{ section.id }}_on"
-                     name="{{ section.id }}.enabled"
-                     value="enabled"
-                     {% if section.enabled == 'enabled' %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_on">Enabled</label>
-
-              <input type="radio"
-                     id="{{ section.id }}_off"
-                     name="{{ section.id }}.enabled"
-                     value="disabled"
-                     {% if section.enabled == 'disabled' %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_off">Disabled</label>
-            </div>
-
-            <label>Mode</label>
-            <div class="switch-group" data-target="{{ section.id }}">
-              <input type="radio"
-                     id="{{ section.id }}_journalier"
-                     name="{{ section.id }}_mode_switch"
-                     value="journalier"
-                     {% if section.mode == 'journalier' %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_journalier">Journalier</label>
-
-              <input type="radio"
-                     id="{{ section.id }}_sequentiel"
-                     name="{{ section.id }}_mode_switch"
-                     value="séquentiel"
-                     {% if section.mode == 'séquentiel' %}checked{% endif %}>
-              <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
-
-              {# champ réellement posté : les radios «_mode_switch» sont ignorées côté serveur #}
-              <input type="hidden"
-                     name="{{ section.id }}.mode"
-                     id="{{ section.id }}_mode_input"
-                     value="{{ section.mode }}">
-            </div>
-
-            <div id="{{ section.id }}_journalier_fields">
-              {% for f in section.journalier_fields %}
-                <label for="{{ f.name }}">{{ f.label }}</label>
-                {{ f.input_html|safe }}
-              {% endfor %}
-            </div>
-            <div id="{{ section.id }}_séquentiel_fields">
-              {% for f in section.sequentiel_fields %}
-                <label for="{{ f.name }}">{{ f.label }}</label>
-                {{ f.input_html|safe }}
-              {% endfor %}
-            </div>
-
-          {% elif section.type == "sensor_state" %}
-            {% for s in section.sensors %}
-              <label>{{ s.attr }}</label>
-              <div class="switch-group" data-target="{{ section.id }}_{{ s.attr }}">
-                <input type="radio"
-                       id="{{ section.id }}_{{ s.attr }}_enabled"
-                       name="{{ section.id }}.{{ s.attr }}"
-                       value="enabled"
-                       {% if s.enabled %}checked{% endif %}>
-                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_enabled">Enabled</label>
-              
-                <input type="radio"
-                       id="{{ section.id }}_{{ s.attr }}_disabled"
-                       name="{{ section.id }}.{{ s.attr }}"
-                       value="disabled"
-                       {% if not s.enabled %}checked{% endif %}>
-                <label class="switch-label" for="{{ section.id }}_{{ s.attr }}_disabled">Disabled</label>
-              </div>
-            {% endfor %}
-          {% endif %}
-
-          <button type="submit" class="button_param">Save</button>
-        </form>
-      </div>
-    {% endfor %}
-  </div>
-  <button class="carousel-arrow right" aria-label="Suivant">›</button>
+{% if success %}<div class="notice success" role="status">La section « {{ success }} » a été enregistrée.</div>{% endif %}
+{% if errors %}
+<div class="notice error" role="alert" tabindex="-1" id="form-errors">
+  <strong>La configuration n’a pas été modifiée.</strong>
+  <ul>{% for field, message in errors.items() %}<li>{{ field }} : {{ message }}</li>{% endfor %}</ul>
 </div>
+{% endif %}
 
-<style>
-.conf-wrapper { position: relative; }
-.carousel-arrow {
-  display: none; position: absolute; top: 50%; transform: translateY(-50%);
-  background: rgba(0,0,0,0.5); border: none; color: #00FF55; font-size: 2rem;
-  padding: 0 .5rem; cursor: pointer; z-index: 10;
-}
-.carousel-arrow.left  { left: .5rem; }
-.carousel-arrow.right { right: .5rem; }
+<nav class="config-toc" aria-label="Sommaire de la configuration">
+  <a href="#culture">Culture</a><a href="#planification">Planification</a><a href="#climat">Climat</a><a href="#capteurs">Capteurs</a><a href="#reseau">Réseau</a><a href="#systeme">Système</a>
+</nav>
 
-.scroll-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.card { background: rgba(0,0,0,0.8); padding: 1rem; }
+<div class="config-layout">
+<section id="culture" class="config-group" aria-labelledby="culture-title">
+  <div class="section-heading"><div><p class="eyebrow">Métadonnée</p><h2 id="culture-title">Culture</h2></div></div>
+  <details class="config-section" id="life"{% if active_section == 'life' %} open{% endif %}>
+    <summary><span>Stade de culture</span><span class="summary-value">{{ config.life_period.stage }}</span></summary>
+    <form method="post" action="/conf/life" data-config-form>{{ csrf() }}
+      <div class="field"><label for="stage">Stade actuel</label><input id="stage" name="stage" value="{{ config.life_period.stage }}" maxlength="64" required><p class="field-help">Information descriptive, sans effet direct sur les sorties.</p></div>
+      {{ save_button() }}
+    </form>
+  </details>
+</section>
 
-@media (max-width: 767px) {
-  .scroll-container { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
-  .card { flex: 0 0 100%; min-width: 100%; scroll-snap-align: start; }
-  .carousel-arrow { display: block; }
-}
+<section id="planification" class="config-group" aria-labelledby="planning-title">
+  <div class="section-heading"><div><p class="eyebrow">Automatisation</p><h2 id="planning-title">Planification</h2></div></div>
+  {% for num, timer in ((1, config.daily_timer1), (2, config.daily_timer2)) %}
+  <details class="config-section" id="daily-timer-{{ num }}"{% if active_section == 'daily-timer-' ~ num %} open{% endif %}>
+    <summary><span>Minuterie quotidienne {{ num }}</span><span class="summary-value">{{ '%02d:%02d'|format(timer.start_hour, timer.start_minute) }} → {{ '%02d:%02d'|format(timer.stop_hour, timer.stop_minute) }}</span></summary>
+    <form method="post" action="/conf/daily-timer-{{ num }}" data-config-form>{{ csrf() }}
+      {{ switch('enabled', timer.enabled, 'Activation', 'daily-' ~ num ~ '-enabled') }}
+      <div class="field-grid two">
+        <div class="field"><label for="daily-{{ num }}-start">Début</label><input id="daily-{{ num }}-start" name="start_time" type="time" value="{{ '%02d:%02d'|format(timer.start_hour, timer.start_minute) }}" required></div>
+        <div class="field"><label for="daily-{{ num }}-stop">Fin</label><input id="daily-{{ num }}-stop" name="stop_time" type="time" value="{{ '%02d:%02d'|format(timer.stop_hour, timer.stop_minute) }}" required></div>
+      </div>{{ save_button() }}
+    </form>
+  </details>
+  {% endfor %}
 
-.switch-group { display: flex; flex-wrap: wrap; gap: 8px; margin: 1rem 0; }
-.switch-group input[type="radio"] { display: none; }
-.switch-label {
-  padding: 8px 16px; border: 2px solid #00FF88; background: #000; color: #00FF88;
-  cursor: pointer; font-family: 'VisitorTT1BRK', monospace; text-transform: uppercase; transition: 0.2s;
-}
-.switch-group input[type="radio"]:checked + .switch-label { background: #00FF88; color: #000; }
+  {% for num, cycle in ((1, config.cyclic1), (2, config.cyclic2)) %}
+  <details class="config-section" id="cyclic-{{ num }}"{% if active_section == 'cyclic-' ~ num %} open{% endif %}>
+    <summary><span>Cycle {{ num }}</span><span class="summary-value">{{ cycle.mode|capitalize }}</span></summary>
+    <form method="post" action="/conf/cyclic-{{ num }}" data-config-form data-mode-form>{{ csrf() }}
+      {{ switch('enabled', cycle.enabled, 'Activation', 'cyclic-' ~ num ~ '-enabled') }}
+      <fieldset class="segmented-field"><legend>Mode de fonctionnement</legend><div class="segmented-control">
+        <input class="visually-hidden" type="radio" id="cyclic-{{ num }}-daily" name="mode" value="journalier"{% if cycle.mode == 'journalier' %} checked{% endif %}><label for="cyclic-{{ num }}-daily">Journalier</label>
+        <input class="visually-hidden" type="radio" id="cyclic-{{ num }}-seq" name="mode" value="séquentiel"{% if cycle.mode == 'séquentiel' %} checked{% endif %}><label for="cyclic-{{ num }}-seq">Séquentiel</label>
+      </div></fieldset>
+      <div data-mode-fields="journalier"{% if cycle.mode != 'journalier' %} hidden{% endif %}>
+        <div class="field-grid two">
+          {{ number('period_days', 'Période', cycle.period_days, 'jour(s)', 1, id_prefix='cyclic-' ~ num ~ '-period-days') }}
+          {{ number('triggers_per_day', 'Activations par journée', cycle.triggers_per_day, '', 1, id_prefix='cyclic-' ~ num ~ '-triggers-per-day') }}
+          {{ number('first_trigger_hour', 'Première activation', cycle.first_trigger_hour, 'h', 0, 23, id_prefix='cyclic-' ~ num ~ '-first-trigger-hour') }}
+          {{ number('action_duration_seconds', 'Durée d’activation', cycle.action_duration_seconds, 's', 1, id_prefix='cyclic-' ~ num ~ '-action-duration') }}
+        </div>
+      </div>
+      <div data-mode-fields="séquentiel"{% if cycle.mode != 'séquentiel' %} hidden{% endif %}>
+        <div class="field-grid two">
+          {{ number('on_time_day', 'Jour · durée ON', cycle.on_time_day, 's', 0, id_prefix='cyclic-' ~ num ~ '-on-day') }}
+          {{ number('off_time_day', 'Jour · durée OFF', cycle.off_time_day, 's', 0, id_prefix='cyclic-' ~ num ~ '-off-day') }}
+          {{ number('on_time_night', 'Nuit · durée ON', cycle.on_time_night, 's', 0, id_prefix='cyclic-' ~ num ~ '-on-night') }}
+          {{ number('off_time_night', 'Nuit · durée OFF', cycle.off_time_night, 's', 0, id_prefix='cyclic-' ~ num ~ '-off-night') }}
+        </div>
+      </div>{{ save_button() }}
+    </form>
+  </details>
+  {% endfor %}
+</section>
 
-.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
-@media (max-width: 767px) { .grid2 { grid-template-columns: 1fr; } }
-</style>
+<section id="climat" class="config-group" aria-labelledby="climate-config-title">
+  <div class="section-heading"><div><p class="eyebrow">Régulation</p><h2 id="climate-config-title">Climat</h2></div></div>
+  <details class="config-section" id="temperature"{% if active_section == 'temperature' %} open{% endif %}><summary><span>Consignes de température</span><span class="summary-value">Jour et nuit</span></summary>
+    <form method="post" action="/conf/temperature" data-config-form>{{ csrf() }}<div class="field-grid two">
+      {{ number('target_temp_min_day', 'Jour · minimum', config.temperature.target_temp_min_day, '°C', -20, 60, '0.1') }}
+      {{ number('target_temp_max_day', 'Jour · maximum', config.temperature.target_temp_max_day, '°C', -20, 60, '0.1') }}
+      {{ number('target_temp_min_night', 'Nuit · minimum', config.temperature.target_temp_min_night, '°C', -20, 60, '0.1') }}
+      {{ number('target_temp_max_night', 'Nuit · maximum', config.temperature.target_temp_max_night, '°C', -20, 60, '0.1') }}
+      {{ number('hysteresis_offset', 'Hystérésis', config.temperature.hysteresis_offset, '°C', 0, 20, '0.1') }}
+    </div>{{ save_button() }}</form>
+  </details>
+  <details class="config-section" id="heater"{% if active_section == 'heater' %} open{% endif %}><summary><span>Chauffage</span><span class="summary-value">{{ 'Activé' if config.heater_settings.enabled else 'Désactivé' }}</span></summary>
+    <form method="post" action="/conf/heater" data-config-form>{{ csrf() }}{{ switch('enabled', config.heater_settings.enabled, 'Autorisation du chauffage', 'heater-enabled') }}{{ save_button() }}</form>
+  </details>
+  <details class="config-section" id="motor"{% if active_section == 'motor' %} open{% endif %}><summary><span>Ventilation</span><span class="summary-value">Mode {{ config.motor.motor_mode }}</span></summary>
+    <form method="post" action="/conf/motor" data-config-form data-motor-form>{{ csrf() }}
+      <fieldset class="segmented-field"><legend>Mode moteur</legend><div class="segmented-control">
+        {% for value, label in (('manual','Manuel'),('auto','Automatique'),('winter','Hiver')) %}<input class="visually-hidden" type="radio" id="motor-{{ value }}" name="motor_mode" value="{{ value }}"{% if config.motor.motor_mode == value %} checked{% endif %}><label for="motor-{{ value }}">{{ label }}</label>{% endfor %}
+      </div></fieldset>
+      <div data-motor-fields="manual"{% if config.motor.motor_mode != 'manual' %} hidden{% endif %}>{{ number('motor_user_speed', 'Vitesse manuelle', config.motor.motor_user_speed, '/ 4', 0, 4) }}</div>
+      <div class="field-grid two">{{ number('min_speed', 'Vitesse minimale', config.motor.min_speed, '/ 4', 0, 4) }}{{ number('max_speed', 'Vitesse maximale', config.motor.max_speed, '/ 4', 0, 4) }}</div>
+      <div data-motor-fields="winter"{% if config.motor.motor_mode != 'winter' %} hidden{% endif %}><h3>Paramètres hiver</h3><div class="field-grid two">
+        {{ number('winter_default_speed', 'Vitesse par défaut', config.motor.winter_default_speed, '/ 4', 0, 4) }}
+        {{ number('winter_temp_margin', 'Marge basse', config.motor.winter_temp_margin, '°C', 0, 20, '0.1') }}
+        {{ number('winter_refresh_speed', 'Vitesse de renouvellement', config.motor.winter_refresh_speed, '/ 4', 0, 4) }}
+        {{ number('winter_refresh_minutes_per_hour', 'Renouvellement par heure', config.motor.winter_refresh_minutes_per_hour, 'min', 0, 60) }}
+        {{ number('winter_humidity_threshold', 'Seuil d’humidité', config.motor.winter_humidity_threshold, '%', 0, 100, '0.1') }}
+      </div></div>{{ save_button() }}
+    </form>
+  </details>
+</section>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".switch-group").forEach(group => {
-    const target = group.dataset.target;
-    const hidden = document.getElementById(target + "_mode_input");
+<section id="capteurs" class="config-group" aria-labelledby="sensors-config-title">
+  <div class="section-heading"><div><p class="eyebrow">Acquisition</p><h2 id="sensors-config-title">Capteurs</h2></div></div>
+  <details class="config-section" id="sensors"{% if active_section == 'sensors' %} open{% endif %}><summary><span>Capteurs actifs</span><span class="summary-value">Reconfiguration à chaud</span></summary>
+    <form method="post" action="/conf/sensors" data-config-form>{{ csrf() }}
+      {% for field, label in (('bme280_state','BME280 · air'),('ds18b20_state','DS18B20 · sondes'),('veml6075_state','VEML6075 · UV'),('vl53L0x_state','VL53L0X · distance laser'),('mlx90614_state','MLX90614 · infrarouge'),('tsl2591_state','TSL2591 · lumière'),('hcsr04_state','HC-SR04 · distance ultrason')) %}
+      {{ switch(field, config.sensors|attr(field), label, 'sensor-' ~ field) }}
+      {% endfor %}{{ save_button() }}
+    </form>
+  </details>
+</section>
 
-    group.querySelectorAll('input[type="radio"]').forEach(r => {
-      r.addEventListener("change", () => {
-        if (hidden && r.name === target + "_mode_switch") hidden.value = r.value;
+<section id="reseau" class="config-group" aria-labelledby="network-title">
+  <div class="section-heading"><div><p class="eyebrow">Connectivité</p><h2 id="network-title">Réseau et export</h2></div></div>
+  <details class="config-section" id="wifi"{% if active_section == 'wifi' %} open{% endif %}><summary><span>Wi-Fi</span><span class="summary-value">Redémarrage requis</span></summary>
+    <form method="post" action="/conf/wifi" data-config-form>{{ csrf() }}
+      <div class="field"><label for="wifi_ssid">Nom du réseau (SSID)</label><input id="wifi_ssid" name="wifi_ssid" value="{{ config.network.wifi_ssid }}" autocomplete="off" required></div>
+      <div class="field"><label for="wifi_password">Nouveau mot de passe</label><div class="secret-input"><input id="wifi_password" name="wifi_password" type="password" value="" autocomplete="new-password"><button type="button" class="reveal-button" data-reveal="wifi_password" aria-label="Afficher la nouvelle valeur">Afficher</button></div><p class="field-help">{{ 'Une valeur est enregistrée.' if wifi_password_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
+      {{ save_button(True) }}
+    </form>
+  </details>
+  <details class="config-section" id="influx"{% if active_section == 'influx' %} open{% endif %}><summary><span>InfluxDB</span><span class="summary-value">{{ 'Export activé' if config.network.host_machine_state|lower == 'online' else 'Export désactivé' }}</span></summary>
+    <form method="post" action="/conf/influx" data-config-form>{{ csrf() }}{{ switch('host_machine_state', config.network.host_machine_state|lower == 'online', 'Export InfluxDB', 'influx-enabled', 'online', 'offline') }}
+      <div class="field-grid two"><div class="field"><label for="host_machine_address">Serveur</label><input id="host_machine_address" name="host_machine_address" value="{{ config.network.host_machine_address }}" required></div><div class="field"><label for="influx_db_port">Port</label><input id="influx_db_port" name="influx_db_port" type="number" min="1" max="65535" value="{{ config.network.influx_db_port }}" required></div><div class="field"><label for="influx_db_name">Base de données</label><input id="influx_db_name" name="influx_db_name" value="{{ config.network.influx_db_name }}" required></div></div>
+      <div class="field"><label for="influx_db_user">Nouvel utilisateur</label><input id="influx_db_user" name="influx_db_user" value="" autocomplete="off"><p class="field-help">{{ 'Une valeur est enregistrée.' if influx_user_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
+      <div class="field"><label for="influx_db_password">Nouveau mot de passe</label><div class="secret-input"><input id="influx_db_password" name="influx_db_password" type="password" value="" autocomplete="new-password"><button type="button" class="reveal-button" data-reveal="influx_db_password" aria-label="Afficher la nouvelle valeur">Afficher</button></div><p class="field-help">{{ 'Une valeur est enregistrée.' if influx_password_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
+      {{ save_button() }}
+    </form>
+  </details>
+</section>
 
-        if (target === "Motor_Settings") {
-          const manu   = document.getElementById("Motor_Settings_manual_fields");
-          const winter = document.getElementById("Motor_Settings_winter_fields");
-          if (manu)   manu.style.display   = (r.value === "manual" ? "block" : "none");
-          if (winter) winter.style.display = (r.value === "winter" ? "block" : "none");
-        } else if (target && target.startsWith("Cyclic")) {
-          const j = document.getElementById(target + "_journalier_fields");
-          const s = document.getElementById(target + "_séquentiel_fields");
-          if (j && s) {
-            j.style.display = (r.value === "journalier" ? "block" : "none");
-            s.style.display = (r.value === "séquentiel" ? "block" : "none");
-          }
-        }
-      });
-    });
-
-    const checked = group.querySelector('input[type="radio"]:checked');
-    if (checked) checked.dispatchEvent(new Event("change"));
-  });
-
-  const cont = document.querySelector(".scroll-container");
-  const prev = document.querySelector(".carousel-arrow.left");
-  const next = document.querySelector(".carousel-arrow.right");
-  function scrollByCard(off) {
-    const c = cont.querySelector(".card");
-    if (!c) return;
-    const gap = parseInt(getComputedStyle(cont).gap)||0;
-    const w   = c.offsetWidth + gap;
-    cont.scrollBy({ left: off*w, behavior: "smooth" });
-  }
-  prev && prev.addEventListener("click", () => scrollByCard(-1));
-  next && next.addEventListener("click", () => scrollByCard( 1));
-});
-</script>
+<section id="systeme" class="config-group" aria-labelledby="system-title">
+  <div class="section-heading"><div><p class="eyebrow">Avancé</p><h2 id="system-title">Système</h2></div></div>
+  <details class="config-section" id="logs"{% if active_section == 'logs' %} open{% endif %}><summary><span>Journalisation</span><span class="summary-value">{{ config.logs.level }}</span></summary>
+    <form method="post" action="/conf/logs" data-config-form>{{ csrf() }}<div class="field-grid two"><div class="field"><label for="level">Niveau</label><select id="level" name="level">{% for level in ('DEBUG','INFO','WARNING','ERROR') %}<option value="{{ level }}"{% if config.logs.level == level %} selected{% endif %}>{{ level }}</option>{% endfor %}</select></div>{{ number('retention_days', 'Rétention', config.logs.retention_days, 'jour(s)', 1) }}</div>{{ save_button() }}</form>
+  </details>
+  <details class="config-section hardware" id="gpio"><summary><span>Matériel GPIO</span><span class="summary-value">Lecture seule</span></summary>
+    <div class="notice warning"><strong>Configuration sensible.</strong> Les sorties génériques sont actives-BAS et le moteur actif-HAUT. Toute modification exige une validation matérielle et un redémarrage.</div>
+    <dl class="gpio-list">{% for field, value in gpio_fields %}<div><dt>{{ field }}</dt><dd>GPIO {{ value }}</dd></div>{% endfor %}</dl>
+  </details>
+</section>
+</div>
 {% endblock %}
+{% block page_scripts %}<script src="/static/js/config.js?v={{ asset_versions.config }}" defer></script>{% endblock %}

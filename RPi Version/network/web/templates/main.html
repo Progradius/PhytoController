@@ -1,55 +1,127 @@
 {% extends "base.html" %}
-
 {% block content %}
+<section class="hero" aria-labelledby="dashboard-title">
+  <div>
+    <p class="eyebrow">Supervision de la serre</p>
+    <h1 id="dashboard-title">Tableau de bord</h1>
+    <p class="hero-copy">État du contrôle local, mesures actives et alarmes opérationnelles.</p>
+  </div>
+  <div class="freshness" id="freshness" data-generated-at="{{ state.generated_at }}" aria-live="polite">
+    Mise à jour en cours…
+  </div>
+</section>
 
-<h1>DailyTimer #1</h1>
-<hr>
-<div class="mainwrap">
-  <p>Planning : {{ dt1_sched }}</p>
-  <p>État : {{ dt1_state }}</p>
-</div>
+<section id="health-banner" class="health-banner {{ 'is-ok' if state.health.healthy and not state.health.heater_alarm else 'is-alert' }}" aria-live="polite">
+  <span class="status-dot" aria-hidden="true"></span>
+  <div>
+    <strong id="health-title">{{ 'Système opérationnel' if state.health.healthy and not state.health.heater_alarm else 'Attention requise' }}</strong>
+    <p id="health-detail">{{ state.health.heater_alarm or ('Toutes les tâches supervisées répondent.' if state.health.healthy else 'Une tâche supervisée est en défaut.') }}</p>
+  </div>
+</section>
 
-<h1>DailyTimer #2</h1>
-<hr>
-<div class="mainwrap">
-  <p>Planning : {{ dt2_sched }}</p>
-  <p>État : {{ dt2_state }}</p>
-</div>
-
-<h1>Cyclic #1</h1>
-<hr>
-<div class="mainwrap">
-  <p>{{ cyc1_desc|safe }}</p>
-  <p>État : {{ cyc1_state }}</p>
-</div>
-
-<h1>Cyclic #2</h1>
-<hr>
-<div class="mainwrap">
-  <p>{{ cyc2_desc|safe }}</p>
-  <p>État : {{ cyc2_state }}</p>
-</div>
-
-<h1>Heater</h1>
-<hr>
-<div class="mainwrap">
-  <p>État : {{ heater_state }}</p>
-</div>
-
-<h1>Températures min/max</h1>
-<hr>
-<div class="mainwrap">
-  {{ temps_html | safe }}
-</div>
-
-<h1>État des capteurs</h1>
-<hr>
-<div class="formwrap">
-  <ul>
-    {% for name, status in sensors_list %}
-      <li>{{ name }} : {{ status }}</li>
+<section id="surveillance" aria-labelledby="climate-title">
+  <div class="section-heading">
+    <div><p class="eyebrow">Mesures</p><h2 id="climate-title">Capteurs actifs</h2></div>
+    <span class="section-count">{{ state.sensors|length }} mesure(s)</span>
+  </div>
+  <div class="card-grid sensor-grid" id="sensor-grid">
+    {% for sensor in state.sensors %}
+    <article class="card sensor-card status-{{ sensor.status }}" data-sensor="{{ sensor.key }}">
+      <div class="card-kicker"><span>{{ sensor.key }}</span><span class="sensor-status">{{ sensor.status }}</span></div>
+      <h3>{{ sensor.label }}</h3>
+      <p class="metric"><span class="sensor-value">{{ sensor.value if sensor.value is not none else '—' }}</span> <span class="metric-unit">{{ sensor.unit }}</span></p>
+      <p class="card-meta sensor-age">{{ (sensor.age_s|string + ' s') if sensor.age_s is not none else 'Aucune mesure' }}</p>
+    </article>
+    {% else %}
+    <article class="card empty-state"><h3>Aucun capteur actif</h3><p>Activez les capteurs depuis la configuration.</p></article>
     {% endfor %}
-  </ul>
-</div>
+  </div>
+</section>
 
+<section aria-labelledby="outputs-title">
+  <div class="section-heading"><div><p class="eyebrow">Actionneurs</p><h2 id="outputs-title">Sorties et ventilation</h2></div></div>
+  <div class="card-grid actuator-grid">
+    {% set outputs = (
+      ('daily_timer_1', 'Minuterie quotidienne 1'),
+      ('daily_timer_2', 'Minuterie quotidienne 2'),
+      ('cyclic_1', 'Sortie cyclique 1'),
+      ('cyclic_2', 'Sortie cyclique 2'),
+      ('heater', 'Chauffage')
+    ) %}
+    {% for key, label in outputs %}
+    <article class="card actuator-card" data-output-card="{{ key }}">
+      <div class="card-kicker"><span>RELAIS</span><span class="state-badge state-{{ state.outputs[key] }}" data-output="{{ key }}">{{ state.outputs[key] }}</span></div>
+      <h3>{{ label }}</h3>
+    </article>
+    {% endfor %}
+    <article class="card motor-card">
+      <div class="card-kicker"><span>MOTEUR</span><span id="motor-level">Niveau {{ state.motor.speed }}/4</span></div>
+      <h3>Ventilation</h3>
+      <progress id="motor-progress" max="4" value="{{ state.motor.speed }}">{{ state.motor.percent }} %</progress>
+    </article>
+  </div>
+</section>
+
+<section aria-labelledby="timers-title">
+  <div class="section-heading"><div><p class="eyebrow">Automatisation</p><h2 id="timers-title">Plannings</h2></div></div>
+  <div class="card-grid timer-grid" id="timer-grid">
+    {% for timer in state.timers %}
+    <article class="card timer-card" data-timer="{{ timer.id }}">
+      <div class="card-kicker"><span>{{ timer.kind }}</span><span>{{ 'Activé' if timer.enabled else 'Désactivé' }}</span></div>
+      <h3>{{ 'Minuterie quotidienne ' if timer.kind == 'daily' else 'Cycle ' }}{{ timer.id[-1] }}</h3>
+      {% if timer.kind == 'daily' %}
+      <p class="timer-description">{{ timer.schedule.start }} → {{ timer.schedule.stop }}</p>
+      {% elif timer.schedule.mode == 'journalier' %}
+      <p class="timer-description">{{ timer.schedule.triggers_per_day }} action(s), tous les {{ timer.schedule.period_days }} jour(s), dès {{ timer.schedule.first_trigger_hour }} h</p>
+      {% else %}
+      <p class="timer-description">Séquentiel · jour {{ timer.schedule.on_time_day }} s ON / {{ timer.schedule.off_time_day }} s OFF</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="statistiques" aria-labelledby="stats-title">
+  <div class="section-heading"><div><p class="eyebrow">Historique</p><h2 id="stats-title">Minimums et maximums</h2></div></div>
+  <div class="card-grid stats-grid">
+    {% for stat in state.stats %}
+    <article class="card stat-card" data-stat="{{ stat.key }}">
+      <h3>{{ stat.key }}</h3>
+      <dl class="stat-list">
+        <div><dt>Minimum</dt><dd class="stat-min">{{ stat.min if stat.min is not none else '—' }}</dd></div>
+        <div><dt>Maximum</dt><dd class="stat-max">{{ stat.max if stat.max is not none else '—' }}</dd></div>
+      </dl>
+      <form method="post" action="/actions/stats/reset">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="button button-secondary" name="key" value="{{ stat.key }}">Réinitialiser</button>
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="danger-zone" aria-labelledby="system-actions-title">
+  <div><p class="eyebrow">Zone sensible</p><h2 id="system-actions-title">Actions système</h2><p>Ces actions interrompent temporairement ou complètement le contrôle.</p></div>
+  <div class="danger-actions">
+    <button class="button button-danger-outline" type="button" data-open-dialog="reboot-dialog">Redémarrer</button>
+    <button class="button button-danger" type="button" data-open-dialog="poweroff-dialog">Éteindre</button>
+  </div>
+</section>
+
+{% for action, label, endpoint, message in (
+  ('reboot', 'Redémarrer le Raspberry Pi', '/actions/system/reboot', 'La régulation sera interrompue pendant le redémarrage.'),
+  ('poweroff', 'Éteindre le Raspberry Pi', '/actions/system/poweroff', 'La régulation restera arrêtée jusqu’à une remise sous tension manuelle.')
+) %}
+<dialog id="{{ action }}-dialog" class="confirm-dialog">
+  <form method="dialog" class="dialog-panel">
+    <p class="eyebrow">Confirmation requise</p><h2>{{ label }} ?</h2><p>{{ message }}</p>
+    <div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button></div>
+  </form>
+  <form method="post" action="{{ endpoint }}" class="dialog-confirm-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="button button-danger" type="submit">Confirmer</button>
+  </form>
+</dialog>
+{% endfor %}
 {% endblock %}
+{% block page_scripts %}<script src="/static/js/dashboard.js?v={{ asset_versions.dashboard }}" defer></script>{% endblock %}

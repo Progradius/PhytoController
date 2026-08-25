@@ -27,6 +27,7 @@ from components.MotorHandler import MotorHandler
 from controllers.SensorController import SensorController
 from controllers.SystemStatus import SystemStatus
 from controllers.PuppetMaster import PuppetMaster
+from model.SensorStats import SensorStats
 
 from param.config import AppConfig
 
@@ -223,7 +224,8 @@ cyclic_timer1 = CyclicTimer(cyclic_out1, timer_id="1", config=config)
 cyclic_timer2 = CyclicTimer(cyclic_out2, timer_id="2", config=config)
 
 # (9) Capteurs
-sensor_handler = SensorController(config)
+sensor_stats = SensorStats()
+sensor_handler = SensorController(config, stats=sensor_stats)
 success("Bus capteurs prêt", name=LOGGER_NAME)
 
 # (10) Statut système

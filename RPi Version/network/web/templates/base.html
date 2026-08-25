@@ -1,138 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  
-  <!-- Police spécifique -->
-  <link rel="stylesheet" href="/static/fonts/visitor1.ttf">
-
-  <!-- Style général -->
-  <link rel="stylesheet" href="/static/css/style.css">
-
-  <style>
-    /* Reset */
-    * { margin:0; padding:0; box-sizing:border-box; }
-
-    /* Body */
-    body {
-      background: #000;
-      color: #00FF55;
-      font-family: 'VisitorTT1BRK', monospace;
-      font-size: 15px;
-      line-height: 1.4;
-      padding: 24px;
-    }
-
-    /* Navbar */
-    .navbar {
-      margin-bottom: 1rem;
-      font-size: 1.2rem;
-    }
-    .navbar a {
-      color: #00FF55;
-      text-decoration: none;
-      margin-right: 1rem;
-      font-family: 'VisitorTT1BRK', monospace;
-    }
-    .navbar a:hover {
-      text-decoration: underline;
-    }
-
-    /* Titles */
-    h1, h2, h3, legend {
-      font-size: 18px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 10px;
-      color: #00FF55;
-      text-shadow: 0 0 2px #00FF55;
-    }
-
-    /* Wrappers */
-    .mainwrap, .formwrap, .scroll-container, .card {
-      border: 1px solid #00FF55;
-      padding: 12px;
-      background: rgba(0,255,85,0.02);
-      border-radius: 3px;
-      margin-bottom: 20px;
-    }
-
-    /* Inputs et Selects */
-    label {
-      display: block;
-      margin: 6px 0 2px;
-    }
-    input, select {
-      width: 100%;
-      padding: 4px;
-      background: #000;
-      border: 1px solid #00FF55;
-      color: #00FF55;
-      font-family: 'VisitorTT1BRK', monospace;
-      font-size: 14px;
-    }
-
-    /* Boutons */
-    .button_base, .button_param {
-      background: #000;
-      border: 1px solid #00FF55;
-      color: #00FF55;
-      padding: 6px 10px;
-      cursor: pointer;
-      font-family: 'VisitorTT1BRK', monospace;
-      font-size: 14px;
-      margin-top: 10px;
-      transition: background 0.2s, color 0.2s;
-    }
-    .button_base:hover, .button_param:hover {
-      background: #00FF55;
-      color: #000;
-    }
-
-    /* Scroll container général */
-    .scroll-container {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1rem;
-    }
-
-    /* Card */
-    .card {
-      background: rgba(0,0,0,0.8);
-      padding: 1rem;
-    }
-
-    /* Mobile : switch au mode carousel */
-    @media (max-width: 767px) {
-      .scroll-container {
-        display: flex;
-        overflow-x: auto;
-        scroll-snap-type: x mandatory;
-      }
-      .card {
-        flex: 0 0 100%;
-        min-width: 100%;
-        scroll-snap-align: start;
-      }
-    }
-  </style>
-
+  <meta name="theme-color" content="#020604">
+  {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
+  <title>{{ page_title }} · PhytoController</title>
+  <link rel="icon" href="/favicon.svg?v={{ asset_versions.favicon }}" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/style.css?v={{ asset_versions.style }}">
   {% block head_extra %}{% endblock %}
 </head>
-<body>
-
-  <!-- Barre de navigation -->
-  <div class="navbar">
-    <a href="/">System State</a> |
-    <a href="/monitor">Monitored Values</a> |
-    <a href="/conf">Configuration</a> |
-    <a href="/console">Console</a>
-  </div>
-
-  <!-- Contenu principal -->
-  {% block content %}
-  {% endblock %}
-
+<body data-page="{{ current_page or 'error' }}">
+  <a class="skip-link" href="#contenu">Aller au contenu</a>
+  <header class="site-header">
+    <div class="brand" aria-label="PhytoController">
+      <span class="brand-mark" aria-hidden="true">⌁</span>
+      <span>PHYTO<span class="brand-dim">CONTROLLER</span></span>
+    </div>
+    <nav class="navbar" aria-label="Navigation principale">
+      <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau de bord</a>
+      <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
+      <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
+    </nav>
+  </header>
+  <main id="contenu" class="page-shell">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">PHYTO · CONTRÔLE LOCAL LAN</footer>
+  {% block page_scripts %}{% endblock %}
 </body>
 </html>

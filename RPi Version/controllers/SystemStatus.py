@@ -69,8 +69,8 @@ class SystemStatus:
     # ──────────────────────────────────────────────────────────
 
     def get_cyclic_period(self) -> int:
-        """Période en minutes du CyclicTimer #1."""
-        return self._config.cyclic1.period_minutes
+        """Période en jours du CyclicTimer #1."""
+        return self._config.cyclic1.period_days
 
     def get_cyclic_duration(self) -> int:
         """Durée d'action en secondes du CyclicTimer #1."""

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero compact">
+  <p class="eyebrow">Erreur {{ status }}</p>
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  <a class="button" href="/">Retour au tableau de bord</a>
+</section>
+{% endblock %}

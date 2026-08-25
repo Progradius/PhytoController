@@ -1,468 +1,647 @@
-# network/web/server.py
-# Author : Progradius
-# License: AGPL-3.0
-# -------------------------------------------------------------
-# Serveur HTTP ultra-léger basé sur asyncio, utilisant AppConfig
-# + console SSE alimentée par les logs du PROCESSUS COURANT
-# -------------------------------------------------------------
+"""Serveur HTTP aiohttp de l'interface locale PhytoController."""
 
 from __future__ import annotations
-import asyncio
-import json
-import os
-import urllib.parse
 
-from utils import pretty_console as ui
-from utils.pretty_console import success, warning, error, debug, info
-from utils.log_stream import console_stream
-from network.web.pages import (
-    main_page,
-    conf_page,
-    monitor_page,
-    console_page,
-)
-from model.SensorStats import SensorStats
-from param.config import AppConfig
-from controllers.SensorController import SensorController
-from network.web import influx_handler
+import asyncio
+import hmac
+import ipaddress
+import os
+import secrets
+import socket
+import urllib.parse
+from datetime import datetime, timezone
+from pathlib import Path
+
+from aiohttp import web
+from pydantic import ValidationError
+
 from components.heater_control import get_heater_alarm
+from controllers.sensor_catalog import SENSOR_CATALOG
+from network.web import influx_handler
+from network.web.pages import conf_page, console_page, error_page, main_page
+from utils import pretty_console as ui
+from utils.log_stream import console_stream
+from utils.pretty_console import debug, error, info, success, warning
+
 
 LOGGER_NAME = "http"
+WEB_DIR = Path(__file__).parent
+STATIC_DIR = WEB_DIR / "static"
+MAX_BODY_SIZE = 64 * 1024
+
+HTTP_ERROR_TITLES = {
+    400: "Requête invalide",
+    403: "Action refusée",
+    404: "Page introuvable",
+    405: "Méthode non autorisée",
+    413: "Requête trop volumineuse",
+    421: "Hôte non autorisé",
+    422: "Valeurs refusées",
+    500: "Erreur interne",
+}
+
+SENSITIVE_FIELDS = {
+    "wifi_password",
+    "influx_db_user",
+    "influx_db_password",
+}
+
+SECTION_FIELDS: dict[str, dict[str, tuple[str, str] | str]] = {
+    "life": {"stage": ("Life_Period", "stage")},
+    "daily-timer-1": {
+        "enabled": ("DailyTimer1_Settings", "enabled"),
+        "start_time": "daily_start",
+        "stop_time": "daily_stop",
+    },
+    "daily-timer-2": {
+        "enabled": ("DailyTimer2_Settings", "enabled"),
+        "start_time": "daily_start",
+        "stop_time": "daily_stop",
+    },
+    "cyclic-1": {
+        name: ("Cyclic1_Settings", name)
+        for name in (
+            "enabled", "mode", "period_days", "triggers_per_day",
+            "first_trigger_hour", "action_duration_seconds", "on_time_day",
+            "off_time_day", "on_time_night", "off_time_night",
+        )
+    },
+    "cyclic-2": {
+        name: ("Cyclic2_Settings", name)
+        for name in (
+            "enabled", "mode", "period_days", "triggers_per_day",
+            "first_trigger_hour", "action_duration_seconds", "on_time_day",
+            "off_time_day", "on_time_night", "off_time_night",
+        )
+    },
+    "temperature": {
+        name: ("Temperature_Settings", name)
+        for name in (
+            "target_temp_min_day", "target_temp_max_day",
+            "target_temp_min_night", "target_temp_max_night", "hysteresis_offset",
+        )
+    },
+    "heater": {"enabled": ("Heater_Settings", "enabled")},
+    "motor": {
+        name: ("Motor_Settings", name)
+        for name in (
+            "motor_mode", "motor_user_speed", "min_speed", "max_speed",
+            "winter_default_speed", "winter_temp_margin", "winter_refresh_speed",
+            "winter_refresh_minutes_per_hour", "winter_humidity_threshold",
+        )
+    },
+    "sensors": {},
+    "wifi": {
+        "wifi_ssid": ("Network_Settings", "wifi_ssid"),
+        "wifi_password": ("Network_Settings", "wifi_password"),
+    },
+    "influx": {
+        name: ("Network_Settings", name)
+        for name in (
+            "host_machine_state", "host_machine_address", "influx_db_port",
+            "influx_db_name", "influx_db_user", "influx_db_password",
+        )
+    },
+    "logs": {
+        "level": ("Log_Settings", "level"),
+        "retention_days": ("Log_Settings", "retention_days"),
+    },
+}
+
+for _sensor_field in (
+    "bme280_state", "ds18b20_state", "veml6075_state", "vl53L0x_state",
+    "mlx90614_state", "tsl2591_state", "hcsr04_state",
+):
+    SECTION_FIELDS["sensors"][_sensor_field] = ("Sensor_State", _sensor_field)
+
+RELOAD_JOBS = {
+    "daily-timer-1": ("daily_timer_1",),
+    "daily-timer-2": ("daily_timer_2",),
+    "cyclic-1": ("cyclic_timer_1",),
+    "cyclic-2": ("cyclic_timer_2",),
+    "temperature": ("motor_temp_control", "heat_control"),
+    "heater": ("heat_control",),
+    "motor": ("motor_temp_control",),
+    "sensors": ("motor_temp_control", "heat_control"),
+}
 
 
-def _sse(line: str) -> bytes:
-    """Encode une ligne de log en évènement SSE (multi-ligne découpé)."""
-    chunks = "".join(f"data: {part}\n" for part in str(line).splitlines() or [""])
-    return (chunks + "\n").encode("utf-8")
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _host_without_port(authority: str) -> str:
+    authority = authority.strip()
+    if authority.startswith("["):
+        end = authority.find("]")
+        return authority[1:end].lower() if end > 0 else ""
+    if authority.count(":") == 1:
+        return authority.rsplit(":", 1)[0].lower()
+    return authority.lower()
 
 
 class Server:
-    """ Routes :
-        GET  /                 → System State
-        GET,POST /conf         → Configuration
-        GET  /monitor          → Monitored Values (rendu seul, sans effet de bord)
-        POST /monitor          → Actions : reset de stat, reboot, extinction
-        GET  /console          → Console (xterm.js + SSE)
-        GET  /console/stream   → Flux SSE des logs du processus (historique + live)
-        GET  /status           → JSON status
-    """
-
     def __init__(
         self,
         controller_status,
         sensor_handler,
-        config: AppConfig,
+        config,
         host: str = "0.0.0.0",
         port: int = 8123,
         supervisor=None,
+        dailytimer1=None,
+        dailytimer2=None,
+        cyclic_timer1=None,
+        cyclic_timer2=None,
+        heater_component=None,
     ):
         self.controller_status = controller_status
         self.sensor_handler = sensor_handler
         self.config = config
         self.host = host
         self.port = port
-        # `TaskSupervisor` (optionnel) : publie la santé des tâches sur /status.
         self.supervisor = supervisor
-
-        # Min/max stats
-        self.stats = SensorStats()
-        setattr(self.sensor_handler, "stats", self.stats)
-
-        # Les logs diffusés à /console viennent du processus courant
+        self.dailytimer1 = dailytimer1
+        self.dailytimer2 = dailytimer2
+        self.cyclic_timer1 = cyclic_timer1
+        self.cyclic_timer2 = cyclic_timer2
+        self.heater_component = heater_component
+        self.stats = sensor_handler.stats
+        self.csrf_token = secrets.token_urlsafe(32)
+        self._runner: web.AppRunner | None = None
+        self._allowed_names = self._build_allowed_names()
         console_stream.install()
 
+    def _build_allowed_names(self) -> set[str]:
+        hostname = socket.gethostname().lower()
+        allowed = {"localhost", hostname, f"{hostname}.local"}
+        allowed.update(
+            item.strip().lower()
+            for item in os.getenv("PHYTO_ALLOWED_HOSTS", "").split(",")
+            if item.strip()
+        )
+        return allowed
+
+    def create_app(self) -> web.Application:
+        app = web.Application(
+            client_max_size=MAX_BODY_SIZE,
+            middlewares=[self._security_middleware, self._host_middleware, self._csrf_middleware],
+            handler_args={"max_line_size": 8190, "max_field_size": 8190},
+        )
+        app.add_routes([
+            web.get("/", self._dashboard),
+            web.get("/index.html", self._dashboard),
+            web.get("/monitor", self._monitor_redirect),
+            web.post("/monitor", self._legacy_monitor_action),
+            web.get("/conf", self._configuration),
+            web.post("/conf/{section}", self._configuration_post),
+            web.get("/console", self._console),
+            web.get("/console/stream", self._console_stream),
+            web.get("/api/v1/state", self._api_state),
+            web.post("/actions/stats/reset", self._reset_stats),
+            web.post("/actions/system/reboot", self._reboot),
+            web.post("/actions/system/poweroff", self._poweroff),
+            web.get("/status", self._legacy_status),
+            web.get("/health/live", self._health_live),
+            web.get("/health/ready", self._health_ready),
+            web.get("/favicon.ico", self._favicon_redirect),
+            web.get("/favicon.svg", self._favicon),
+            web.get("/static/css/style.css", self._style),
+            web.get("/static/js/dashboard.js", self._dashboard_js),
+            web.get("/static/js/config.js", self._config_js),
+            web.get("/static/js/console.js", self._console_js),
+            web.get("/static/fonts/visitor1.ttf", self._font),
+        ])
+        return app
+
     async def run(self) -> None:
-        """
-        Démarre le serveur HTTP.
-        On tolère le cas où le port est déjà pris (par un autre process).
-        """
+        app = self.create_app()
+        self._runner = web.AppRunner(app, access_log=None, shutdown_timeout=5.0)
+        await self._runner.setup()
+        site = web.TCPSite(self._runner, self.host, self.port, backlog=64)
         try:
-            srv = await asyncio.start_server(self._handle, self.host, self.port)
-        except OSError as e:
-            if e.errno == 98:
+            await site.start()
+        except OSError as exc:
+            await self._runner.cleanup()
+            self._runner = None
+            if exc.errno == 98:
                 error(
                     f"Impossible d'ouvrir le serveur HTTP sur {self.host}:{self.port} "
-                    f"(déjà utilisé). Le reste du système continue.",
+                    "(déjà utilisé).",
                     name=LOGGER_NAME,
                 )
                 return
             raise
-
-        success(f"HTTP prêt sur {self.host}:{self.port}", name=LOGGER_NAME)
-        async with srv:
-            await srv.serve_forever()
-
-    async def _handle(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
-    ) -> None:
-        # --- Request line & headers ---
-        line = await reader.readline()
-        if not line.strip():
-            # Connexion ouverte puis abandonnée (pré-connexion navigateur) : non-évènement
-            debug("Connexion fermée avant la requête", name=LOGGER_NAME)
-            await self._close(writer)
-            return
+        success(f"HTTP aiohttp prêt sur {self.host}:{self.port}", name=LOGGER_NAME)
         try:
-            method, path, _ = line.decode("ascii").split()
-        except (ValueError, UnicodeDecodeError):
-            warning(f"Requête malformée ignorée : {line[:60]!r}", name=LOGGER_NAME)
-            await self._close(writer)
-            return
+            await asyncio.Event().wait()
+        finally:
+            if self._runner is not None:
+                await self._runner.cleanup()
+                self._runner = None
 
-        headers = {}
-        while True:
-            h = await reader.readline()
-            if h in (b"\r\n", b"\n", b""):
-                break
-            try:
-                k, v = h.decode("ascii").split(":", 1)
-            except (ValueError, UnicodeDecodeError):
-                debug(f"En-tête HTTP ignoré (malformé) : {h[:60]!r}", name=LOGGER_NAME)
-                continue
-            headers[k.lower().strip()] = v.strip()
-
-        # Les assets statiques ne méritent pas une ligne de log
-        if not path.startswith("/static/"):
-            debug(f"{method} {path}", name=LOGGER_NAME)
-
-        # POST parsing
-        posted = {}
-        if method == "POST":
-            try:
-                length = int(headers.get("content-length", "0"))
-            except ValueError:
-                warning("Content-Length invalide → corps ignoré", name=LOGGER_NAME)
-                length = 0
-            try:
-                raw = await reader.readexactly(length) if length else b""
-            except asyncio.IncompleteReadError as e:
-                warning(
-                    f"Corps de requête tronqué ({len(e.partial)}/{length} octets)",
-                    name=LOGGER_NAME,
-                )
-                await self._close(writer)
-                return
-            posted = urllib.parse.parse_qs(raw.decode(errors="replace"),
-                                           keep_blank_values=True)
-
-        # En-têtes de réponse supplémentaires (Location, Allow…)
-        headers_out: list = []
-
-        # --- ROUTING ---
-        if method == "GET" and path in ("/", "/index.html"):
-            body, ctype, status = (
-                main_page(
-                    self.controller_status,
-                    self.sensor_handler,
-                    self.stats,
-                    self.config,
-                ).encode("utf-8"),
-                "text/html; charset=utf-8",
-                "200 OK",
-            )
-
-        elif method == "GET" and path.startswith("/static/"):
-            filepath = os.path.join(os.path.dirname(__file__), path.lstrip("/"))
-            if os.path.isfile(filepath):
-                with open(filepath, "rb") as f:
-                    body = f.read()
-                ext = os.path.splitext(filepath)[1]
-                ctype = {
-                    ".css": "text/css",
-                    ".js": "application/javascript",
-                    ".ttf": "font/ttf",
-                    ".woff": "font/woff",
-                    ".woff2": "font/woff2",
-                    ".png": "image/png",
-                    ".jpg": "image/jpeg",
-                }.get(ext, "application/octet-stream")
-                status = "200 OK"
-            else:
-                debug(f"Asset statique introuvable : {path}", name=LOGGER_NAME)
-                body = b"Not found"
-                ctype = "text/plain"
-                status = "404 Not Found"
-
-        elif path == "/conf":
-            if method == "POST":
-                info("POST /conf → application de la configuration", name=LOGGER_NAME)
-                self._apply_conf_changes(posted)
-            body, ctype, status = (
-                conf_page(self.config).encode("utf-8"),
-                "text/html; charset=utf-8",
-                "200 OK",
-            )
-
-        elif path.startswith("/monitor"):
-            if method == "POST":
-                if self._is_cross_origin(headers):
-                    warning(
-                        "POST /monitor refusé : origine "
-                        f"{headers.get('origin')!r} ≠ hôte {headers.get('host')!r}",
-                        name=LOGGER_NAME,
-                    )
-                    body, ctype, status = b"Forbidden", "text/plain", "403 Forbidden"
-                else:
-                    self._apply_monitor_actions(posted)
-                    # Post/Redirect/Get : un F5 après un reset de stat ne
-                    # rejoue pas l'action.
-                    headers_out.append(("Location", "/monitor"))
-                    body, ctype, status = b"", "text/plain", "303 See Other"
-
-            elif method == "GET":
-                # Rendu seul : plus AUCUN effet de bord en GET (audit C12).
-                body, ctype, status = (
-                    monitor_page(
-                        self.sensor_handler,
-                        self.stats,
-                        self.config,
-                        self.controller_status,
-                    ).encode("utf-8"),
-                    "text/html; charset=utf-8",
-                    "200 OK",
-                )
-            else:
-                headers_out.append(("Allow", "GET, POST"))
-                body, ctype, status = (
-                    b"Method not allowed", "text/plain", "405 Method Not Allowed",
-                )
-
-        elif method == "GET" and path == "/console":
-            body, ctype, status = (
-                console_page().encode("utf-8"),
-                "text/html; charset=utf-8",
-                "200 OK",
-            )
-
-        elif method == "GET" and path.startswith("/console/stream"):
-            writer.write(
-                b"HTTP/1.1 200 OK\r\n"
-                b"Content-Type: text/event-stream\r\n"
-                b"Cache-Control: no-cache\r\n"
-                b"Connection: keep-alive\r\n\r\n"
-            )
-            await writer.drain()
-
-            queue = console_stream.subscribe()
-            try:
-                # Historique rejoué : une ligne = un évènement SSE
-                for past in list(console_stream.history):
-                    writer.write(_sse(past))
-                await writer.drain()
-
-                while True:
-                    try:
-                        line = await asyncio.wait_for(queue.get(), timeout=15.0)
-                        payload = _sse(line)
-                    except asyncio.TimeoutError:
-                        payload = b": keep-alive\n\n"
-                    writer.write(payload)
-                    await writer.drain()
-            except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
-                debug("Client SSE déconnecté", name=LOGGER_NAME)
-            except Exception as e:
-                warning(f"Flux SSE console interrompu : {e.__class__.__name__} : {e}",
-                        name=LOGGER_NAME)
-            finally:
-                console_stream.unsubscribe(queue)
-                await self._close(writer)
-            return
-
-        elif method == "GET" and path.startswith("/status"):
-            cs = self.controller_status
-            payload = {
-                "component_state": cs.get_component_state(),
-                "motor_speed": cs.get_motor_speed(),
-                "dailytimer1": {
-                    "start": cs.get_dailytimer_current_start_time(),
-                    "stop": cs.get_dailytimer_current_stop_time(),
-                },
-                "cyclic": {
-                    "period": getattr(self.config.cyclic1, "period_days", 1),
-                    "duration": self.config.cyclic1.action_duration_seconds,
-                },
-                # Alarme chauffage persistante (audit C10) : None si tout va bien.
-                "heater_alarm": get_heater_alarm(),
-            }
-            # Santé des tâches supervisées (audit C6) : c'est ici, et nulle part
-            # ailleurs, qu'on voit qu'une régulation s'est arrêtée ou redémarre
-            # en boucle.
-            if self.supervisor is not None:
-                payload["healthy"] = self.supervisor.is_healthy()
-                payload["tasks"] = self.supervisor.snapshot()
-            body, ctype, status = (
-                json.dumps(payload).encode("utf-8"),
-                "application/json",
-                "200 OK",
-            )
-
-        else:
-            debug(f"404 : {method} {path}", name=LOGGER_NAME)
-            body, ctype, status = b"Not found", "text/plain", "404 Not Found"
-
-        extra = "".join(f"{k}: {v}\r\n" for k, v in headers_out)
-        writer.write(
-            f"HTTP/1.1 {status}\r\n"
-            f"Content-Type: {ctype}\r\n"
-            f"Content-Length: {len(body)}\r\n"
-            f"{extra}"
-            "Connection: close\r\n\r\n".encode("utf-8")
-            + body
+    @web.middleware
+    async def _security_middleware(self, request: web.Request, handler):
+        try:
+            response = await handler(request)
+        except web.HTTPException as exc:
+            response = self._error_response(request, exc)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self'; "
+            "font-src 'self'; img-src 'self' data:; connect-src 'self'; "
+            "form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
         )
-        try:
-            await writer.drain()
-        except (ConnectionResetError, BrokenPipeError):
-            debug("Client HTTP parti avant la fin de la réponse", name=LOGGER_NAME)
-        await self._close(writer)
+        response.headers.setdefault("Cache-Control", "no-store")
+        if request.path.startswith("/static/") or response.content_type == "application/json":
+            response.enable_compression()
+        return response
+
+    @web.middleware
+    async def _host_middleware(self, request: web.Request, handler):
+        raw_host = request.headers.get("Host", "")
+        host = _host_without_port(raw_host)
+        allowed = host in self._allowed_names
+        if not allowed:
+            try:
+                address = ipaddress.ip_address(host)
+                allowed = address.is_private or address.is_loopback or address.is_link_local
+            except ValueError:
+                allowed = False
+        if not allowed:
+            warning(f"Host HTTP refusé : {raw_host!r}", name=LOGGER_NAME)
+            raise web.HTTPMisdirectedRequest(text="Hôte non autorisé")
+        return await handler(request)
+
+    @web.middleware
+    async def _csrf_middleware(self, request: web.Request, handler):
+        if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+            return await handler(request)
+        form = await request.post()
+        request["form_data"] = form
+        supplied = request.headers.get("X-CSRF-Token") or form.get("csrf_token", "")
+        if not hmac.compare_digest(str(supplied), self.csrf_token):
+            warning(f"CSRF refusé sur {request.path}", name=LOGGER_NAME)
+            raise web.HTTPForbidden(text="Jeton de formulaire invalide")
+        origin = request.headers.get("Origin")
+        if origin and urllib.parse.urlsplit(origin).netloc.lower() != request.host.lower():
+            warning(f"Origine refusée sur {request.path}", name=LOGGER_NAME)
+            raise web.HTTPForbidden(text="Origine non autorisée")
+        return await handler(request)
 
     @staticmethod
-    async def _close(writer: asyncio.StreamWriter) -> None:
-        """Fermeture propre : on attend réellement la fin de la connexion."""
-        try:
-            writer.close()
-            await writer.wait_closed()
-        except (ConnectionResetError, BrokenPipeError, OSError):
-            pass
+    def _error_response(request: web.Request, exc: web.HTTPException) -> web.Response:
+        """Rend les erreurs en HTML pour un navigateur, en texte pour le reste.
+
+        Les redirections (3xx) sont aussi des `HTTPException` : elles doivent
+        traverser sans être transformées en page d'erreur.
+        """
+        if exc.status < 400 or "text/html" not in request.headers.get("Accept", ""):
+            return exc
+        title = HTTP_ERROR_TITLES.get(exc.status, "Requête refusée")
+        response = web.Response(
+            text=error_page(exc.status, title, exc.text or title),
+            status=exc.status,
+            content_type="text/html",
+            charset="utf-8",
+        )
+        # `Allow` porte l'information utile d'un 405 : la recopier explicitement
+        # plutôt que l'ensemble des en-têtes (Content-Type/Length de l'exception).
+        if "Allow" in exc.headers:
+            response.headers["Allow"] = exc.headers["Allow"]
+        return response
 
     @staticmethod
-    def _is_cross_origin(headers: dict) -> bool:
-        """
-        Vrai si la requête vient manifestement d'une autre origine.
+    def _html(body: str, status: int = 200) -> web.Response:
+        return web.Response(text=body, status=status, content_type="text/html", charset="utf-8")
 
-        Il n'y a pas d'authentification sur cette IHM (choix assumé : accès LAN
-        uniquement). Le passage des actions destructrices en POST bloque déjà
-        les déclenchements passifs — préchargement de navigateur, scanner de
-        réseau, balise `<img src="http://pi:8123/monitor?reboot=1">`. Reste le
-        formulaire POST hébergé sur un site tiers : les navigateurs envoient
-        systématiquement `Origin` sur un POST, il suffit de le comparer à
-        `Host`. Absence d'`Origin` = appel non navigateur (curl, script) : on
-        laisse passer, l'IHM n'a pas vocation à être un pare-feu.
-        """
-        origin = headers.get("origin")
-        if not origin:
-            return False
-        return urllib.parse.urlsplit(origin).netloc != headers.get("host", "")
+    async def _dashboard(self, request: web.Request) -> web.Response:
+        return self._html(main_page(self._state_payload(), self.csrf_token))
 
-    def _apply_monitor_actions(self, posted: dict) -> None:
-        """Actions de la page /monitor — POST uniquement (audit C12)."""
-        for p in posted:
-            if p.startswith("reset_"):
-                k = "DS18B#3" if p == "reset_DS18B3" else p.split("reset_", 1)[1]
-                self.stats.clear_key(k)
-                val = self.sensor_handler.get_sensor_value(k)
-                if val is not None:
-                    self.stats.update(k, float(val))
-                info(f"Stat {k} réinitialisée", name=LOGGER_NAME)
+    async def _monitor_redirect(self, request: web.Request) -> web.Response:
+        raise web.HTTPSeeOther(location="/#surveillance")
 
-        if posted.get("reboot", ["0"])[0] == "1":
-            warning("Redémarrage demandé via l'interface web", name=LOGGER_NAME)
-            rc = os.system("sudo reboot")
-            if rc != 0:
-                error(f"« sudo reboot » a échoué (code {rc})", name=LOGGER_NAME)
+    async def _configuration(self, request: web.Request) -> web.Response:
+        success_section = request.query.get("success")
+        if success_section not in SECTION_FIELDS:
+            success_section = None
+        return self._html(conf_page(
+            self.config,
+            self.csrf_token,
+            success=success_section,
+            active_section=success_section,
+        ))
 
-        if posted.get("poweroff", ["0"])[0] == "1":
-            warning("Extinction demandée via l'interface web", name=LOGGER_NAME)
-            rc = os.system("/sbin/shutdown -h now")
-            if rc != 0:
-                error(f"« shutdown -h now » a échoué (code {rc})", name=LOGGER_NAME)
+    async def _configuration_post(self, request: web.Request) -> web.Response:
+        section = request.match_info["section"]
+        if section not in SECTION_FIELDS:
+            raise web.HTTPNotFound(text="Section inconnue")
+        form = request["form_data"]
+        errors = self._validate_form_shape(section, form)
+        if errors:
+            return self._html(conf_page(
+                self.config, self.csrf_token, errors=errors, active_section=section,
+            ), status=422)
 
-    def _apply_conf_changes(self, posted: dict[str, list[str]]) -> None:
-        """ Mise à jour partielle de la config via POST (clé alias → champ). """
-        if not posted:
-            return
+        payload = self.config.model_dump(by_alias=True)
+        changed_fields: list[str] = []
+        try:
+            self._apply_section_to_payload(section, form, payload, changed_fields)
+            candidate = self.config.__class__.model_validate(payload)
+        except (ValidationError, ValueError) as exc:
+            errors = self._format_validation_errors(exc)
+            return self._html(conf_page(
+                self.config, self.csrf_token, errors=errors, active_section=section,
+            ), status=422)
 
-        alias2field = {
-            fi.alias: name
-            for name, fi in self.config.model_fields.items()
-            if fi.alias
-        }
-        changes: list[str] = []
+        try:
+            candidate.save()
+        except OSError:
+            return self._html(conf_page(
+                self.config,
+                self.csrf_token,
+                errors={"__all__": "Écriture impossible : la configuration active est inchangée."},
+                active_section=section,
+            ), status=500)
 
-        for alias, vals in posted.items():
-            if alias.endswith("_switch"):
-                continue
-
-            raw = vals[0]
-
-            if "." in alias:
-                top, nest = alias.split(".", 1)
-
-                if top not in alias2field:
-                    warning(f"Ignoré alias «{top}»", name=LOGGER_NAME)
-                    continue
-
-                mdl = getattr(self.config, alias2field[top])
-
-                fld = mdl.__class__.model_fields.get(nest)
-                if fld:
-                    ok, val = _coerce(raw, fld.annotation)
-                    if not ok:
-                        warning(f"Valeur invalide pour «{alias}» : {raw!r} → ignorée",
-                                name=LOGGER_NAME)
-                        continue
-                    if getattr(mdl, nest) != val:
-                        changes.append(f"{alias} ← {val}")
-                    setattr(mdl, nest, val)
-                    continue
-
-                if (top.startswith("DailyTimer") or top.startswith("Cyclic")) and nest == "enabled":
-                    val = raw.lower() in ("1", "true", "enabled", "yes")
-                    if getattr(mdl, "enabled", None) != val:
-                        changes.append(f"{alias} ← {val}")
-                    setattr(mdl, "enabled", val)
-                    continue
-
-                warning(f"Ignoré champ imbriqué «{nest}» sur «{top}»", name=LOGGER_NAME)
-                continue
-
-            if alias not in alias2field:
-                warning(f"Ignoré alias «{alias}»", name=LOGGER_NAME)
-                continue
-
-            field = alias2field[alias]
-            fldinfo = self.config.model_fields[field]
-            ok, val = _coerce(raw, fldinfo.annotation)
-            if not ok:
-                warning(f"Valeur invalide pour «{alias}» : {raw!r} → ignorée",
-                        name=LOGGER_NAME)
-                continue
-            if getattr(self.config, field) != val:
-                changes.append(f"{alias} ← {val}")
-            setattr(self.config, field, val)
-
-        # Le formulaire poste TOUS les champs : on ne journalise que les écarts
-        if not changes:
-            self.config.save()
-            info("Configuration enregistrée sans changement de valeur", name=LOGGER_NAME)
+        self.config.replace_from(candidate)
+        await self._apply_runtime_changes(section)
+        if changed_fields:
+            safe_names = [f"{name} modifié" if name in SENSITIVE_FIELDS else name for name in changed_fields]
+            info(f"Configuration « {section} » sauvegardée : {', '.join(safe_names)}", name=LOGGER_NAME)
         else:
-            self.config.save()
-            info(f"Configuration sauvegardée : {', '.join(changes)}", name=LOGGER_NAME)
+            info(f"Configuration « {section} » enregistrée sans écart", name=LOGGER_NAME)
+        raise web.HTTPSeeOther(location=f"/conf?success={section}#{section}")
 
-        # Niveau / rétention de log applicables à chaud
-        ui.apply_log_settings(self.config.logs.level, self.config.logs.retention_days)
+    def _validate_form_shape(self, section: str, form) -> dict[str, str]:
+        allowed = set(SECTION_FIELDS[section]) | {"csrf_token"}
+        errors = {}
+        for key in form:
+            if key not in allowed:
+                errors[key] = "Champ inattendu."
+            elif len(form.getall(key)) != 1:
+                errors[key] = "Le champ est présent plusieurs fois."
+        return errors
 
-        self.sensor_handler = SensorController(self.config)
-        setattr(self.sensor_handler, "stats", self.stats)
-        self.sensor_handler.sensor_dict = self.sensor_handler._build_sensor_dict()
-        # Même instance pour l'export Influx : un seul /dev/i2c-1 ouvert
-        influx_handler.reload_sensor_handler(self.config, self.sensor_handler)
-        info("Nouvelle configuration appliquée", name=LOGGER_NAME)
+    def _apply_section_to_payload(self, section: str, form, payload: dict, changed: list[str]) -> None:
+        section_fields = SECTION_FIELDS[section]
+        for field_name, target in section_fields.items():
+            if field_name not in form:
+                continue
+            raw = str(form[field_name])
+            if field_name in SENSITIVE_FIELDS and raw == "":
+                continue
+            if target == "daily_start" or target == "daily_stop":
+                # `<input type="time">` renvoie « HH:MM », mais certains
+                # navigateurs ajoutent les secondes : elles sont ignorées.
+                try:
+                    parts = raw.split(":")
+                    hour, minute = int(parts[0]), int(parts[1])
+                except (IndexError, ValueError, TypeError):
+                    raise ValueError(f"Horaire invalide pour {field_name}")
+                top = "DailyTimer1_Settings" if section.endswith("1") else "DailyTimer2_Settings"
+                prefix = "start" if target == "daily_start" else "stop"
+                if payload[top][f"{prefix}_hour"] != hour or payload[top][f"{prefix}_minute"] != minute:
+                    changed.append(field_name)
+                payload[top][f"{prefix}_hour"] = hour
+                payload[top][f"{prefix}_minute"] = minute
+                continue
+            top, nested = target
+            current = payload[top].get(nested)
+            if isinstance(current, bool):
+                value = raw.lower() in {"enabled", "true", "1", "yes"}
+            elif isinstance(current, int):
+                value = int(raw)
+            elif isinstance(current, float):
+                value = float(raw)
+            else:
+                value = raw
+            if current != value:
+                changed.append(field_name)
+            payload[top][nested] = value
 
+    @staticmethod
+    def _format_validation_errors(exc: Exception) -> dict[str, str]:
+        if isinstance(exc, ValidationError):
+            errors = {}
+            for item in exc.errors(include_url=False):
+                loc = ".".join(str(part) for part in item.get("loc", ()))
+                errors[loc or "__all__"] = item.get("msg", "Valeur invalide")
+            return errors
+        return {"__all__": str(exc)}
 
-def _coerce(raw: str, annotation):
-    """
-    Convertit une valeur POSTée selon l'annotation du champ.
-    Retourne (ok, valeur) — jamais d'exception sur une saisie utilisateur.
-    """
-    try:
-        if annotation is bool:
-            return True, raw.lower() in ("1", "true", "enabled", "yes")
-        if annotation is int:
-            return True, int(raw)
-        if annotation is float:
-            return True, float(raw)
-        return True, raw
-    except (TypeError, ValueError):
-        return False, None
+    async def _apply_runtime_changes(self, section: str) -> None:
+        if section == "logs":
+            ui.apply_log_settings(self.config.logs.level, self.config.logs.retention_days)
+        if section == "sensors":
+            await self.sensor_handler.reconfigure(self.config)
+        if section in {"sensors", "influx"}:
+            influx_handler.reload_sensor_handler(self.config, self.sensor_handler)
+        if self.supervisor is not None:
+            for job_name in RELOAD_JOBS.get(section, ()):
+                self.supervisor.request_reload(job_name)
+
+    async def _console(self, request: web.Request) -> web.Response:
+        return self._html(console_page(self.csrf_token))
+
+    async def _console_stream(self, request: web.Request) -> web.StreamResponse:
+        response = web.StreamResponse(headers={
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        })
+        await response.prepare(request)
+        queue = console_stream.subscribe()
+        try:
+            for past in list(console_stream.history):
+                await response.write(self._sse(past))
+            while True:
+                try:
+                    line = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    payload = self._sse(line)
+                except asyncio.TimeoutError:
+                    payload = b": keep-alive\n\n"
+                await response.write(payload)
+        except (ConnectionResetError, asyncio.CancelledError):
+            debug("Client SSE déconnecté", name=LOGGER_NAME)
+        finally:
+            console_stream.unsubscribe(queue)
+        return response
+
+    @staticmethod
+    def _sse(line: str) -> bytes:
+        chunks = "".join(f"data: {part}\n" for part in str(line).splitlines() or [""])
+        return (chunks + "\n").encode("utf-8")
+
+    async def _api_state(self, request: web.Request) -> web.Response:
+        return web.json_response(self._state_payload())
+
+    def _state_payload(self) -> dict:
+        sensor_snapshot = self.sensor_handler.snapshot()
+        sensors = [sensor_snapshot[d.key] for d in SENSOR_CATALOG if sensor_snapshot[d.key]["enabled"]]
+        stats = []
+        for key in self.stats.KEYS:
+            item = self.stats.get_all().get(key, {})
+            stats.append({
+                "key": key,
+                "min": item.get("min"),
+                "min_at": item.get("min_date"),
+                "max": item.get("max"),
+                "max_at": item.get("max_date"),
+            })
+        speed = self.controller_status.get_motor_speed() or 0
+        return {
+            "schema_version": 1,
+            "generated_at": _utc_now(),
+            "health": {
+                "healthy": self.supervisor.is_healthy() if self.supervisor else True,
+                "heater_alarm": get_heater_alarm(),
+                "tasks": self.supervisor.snapshot() if self.supervisor else {},
+            },
+            "outputs": {
+                "daily_timer_1": self._logical_state(getattr(self.dailytimer1, "component", None)),
+                "daily_timer_2": self._logical_state(getattr(self.dailytimer2, "component", None)),
+                "cyclic_1": self._logical_state(getattr(self.cyclic_timer1, "component", None)),
+                "cyclic_2": self._logical_state(getattr(self.cyclic_timer2, "component", None)),
+                "heater": self._logical_state(self.heater_component),
+            },
+            "motor": {"speed": speed, "percent": int(speed / 4 * 100)},
+            "timers": self._timer_payload(),
+            "sensors": sensors,
+            "stats": stats,
+        }
+
+    @staticmethod
+    def _logical_state(component) -> str:
+        try:
+            return "on" if component.get_state() else "off"
+        except Exception:
+            return "unknown"
+
+    def _timer_payload(self) -> list[dict]:
+        timers = []
+        for number, cfg, output in (
+            (1, self.config.daily_timer1, "daily_timer_1"),
+            (2, self.config.daily_timer2, "daily_timer_2"),
+        ):
+            timers.append({
+                "id": f"daily-{number}", "kind": "daily", "enabled": cfg.enabled,
+                "output": output,
+                "schedule": {
+                    "start": f"{cfg.start_hour:02d}:{cfg.start_minute:02d}",
+                    "stop": f"{cfg.stop_hour:02d}:{cfg.stop_minute:02d}",
+                },
+            })
+        for number, cfg, output in (
+            (1, self.config.cyclic1, "cyclic_1"),
+            (2, self.config.cyclic2, "cyclic_2"),
+        ):
+            schedule = {"mode": cfg.mode}
+            if cfg.mode == "journalier":
+                schedule.update({
+                    "period_days": cfg.period_days,
+                    "triggers_per_day": cfg.triggers_per_day,
+                    "first_trigger_hour": cfg.first_trigger_hour,
+                    "action_duration_seconds": cfg.action_duration_seconds,
+                })
+            else:
+                schedule.update({
+                    "on_time_day": cfg.on_time_day, "off_time_day": cfg.off_time_day,
+                    "on_time_night": cfg.on_time_night, "off_time_night": cfg.off_time_night,
+                })
+            timers.append({
+                "id": f"cyclic-{number}", "kind": "cyclic", "enabled": cfg.enabled,
+                "output": output, "schedule": schedule,
+            })
+        return timers
+
+    async def _reset_stats(self, request: web.Request) -> web.Response:
+        form = request["form_data"]
+        key = str(form.get("key", ""))
+        if key not in self.stats.KEYS:
+            raise web.HTTPBadRequest(text="Clé de statistique invalide")
+        self.stats.clear_key(key)
+        value = self.sensor_handler.cached_value(key, max_age=30.0)
+        if value is not None:
+            self.stats.update(key, float(value))
+        info(f"Stat {key} réinitialisée", name=LOGGER_NAME)
+        raise web.HTTPSeeOther(location="/#statistiques")
+
+    async def _legacy_monitor_action(self, request: web.Request) -> web.Response:
+        form = request["form_data"]
+        if "reset_sensor" in form:
+            return await self._reset_stats(request)
+        if form.get("reboot") == "1":
+            return await self._reboot(request)
+        if form.get("poweroff") == "1":
+            return await self._poweroff(request)
+        raise web.HTTPBadRequest(text="Action inconnue")
+
+    async def _reboot(self, request: web.Request) -> web.Response:
+        return await self._system_command(("sudo", "reboot"), "Redémarrage")
+
+    async def _poweroff(self, request: web.Request) -> web.Response:
+        return await self._system_command(("/sbin/shutdown", "-h", "now"), "Extinction")
+
+    async def _system_command(self, command: tuple[str, ...], label: str) -> web.Response:
+        warning(f"{label} demandé via l'interface web", name=LOGGER_NAME)
+        try:
+            process = await asyncio.create_subprocess_exec(*command)
+            returncode = await process.wait()
+        except OSError as exc:
+            error(f"{label} impossible : {exc.__class__.__name__}", name=LOGGER_NAME)
+            raise web.HTTPInternalServerError(text=f"{label} impossible")
+        if returncode != 0:
+            error(f"{label} échoué (code {returncode})", name=LOGGER_NAME)
+            raise web.HTTPInternalServerError(text=f"{label} échoué")
+        return web.Response(status=202, text=f"{label} demandé")
+
+    async def _legacy_status(self, request: web.Request) -> web.Response:
+        cs = self.controller_status
+        payload = {
+            "component_state": cs.get_component_state(),
+            "motor_speed": cs.get_motor_speed(),
+            "dailytimer1": {
+                "start": cs.get_dailytimer_current_start_time(),
+                "stop": cs.get_dailytimer_current_stop_time(),
+            },
+            "cyclic": {
+                "period": self.config.cyclic1.period_days,
+                "duration": self.config.cyclic1.action_duration_seconds,
+            },
+            "heater_alarm": get_heater_alarm(),
+        }
+        if self.supervisor is not None:
+            payload["healthy"] = self.supervisor.is_healthy()
+            payload["tasks"] = self.supervisor.snapshot()
+        return web.json_response(payload)
+
+    async def _health_live(self, request: web.Request) -> web.Response:
+        return web.json_response({"live": True})
+
+    async def _health_ready(self, request: web.Request) -> web.Response:
+        healthy = self.supervisor.is_healthy() if self.supervisor else True
+        return web.json_response(
+            {"ready": healthy, "unhealthy": self.supervisor.unhealthy_names() if self.supervisor else []},
+            status=200 if healthy else 503,
+        )
+
+    async def _asset(self, relative: str, content_type: str | None = None) -> web.FileResponse:
+        response = web.FileResponse(STATIC_DIR / relative)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        if content_type:
+            response.content_type = content_type
+        return response
+
+    async def _style(self, request): return await self._asset("css/style.css", "text/css")
+    async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
+    async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")
+    async def _console_js(self, request): return await self._asset("js/console.js", "application/javascript")
+    async def _font(self, request): return await self._asset("fonts/visitor1.ttf", "font/ttf")
+    async def _favicon(self, request): return await self._asset("favicon.svg", "image/svg+xml")
+
+    async def _favicon_redirect(self, request: web.Request) -> web.Response:
+        raise web.HTTPFound(location="/favicon.svg")

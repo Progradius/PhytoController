@@ -5,6 +5,7 @@
 | `PHYTO_RUN_MODE` | chaîne vide | Marque le lancement service ; conservée pour compatibilité | `service` |
 | `PHYTO_HW_WATCHDOG` | `1` | `0` désactive l'ouverture directe de `/dev/watchdog` | `0`, voie systemd utilisée |
 | `PHYTO_LOG_LEVEL` | absent | Priorité sur `Log_Settings.level` | Non fixé dans l'unité observée |
+| `PHYTO_ALLOWED_HOSTS` | absent | Noms d'hôte HTTP supplémentaires acceptés, séparés par des virgules | Non fixé ; inutile tant que l'accès se fait par IP privée, `localhost` ou `<nom>.local` |
 | `PYTHONUNBUFFERED` | Python par défaut | Logs immédiats | `1` |
 | `NOTIFY_SOCKET` | fourni par systemd | Active `sd_notify` | Fourni avec `Type=notify` |
 | `WATCHDOG_USEC` | fourni par systemd | Timeout watchdog applicatif | 600 s observés |

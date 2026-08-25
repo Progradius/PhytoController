@@ -118,3 +118,95 @@ est en `ip pu | hi` au boot).
 **Aucune modification de code nécessaire** : les broches moteur viennent toutes de la config
 (`MotorHandler.__init__`, `motor_all_pin_down_at_boot`), et les broches moteur sont déjà exclues
 de `GENERIC_SAFE_PINS` dans `main.py`.
+
+---
+
+# TODO — Refonte de l'interface web et de l'acquisition capteurs
+
+**État : implémenté dans l'arbre de travail, vérifié hors matériel, non commité, non déployé.**
+
+## Serveur
+
+- [x] Remplacer le serveur `asyncio.start_server` artisanal par `aiohttp` à routes explicites
+- [x] Intergiciels : en-têtes de sécurité + `no-store`, validation du `Host`, CSRF + `Origin`
+- [x] Limites : corps 64 Kio, ligne/en-têtes 8190 octets, `shutdown_timeout`, `backlog`
+- [x] Assets servis par liste blanche exacte de chemins (fin de la traversée `/static/`)
+- [x] `/api/v1/state` versionné, `/health/live`, `/health/ready` (503 sur défaut)
+- [x] Actions destructrices sur des routes POST dédiées + confirmation navigateur
+- [x] `/monitor` réduit à une redirection ; `POST /monitor` conservé pour compatibilité
+- [x] Pages d'erreur HTML pour un navigateur, texte brut sinon, redirections préservées
+
+## Configuration
+
+- [x] `POST /conf/{section}` : candidat `AppConfig` complet revalidé avant écriture atomique
+- [x] Rejet sans effet sur `param.json` **ni** sur la configuration vivante
+- [x] `replace_from()` : publication dans l'instance partagée, sans réinstanciation
+- [x] `supervisor.request_reload()` : relance volontaire, état sûr réappliqué, compteur `reloads`
+- [x] Bornes et contraintes croisées (horaires, vitesses, températures, port Influx)
+- [x] `validate_assignment` sur tous les modèles
+- [x] Secrets ni affichés ni journalisés ; champ vide = valeur conservée
+- [x] `GPIO_Settings` en lecture seule
+
+## Capteurs
+
+- [x] `controllers/sensor_catalog.py` : table canonique clés / activation / libellés / measurements
+- [x] Exécuteur à un fil : plus aucune lecture bloquante dans l'event loop
+- [x] Instantané partagé + job supervisé `sensor_snapshot` (10 s) ; HTTP ne lit plus le matériel
+- [x] `reconfigure()` en place, `close()` à l'arrêt du superviseur
+- [x] Export Influx en aiohttp, alimenté par l'instantané, jamais de valeur périmée poussée
+
+## Nettoyage
+
+- [x] `network/web/api_handler.py` et `templates/monitor.html` supprimés
+- [x] `SystemStatus.get_cyclic_period()` : `period_minutes` inexistant → `period_days`
+- [x] `requirements.txt` : `requests` retiré, `jinja2` et `aiohttp>=3.12.15,<3.14` ajoutés
+
+## Reste à faire
+
+- [ ] Commiter, déployer sur le Pi et relever le comportement réel (`/health/ready`, console SSE,
+      sauvegarde d'une section, bascule capteur)
+- [ ] `scripts/deploy.sh` : passer la sonde de `/status` à `/health/ready`
+- [ ] Transformer le harnais de fumigation HTTP en vérification reproductible
+- [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop
+- [ ] Contraintes GPIO (unicité, broches réservées) — dépend du `PinRegistry` du lot 3
+
+---
+
+## Revue — refonte web
+
+**Vérifications effectuées** (harnais jetable `/tmp/claude-1000/phyto/test_web.py`, aiohttp
+`TestClient`, stubs `RPi.GPIO`/`smbus2`, `param.json` et `sensor_stats.json` sauvegardés puis
+restaurés) : **55 contrôles, aucun échec**.
+
+1. Rendu 200 de toutes les routes servies, CSP et `no-store` présents, **aucun secret dans le
+   HTML** de `/`, `/conf` et `/console`.
+2. `/api/v1/state` : `schema_version=1`, sections attendues, seules les mesures activées.
+3. Refus : `Host` étranger → 421, POST sans jeton → 403, `Origin` tiers → 403, champ inattendu →
+   422, section inconnue → 404, traversée `/static/../` → 404.
+4. `POST /conf/temperature` avec min > max → 422, `param.json` **inchangé** ; puis valeur valide
+   → 303, fichier réécrit, configuration vivante à jour, `motor_temp_control` et `heat_control`
+   relancés.
+5. Secrets Influx laissés vides → valeur conservée ; port hors bornes → 422.
+6. `POST /conf/sensors` → `reconfigure()` appelé exactement une fois sur l'instance existante.
+7. Réinitialisation de statistique : clé valide → 303, clé inconnue → 400.
+8. Horaires : `07:30` accepté et appliqué, `25:00` refusé, `07:30:00` accepté (secondes ignorées).
+9. Pages d'erreur : 404/403 en HTML pour un navigateur, en texte pour un client JSON ;
+   redirections 303 non transformées ; 405 conserve son en-tête `Allow`.
+
+**Corrections apportées pendant la revue** :
+
+- `<input type="time">` renvoyant `HH:MM:SS` provoquait un 422 : les secondes sont désormais
+  ignorées.
+- `pages.error_page()` et `templates/error.html` étaient du code mort : ils rendent maintenant
+  les erreurs ≥ 400 destinées à un navigateur, redirections exclues.
+
+**Points d'attention non corrigés** :
+
+- Le jeton CSRF est régénéré à chaque démarrage : une page laissée ouverte pendant un
+  redémarrage du service donne un 403 à la soumission. Recharger avant d'enregistrer.
+- Sauvegarder une section de planification **coupe brièvement la sortie concernée** : la relance
+  volontaire réapplique l'état sûr avant de repartir. C'est délibéré, mais visible sur une charge.
+- `SensorStats` est écrit depuis le fil des capteurs et depuis l'event loop (réinitialisation
+  web) sans verrou. L'écriture reste atomique ; seule une mise à jour peut être perdue.
+- Le Pi exécute `aiohttp 3.11.18`, sous le plancher `>=3.12.15` du nouveau `requirements.txt` :
+  `scripts/deploy.sh` met le venv à jour automatiquement, une installation manuelle non.

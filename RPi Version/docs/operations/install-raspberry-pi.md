@@ -27,7 +27,9 @@ Le système utilise au minimum :
 
 Le Pi observé possède `/dev/gpiomem`, `/dev/i2c-1` et les modules `i2c_bcm2835`, `i2c_dev`, `w1_gpio` et `w1_therm`. `/boot/firmware/config.txt` active `dtparam=i2c_arm=on` et `dtoverlay=w1-gpio`. Le `Dockerfile` ne doit pas être utilisé comme liste d'installation de production.
 
-Versions Python observées : Pydantic 2.11.3, requests 2.32.3, RPi.GPIO 0.7.1, smbus2 0.5.0, aiohttp 3.11.18, Jinja2 3.1.6 et Rich 14.0.0. Elles constituent un relevé, pas encore un lock de dépendances.
+Versions Python observées le 25 août 2026 : Pydantic 2.11.3, requests 2.32.3, RPi.GPIO 0.7.1, smbus2 0.5.0, aiohttp 3.11.18, Jinja2 3.1.6 et Rich 14.0.0. Elles constituent un relevé, pas encore un lock de dépendances.
+
+Depuis la refonte web, `requirements.txt` ne demande plus `requests` (l'export InfluxDB passe par aiohttp) et exige `aiohttp>=3.12.15,<3.14` ainsi que `jinja2>=3.1`. La version 3.11.18 relevée sur le Pi est **antérieure** à ce plancher. `scripts/deploy.sh` met le venv à jour automatiquement lorsque `requirements.txt` a changé entre deux commits ; pour une installation manuelle ou un rollback partiel, exécuter `pip install -r requirements.txt` avant de démarrer le service.
 
 ## Installation applicative
 

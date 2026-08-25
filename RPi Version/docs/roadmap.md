@@ -2,7 +2,7 @@
 
 **Public** : pilotage et développement.
 **Référence initiale** : commit `61ad3df`, audit et plans au 25 août 2026.
-**Dernière mise à jour** : 25 août 2026.
+**Dernière mise à jour** : 25 août 2026, après la refonte de l'interface web.
 
 La roadmap privilégie la réduction du risque physique, puis la reproductibilité et enfin la modernisation. Chaque chantier doit rester livrable, réversible et vérifiable indépendamment.
 
@@ -47,7 +47,7 @@ Un chantier n'est terminé que si :
 - [x] Définir les contrôles quotidiens, hebdomadaires et mensuels
 - [ ] Fixer et vérifier la rétention journald
 - [ ] Exercer le runbook : service mort, config invalide, tâche malsaine, alarme chauffage
-- [ ] Faire lire `healthy` au contrôle de déploiement, pas seulement le code HTTP
+- [ ] Faire lire `healthy` au contrôle de déploiement : `/health/ready` est disponible, `scripts/deploy.sh` interroge encore `/status`
 
 **Critère de sortie** : un second Pi peut être installé avec les artefacts du dépôt et des secrets fournis séparément ; sa configuration système est comparable à la référence.
 
@@ -86,16 +86,19 @@ Un chantier n'est terminé que si :
 
 ### Configuration
 
+*(Refonte web : implémenté dans l'arbre de travail, non encore déployé.)*
+
 - [ ] Créer un `ConfigStore` unique
-- [ ] Charger une copie candidate et la revalider intégralement
-- [ ] Activer ou émuler `validate_assignment`
-- [ ] Ajouter contraintes croisées et GPIO
+- [x] Charger une copie candidate et la revalider intégralement
+- [x] Activer `validate_assignment` sur tous les modèles
+- [x] Ajouter les contraintes de bornes et les contraintes croisées température/vitesses
+- [ ] Ajouter les contraintes GPIO (unicité, broches réservées)
 - [ ] Définir migrations et sauvegarde `.bak`
 - [ ] Retirer les lectures disque des chemins de contrôle
-- [ ] Distinguer champs à chaud et champs nécessitant redémarrage
-- [ ] Créer un `SensorController.reconfigure()` unique avec verrou et fermeture
+- [x] Distinguer champs à chaud et champs nécessitant redémarrage
+- [x] Créer un `SensorController.reconfigure()` unique avec sérialisation et fermeture
 - [ ] Sortir les secrets vers un environnement protégé
-- [ ] Masquer les secrets dans `/conf`
+- [x] Masquer les secrets dans `/conf`
 - [ ] Faire tourner les identifiants et décider du nettoyage de l'historique Git
 
 **Critère de sortie** : aucune configuration invalide n'atteint le disque ou les boucles, toutes les préoccupations observent la même version, et chauffage/ventilation proviennent d'une décision unique testable.
@@ -106,12 +109,15 @@ Un chantier n'est terminé que si :
 
 ### I/O et HTTP
 
-- [ ] Migrer vers aiohttp ou apporter des garanties équivalentes
-- [ ] Ajouter timeouts, limites de body, en-têtes et connexions
-- [ ] Confiner les fichiers statiques
-- [ ] Valider `Host` et documenter le filtrage réseau
-- [ ] Séparer `/health/live` et `/health/ready`
-- [ ] Déplacer `requests` et I/O capteurs bloquantes hors event loop
+*(Refonte web : implémenté dans l'arbre de travail, non encore déployé.)*
+
+- [x] Migrer vers aiohttp
+- [x] Ajouter timeouts, limites de body et en-têtes de sécurité
+- [x] Confiner les fichiers statiques — liste blanche exacte de chemins
+- [x] Valider `Host` et documenter le filtrage réseau
+- [x] Séparer `/health/live` et `/health/ready`
+- [x] Déplacer l'export Influx et les lectures capteurs hors event loop
+- [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop
 - [ ] Ajouter disjoncteur et métrique d'ancienneté InfluxDB
 - [ ] Ajouter reconnexion Wi-Fi supervisée
 - [ ] Ajouter RTC et politique `time_synced`
@@ -126,7 +132,8 @@ Un chantier n'est terminé que si :
 - [x] Définir le processus de release et de retour arrière
 - [ ] Verrouiller les dépendances compatibles Raspberry Pi
 - [ ] Décider si Docker est supporté, expérimental ou retiré
-- [ ] Supprimer le code mort après vérification des usages
+- [x] Supprimer le code mort de la couche web (`api_handler.py`, `monitor.html`, `get_cyclic_period()` cassé)
+- [ ] Supprimer le reste du code mort après vérification des usages
 - [ ] Mettre en place des validations automatisées minimales et reproductibles
 - [ ] Archiver les TODO remplacés après transfert de leurs informations
 

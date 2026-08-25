@@ -2,14 +2,17 @@
 
 import asyncio
 import gc
+from typing import TYPE_CHECKING
 
-import requests
+import aiohttp
 
 from utils.pretty_console import debug, info, warning, error
 from utils.log_dedup import StateLogger
 from utils.supervisor import beat, sleep as hb_sleep
 from param.config import AppConfig
-from controllers.SensorController import SensorController
+
+if TYPE_CHECKING:
+    from controllers.SensorController import SensorController
 
 LOGGER_NAME = "influx"
 
@@ -24,7 +27,7 @@ _endpoint_label = ""
 _push_state = StateLogger("Push InfluxDB", name=LOGGER_NAME)
 
 
-def reload_sensor_handler(config: AppConfig, sensor_handler=None) -> None:
+def reload_sensor_handler(config: AppConfig, sensor_handler: "SensorController | None" = None) -> None:
     """
     Recharge dynamiquement le SensorController et l'endpoint Influx.
 
@@ -33,11 +36,13 @@ def reload_sensor_handler(config: AppConfig, sensor_handler=None) -> None:
     ne le referme.
 
     Les identifiants ne sont JAMAIS placés dans l'URL : ils partent en
-    paramètres de requête (`requests` les gère hors de toute chaîne loggable).
+    paramètres de requête (hors de toute chaîne loggable).
     """
     global _params, _sensor_handler, _write_url, _write_params, _endpoint_label
     _params = config
-    _sensor_handler = sensor_handler or SensorController(_params)
+    if sensor_handler is None:
+        raise ValueError("Un SensorController partagé est requis")
+    _sensor_handler = sensor_handler
 
     net = _params.network
     _write_url = f"http://{net.host_machine_address}:{net.influx_db_port}/write"
@@ -64,7 +69,11 @@ def _escape_field_key(key: str) -> str:
     return key.replace(" ", r"\ ").replace(",", r"\,").replace("=", r"\=")
 
 
-def _send_grouped_point(measurement: str, values: dict[str, float]) -> None:
+async def _send_grouped_point(
+    session: aiohttp.ClientSession,
+    measurement: str,
+    values: dict[str, float],
+) -> None:
     if not values:
         debug(f"{measurement} : aucune donnée à envoyer", name=LOGGER_NAME)
         return
@@ -79,14 +88,16 @@ def _send_grouped_point(measurement: str, values: dict[str, float]) -> None:
     debug(f"{measurement} → {', '.join(field_parts)}", name=LOGGER_NAME)
 
     try:
-        r = requests.post(_write_url, params=_write_params, data=payload, timeout=4)
-    except requests.RequestException as exc:
-        # Surtout pas repr(exc) : requests y recopie l'URL complète (identifiants)
+        async with session.post(_write_url, params=_write_params, data=payload) as response:
+            status = response.status
+            await response.read()
+    except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        # Surtout pas repr(exc) : certains clients recopient l'URL complète.
         _push_state.fail(f"{_endpoint_label} → {exc.__class__.__name__}")
         return
 
-    if r.status_code != 204:
-        _push_state.fail(f"{_endpoint_label} → HTTP {r.status_code}")
+    if status != 204:
+        _push_state.fail(f"{_endpoint_label} → HTTP {status}")
         return
 
     _push_state.ok()
@@ -94,16 +105,23 @@ def _send_grouped_point(measurement: str, values: dict[str, float]) -> None:
 
 async def write_sensor_values(period: int = 60) -> None:
     info(f"Boucle de collecte démarrée (intervalle : {period} s)", name=LOGGER_NAME)
-    while True:
-        beat()
-        if _sensor_handler is None:
-            warning("Handler InfluxDB non initialisé → collecte ignorée", name=LOGGER_NAME)
-        else:
-            for measurement, sensors in _sensor_handler.sensor_dict.items():
-                sensor_values = {}
-                for sensor_name in sensors:
-                    sensor_values[sensor_name] = _sensor_handler.get_sensor_value(sensor_name)
-                _send_grouped_point(measurement, sensor_values)
+    timeout = aiohttp.ClientTimeout(total=4)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        while True:
+            beat()
+            if _sensor_handler is None:
+                warning("Handler InfluxDB non initialisé → collecte ignorée", name=LOGGER_NAME)
+            elif str(_params.network.host_machine_state).lower() != "online":
+                debug("Export InfluxDB désactivé", name=LOGGER_NAME)
+            else:
+                snapshot = _sensor_handler.snapshot()
+                for measurement, sensors in _sensor_handler.sensor_dict.items():
+                    sensor_values = {
+                        sensor_name: snapshot[sensor_name]["value"]
+                        for sensor_name in sensors
+                        if snapshot.get(sensor_name, {}).get("status") == "ok"
+                    }
+                    await _send_grouped_point(session, measurement, sensor_values)
 
-        gc.collect()
-        await hb_sleep(period)
+            gc.collect()
+            await hb_sleep(period)

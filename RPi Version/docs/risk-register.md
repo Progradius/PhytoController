@@ -2,7 +2,11 @@
 
 **Public** : pilotage, exploitation, développement et audit.
 **Référence initiale** : audit du 25 août 2026, recalé sur le commit `61ad3df`.
-**Dernière mise à jour** : 25 août 2026.
+**Dernière mise à jour** : 25 août 2026, après la refonte de l'interface web.
+
+⚠️ Les réductions apportées par la refonte web sont **implémentées et vérifiées hors matériel**,
+mais **pas encore déployées** sur le Pi de production. Tant que le déploiement et son relevé ne
+sont pas consignés, elles restent surveillées et non fermées.
 
 Ce document décrit l'état courant. L'audit historique conserve les preuves détaillées et les identifiants d'origine. Un risque n'est fermé que lorsque la correction, le déploiement et la preuve requise sont tous consignés.
 
@@ -22,22 +26,17 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | R-SAFE-04 | Critique | Chauffage et extraction peuvent fonctionner simultanément | Deux tâches indépendantes | Arbitre thermique unique et zone morte validée | Tests de décision et essai sur plages limites |
 | R-SAFE-05 | Critique | Mode hiver : humidité et vitesse minimale peuvent contourner le quota | Ouvert | Fonction de décision pure, quota unique et plancher T | Table de scénarios froid/humide et compteurs persistants |
 | R-SAFE-06 | Élevé | Plusieurs relais moteur actifs sont signalés mais pas coupés | `get_motor_speed()` renvoie 0 sans agir | Coupure immédiate, verrouillage dégradé et interlock | Injection d'état multi-HIGH et vérification all-OFF |
-| R-CONF-01 | Critique | `/conf` affecte des champs sans revalidation complète | Écriture atomique mais mutations directes | `ConfigStore`, copie candidate puis `model_validate` | Cas invalides refusés sans modifier disque ni contrôle actif |
-| R-CONF-02 | Critique | Secrets Wi-Fi/Influx versionnés et affichés | Toujours présents dans `param.json` | Variables/fichier d'environnement, masquage UI, rotation, nettoyage historique décidé | Scan Git, UI et logs sans secret ; nouveaux identifiants actifs |
-| R-CONF-03 | Élevé | Hot reload hétérogène, anciens et nouveaux contrôleurs capteurs coexistent | POST reconstruit le contrôleur du serveur, tâches existantes gardent l'ancien | Instance unique avec `reconfigure()`, verrou et `close()` | Test de bascule capteur montrant la même instance pour UI, contrôle et Influx |
-| R-WEB-01 | Critique | Traversée de chemin sous `/static/` | Chemin joint sans confinement | Résolution et appartenance, ou serveur statique aiohttp | Tests `..`, encodages et liens symboliques refusés |
-| R-WEB-02 | Élevé | IHM sans authentification et validation `Host` absente | Choix LAN-only ; contrôle `Origin` partiel sur `/monitor` | Documenter filtrage réseau, valider `Host`, réévaluer auth | Tests de DNS rebinding et règles réseau vérifiées |
-| R-WEB-03 | Élevé | Pas de limites HTTP suffisantes : slowloris, body, connexions | Serveur artisanal | Migration aiohttp ou limites/timeouts explicites | Tests de requêtes lentes et surdimensionnées sans impact contrôle |
-| R-WEB-04 | Élevé | `/status` répond 200 lorsque `healthy=false` | Disponibilité et readiness confondues | `/health/live` et `/health/ready`, ou 503 de readiness | Déploiement refuse une tâche malsaine tout en distinguant serveur vivant |
-| R-ASYNC-01 | Élevé | I/O bloquantes dans l'event loop | `requests`, capteurs et commandes système concernés | Executor dédié ou clients async, timeouts bornés | Mesure de latence event loop sous panne I/O |
+| R-CONF-02 | Critique | Secrets Wi-Fi/Influx versionnés | Toujours en clair dans `param.json` suivi par git ; **plus affichés** par l'IHM depuis la refonte web | Variables/fichier d'environnement, rotation, nettoyage historique décidé | Scan Git, UI et logs sans secret ; nouveaux identifiants actifs |
+| R-WEB-02 | Élevé | IHM sans authentification | Choix LAN-only assumé. `Host` désormais validé (DNS rebinding fermé), CSRF et `Origin` sur toute méthode mutante ; **aucune authentification** | Documenter le filtrage réseau, réévaluer l'auth ou un reverse-proxy TLS sur 127.0.0.1 | Règles réseau vérifiées ; décision d'auth consignée |
+| R-ASYNC-01 | Moyen | I/O bloquantes dans l'event loop | Capteurs sortis sur un exécuteur dédié à un fil, Influx passé en aiohttp avec délai de garde de 4 s. **Restent bloquants** : `nmcli`/`ping`/`timedatectl` du boot et les commandes système | Sortir les commandes système, borner leurs délais | Mesure de latence event loop sous panne I/O |
 | R-TIME-01 | Élevé | Heure fausse au boot hors réseau | NTP tenté, pas de RTC ni garde `time_synced` | RTC, vérification NTP et politique dégradée | Reboot hors réseau sans commutation à contretemps |
 | R-NET-01 | Élevé | Pas de reconnexion Wi-Fi supervisée | Tentative au boot seulement | Tâche réseau supervisée | Coupure/restauration AP avec reconnexion automatique |
 | R-OPS-01 | Élevé | Unité systemd et drop-ins non reproductibles | Capturés le 25/08/2026 et recopiés sous `deploy/`, mais installation vierge non exercée et capacités larges | Revoir capacités puis exercer l'installation | Reconstruction d'un Pi avec diff nul par rapport à la référence |
-| R-OPS-02 | Élevé | Sonde de déploiement ne valide pas `healthy` | `curl -f /status` seulement | Lire le JSON ou utiliser readiness | Injection d'une tâche malsaine provoquant rollback/refus |
+| R-OPS-02 | Élevé | Sonde de déploiement ne valide pas `healthy` | `curl -f /status` seulement, alors que `/health/ready` renvoie désormais 503 sur défaut | Basculer `scripts/deploy.sh` sur `/health/ready` | Injection d'une tâche malsaine provoquant rollback/refus |
 | R-OPS-03 | Moyen | Rotation quotidienne des logs pas encore clôturée en conditions réelles | Au relevé du 25/08 avant minuit, `phyto.log` faisait 45 Kio sans archive quotidienne | Vérifier archive, fichier courant et journal après minuit | Capture datée d'une rotation réelle sans erreur |
 | R-HW-01 | Élevé | Collisions GPIO possibles dans la configuration | BCM 27 et 22 ont plusieurs rôles déclarés | PinRegistry et validation d'unicité | Config conflictuelle refusée avant accès GPIO |
 | R-HW-02 | Élevé | DS18B20/1-Wire et autres capteurs peuvent être déclarés sans câblage fiable | DS18 désactivé dans la config versionnée actuelle | Inventaire matériel et procédure de mise en service | Mesures stables ou capteur explicitement absent |
-| R-MAINT-01 | Moyen | Dépendances non verrouillées et environnement non reproductible | Bornes minimales dans `requirements.txt` | Lock compatible Pi, politique de mise à jour | Installation répétée produisant les mêmes versions validées |
+| R-MAINT-01 | Moyen | Dépendances non verrouillées et environnement non reproductible | Bornes minimales dans `requirements.txt` ; `requests` retiré, `jinja2` et `aiohttp` désormais requis | Lock compatible Pi, politique de mise à jour | Installation répétée produisant les mêmes versions validées |
 | R-MAINT-02 | Moyen | Docker ne reflète pas clairement la production | Image privilégiée, sudo et services système implicites | Décider support, corriger ou marquer expérimental | Procédure testée ou retrait documenté |
 | R-MAINT-03 | Moyen | Pas de suite de vérification permanente | Harnais jetables et observation | Ajouter validations minimales après décision de périmètre | Contrôles reproductibles exécutés avant déploiement |
 | R-LEGAL-01 | Moyen | AGPL-3.0 déclarée sans fichier `LICENSE` | Ouvert | Ajouter le texte de licence approprié | Fichier versionné et README cohérent |
@@ -53,7 +52,12 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | M-CONF-01 | Fichier JSON tronqué pendant une écriture | Écriture atomique et mode préservé | Validation sémantique complète encore ouverte |
 | M-ASYNC-01 | Tâche morte silencieusement | Superviseur, heartbeats, back-off et état sûr | Event loop bloqué couvert seulement par watchdog |
 | M-WDOG-01 | Watchdog aveugle | Caresse conditionnelle, même event loop, fd unique | Configuration systemd à versionner et exercer |
-| M-WEB-01 | Reboot/poweroff déclenchables en GET | POST, PRG, contrôle Origin partiel | Auth, Host et LAN restent ouverts |
+| M-WEB-01 | Reboot/poweroff déclenchables en GET | Routes POST dédiées, jeton CSRF, contrôle `Origin`, confirmation navigateur | Aucune authentification : le LAN reste la seule frontière |
+| M-WEB-02 | Traversée de chemin sous `/static/` (ancien R-WEB-01) | Liste blanche exacte de chemins servis ; plus aucune jonction de chemin issue de l'URL | Toute nouvelle ressource doit être ajoutée explicitement à la liste |
+| M-WEB-03 | Absence de limites HTTP (ancien R-WEB-03) | aiohttp : corps 64 Kio, ligne et en-têtes 8190 octets, `shutdown_timeout` 5 s, `backlog` 64 | Slowloris et nombre de connexions simultanées non mesurés en conditions réelles |
+| M-WEB-04 | Disponibilité et readiness confondues (ancien R-WEB-04) | `/health/live` (200) et `/health/ready` (503 sur défaut, avec `unhealthy`) | `scripts/deploy.sh` interroge encore `/status` — voir R-OPS-02 |
+| M-CONF-02 | `/conf` mutait la configuration sans revalidation (ancien R-CONF-01) | Candidat complet revalidé, écriture atomique, puis `replace_from()` ; un rejet ne modifie ni disque ni mémoire | Contraintes croisées **métier** (arbitrage chauffage/ventilation) toujours absentes |
+| M-CONF-03 | Contrôleurs capteurs multiples après reconfiguration (ancien R-CONF-03) | Instance unique, `reconfigure()` en place dans l'exécuteur, `close()` à l'arrêt, instantané partagé | Bascule capteur à confirmer sur le Pi avec le matériel réel |
 
 ## Procédure de mise à jour
 

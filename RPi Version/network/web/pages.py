@@ -1,351 +1,104 @@
-﻿# controller/web/pages.py
-# Author: Progradius
-# License: AGPL-3.0
+"""Rendu des pages HTML de l'interface locale."""
 
-from jinja2 import Environment, FileSystemLoader
-from param.config import AppConfig
-from typing import get_origin, get_args, Literal
-from datetime import datetime
-import RPi.GPIO as GPIO
-import os
+from __future__ import annotations
 
-# Initialisation de Jinja2 (répertoire templates)
-TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
-env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+import hashlib
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+from controllers.sensor_catalog import SENSOR_CATALOG
+
+
+WEB_DIR = Path(__file__).parent
+TEMPLATE_DIR = WEB_DIR / "templates"
+STATIC_DIR = WEB_DIR / "static"
+
+env = Environment(
+    loader=FileSystemLoader(str(TEMPLATE_DIR)),
+    autoescape=select_autoescape(("html", "xml")),
+)
+
+
+def _asset_versions() -> dict[str, str]:
+    assets = {
+        "style": STATIC_DIR / "css" / "style.css",
+        "dashboard": STATIC_DIR / "js" / "dashboard.js",
+        "config": STATIC_DIR / "js" / "config.js",
+        "console": STATIC_DIR / "js" / "console.js",
+        "font": STATIC_DIR / "fonts" / "visitor1.ttf",
+        "favicon": STATIC_DIR / "favicon.svg",
+    }
+    versions = {}
+    for name, path in assets.items():
+        try:
+            versions[name] = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+        except OSError:
+            versions[name] = "missing"
+    return versions
+
+
+ASSET_VERSIONS = _asset_versions()
 
 
 def render_template(template_name: str, **context) -> str:
     template = env.get_template(template_name)
-    return template.render(**context)
+    return template.render(asset_versions=ASSET_VERSIONS, **context)
 
 
-def _render_field(name: str, value, annotation) -> str:
-    """
-    Génère le HTML approprié pour un champ donné en fonction de son type.
-    """
-    # Les champs 'motor_mode' et 'mode' sont gérés manuellement dans les templates
-    if name.endswith(".motor_mode") or name.endswith(".mode"):
-        return ""
-
-    if get_origin(annotation) is Literal:
-        opts = get_args(annotation)
-        html = [f'<select name="{name}">']
-        for opt in opts:
-            sel = ' selected' if value == opt else ''
-            html.append(f'  <option value="{opt}"{sel}>{opt}</option>')
-        html.append('</select>')
-        return "\n".join(html)
-
-    if annotation is bool:
-        sel_en = ' selected' if value else ''
-        sel_dis = ' selected' if not value else ''
-        return (
-            f'<select name="{name}">'
-            f'<option value="enabled"{sel_en}>Enabled</option>'
-            f'<option value="disabled"{sel_dis}>Disabled</option>'
-            '</select>'
-        )
-
-    if annotation in (int, float):
-        step = ' step="0.1"' if annotation is float else ''
-        return f'<input type="number" name="{name}" value="{value}"{step}>'
-
-    return f'<input type="text" name="{name}" value="{value}">'
-
-
-def main_page(controller_status, sensor_handler, stats, config: AppConfig) -> str:
-    def gpio_state(pin: int) -> str:
-        try:
-            return "On" if GPIO.input(pin) == GPIO.LOW else "Off"
-        except:
-            return "—"
-
-    dt1 = config.daily_timer1
-    dt2 = config.daily_timer2
-    dt1_sched = f"{dt1.start_hour:02d}:{dt1.start_minute:02d} → {dt1.stop_hour:02d}:{dt1.stop_minute:02d}"
-    dt2_sched = f"{dt2.start_hour:02d}:{dt2.start_minute:02d} → {dt2.stop_hour:02d}:{dt2.stop_minute:02d}"
-
-    dt1_state = gpio_state(config.gpio.dailytimer1_pin)
-    dt2_state = gpio_state(config.gpio.dailytimer2_pin)
-
-    def describe_cyclic(cyc):
-        if cyc.mode == "journalier":
-            return (
-                "Mode : Journalier<br>"
-                f"Période : {cyc.period_days} jour(s)<br>"
-                f"Actions/jour : {cyc.triggers_per_day}<br>"
-                f"Premier : {cyc.first_trigger_hour}h00<br>"
-                f"Durée : {cyc.action_duration_seconds}s"
-            )
-        else:
-            return (
-                "Mode : Séquentiel<br>"
-                f"Jour - ON {cyc.on_time_day}s / OFF {cyc.off_time_day}s<br>"
-                f"Nuit - ON {cyc.on_time_night}s / OFF {cyc.off_time_night}s"
-            )
-
-    cyc1 = config.cyclic1
-    cyc2 = config.cyclic2
-    cyc1_desc = describe_cyclic(cyc1)
-    cyc2_desc = describe_cyclic(cyc2)
-
-    cyc1_state = gpio_state(config.gpio.cyclic1_pin)
-    cyc2_state = gpio_state(config.gpio.cyclic2_pin)
-
-    heater_state = gpio_state(config.gpio.heater_pin)
-
-    temps = []
-    for key in ("BME280T", "DS18B#1", "DS18B#2", "DS18B#3", "MLX-AMB", "MLX-OBJ"):
-        s = stats.get_all().get(key)
-        if s:
-            min_date = s.get("min_date")
-            max_date = s.get("max_date")
-            try:
-                dmin = datetime.fromisoformat(min_date).strftime("%d/%m %H:%M") if min_date else "—"
-            except Exception:
-                dmin = "—"
-            try:
-                dmax = datetime.fromisoformat(max_date).strftime("%d/%m %H:%M") if max_date else "—"
-            except Exception:
-                dmax = "—"
-            min_val = f"{s['min']:.1f}" if s.get("min") is not None else "—"
-            max_val = f"{s['max']:.1f}" if s.get("max") is not None else "—"
-            temps.append(
-                f"<p><strong>{key}</strong> : Min {min_val}°C le {dmin} — Max {max_val}°C le {dmax}</p>"
-            )
-    temps_html = "\n".join(temps) or "<p>Aucune donnée</p>"
-
-    sensors_list = [
-        (name, "On" if getattr(sensor, "enabled", False) else "Off")
-        for name, sensor in sensor_handler.sensor_dict.items()
-    ]
-
+def main_page(state: dict, csrf_token: str) -> str:
     return render_template(
         "main.html",
-        dt1_sched=dt1_sched,
-        dt2_sched=dt2_sched,
-        dt1_state=dt1_state,
-        dt2_state=dt2_state,
-        cyc1_desc=cyc1_desc,
-        cyc2_desc=cyc2_desc,
-        cyc1_state=cyc1_state,
-        cyc2_state=cyc2_state,
-        heater_state=heater_state,
-        temps_html=temps_html,
-        sensors_list=sensors_list
+        page_title="Tableau de bord",
+        current_page="dashboard",
+        state=state,
+        csrf_token=csrf_token,
     )
 
 
-def conf_page(config: AppConfig) -> str:
-    """
-    Génère la page de configuration en regroupant les paramètres par sections.
-    Ajouts :
-      - DailyTimer1 / DailyTimer2 avec un toggle Enabled/Disabled
-      - Cyclic1 / Cyclic2 avec un toggle Enabled/Disabled + choix du mode
-      - Motor : ajout du mode Winter + champs dédiés
-    """
-    sections = []
-
-    for section_name, field_info in config.model_fields.items():
-        alias = field_info.alias or section_name
-        section_obj = getattr(config, section_name)
-
-        # Temperature_Settings
-        if alias == "Temperature_Settings":
-            fields = []
-            for attr, fld in section_obj.model_fields.items():
-                val = getattr(section_obj, attr)
-                fields.append({
-                    "name": f"{alias}.{(fld.alias or attr)}",
-                    "label": fld.alias or attr,
-                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
-                })
-            sections.append({
-                "type": "default",
-                "title": "Temperature Settings",
-                "fields": fields
-            })
-            continue
-
-        # Heater_Settings
-        if alias == "Heater_Settings":
-            sections.append({
-                "type": "heater",
-                "title": "Heater",
-                "enabled": "enabled" if section_obj.enabled else "disabled"
-            })
-            continue
-
-        # Motor_Settings (avec winter)
-        if alias == "Motor_Settings":
-            sections.append({
-                "type": "motor",
-                "title": "Motor",
-                "mode": section_obj.motor_mode,
-                "user_speed": section_obj.motor_user_speed,
-                "winter_default_speed": getattr(section_obj, "winter_default_speed", 1),
-                "winter_temp_margin": getattr(section_obj, "winter_temp_margin", 2.0),
-                "winter_refresh_speed": getattr(section_obj, "winter_refresh_speed", 4),
-                "winter_refresh_minutes_per_hour": getattr(section_obj, "winter_refresh_minutes_per_hour", 5),
-                "winter_humidity_threshold": getattr(section_obj, "winter_humidity_threshold", 65.0),
-            })
-            continue
-
-        # DailyTimer*
-        if alias.startswith("DailyTimer"):
-            fields = []
-            for attr, fld in section_obj.model_fields.items():
-                val = getattr(section_obj, attr)
-                fields.append({
-                    "name": f"{alias}.{(fld.alias or attr)}",
-                    "label": fld.alias or attr,
-                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
-                })
-
-            enabled_val = getattr(section_obj, "enabled", True)
-            sections.append({
-                "type": "daily",
-                "title": alias,
-                "id": alias,
-                "enabled": "enabled" if enabled_val else "disabled",
-                "fields": fields,
-            })
-            continue
-
-        # Cyclic*
-        if alias.startswith("Cyclic"):
-            mode = section_obj.mode
-            enabled_val = getattr(section_obj, "enabled", True)
-            journalier_fields = []
-            for attr in ("period_days", "triggers_per_day", "first_trigger_hour", "action_duration_seconds"):
-                fld = section_obj.__class__.model_fields[attr]
-                val = getattr(section_obj, attr)
-                journalier_fields.append({
-                    "name": f"{alias}.{(fld.alias or attr)}",
-                    "label": fld.alias or attr,
-                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
-                })
-            sequentiel_fields = []
-            for attr in ("on_time_day", "off_time_day", "on_time_night", "off_time_night"):
-                fld = section_obj.__class__.model_fields[attr]
-                val = getattr(section_obj, attr)
-                sequentiel_fields.append({
-                    "name": f"{alias}.{(fld.alias or attr)}",
-                    "label": fld.alias or attr,
-                    "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
-                })
-            sections.append({
-                "type": "cyclic",
-                "title": alias,
-                "id": alias,
-                "enabled": "enabled" if enabled_val else "disabled",
-                "mode": mode,
-                "journalier_fields": journalier_fields,
-                "sequentiel_fields": sequentiel_fields
-            })
-            continue
-
-        # Sensor_State
-        if alias == "Sensor_State":
-            sensors = []
-            for attr, fld in section_obj.model_fields.items():
-                val = getattr(section_obj, attr)
-                sensors.append({
-                    "attr": fld.alias or attr,
-                    "enabled": val
-                })
-            sections.append({
-                "type": "sensor_state",
-                "title": "Sensors",
-                "id": alias,
-                "sensors": sensors
-            })
-            continue
-
-        # Autres sections (par défaut)
-        fields = []
-        for attr, fld in section_obj.model_fields.items():
-            val = getattr(section_obj, attr)
-            fields.append({
-                "name": f"{alias}.{(fld.alias or attr)}",
-                "label": fld.alias or attr,
-                "input_html": _render_field(f"{alias}.{(fld.alias or attr)}", val, fld.annotation)
-            })
-        sections.append({
-            "type": "default",
-            "title": alias,
-            "fields": fields
-        })
-
-    return render_template("conf.html", sections=sections)
-
-
-def monitor_page(sensor_handler, stats, config: AppConfig, controller_status=None) -> str:
-    def gpio_state(pin: int) -> str:
-        try:
-            return "On" if GPIO.input(pin) == GPIO.LOW else "Off"
-        except:
-            return "—"
-
-    def fmt_d(dt: str) -> str:
-        return datetime.fromisoformat(dt).strftime("%d/%m/%Y %H:%M:%S") if dt else "—"
-
-    timers = {
-        "DailyTimer #1": gpio_state(config.gpio.dailytimer1_pin),
-        "DailyTimer #2": gpio_state(config.gpio.dailytimer2_pin),
-        "Cyclic #1": gpio_state(config.gpio.cyclic1_pin),
-        "Cyclic #2": gpio_state(config.gpio.cyclic2_pin),
-    }
-
-    if controller_status:
-        try:
-            speed = controller_status.get_motor_speed() or 0
-        except Exception:
-            speed = 0
-    else:
-        speed = 0
-    percent = int(speed / 4 * 100)
-
-    units = {
-        "BME280T": "°C", "BME280H": "%", "BME280P": "hPa",
-        "DS18B#1": "°C", "DS18B#2": "°C", "DS18B#3": "°C",
-        "MLX-AMB": "°C", "MLX-OBJ": "°C",
-        "VL53-DIST": "mm", "HCSR-DIST": "cm", "TSL-LUX": "lx",
-    }
-    sensors = {
-        name: (f"{val:.1f}", unit) if isinstance(val := sensor_handler.get_sensor_value(name), (int, float))
-        else ("—", unit)
-        for name, unit in units.items()
-    }
-
-    stats_data = {
-        name: {
-            "min": f"{s['min']:.1f}" if isinstance(s["min"], (int, float)) else "—",
-            "min_date": fmt_d(s["min_date"]),
-            "max": f"{s['max']:.1f}" if isinstance(s["max"], (int, float)) else "—",
-            "max_date": fmt_d(s["max_date"]),
-        }
-        for name, s in stats.get_all().items()
-    }
-
-    gpio_states = {
-        "DailyTimer #1": gpio_state(config.gpio.dailytimer1_pin),
-        "DailyTimer #2": gpio_state(config.gpio.dailytimer2_pin),
-        "Cyclic #1": gpio_state(config.gpio.cyclic1_pin),
-        "Cyclic #2": gpio_state(config.gpio.cyclic2_pin),
-        "Heater": gpio_state(config.gpio.heater_pin),
-    }
-
+def conf_page(
+    config,
+    csrf_token: str,
+    *,
+    success: str | None = None,
+    errors: dict[str, str] | None = None,
+    active_section: str | None = None,
+) -> str:
     return render_template(
-        "monitor.html",
-        timers=timers,
-        motor_speed=speed,
-        motor_percent=percent,
-        sensors=sensors,
-        stats=stats_data,
-        gpio_states=gpio_states
+        "conf.html",
+        page_title="Configuration",
+        current_page="config",
+        config=config,
+        csrf_token=csrf_token,
+        success=success,
+        errors=errors or {},
+        active_section=active_section,
+        sensor_catalog=SENSOR_CATALOG,
+        wifi_password_set=bool(config.network.wifi_password),
+        influx_user_set=bool(config.network.influx_db_user),
+        influx_password_set=bool(config.network.influx_db_password),
+        gpio_fields=[
+            (name, getattr(config.gpio, name))
+            for name in config.gpio.__class__.model_fields
+        ],
     )
 
 
-def console_page() -> str:
-    return render_template("console.html")
+def console_page(csrf_token: str) -> str:
+    return render_template(
+        "console.html",
+        page_title="Console",
+        current_page="console",
+        csrf_token=csrf_token,
+    )
+
+
+def error_page(status: int, title: str, message: str) -> str:
+    return render_template(
+        "error.html",
+        page_title=title,
+        current_page=None,
+        status=status,
+        title=title,
+        message=message,
+    )

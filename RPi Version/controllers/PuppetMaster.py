@@ -17,6 +17,7 @@ from components.heater_control import heat_control
 from network.web.server import Server
 from utils.pretty_console import debug, info, warning, error
 from utils.supervisor import TaskSupervisor
+from utils.supervisor import beat, sleep as hb_sleep
 from utils import watchdog
 from param.config import AppConfig
 
@@ -26,6 +27,14 @@ LOGGER_NAME = "puppetmaster"
 # cœur à chaque tour **et** pendant ses attentes (`utils.supervisor.sleep`) :
 # un silence de plusieurs minutes n'est donc jamais un fonctionnement normal.
 MAX_SILENCE_SECONDS = 300.0
+
+
+async def refresh_sensor_snapshot(sensor_handler, period: int = 10) -> None:
+    """Acquisition centrale : l'HTTP ne déclenche jamais de lecture matérielle."""
+    while True:
+        beat()
+        await sensor_handler.refresh_active()
+        await hb_sleep(period)
 
 
 class PuppetMaster:
@@ -164,6 +173,13 @@ class PuppetMaster:
             max_silence=MAX_SILENCE_SECONDS,
         )
 
+        # --- Snapshot capteurs partagé ---
+        sup.register(
+            "sensor_snapshot",
+            lambda: refresh_sensor_snapshot(self.sensor_handler, period=10),
+            max_silence=MAX_SILENCE_SECONDS,
+        )
+
         # --- InfluxDB push ---
         # On partage le SensorController déjà construit : une seule ouverture
         # de /dev/i2c-1 pour tout le processus.
@@ -173,16 +189,13 @@ class PuppetMaster:
             error(f"Initialisation InfluxDB impossible : {exc.__class__.__name__} : {exc}",
                   name=LOGGER_NAME)
 
-        if self.config.network.host_machine_state.lower() == "online":
-            # Pas d'état sûr : l'export ne pilote aucune sortie. Le silence
-            # toléré couvre largement les 20 s de gel possibles (audit E4).
-            sup.register(
-                "influx_push",
-                lambda: write_sensor_values(period=60),
-                max_silence=MAX_SILENCE_SECONDS,
-            )
-        else:
-            warning("InfluxDB : hôte hors-ligne → export désactivé", name=LOGGER_NAME)
+        # Le job reste vivant : `host_machine_state` l'active ou le suspend à
+        # chaud, sans devoir modifier le registre du superviseur.
+        sup.register(
+            "influx_push",
+            lambda: write_sensor_values(period=60),
+            max_silence=MAX_SILENCE_SECONDS,
+        )
 
         # --- Serveur HTTP ---
         # `max_silence=None` : rester en attente de connexion **est** son
@@ -194,6 +207,11 @@ class PuppetMaster:
             sensor_handler=self.sensor_handler,
             config=self.config,
             supervisor=self.supervisor,
+            dailytimer1=self.dailytimer1,
+            dailytimer2=self.dailytimer2,
+            cyclic_timer1=self.cyclic_timer1,
+            cyclic_timer2=self.cyclic_timer2,
+            heater_component=self.heater,
         )
         sup.register("http_server", server.run, max_silence=None)
 
@@ -221,4 +239,7 @@ class PuppetMaster:
         watchdog.notify_ready()
 
         debug("Boucle principale : attente des tâches supervisées", name=LOGGER_NAME)
-        await self.supervisor.wait()
+        try:
+            await self.supervisor.wait()
+        finally:
+            await self.sensor_handler.close()

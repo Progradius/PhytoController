@@ -68,13 +68,18 @@ http://<adresse-du-pi>:8123
 
 Routes principales :
 
-- `/` : état général ;
-- `/conf` : configuration ;
-- `/monitor` : mesures et actions d'exploitation ;
+- `/` : tableau de bord, rafraîchi toutes les 5 secondes ;
+- `/conf` : configuration, une section validée et enregistrée à la fois ;
 - `/console` : flux des logs du processus courant ;
-- `/status` : état JSON, santé des tâches et alarme chauffage.
+- `/api/v1/state` : état complet versionné en JSON ;
+- `/health/live` et `/health/ready` : sondes de disponibilité et de santé (`503` si une tâche est en défaut) ;
+- `/status` : ancien format JSON, conservé pour les scripts existants.
 
-L'interface ne possède actuellement aucune authentification et doit rester strictement limitée à un réseau local de confiance. Le port `8123` ne doit pas être publié sur Internet.
+Les actions destructrices (réinitialisation de statistique, redémarrage, extinction) sont des routes `POST` dédiées, protégées par un jeton CSRF, un contrôle d'`Origin` et une confirmation explicite dans le navigateur. `/monitor` n'est plus qu'une redirection de compatibilité.
+
+L'interface ne possède **aucune authentification** et doit rester strictement limitée à un réseau local de confiance. Le port `8123` ne doit pas être publié sur Internet. Le serveur valide l'en-tête `Host` (adresses privées, `localhost`, `<nom>.local`, plus `PHYTO_ALLOWED_HOSTS`), ce qui ferme le DNS rebinding mais ne remplace pas un filtrage réseau.
+
+Détail complet : [interface HTTP](docs/reference/http-interface.md) et [schémas d'état JSON](docs/reference/status-schema.md).
 
 ## Configuration et données sensibles
 

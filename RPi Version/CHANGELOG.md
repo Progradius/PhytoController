@@ -6,6 +6,32 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Interface web et acquisition capteurs
+
+**Code présent dans l'arbre de travail ; non commité, non déployé.** Vérifié par une passe de
+fumigation HTTP hors matériel (aiohttp `TestClient`, stubs GPIO/I²C).
+
+- Serveur `aiohttp` à routes explicites en remplacement du serveur artisanal : jeton CSRF,
+  contrôle d'`Origin`, validation du `Host` (DNS rebinding fermé), corps limité à 64 Kio,
+  en-têtes de sécurité, `no-store` sur le dynamique, assets servis par liste blanche exacte.
+- Tableau de bord rafraîchi par `/api/v1/state` (schéma versionné), `/health/live` et
+  `/health/ready` (503 sur défaut), `/status` conservé, `/monitor` réduit à une redirection.
+- `/conf` découpé par section : candidat `AppConfig` complet revalidé avant écriture atomique,
+  rejet sans effet sur le disque ni sur la configuration vivante, application à chaud par
+  `supervisor.request_reload()`, GPIO en lecture seule, secrets ni affichés ni journalisés.
+- Contraintes de configuration ajoutées : bornes horaires, vitesses, températures, port Influx,
+  `validate_assignment` sur tous les modèles, min ≤ max jour et nuit.
+- `controllers/sensor_catalog.py` : table canonique des mesures pour l'IHM, l'export et
+  l'activation matérielle.
+- `SensorController` unique : exécuteur à un fil, instantané partagé rafraîchi toutes les 10 s
+  par le job supervisé `sensor_snapshot`, `reconfigure()` en place, `close()` à l'arrêt. Aucune
+  requête HTTP ne déclenche plus de lecture matérielle.
+- Export InfluxDB en aiohttp avec délai de garde de 4 s, alimenté par l'instantané ; le job
+  reste enregistré et se suspend selon `host_machine_state`.
+- Code mort supprimé : `network/web/api_handler.py`, `templates/monitor.html`, et
+  `SystemStatus.get_cyclic_period()` qui lisait un champ inexistant.
+- `requirements.txt` : `requests` retiré, `jinja2` et `aiohttp>=3.12.15,<3.14` requis.
+
 ### Documentation
 
 - Porte d'entrée, architecture, modèle de sûreté et matrice GPIO.
@@ -13,6 +39,8 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 - Références configuration, environnement, HTTP, `/status`, logs, capteurs et InfluxDB.
 - Registre vivant des risques, roadmap, checklists, releases et ADR initiaux.
 - Capture en lecture seule de la production et versionnement des artefacts systemd observés.
+- Mise à jour complète après la refonte web : interface HTTP, schémas d'état, configuration,
+  capteurs et InfluxDB, architecture, monitoring, vérification, registre des risques et roadmap.
 
 ## 2026-08-25 — Supervision et watchdog
 

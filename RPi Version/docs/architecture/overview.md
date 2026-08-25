@@ -97,35 +97,38 @@ La période de caresse systemd est plafonnée à 30 secondes dans le code couran
 
 ## Flux de configuration
 
-Le système ne possède pas encore de magasin de configuration unique :
+Le système ne possède pas encore de magasin de configuration unique, mais l'écriture est devenue transactionnelle :
 
-- `main.py` charge une instance au boot ;
-- les timers cycliques et journaliers relisent le fichier au cours de leurs boucles ;
-- les contrôles moteur et chauffage conservent une référence à l'objet de configuration initial, que le serveur peut muter lors d'un POST ;
-- un POST `/conf` reconstruit le `SensorController` utilisé par le serveur et InfluxDB ;
-- les tâches moteur et chauffage conservent cependant la référence du contrôleur de capteurs fourni lors de leur enregistrement.
+- `main.py` charge une instance au boot, partagée par tous les consommateurs ;
+- les timers cycliques et journaliers relisent le fichier au cours de leurs boucles, avec repli sur la dernière configuration valide ;
+- `POST /conf/{section}` construit un `AppConfig` candidat **complet**, le valide intégralement, l'écrit atomiquement, puis publie le résultat dans l'instance partagée via `replace_from()` ; un rejet ne laisse ni fichier ni mémoire modifiés ;
+- les travaux concernés sont ensuite relancés par `supervisor.request_reload()`, état sûr réappliqué, de sorte que moteur, chauffage et minuteries repartent sur la nouvelle consigne sans redémarrage ;
+- le `SensorController` est unique et **reconfiguré en place** : le bus I²C n'est jamais rouvert.
 
-Cette hétérogénéité est un risque ouvert. La cible est un `ConfigStore` revalidé intégralement et un `SensorController` unique, reconfigurable en place.
+Reste ouvert : la validation croisée complète du domaine (arbitrage chauffage/ventilation) et la séparation des secrets.
 
 ## Flux HTTP
 
-Le serveur utilise `asyncio.start_server` et analyse manuellement la requête :
+Le serveur est un `aiohttp` à routes explicites, sans analyse manuelle de requête :
 
-- `/` rend l'état ;
-- `/conf` rend ou modifie la configuration ;
-- `/monitor` rend les mesures en GET et exécute certaines actions en POST ;
+- `/` rend le tableau de bord, rafraîchi côté navigateur toutes les 5 s par `/api/v1/state` ;
+- `/conf` rend le formulaire, `POST /conf/{section}` enregistre une section à la fois ;
 - `/console/stream` diffuse les logs par SSE ;
-- `/status` renvoie un JSON de statut et de santé.
+- `/api/v1/state` expose l'état versionné, `/status` l'ancien format, `/health/live` et `/health/ready` les sondes ;
+- les actions destructrices sont des routes POST dédiées ;
+- `/monitor` n'est plus qu'une redirection de compatibilité.
 
-L'interface est sans authentification par décision actuelle et supposée accessible uniquement sur un LAN de confiance. Cette hypothèse est une contrainte d'exploitation, pas une barrière de sécurité fournie par le programme.
+Trois intergiciels encadrent chaque requête : en-têtes de sécurité et `no-store`, validation du `Host` (contre le DNS rebinding), puis jeton CSRF et contrôle d'`Origin` sur toute méthode mutante. Les assets statiques sont servis par une liste blanche exacte de chemins, ce qui supprime la question du confinement de répertoire. Le corps est plafonné à 64 Kio.
+
+L'interface reste sans authentification par décision actuelle et supposée accessible uniquement sur un LAN de confiance. Cette hypothèse est une contrainte d'exploitation, pas une barrière de sécurité fournie par le programme.
+
+Aucune requête HTTP ne déclenche de lecture matérielle : le job supervisé `sensor_snapshot` publie un instantané toutes les 10 s, que l'IHM et l'export InfluxDB consomment.
 
 ## Limites architecturales connues
 
 - chauffage et ventilation ne sont pas arbitrés par une décision thermique unique ;
-- des I/O bloquantes s'exécutent encore dans l'event loop ;
-- le serveur artisanal n'impose pas encore de limites et timeouts suffisants ;
-- la route statique n'est pas confinée ;
-- `/status` répond `200` même lorsque `healthy` est faux ;
+- des I/O bloquantes subsistent hors capteurs et export : commandes système et Wi-Fi ;
+- `/status` répond `200` même lorsque `healthy` est faux — utiliser `/health/ready`, dont le code passe à `503` ;
 - l'heure non synchronisée ne bloque pas les décisions jour/nuit ;
 - l'unité systemd installée n'est pas encore versionnée dans le dépôt ;
 - la configuration et les secrets ne sont pas séparés.

@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, validator
 
 from utils import pretty_console as ui
 from utils.atomic_io import write_text_atomic
@@ -22,20 +22,24 @@ _load_state = StateLogger("Chargement de param.json", name="config")
 #  Blocs de configurations dédiés
 # ────────────────────────────────────────────────────────────────
 
-class DailyTimerSettings(BaseModel):
+class ValidatedModel(BaseModel):
+    model_config = ConfigDict(validate_assignment=True, populate_by_name=True)
+
+
+class DailyTimerSettings(ValidatedModel):
     enabled: bool = Field(True, alias="enabled")
 
-    start_hour: int
-    start_minute: int
-    stop_hour: int
-    stop_minute: int
+    start_hour: int = Field(ge=0, le=23)
+    start_minute: int = Field(ge=0, le=59)
+    stop_hour: int = Field(ge=0, le=23)
+    stop_minute: int = Field(ge=0, le=59)
 
     @validator("enabled", pre=True)
     def _parse_enabled(cls, v):
         return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
-class CyclicSettings(BaseModel):
+class CyclicSettings(ValidatedModel):
     """
     Deux modes :
       • **journalier**  : *triggers_per_day* activations chaque *period_days*
@@ -52,27 +56,35 @@ class CyclicSettings(BaseModel):
     action_duration_seconds: int = Field(..., alias="action_duration_seconds", gt=0)
 
     # —— mode « séquentiel » ——
-    on_time_day:   int = Field(0, alias="on_time_day")
-    off_time_day:  int = Field(0, alias="off_time_day")
-    on_time_night: int = Field(0, alias="on_time_night")
-    off_time_night:int = Field(0, alias="off_time_night")
+    on_time_day:   int = Field(0, alias="on_time_day", ge=0)
+    off_time_day:  int = Field(0, alias="off_time_day", ge=0)
+    on_time_night: int = Field(0, alias="on_time_night", ge=0)
+    off_time_night:int = Field(0, alias="off_time_night", ge=0)
 
     @validator("enabled", pre=True)
     def _parse_enabled(cls, v):
         return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
-class TemperatureSettings(BaseModel):
-    target_temp_min_day: float
-    target_temp_max_day: float
-    target_temp_min_night: float
-    target_temp_max_night: float
-    hysteresis_offset: float
+class TemperatureSettings(ValidatedModel):
+    target_temp_min_day: float = Field(ge=-20, le=60)
+    target_temp_max_day: float = Field(ge=-20, le=60)
+    target_temp_min_night: float = Field(ge=-20, le=60)
+    target_temp_max_night: float = Field(ge=-20, le=60)
+    hysteresis_offset: float = Field(ge=0, le=20)
+
+    @model_validator(mode="after")
+    def _validate_ranges(self):
+        if self.target_temp_min_day > self.target_temp_max_day:
+            raise ValueError("la température minimale de jour dépasse le maximum")
+        if self.target_temp_min_night > self.target_temp_max_night:
+            raise ValueError("la température minimale de nuit dépasse le maximum")
+        return self
 
 
-class NetworkSettings(BaseModel):
+class NetworkSettings(ValidatedModel):
     host_machine_address: str
-    host_machine_state: str
+    host_machine_state: Literal["online", "offline"]
     wifi_ssid: str
     wifi_password: str
     influx_db_port: str
@@ -80,8 +92,18 @@ class NetworkSettings(BaseModel):
     influx_db_user: str
     influx_db_password: str
 
+    @validator("influx_db_port")
+    def _valid_port(cls, value):
+        try:
+            port = int(value)
+        except (TypeError, ValueError):
+            raise ValueError("le port InfluxDB doit être numérique")
+        if not 1 <= port <= 65535:
+            raise ValueError("le port InfluxDB doit être compris entre 1 et 65535")
+        return str(port)
 
-class GPIOSettings(BaseModel):
+
+class GPIOSettings(ValidatedModel):
     i2c_sda: int
     i2c_scl: int
     ds18_pin: int
@@ -98,14 +120,14 @@ class GPIOSettings(BaseModel):
     motor_pin4: int
 
 
-class MotorSettings(BaseModel):
+class MotorSettings(ValidatedModel):
     motor_mode: Literal["manual", "auto", "winter"] = Field("auto", alias="motor_mode")
 
-    motor_user_speed: int
-    target_temp: float
-    hysteresis: float
-    min_speed: int
-    max_speed: int
+    motor_user_speed: int = Field(ge=0, le=4)
+    target_temp: float = Field(ge=-20, le=60)
+    hysteresis: float = Field(ge=0, le=20)
+    min_speed: int = Field(ge=0, le=4)
+    max_speed: int = Field(ge=0, le=4)
 
     # — Paramètres « hiver » —
     winter_default_speed: int = Field(1, ge=0, le=4, alias="winter_default_speed")
@@ -114,12 +136,18 @@ class MotorSettings(BaseModel):
     winter_refresh_minutes_per_hour: int = Field(5, ge=0, le=60, alias="winter_refresh_minutes_per_hour")
     winter_humidity_threshold: float = Field(65.0, ge=0.0, le=100.0, alias="winter_humidity_threshold")
 
+    @model_validator(mode="after")
+    def _validate_speed_range(self):
+        if self.min_speed > self.max_speed:
+            raise ValueError("la vitesse minimale dépasse la vitesse maximale")
+        return self
 
-class LifePeriod(BaseModel):
-    stage: str
+
+class LifePeriod(ValidatedModel):
+    stage: str = Field(min_length=1, max_length=64)
 
 
-class HeaterSettings(BaseModel):
+class HeaterSettings(ValidatedModel):
     enabled: bool
 
     @validator("enabled", pre=True)
@@ -127,7 +155,7 @@ class HeaterSettings(BaseModel):
         return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
-class LogSettings(BaseModel):
+class LogSettings(ValidatedModel):
     """Journalisation : niveau et rétention des archives quotidiennes."""
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field("INFO", alias="level")
     retention_days: int = Field(14, alias="retention_days", ge=1)
@@ -137,7 +165,7 @@ class LogSettings(BaseModel):
         return str(v).strip().upper() if v is not None else "INFO"
 
 
-class SensorState(BaseModel):
+class SensorState(ValidatedModel):
     bme280_state: bool
     ds18b20_state: bool
     veml6075_state: bool
@@ -157,7 +185,7 @@ class SensorState(BaseModel):
 #  Modèle principal
 # ────────────────────────────────────────────────────────────────
 
-class AppConfig(BaseModel):
+class AppConfig(ValidatedModel):
     life_period: LifePeriod = Field(..., alias="Life_Period")
     daily_timer1: DailyTimerSettings = Field(..., alias="DailyTimer1_Settings")
     daily_timer2: DailyTimerSettings = Field(..., alias="DailyTimer2_Settings")
@@ -172,10 +200,6 @@ class AppConfig(BaseModel):
     logs: LogSettings = Field(default_factory=LogSettings, alias="Log_Settings")
 
     _path: ClassVar[Path] = Path(__file__).parent.parent / "param" / "param.json"
-
-    class Config:
-        validate_by_name = True
-        alias_generator = None
 
     @classmethod
     def load(cls) -> "AppConfig":
@@ -235,6 +259,11 @@ class AppConfig(BaseModel):
             )
             raise
         ui.debug("param.json enregistré", name="config")
+
+    def replace_from(self, validated: "AppConfig") -> None:
+        """Remplace sans attente la configuration active par une candidate validée."""
+        for field_name in self.__class__.model_fields:
+            setattr(self, field_name, getattr(validated, field_name))
 
 
 AppConfig.model_rebuild()

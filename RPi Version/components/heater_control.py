@@ -136,7 +136,7 @@ async def heat_control(
         hysteresis = config.temperature.hysteresis_offset
 
         # Lecture température
-        temp = sensor_handler.get_sensor_value("BME280T")
+        temp = await sensor_handler.fresh_value("BME280T", max_age=20.0)
 
         # ── Garde-fou 2 : validation de plage ────────────────────────────
         if temp is not None and not (TEMP_VALID_MIN < temp < TEMP_VALID_MAX):

@@ -13,7 +13,8 @@ Aucun niveau ne remplace le suivant.
 ## Contrôle quotidien
 
 ```bash
-curl -fsS http://127.0.0.1:8123/status | jq '{healthy, heater_alarm, tasks}'
+curl -fsS http://127.0.0.1:8123/api/v1/state | jq '{health: .health.healthy, alarm: .health.heater_alarm, tasks: .health.tasks}'
+curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8123/health/ready
 systemctl show phyto.service -p ActiveState -p SubState -p NRestarts -p StatusText
 df -h /
 timedatectl show -p NTPSynchronized
@@ -21,10 +22,10 @@ timedatectl show -p NTPSynchronized
 
 Attendu :
 
-- `healthy=true` ;
+- `healthy=true` et `/health/ready` en **200** — un 503 nomme les travaux fautifs dans `unhealthy` ;
 - `heater_alarm=null` ;
 - tâches attendues `alive=true` et `healthy=true` ;
-- `restarts=0` et `stalls=0` en régime normal ;
+- `restarts=0` et `stalls=0` en régime normal ; `reloads` compte les relances **volontaires** après sauvegarde d'une section de configuration et n'est pas un signal de panne ;
 - aucune croissance inexpliquée de `NRestarts` ;
 - espace disque suffisant ;
 - heure synchronisée.
@@ -61,15 +62,16 @@ L'export InfluxDB peut être absent si `host_machine_state` est configuré offli
 - heure fausse : suspendre les décisions planifiées ;
 - disque presque plein : traiter avant perte de logs ou impossibilité d'écrire la configuration.
 
-## Limites de `/status`
+## Limites des sondes HTTP
 
-`/status` ne prouve pas :
+`/health/live` ne prouve que la présence du serveur HTTP. `/api/v1/state`, `/health/ready` et `/status` ne prouvent pas :
 
 - l'état mécanique d'un relais ;
 - le courant réellement consommé ;
 - la validité absolue d'un capteur plausible mais figé ;
 - la bonne heure réelle ;
 - la disponibilité récente d'InfluxDB ;
+- la fraîcheur d'une mesure sans lire son `status` et son `age_s` : une valeur affichée avec `status` `stale` est la dernière valeur connue, pas la mesure du moment ;
 - la santé du réseau ;
 - l'état pendant la fenêtre de boot.
 

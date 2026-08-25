@@ -1,49 +1,100 @@
 # Interface HTTP
 
-**Implémentation** : serveur `asyncio.start_server` artisanal, écoute `0.0.0.0:8123`.
+**Implémentation** : serveur `aiohttp` (`network/web/server.py`), écoute `0.0.0.0:8123`.
 **Contrainte** : LAN de confiance uniquement, aucune authentification.
+**Statut** : implémenté et vérifié par une passe de fumigation hors matériel (voir
+[Vérification](../development/verification.md)) ; non encore rejoué sur le Pi de production.
+
+## Routes
 
 | Méthode | Route | Effet | Réponse principale |
 |---|---|---|---|
-| GET | `/` ou `/index.html` | État général | HTML 200 |
-| GET | `/conf` | Formulaire contenant la configuration | HTML 200 |
-| POST | `/conf` | Mutations, sauvegarde, reconfiguration partielle | HTML 200 |
-| GET | `/monitor` | Mesures, aucun effet de bord | HTML 200 |
-| POST | `/monitor` | Reset statistiques, reboot ou poweroff | 303 ; 403 si Origin différent |
-| GET | `/console` | Console web | HTML 200 |
-| GET | `/console/stream` | Historique et logs live SSE | Flux 200 |
-| GET | `/status` | État et santé JSON | JSON 200 |
-| GET | `/static/...` | Asset local | Fichier ou 404 |
+| GET | `/`, `/index.html` | Tableau de bord, rafraîchi toutes les 5 s par `/api/v1/state` | HTML 200 |
+| GET | `/conf` | Formulaire de configuration, une section dépliable par domaine | HTML 200 |
+| POST | `/conf/{section}` | Valide et enregistre **une seule** section | 303 vers `/conf?success=…` ; 422 si refus |
+| GET | `/console` | Console de journalisation | HTML 200 |
+| GET | `/console/stream` | Historique puis logs live (SSE, keep-alive 15 s) | Flux 200 |
+| GET | `/api/v1/state` | État complet versionné | JSON 200 |
+| GET | `/status` | Ancien format d'état, conservé pour les scripts existants | JSON 200 |
+| GET | `/health/live` | Le processus HTTP répond | JSON 200 |
+| GET | `/health/ready` | Superviseur sain | JSON 200 ou **503** |
+| POST | `/actions/stats/reset` | Efface un min/max (`key=`) | 303 vers `/#statistiques` |
+| POST | `/actions/system/reboot` | `sudo reboot` | 202 |
+| POST | `/actions/system/poweroff` | `/sbin/shutdown -h now` | 202 |
+| GET | `/monitor` | **Redirection** vers `/#surveillance` | 303 |
+| POST | `/monitor` | Compatibilité : `reset_sensor`, `reboot=1`, `poweroff=1` | Comme les routes dédiées |
+| GET | `/favicon.ico`, `/favicon.svg` | Icône | 302 puis fichier |
+| GET | `/static/css/style.css`, `/static/js/*.js`, `/static/fonts/visitor1.ttf` | Assets locaux | Fichier |
 
-## Règles de sécurité
+Toute autre route renvoie 404. Il n'existe **pas** de service de répertoire : la liste ci-dessus
+est la liste exhaustive des chemins servis, ce qui remplace l'ancien `/static/` non confiné.
 
-- Aucun effet persistant ou destructeur derrière GET.
-- Ne pas exposer le port sur Internet.
-- `/conf` révèle actuellement des secrets et doit être limité au LAN.
-- Le contrôle `Origin` protège seulement les actions `/monitor` venant d'un navigateur.
-- Une requête sans `Origin`, telle que curl, est acceptée.
-- `Host` n'est pas validé ; le DNS rebinding reste ouvert.
-- `/static/` n'est pas confiné ; ne pas considérer le serveur comme sûr face à un client hostile.
-- Les tailles et délais de requêtes ne sont pas encore suffisamment bornés.
+## Règles de sécurité appliquées
+
+- Aucun effet persistant ou destructeur derrière un GET.
+- **CSRF** : jeton par processus, comparé en temps constant sur `POST`, `PUT`, `PATCH`, `DELETE`.
+  Il est présent dans chaque formulaire et dans `<meta name="csrf-token">`. Un redémarrage du
+  service invalide les pages ouvertes : recharger avant de soumettre.
+- **Origin** : un `Origin` présent et différent du `Host` est refusé (403). Une requête sans
+  `Origin`, telle que `curl`, reste acceptée : le jeton CSRF est alors la seule barrière.
+- **Host** : seuls `localhost`, le nom de la machine, `<nom>.local`, les adresses privées, de
+  bouclage ou de lien local sont acceptés ; sinon **421**. Cela ferme le DNS rebinding.
+  `PHYTO_ALLOWED_HOSTS` (liste séparée par des virgules) ajoute des noms.
+- **Corps** : 64 Kio maximum, lignes et en-têtes plafonnés à 8190 octets.
+- **En-têtes** : `Content-Security-Policy` sans `unsafe-inline` (aucun script ni style en ligne
+  dans les pages), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, et
+  `Cache-Control: no-store` sur tout le contenu dynamique.
+- **Erreurs** : un navigateur reçoit une page HTML, un client non-HTML le texte brut. Les
+  redirections ne sont jamais transformées en page d'erreur.
+- **Secrets** : `/conf` n'affiche plus aucun mot de passe. Les champs sensibles sont vides et
+  indiquent seulement si une valeur est enregistrée ; les laisser vides conserve l'existant.
+
+Ce qui **reste ouvert** : aucune authentification, port en clair. Ne pas exposer 8123 sur
+Internet ni sur un réseau partagé avec des clients non maîtrisés.
 
 ## Configuration POST
 
-Le formulaire utilise les alias Pydantic, y compris des noms imbriqués comme `DailyTimer1_Settings.enabled`. Les conversions int/float évitent certaines exceptions, mais les mutations ne sont pas revalidées intégralement avant sauvegarde. L'API de configuration ne doit donc pas être automatisée comme une API stable.
+`POST /conf/{section}` suit une séquence stricte :
 
-## Actions monitor
+1. rejet des champs inconnus ou dupliqués (422) ;
+2. construction d'un **`AppConfig` candidat complet** à partir de la configuration courante, sur
+   lequel la section postée est appliquée ;
+3. validation Pydantic intégrale du candidat, contraintes croisées comprises (422 sinon) ;
+4. écriture atomique du fichier ; en cas d'échec disque, la configuration active reste
+   inchangée (500) ;
+5. remplacement de la configuration vivante, puis application à chaud ;
+6. `303 See Other` vers `/conf?success={section}#{section}`.
 
-- les clés `reset_*` effacent une statistique ;
-- `reboot=1` appelle `sudo reboot` ;
-- `poweroff=1` appelle `/sbin/shutdown -h now` ;
-- POST réussi applique Post/Redirect/Get vers `/monitor`.
+Un rejet à n'importe quelle étape laisse `param.json` **et** la configuration en mémoire
+intacts. Les sections connues sont : `life`, `daily-timer-1`, `daily-timer-2`, `cyclic-1`,
+`cyclic-2`, `temperature`, `heater`, `motor`, `sensors`, `wifi`, `influx`, `logs`.
 
-## Cible
+`GPIO_Settings` n'est **pas** exposé en écriture : la page l'affiche en lecture seule.
 
-Séparer :
+### Application à chaud
 
-- `/health/live` : processus HTTP vivant ;
-- `/health/ready` : superviseur sain, code non-2xx sinon ;
-- routes UI ;
-- configuration authentifiée ou strictement filtrée ;
-- statiques confinés ;
-- limites, timeouts et en-têtes robustes.
+| Section | Effet immédiat |
+|---|---|
+| `logs` | `apply_log_settings()` : niveau et rétention |
+| `sensors` | `SensorController.reconfigure()` sur la même instance, puis rechargement Influx |
+| `influx` | Rechargement de l'endpoint Influx |
+| `daily-timer-*`, `cyclic-*`, `temperature`, `heater`, `motor` | `supervisor.request_reload()` du ou des travaux concernés |
+| `wifi` | Aucun : redémarrage requis, la page l'indique |
+
+`request_reload()` **repasse la sortie concernée par son état sûr** avant de relancer le
+travail : une sortie peut donc être brièvement coupée puis rétablie à la sauvegarde d'une
+section de planification. C'est délibéré — l'alternative serait de relancer une boucle en
+gardant un relais fermé sur une consigne périmée.
+
+## Actions système
+
+- `POST /actions/stats/reset` avec `key=` parmi les clés suivies (`BME280T`, `BME280H`,
+  `DS18B#3`) ; toute autre clé renvoie 400 ;
+- `POST /actions/system/reboot` et `/actions/system/poweroff` : jeton CSRF **et** confirmation
+  explicite dans une boîte de dialogue du navigateur ; réponse 202, ou 500 si la commande
+  échoue ;
+- `POST /monitor` reste accepté pour les scripts existants et redirige vers les mêmes
+  traitements.
+
+Ne jamais déplacer une de ces actions derrière un GET : une préconnexion de navigateur ou un
+`<img src>` sur n'importe quelle page du LAN suffirait à l'exécuter.

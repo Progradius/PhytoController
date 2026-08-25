@@ -6,7 +6,13 @@
 #  (refactoré pour utiliser AppConfig au lieu de Parameter)
 # --------------------------------------------------------------------
 
+import asyncio
+import copy
 import smbus2
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from time import monotonic
 from typing import Dict, List
 
 # Handlers spécialisés
@@ -26,6 +32,7 @@ LOGGER_NAME = "sensors"
 
 # Votre modèle de config
 from param.config import AppConfig
+from controllers.sensor_catalog import SENSOR_CATALOG, SENSORS_BY_KEY, enabled_definitions
 
 
 class SensorController:
@@ -38,9 +45,25 @@ class SensorController:
       • lux          : TSL2591
     """
 
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: AppConfig, stats=None):
         self.config = config
+        self.stats = stats
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="phyto-sensors")
+        self._snapshot_lock = threading.Lock()
+        self._snapshot: dict[str, dict] = {}
+        self._closed = False
 
+        # Échecs de lecture : une ligne à l'entrée en panne, une au rétablissement
+        self._read_states: Dict[str, StateLogger] = {}
+        self._stats_state = StateLogger("Mise à jour des min/max capteurs",
+                                        name=LOGGER_NAME, level="warning")
+        self.i2c = None
+        self.bme = self.ds18 = self.veml = self.vl53 = None
+        self.mlx = self.tsl = self.hcsr = None
+        self.__init_handlers()
+
+    def __init_handlers(self) -> None:
+        """Construit les handlers activés sur l'unique propriétaire matériel."""
         # ── Bus I2C (/dev/i2c-1) ───────────────────────────────────────
         try:
             self.i2c = smbus2.SMBus(1)
@@ -49,11 +72,6 @@ class SensorController:
             error(f"Impossible d'ouvrir /dev/i2c-1 → {e.__class__.__name__} : {e}",
                   name=LOGGER_NAME)
             self.i2c = None
-
-        # Échecs de lecture : une ligne à l'entrée en panne, une au rétablissement
-        self._read_states: Dict[str, StateLogger] = {}
-        self._stats_state = StateLogger("Mise à jour des min/max capteurs",
-                                        name=LOGGER_NAME, level="warning")
 
         # ── Activation selon AppConfig.sensors ─────────────────────────
         s = self.config.sensors
@@ -99,38 +117,42 @@ class SensorController:
         info(f"Capteurs désactivés : {', '.join(inactifs)}", name=LOGGER_NAME)
         debug(f"Mesures exportées : {self.sensor_dict}", name=LOGGER_NAME)
 
+    def _close_devices(self) -> None:
+        """Ferme les bus sans jamais libérer les GPIO vers un état flottant."""
+        if self.vl53 and hasattr(self.vl53, "close"):
+            self.vl53.close()
+        if self.hcsr and getattr(self.hcsr, "sensor", None):
+            try:
+                import RPi.GPIO as GPIO
+                GPIO.output(self.hcsr.sensor.trigger_pin, GPIO.LOW)
+            except Exception as exc:
+                warning(
+                    f"HC-SR04 : maintien du trigger LOW impossible ({exc.__class__.__name__})",
+                    name=LOGGER_NAME,
+                )
+        if self.i2c is not None:
+            try:
+                self.i2c.close()
+            except Exception as exc:
+                debug(f"Fermeture I²C ignorée : {exc.__class__.__name__}", name=LOGGER_NAME)
+        self.i2c = None
+        self.bme = self.ds18 = self.veml = self.vl53 = None
+        self.mlx = self.tsl = self.hcsr = None
+
     def _is_sensor_enabled(self, sensor_name: str) -> bool:
-        sensor_mapping = {
-            "BME280T": self.bme_enabled, "BME280H": self.bme_enabled, "BME280P": self.bme_enabled,
-            "DS18B#1": self.ds18_enabled, "DS18B#2": self.ds18_enabled, "DS18B#3": self.ds18_enabled,
-            "TSL-LUX": self.tsl_enabled, "TSL-IR": self.tsl_enabled,
-            "VEML-UVA": self.veml_enabled, "VEML-UVB": self.veml_enabled, "VEML-UVINDEX": self.veml_enabled,
-            "MLX-AMB": self.mlx_enabled, "MLX-OBJ": self.mlx_enabled,
-            "VL53L0X": self.vl53_enabled,
-            "HCSR04": self.hcsr_enabled,
-        }
-        return sensor_mapping.get(sensor_name, False)
+        definition = SENSORS_BY_KEY.get(sensor_name)
+        return bool(
+            definition
+            and getattr(self.config.sensors, definition.enabled_field, False)
+        )
 
     def _build_sensor_dict(self) -> Dict[str, List[str]]:
         """
         Construit le dictionnaire des capteurs activés, utilisé pour l'export.
         """
-        base_sensor_dict: Dict[str, List[str]] = {
-            "air":          ["BME280T", "BME280H", "BME280P", "MLX-AMB", "DS18B#1", "DS18B#2"],
-            "surface_temp": ["MLX-OBJ"],
-            "water":        ["DS18B#3"],
-            "distance":     ["VL53L0X", "HCSR04"],
-            "lux":          ["TSL-LUX", "TSL-IR"],
-        }
-
         sensor_dict: Dict[str, List[str]] = {}
-        for measurement, sensor_keys in base_sensor_dict.items():
-            enabled_sensors = [
-                sensor for sensor in sensor_keys
-                if self._is_sensor_enabled(sensor)
-            ]
-            if enabled_sensors:
-                sensor_dict[measurement] = enabled_sensors
+        for definition in enabled_definitions(self.config):
+            sensor_dict.setdefault(definition.measurement, []).append(definition.key)
 
         return sensor_dict
 
@@ -162,7 +184,7 @@ class SensorController:
                 result = {
                     "VEML-UVA": self.veml.get_veml_uva,
                     "VEML-UVB": self.veml.get_veml_uvb,
-                    "VEML-UVINDEX": self.veml.get_uv_index
+                    "VEML-UVINDEX": self.veml.get_veml_uv_index
                 }[sensor_key]()
 
             elif sensor_key in ("MLX-AMB", "MLX-OBJ") and self.mlx:
@@ -179,6 +201,7 @@ class SensorController:
 
         except Exception as e:
             self._state_for(sensor_key).fail(f"{e.__class__.__name__} : {e}")
+            self._record_snapshot(sensor_key, None, error=f"{e.__class__.__name__}")
             return None
 
         if result is None:
@@ -187,9 +210,11 @@ class SensorController:
                 debug(f"{sensor_key} désactivé", name=LOGGER_NAME)
             else:
                 self._state_for(sensor_key).fail("lecture vide")
+            self._record_snapshot(sensor_key, None, error="lecture vide")
             return None
 
         self._state_for(sensor_key).ok()
+        self._record_snapshot(sensor_key, result)
 
         stats = getattr(self, "stats", None)
         if stats and sensor_key in stats.KEYS:
@@ -200,6 +225,112 @@ class SensorController:
                 self._stats_state.fail(f"{sensor_key} → {e.__class__.__name__} : {e}")
 
         return result
+
+    async def read(self, sensor_key: str):
+        """Lit une mesure dans l'unique exécuteur matériel sérialisé."""
+        if self._closed:
+            return None
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, self.get_sensor_value, sensor_key)
+
+    async def refresh_active(self) -> None:
+        """Rafraîchit toutes les mesures actives, sans bloquer l'event loop."""
+        for definition in enabled_definitions(self.config):
+            await self.read(definition.key)
+
+    def cached_value(self, sensor_key: str, max_age: float = 20.0):
+        """Valeur de contrôle seulement si la dernière tentative est fraîche et réussie."""
+        with self._snapshot_lock:
+            record = self._snapshot.get(sensor_key)
+            if not record or record.get("status") != "ok":
+                return None
+            if monotonic() - record["attempt_monotonic"] > max_age:
+                return None
+            return record.get("value")
+
+    async def fresh_value(self, sensor_key: str, max_age: float = 20.0):
+        value = self.cached_value(sensor_key, max_age=max_age)
+        if value is not None:
+            return value
+        return await self.read(sensor_key)
+
+    def snapshot(self) -> dict[str, dict]:
+        """Copie sérialisable du dernier état connu, sans aucune lecture."""
+        now = monotonic()
+        result: dict[str, dict] = {}
+        with self._snapshot_lock:
+            records = copy.deepcopy(self._snapshot)
+        for definition in SENSOR_CATALOG:
+            record = records.get(definition.key)
+            enabled = self._is_sensor_enabled(definition.key)
+            if not enabled:
+                status = "disabled"
+            elif record is None:
+                status = "never"
+            elif record.get("status") != "ok":
+                status = "error"
+            elif now - record["attempt_monotonic"] > 30.0:
+                status = "stale"
+            else:
+                status = "ok"
+            result[definition.key] = {
+                "key": definition.key,
+                "label": definition.label,
+                "unit": definition.unit,
+                "decimals": definition.decimals,
+                "enabled": enabled,
+                "status": status,
+                "value": record.get("last_good_value") if record else None,
+                "last_attempt_at": record.get("last_attempt_at") if record else None,
+                "last_success_at": record.get("last_success_at") if record else None,
+                "age_s": round(now - record["success_monotonic"], 1)
+                if record and record.get("success_monotonic") is not None else None,
+            }
+        return result
+
+    async def reconfigure(self, config: AppConfig) -> None:
+        """Reconstruit les handlers sur le même propriétaire, de façon sérialisée."""
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(self._executor, self._reconfigure_sync, config)
+
+    def _reconfigure_sync(self, config: AppConfig) -> None:
+        self._close_devices()
+        self.config = config
+        self.__init_handlers()
+        self.sensor_dict = self._build_sensor_dict()
+        with self._snapshot_lock:
+            for key in list(self._snapshot):
+                if not self._is_sensor_enabled(key):
+                    self._snapshot.pop(key, None)
+        info("Pile capteurs reconfigurée sans nouvelle instance", name=LOGGER_NAME)
+
+    async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(self._executor, self._close_devices)
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _record_snapshot(self, sensor_key: str, value, error: str | None = None) -> None:
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        now_mono = monotonic()
+        with self._snapshot_lock:
+            previous = self._snapshot.get(sensor_key, {})
+            record = {
+                "status": "ok" if error is None else "error",
+                "value": value,
+                "last_attempt_at": now_iso,
+                "attempt_monotonic": now_mono,
+                "last_good_value": previous.get("last_good_value"),
+                "last_success_at": previous.get("last_success_at"),
+                "success_monotonic": previous.get("success_monotonic"),
+            }
+            if error is None:
+                record["last_good_value"] = value
+                record["last_success_at"] = now_iso
+                record["success_monotonic"] = now_mono
+            self._snapshot[sensor_key] = record
 
     def _state_for(self, sensor_key: str) -> StateLogger:
         """StateLogger dédié à un capteur (créé à la volée)."""

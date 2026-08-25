@@ -113,6 +113,7 @@ class SupervisedJob:
 
         self.last_beat: float = monotonic()
         self.restarts: int = 0
+        self.reloads: int = 0
         self.stalls: int = 0
         self.last_error: str | None = None
         # `task` = le runner (jamais annulé sauf arrêt du processus) ;
@@ -121,6 +122,7 @@ class SupervisedJob:
         self.task: asyncio.Task | None = None
         self.inner: asyncio.Task | None = None
         self.stall_requested: bool = False
+        self.reload_requested: bool = False
 
     # --- santé -------------------------------------------------
     @property
@@ -143,6 +145,7 @@ class SupervisedJob:
             "silence_s": round(self.silence_seconds, 1),
             "max_silence_s": self.max_silence,
             "restarts": self.restarts,
+            "reloads": self.reloads,
             "stalls": self.stalls,
             "last_error": self.last_error,
         }
@@ -213,6 +216,15 @@ class TaskSupervisor:
     def snapshot(self) -> dict:
         return {name: job.snapshot() for name, job in self._jobs.items()}
 
+    def request_reload(self, name: str) -> bool:
+        """Relance volontairement un travail après application de son état sûr."""
+        job = self._jobs.get(name)
+        if job is None or job.inner is None or job.inner.done():
+            return False
+        job.reload_requested = True
+        job.inner.cancel()
+        return True
+
     # --- interne -----------------------------------------------
     def _to_safe_state(self, job: SupervisedJob) -> None:
         """
@@ -236,6 +248,7 @@ class TaskSupervisor:
         backoff = BACKOFF_INITIAL_SECONDS
 
         while True:
+            manual_reload = False
             job.last_beat = monotonic()
             started = monotonic()
             # Le travail tourne dans une tâche fille : le veilleur de silence
@@ -247,7 +260,10 @@ class TaskSupervisor:
             try:
                 await inner
             except asyncio.CancelledError:
-                if job.stall_requested:
+                if job.reload_requested:
+                    job.reload_requested = False
+                    manual_reload = True
+                elif job.stall_requested:
                     # Annulation décidée par le veilleur : on enchaîne sur la
                     # remise à l'état sûr et la relance (le `finally` du contexte
                     # `energized()` a déjà coupé la sortie).
@@ -274,6 +290,15 @@ class TaskSupervisor:
                 )
 
             self._to_safe_state(job)
+            if manual_reload:
+                job.reloads += 1
+                job.last_error = None
+                info(
+                    f"Tâche « {job.name} » rechargée volontairement "
+                    f"(rechargement n°{job.reloads})",
+                    name=LOGGER_NAME,
+                )
+                continue
             job.restarts += 1
 
             if monotonic() - started >= BACKOFF_RESET_AFTER_SECONDS:
@@ -310,20 +335,20 @@ class TaskSupervisor:
 
     def _cancel_stalled_jobs(self) -> None:
         for job in self._jobs.values():
-                if job.is_alive() and job.is_stale():
-                    job.stalls += 1
-                    job.last_error = (
-                        f"silence de {job.silence_seconds:.1f} s "
-                        f"(> {job.max_silence:.0f} s)"
-                    )
-                    error(
-                        f"Tâche « {job.name} » vivante mais muette depuis "
-                        f"{job.silence_seconds:.1f} s → annulation et relance",
-                        name=LOGGER_NAME,
-                    )
-                    # `last_beat` est réarmé ici, sinon le veilleur relancerait
-                    # en boucle pendant que l'annulation se propage.
-                    job.last_beat = monotonic()
-                    job.stall_requested = True
-                    if job.inner is not None and not job.inner.done():
-                        job.inner.cancel()
+            if job.is_alive() and job.is_stale():
+                job.stalls += 1
+                job.last_error = (
+                    f"silence de {job.silence_seconds:.1f} s "
+                    f"(> {job.max_silence:.0f} s)"
+                )
+                error(
+                    f"Tâche « {job.name} » vivante mais muette depuis "
+                    f"{job.silence_seconds:.1f} s → annulation et relance",
+                    name=LOGGER_NAME,
+                )
+                # `last_beat` est réarmé ici, sinon le veilleur relancerait
+                # en boucle pendant que l'annulation se propage.
+                job.last_beat = monotonic()
+                job.stall_requested = True
+                if job.inner is not None and not job.inner.done():
+                    job.inner.cancel()

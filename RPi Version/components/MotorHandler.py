@@ -150,8 +150,8 @@ async def temp_control(
                 debug(f"Vitesse maintenue à {speed} ({reason})", name=LOGGER_NAME)
 
         # lecture capteurs
-        T  = sensor_handler.get_sensor_value("BME280T")
-        RH = sensor_handler.get_sensor_value("BME280H")
+        T  = await sensor_handler.fresh_value("BME280T", max_age=20.0)
+        RH = await sensor_handler.fresh_value("BME280H", max_age=20.0)
 
         # fallback capteurs
         try:

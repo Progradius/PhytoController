@@ -8,6 +8,8 @@
 
 `AppConfig.load()` lit `param/param.json` et valide avec Pydantic v2. `save()` sérialise par alias, reconvertit les booléens legacy et écrit atomiquement. Les boucles ne consomment pas encore toutes la configuration de la même façon ; la colonne « application » décrit l'état actuel, pas une garantie idéale.
 
+Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `populate_by_name=True`) : une affectation invalide lève au lieu de corrompre silencieusement la configuration vivante. `AppConfig.replace_from(candidat)` remplace champ par champ la configuration partagée par une candidate déjà validée — c'est ainsi que `POST /conf/{section}` publie un changement sans réinstancier les objets que détiennent le serveur, le moteur et le chauffage.
+
 ## Sections
 
 | Section JSON | Modèle | Usage | Application actuelle |
@@ -17,12 +19,12 @@
 | `DailyTimer2_Settings` | `DailyTimerSettings` | Sortie journalière 2 | Relue en boucle |
 | `Cyclic1_Settings` | `CyclicSettings` | Sortie cyclique 1 | Relue par itération, parfois tardivement |
 | `Cyclic2_Settings` | `CyclicSettings` | Sortie cyclique 2 | Relue par itération, parfois tardivement |
-| `Temperature_Settings` | `TemperatureSettings` | Consignes moteur/chauffage | Objet initial muté par `/conf` |
-| `Heater_Settings` | `HeaterSettings` | Activation chauffage | Objet initial muté par `/conf` |
-| `Network_Settings` | `NetworkSettings` | Wi-Fi et InfluxDB | Partiel ; secrets présents |
-| `GPIO_Settings` | `GPIOSettings` | Broches | Redémarrage obligatoire et intervention matérielle |
-| `Motor_Settings` | `MotorSettings` | Modes et consignes moteur | Objet initial muté par `/conf` |
-| `Sensor_State` | `SensorState` | Capteurs activés | Nouveau contrôleur côté web/Influx, anciennes boucles inchangées |
+| `Temperature_Settings` | `TemperatureSettings` | Consignes moteur/chauffage | À chaud : relance de `motor_temp_control` et `heat_control` |
+| `Heater_Settings` | `HeaterSettings` | Activation chauffage | À chaud : relance de `heat_control` |
+| `Network_Settings` | `NetworkSettings` | Wi-Fi et InfluxDB | Influx à chaud ; Wi-Fi au redémarrage ; secrets présents |
+| `GPIO_Settings` | `GPIOSettings` | Broches | **Lecture seule dans l'IHM** ; redémarrage et intervention matérielle |
+| `Motor_Settings` | `MotorSettings` | Modes et consignes moteur | À chaud : relance de `motor_temp_control` |
+| `Sensor_State` | `SensorState` | Capteurs activés | À chaud : `SensorController.reconfigure()` sur l'instance unique, puis rechargement Influx |
 | `Log_Settings` | `LogSettings` | Niveau et rétention | À chaud |
 
 ## Timers journaliers
@@ -30,12 +32,12 @@
 | Champ | Type | Contraintes actuelles | Unité / remarque |
 |---|---|---|---|
 | `enabled` | bool legacy | Conversion permissive | `enabled`/`disabled` au disque |
-| `start_hour` | int | Pas de borne Pydantic explicite | 0–23 attendu |
-| `start_minute` | int | Pas de borne explicite | 0–59 attendu |
-| `stop_hour` | int | Pas de borne explicite | 0–23 attendu |
-| `stop_minute` | int | Pas de borne explicite | 0–59 attendu |
+| `start_hour` | int | 0–23 | Borné dans le modèle |
+| `start_minute` | int | 0–59 | Borné dans le modèle |
+| `stop_hour` | int | 0–23 | Borné dans le modèle |
+| `stop_minute` | int | 0–59 | Borné dans le modèle |
 
-Les plages traversant minuit sont gérées. Les bornes manquantes doivent être ajoutées avant de considérer l'interface comme sûre face à toute saisie.
+Les plages traversant minuit sont gérées. L'IHM poste `start_time`/`stop_time` au format `HH:MM` (les secondes éventuelles d'un navigateur sont ignorées) ; une valeur hors bornes est refusée en 422 sans toucher au fichier.
 
 ## Timers cycliques
 
@@ -47,16 +49,16 @@ Les plages traversant minuit sont gérées. Les bornes manquantes doivent être 
 | `triggers_per_day` | int | >= 1 | Déclenchements par jour |
 | `first_trigger_hour` | int | 0–23 | Première heure |
 | `action_duration_seconds` | int | > 0 | Durée ON |
-| `on_time_day` | int | Aucune borne | Secondes ON le jour |
-| `off_time_day` | int | Aucune borne | Secondes OFF le jour |
-| `on_time_night` | int | Aucune borne | Secondes ON la nuit |
-| `off_time_night` | int | Aucune borne | Secondes OFF la nuit |
+| `on_time_day` | int | >= 0 | Secondes ON le jour |
+| `off_time_day` | int | >= 0 | Secondes OFF le jour |
+| `on_time_night` | int | >= 0 | Secondes ON la nuit |
+| `off_time_night` | int | >= 0 | Secondes OFF la nuit |
 
 Une désactivation peut être prise en compte tardivement si la boucle dort sur une longue période métier. Le futur ordonnanceur doit recalculer des échéances absolues à intervalle court.
 
 ## Température et chauffage
 
-`Temperature_Settings` contient cinq flottants sans contraintes croisées : minimum et maximum jour/nuit, plus `hysteresis_offset`. Il faut actuellement vérifier manuellement que minimum < maximum et que les seuils n'ordonnent pas chauffage et ventilation simultanément.
+`Temperature_Settings` contient cinq flottants : minimum et maximum jour/nuit, plus `hysteresis_offset`. Les températures sont bornées à -20/60 °C, l'hystérésis à 0/20 °C, et un validateur de modèle refuse un minimum supérieur au maximum, de jour comme de nuit. Reste à la charge de l'exploitant : vérifier que les seuils n'ordonnent pas chauffage et ventilation simultanément.
 
 `Heater_Settings.enabled` active la régulation. Les limites de sécurité -20/60 °C, cinq échecs, 120 minutes ON et 15 minutes OFF sont des constantes de code, pas des champs de configuration.
 
@@ -65,26 +67,28 @@ Une désactivation peut être prise en compte tardivement si la boucle dort sur 
 | Champ | Type / borne | Remarque |
 |---|---|---|
 | `motor_mode` | `manual`, `auto`, `winter` | Mode principal |
-| `motor_user_speed` | int sans borne modèle | 0–4 attendu |
-| `target_temp` | float | Consigne auto |
-| `hysteresis` | float | Hystérésis auto |
-| `min_speed` | int sans borne modèle | 0–4 attendu |
-| `max_speed` | int sans borne modèle | 0–4 attendu et >= min |
+| `motor_user_speed` | 0–4 | Vitesse manuelle |
+| `target_temp` | -20 à 60 °C | Consigne auto |
+| `hysteresis` | 0 à 20 °C | Hystérésis auto |
+| `min_speed` | 0–4 | Borné dans le modèle |
+| `max_speed` | 0–4 | Borné, et `min_speed <= max_speed` vérifié par validateur de modèle |
 | `winter_default_speed` | 0–4 | Vitesse hors renouvellement |
 | `winter_temp_margin` | >= 0 | Marge froid |
 | `winter_refresh_speed` | 0–4 | Vitesse renouvellement |
 | `winter_refresh_minutes_per_hour` | 0–60 | Quota |
 | `winter_humidity_threshold` | 0–100 | Seuil RH |
 
-Les contraintes croisées et la politique thermique restent ouvertes.
+`target_temp` et `hysteresis` ne sont pas exposés par l'IHM : la régulation automatique utilise `Temperature_Settings`. La politique thermique d'ensemble reste ouverte.
 
 ## GPIO
 
-Tous les champs sont des entiers sans validation d'unicité ni liste noire. Une modification GPIO exige arrêt, vérification du câblage et redémarrage. Voir la [matrice GPIO](../hardware/gpio-matrix.md). Ne jamais considérer un POST `/conf` comme une méthode sûre de recâblage à chaud.
+Tous les champs sont des entiers sans validation d'unicité ni liste noire. L'IHM les affiche en **lecture seule** et aucune section `/conf/{section}` n'y donne accès : une modification passe par l'édition du fichier. Elle exige arrêt, vérification du câblage et redémarrage. Voir la [matrice GPIO](../hardware/gpio-matrix.md). Ne jamais considérer un POST `/conf` comme une méthode sûre de recâblage à chaud.
 
 ## Réseau et secrets
 
-`Network_Settings` contient adresse et état de l'hôte, SSID/mot de passe Wi-Fi et paramètres InfluxDB. `wifi_password` et `influx_db_password` sont des secrets. `wifi_ssid`, hôte, base et utilisateur peuvent aussi révéler la topologie.
+`Network_Settings` contient adresse et état de l'hôte, SSID/mot de passe Wi-Fi et paramètres InfluxDB. `host_machine_state` est restreint à `online`/`offline` et `influx_db_port` doit être un entier de 1 à 65535. `wifi_password` et `influx_db_password` sont des secrets. `wifi_ssid`, hôte, base et utilisateur peuvent aussi révéler la topologie.
+
+L'IHM n'affiche plus aucune valeur secrète : `wifi_password`, `influx_db_user` et `influx_db_password` sont rendus vides, avec la seule indication qu'une valeur est ou non enregistrée. Un champ laissé vide conserve la valeur existante ; il n'est donc pas possible d'effacer un secret depuis le web.
 
 La cible est de ne conserver dans le JSON que les paramètres non sensibles et d'injecter les secrets depuis un fichier d'environnement protégé par systemd.
 
