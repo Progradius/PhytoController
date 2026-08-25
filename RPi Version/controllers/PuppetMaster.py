@@ -15,7 +15,7 @@ from components.cyclic_timer_handler import timer_cyclic
 from components.MotorHandler import temp_control
 from components.heater_control import heat_control
 from network.web.server import Server
-from utils.pretty_console import info, warning, error
+from utils.pretty_console import debug, info, warning, error
 from param.config import AppConfig
 
 LOGGER_NAME = "puppetmaster"
@@ -94,7 +94,8 @@ class PuppetMaster:
     def _task_finished(task: asyncio.Task) -> None:
         name = task.get_name()
         if task.cancelled():
-            warning(f"Tâche « {name} » annulée", name=LOGGER_NAME)
+            # Seul l'arrêt du processus annule ces tâches : c'est le déroulé normal
+            debug(f"Tâche « {name} » annulée (arrêt)", name=LOGGER_NAME)
             return
 
         exc = task.exception()
