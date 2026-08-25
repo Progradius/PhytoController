@@ -1,0 +1,21 @@
+# Variables d'environnement
+
+| Variable | Défaut | Usage | Production observée |
+|---|---|---|---|
+| `PHYTO_RUN_MODE` | chaîne vide | Marque le lancement service ; conservée pour compatibilité | `service` |
+| `PHYTO_HW_WATCHDOG` | `1` | `0` désactive l'ouverture directe de `/dev/watchdog` | `0`, voie systemd utilisée |
+| `PHYTO_LOG_LEVEL` | absent | Priorité sur `Log_Settings.level` | Non fixé dans l'unité observée |
+| `PYTHONUNBUFFERED` | Python par défaut | Logs immédiats | `1` |
+| `NOTIFY_SOCKET` | fourni par systemd | Active `sd_notify` | Fourni avec `Type=notify` |
+| `WATCHDOG_USEC` | fourni par systemd | Timeout watchdog applicatif | 600 s observés |
+| `WATCHDOG_PID` | fourni éventuellement par systemd | Vérifie le destinataire | Géré par systemd |
+
+Variables des scripts locaux :
+
+| Variable | Usage |
+|---|---|
+| `PHYTO_HOST` | Cible du pont SSH, défaut `phyto` |
+| `PHYTO_APP_DIR` | Chemin interne transmis lors de la ré-exécution du déploiement |
+| `PHYTO_DEPLOY_REEXEC` | Garde interne du script de déploiement |
+
+Ne pas placer de secret directement dans une commande shell enregistrée. La future séparation des secrets devra utiliser un `EnvironmentFile` protégé, sans exposer les valeurs dans la documentation ni dans `systemctl status`.

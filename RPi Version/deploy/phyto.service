@@ -1,0 +1,21 @@
+[Unit]
+Description=PhytoController
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=progradius
+WorkingDirectory=/home/progradius/PhytoController/RPi Version
+Environment=PYTHONUNBUFFERED=1
+Environment=PHYTO_RUN_MODE=service
+Environment=PHYTO_HW_WATCHDOG=0
+
+ExecStart=/bin/bash -c 'cd "/home/progradius/PhytoController/RPi Version" && exec ./venv/bin/python3 main.py'
+
+Restart=on-failure
+RestartSec=5
+AmbientCapabilities=CAP_SYS_ADMIN CAP_SYS_RAWIO
+
+[Install]
+WantedBy=multi-user.target
