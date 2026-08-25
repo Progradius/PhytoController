@@ -58,8 +58,8 @@ le PinRegistry central et la migration des broches moteur sont relogés plus bas
 
 ## À faire sur le Pi (hors dépôt)
 
-- [ ] **Unité systemd** — pour activer la voie sd_notify, ajouter à
-      `/etc/systemd/system/phyto.service` :
+- [x] **Unité systemd** — voie sd_notify activée le 25/08/2026 par le drop-in
+      `/etc/systemd/system/phyto.service.d/watchdog.conf` :
 
       ```ini
       [Service]
@@ -77,9 +77,15 @@ le PinRegistry central et la migration des broches moteur sont relogés plus bas
       Sans `Type=notify`, rien ne casse : `sd_notify` est un no-op et l'ouverture
       de `/dev/watchdog` échoue en `EBUSY` (systemd le tient déjà via
       `RuntimeWatchdogSec=15`) — c'est journalisé, le service continue.
-- [ ] Vérifier au log de démarrage : `Tâches supervisées : daily_timer_1, …,
+- [x] Vérifier au log de démarrage : `Tâches supervisées : daily_timer_1, …,
       http_server` puis, selon la configuration, `Watchdog systemd actif …` ou
       `Watchdog matériel armé` / `Watchdog matériel non disponible : … EBUSY`.
+      Vérifié sur le Pi après `daemon-reload` et redémarrage : systemd expose
+      `Type=notify`, `NotifyAccess=main`, `WatchdogUSec=10min`, `Restart=always` ;
+      l'application journalise `systemd notifié : service prêt` puis
+      `Watchdog systemd actif (caresse toutes les 300 s, conditionnée à la santé
+      des tâches)`. `/status` répond avec `healthy: true`, huit tâches vivantes et
+      aucun `restart`/`stall` immédiatement après le redémarrage.
 - [ ] Contrôler `curl http://<pi>:8123/status | jq .tasks` après quelques heures :
       `restarts` et `stalls` doivent rester à 0.
 
