@@ -165,6 +165,12 @@
                      value="séquentiel"
                      {% if section.mode == 'séquentiel' %}checked{% endif %}>
               <label class="switch-label" for="{{ section.id }}_sequentiel">Séquentiel</label>
+
+              {# champ réellement posté : les radios «_mode_switch» sont ignorées côté serveur #}
+              <input type="hidden"
+                     name="{{ section.id }}.mode"
+                     id="{{ section.id }}_mode_input"
+                     value="{{ section.mode }}">
             </div>
 
             <div id="{{ section.id }}_journalier_fields">
@@ -244,11 +250,11 @@
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".switch-group").forEach(group => {
     const target = group.dataset.target;
-    const hidden = document.getElementById("Motor_Settings_mode_input");
+    const hidden = document.getElementById(target + "_mode_input");
 
     group.querySelectorAll('input[type="radio"]').forEach(r => {
       r.addEventListener("change", () => {
-        if (hidden && r.name === "Motor_Settings_mode_switch") hidden.value = r.value;
+        if (hidden && r.name === target + "_mode_switch") hidden.value = r.value;
 
         if (target === "Motor_Settings") {
           const manu   = document.getElementById("Motor_Settings_manual_fields");

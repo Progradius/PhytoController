@@ -66,7 +66,7 @@
         "ds18_pin": 4,
         "hcsr_trigger_pin": 26,
         "hcsr_echo_pin": 27,
-        "dailytimer1_pin": 17,
+        "dailytimer1_pin": 5,
         "dailytimer2_pin": 18,
         "cyclic1_pin": 27,
         "cyclic2_pin": 22,
