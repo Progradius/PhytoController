@@ -70,7 +70,26 @@ done
 sudo -n true 2>/dev/null || mourir "sudo sans mot de passe requis (systemctl restart $SERVICE)."
 
 cd "$REPO_DIR"
-BRANCHE="${BRANCHE:-$(git rev-parse --abbrev-ref HEAD)}"
+
+# Branche cible : l'argument, sinon la branche suivie par HEAD, sinon la branche
+# par defaut du depot distant. Le nom local peut differer du nom distant (un
+# clone nomme "main" en face d'un depot dont la branche est "master") : c'est le
+# nom cote origin qui compte pour le fetch/merge.
+branche_par_defaut() {
+    local amont tete
+    amont="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+    if [[ -n "$amont" ]]; then
+        printf '%s\n' "${amont#origin/}"
+        return
+    fi
+    tete="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    if [[ -n "$tete" ]]; then
+        printf '%s\n' "${tete#origin/}"
+        return
+    fi
+    git rev-parse --abbrev-ref HEAD
+}
+BRANCHE="${BRANCHE:-$(branche_par_defaut)}"
 SHA_AVANT="$(git rev-parse HEAD)"
 info "Depot   : $REPO_DIR"
 info "Branche : $(git rev-parse --abbrev-ref HEAD) -> $BRANCHE"
@@ -108,8 +127,13 @@ fi
 # --- 3. Recuperation du code -------------------------------------------------
 info "git fetch origin"
 git fetch --prune origin
-git rev-parse --verify "origin/$BRANCHE" >/dev/null 2>&1 \
-    || mourir "La branche origin/$BRANCHE n'existe pas."
+git remote set-head origin --auto >/dev/null 2>&1 || true
+if ! git rev-parse --verify "origin/$BRANCHE" >/dev/null 2>&1; then
+    echec "La branche origin/$BRANCHE n'existe pas. Branches disponibles :"
+    git branch --remotes --list 'origin/*' --format='%(refname:short)' \
+        | grep -v '^origin/HEAD$' | sed 's/^/     /' >&2
+    mourir "Relancer avec le bon nom, p. ex. : $0 master"
+fi
 
 if [[ "$(git rev-parse --abbrev-ref HEAD)" != "$BRANCHE" ]]; then
     git checkout "$BRANCHE"
