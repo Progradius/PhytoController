@@ -8,6 +8,7 @@
 import asyncio
 import traceback
 
+from network.web import influx_handler
 from network.web.influx_handler import write_sensor_values
 from components.dailytimer_handler import timer_daily
 from components.cyclic_timer_handler import timer_cyclic
@@ -152,6 +153,14 @@ class PuppetMaster:
         )
 
         # --- InfluxDB push ---
+        # On partage le SensorController déjà construit : une seule ouverture
+        # de /dev/i2c-1 pour tout le processus.
+        try:
+            influx_handler.reload_sensor_handler(self.config, self.sensor_handler)
+        except Exception as exc:
+            error(f"Initialisation InfluxDB impossible : {exc.__class__.__name__} : {exc}",
+                  name=LOGGER_NAME)
+
         if self.config.network.host_machine_state.lower() == "online":
             self._spawn(loop, write_sensor_values(period=60), "influx_push")
         else:

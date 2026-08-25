@@ -15,11 +15,44 @@ from utils.pretty_console import debug, success, warning, error, action
 LOGGER_NAME = "network"
 from param.config       import AppConfig
 
+def get_connected_wifi_device() -> str | None:
+    """
+    Renvoie le nom de la première interface Wi-Fi déjà connectée (ex. « wlan0 »),
+    ou None si aucune ne l'est / si nmcli est indisponible.
+
+    Sert à ne pas rejouer une connexion que NetworkManager a déjà établie tout
+    seul au boot (profil en autoconnect) : c'est le cas nominal sous systemd.
+    """
+    try:
+        out = subprocess.run(
+            ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device", "status"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as exc:
+        debug(f"État nmcli illisible : {exc}", name=LOGGER_NAME)
+        return None
+
+    for ligne in out.splitlines():
+        champs = ligne.split(":")
+        # « wifi » strict : « wifi-p2p » n'est pas une interface utilisable
+        if len(champs) >= 3 and champs[1] == "wifi" and champs[2] == "connected":
+            return champs[0]
+    return None
+
+
 def do_connect() -> None:
     """
     Active la radio Wi-Fi (nmcli) puis tente de se connecter sur SSID/PASS
-    définis dans AppConfig.network. Nécessite les droits root.
+    définis dans AppConfig.network.
+
+    Si une interface Wi-Fi est déjà connectée (NetworkManager l'a fait au boot),
+    on ne touche à rien : root n'est alors pas nécessaire.
     """
+    deja = get_connected_wifi_device()
+    if deja:
+        success(f"Wi-Fi déjà connecté ({deja}) → aucune action", name=LOGGER_NAME)
+        return
+
     # Recharge la config à jour
     config = AppConfig.load()
     ssid     = config.network.wifi_ssid

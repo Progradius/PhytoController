@@ -66,6 +66,17 @@
 changement du mot de passe InfluxDB (à reporter dans `param.json` local), suppression des vieux
 `phyto.log.N` et de `~/app.log`.
 
+**Corrections issues de l'observation en production (25/08/2026, Pi)** :
+- La console web affichait `\r\n` en clair (double échappement dans le template) et débordait sur
+  mobile (grille 80 colonnes de xterm.js) : remplacée par un afficheur natif HTML/CSS, coloré par
+  niveau, sans dépendance JS (xterm.js vendoré supprimé).
+- Un POST `/conf` instanciait **deux** `SensorController` (donc deux `/dev/i2c-1` jamais refermés),
+  et un troisième était créé à l'import d'`influx_handler` : `reload_sensor_handler()` accepte
+  désormais un handler existant, l'init à l'import est supprimée et PuppetMaster partage l'instance
+  unique. Un boot = une ouverture du bus.
+- Le formulaire postant tous les champs, « Configuration sauvegardée » listait 7 modifications pour
+  un seul changement réel : seuls les écarts sont désormais journalisés.
+
 **Point d'attention** : `logs/phyto.log.1` … `.5` sont **suivis par git** (héritage de l'ancienne
 rotation). Ils ne contiennent pas de credentials (vérifié), mais mériteraient un
 `git rm --cached logs/phyto.log*` + une entrée `.gitignore` — non fait, hors périmètre du plan.

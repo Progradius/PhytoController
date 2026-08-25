@@ -342,14 +342,16 @@ class Server:
                         warning(f"Valeur invalide pour «{alias}» : {raw!r} → ignorée",
                                 name=LOGGER_NAME)
                         continue
+                    if getattr(mdl, nest) != val:
+                        changes.append(f"{alias} ← {val}")
                     setattr(mdl, nest, val)
-                    changes.append(f"{alias} ← {raw}")
                     continue
 
                 if (top.startswith("DailyTimer") or top.startswith("Cyclic")) and nest == "enabled":
                     val = raw.lower() in ("1", "true", "enabled", "yes")
+                    if getattr(mdl, "enabled", None) != val:
+                        changes.append(f"{alias} ← {val}")
                     setattr(mdl, "enabled", val)
-                    changes.append(f"{alias} ← {val}")
                     continue
 
                 warning(f"Ignoré champ imbriqué «{nest}» sur «{top}»", name=LOGGER_NAME)
@@ -359,18 +361,24 @@ class Server:
                 warning(f"Ignoré alias «{alias}»", name=LOGGER_NAME)
                 continue
 
-            fldinfo = self.config.model_fields[alias2field[alias]]
+            field = alias2field[alias]
+            fldinfo = self.config.model_fields[field]
             ok, val = _coerce(raw, fldinfo.annotation)
             if not ok:
                 warning(f"Valeur invalide pour «{alias}» : {raw!r} → ignorée",
                         name=LOGGER_NAME)
                 continue
-            setattr(self.config, alias2field[alias], val)
-            changes.append(f"{alias} ← {raw}")
+            if getattr(self.config, field) != val:
+                changes.append(f"{alias} ← {val}")
+            setattr(self.config, field, val)
 
-        self.config.save()
-        info(f"Configuration sauvegardée : {', '.join(changes) or 'aucun changement'}",
-             name=LOGGER_NAME)
+        # Le formulaire poste TOUS les champs : on ne journalise que les écarts
+        if not changes:
+            self.config.save()
+            info("Configuration enregistrée sans changement de valeur", name=LOGGER_NAME)
+        else:
+            self.config.save()
+            info(f"Configuration sauvegardée : {', '.join(changes)}", name=LOGGER_NAME)
 
         # Niveau / rétention de log applicables à chaud
         ui.apply_log_settings(self.config.logs.level, self.config.logs.retention_days)
@@ -378,7 +386,8 @@ class Server:
         self.sensor_handler = SensorController(self.config)
         setattr(self.sensor_handler, "stats", self.stats)
         self.sensor_handler.sensor_dict = self.sensor_handler._build_sensor_dict()
-        influx_handler.reload_sensor_handler(self.config)
+        # Même instance pour l'export Influx : un seul /dev/i2c-1 ouvert
+        influx_handler.reload_sensor_handler(self.config, self.sensor_handler)
         info("Nouvelle configuration appliquée", name=LOGGER_NAME)
 
 

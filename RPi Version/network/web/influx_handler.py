@@ -23,16 +23,20 @@ _endpoint_label = ""
 _push_state = StateLogger("Push InfluxDB", name=LOGGER_NAME)
 
 
-def reload_sensor_handler(config: AppConfig) -> None:
+def reload_sensor_handler(config: AppConfig, sensor_handler=None) -> None:
     """
     Recharge dynamiquement le SensorController et l'endpoint Influx.
+
+    `sensor_handler` : réutilise une instance existante plutôt que d'en créer
+    une seconde — chaque SensorController ouvre son propre /dev/i2c-1 et rien
+    ne le referme.
 
     Les identifiants ne sont JAMAIS placés dans l'URL : ils partent en
     paramètres de requête (`requests` les gère hors de toute chaîne loggable).
     """
     global _params, _sensor_handler, _write_url, _write_params, _endpoint_label
     _params = config
-    _sensor_handler = SensorController(_params)
+    _sensor_handler = sensor_handler or SensorController(_params)
 
     net = _params.network
     _write_url = f"http://{net.host_machine_address}:{net.influx_db_port}/write"
@@ -50,14 +54,9 @@ def reload_sensor_handler(config: AppConfig) -> None:
     )
 
 
-# Initialisation : un param.json invalide ne doit pas casser l'import
-try:
-    reload_sensor_handler(AppConfig.load())
-except Exception as exc:
-    error(
-        f"Initialisation InfluxDB impossible : {exc.__class__.__name__} : {exc}",
-        name=LOGGER_NAME,
-    )
+# Pas d'initialisation à l'import : elle ouvrirait un second bus I²C et ferait
+# dépendre l'import de PuppetMaster de la validité de param.json.
+# PuppetMaster appelle reload_sensor_handler() au démarrage des tâches.
 
 
 def _escape_field_key(key: str) -> str:
