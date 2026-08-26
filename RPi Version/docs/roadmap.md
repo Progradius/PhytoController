@@ -2,7 +2,10 @@
 
 **Public** : pilotage et développement.
 **Référence initiale** : commit `61ad3df`, audit et plans au 25 août 2026.
-**Dernière mise à jour** : 26 août 2026, après l'arbitre thermique unifié.
+**Dernière mise à jour** : 26 août 2026, après le magasin de configuration unique (`f840a91`).
+**Suivi de l'audit** : le tableau d'avancement par phase et le séquencement révisé vivent dans
+[`AUDIT-2026-08-25.md` § 8](../AUDIT-2026-08-25.md). Cette roadmap en est la vue par lot livrable ; les
+deux doivent rester cohérentes.
 
 La roadmap privilégie la réduction du risque physique, puis la reproductibilité et enfin la modernisation. Chaque chantier doit rester livrable, réversible et vérifiable indépendamment.
 
@@ -19,7 +22,7 @@ Un chantier n'est terminé que si :
 
 ## Lot 1 — Socle documentaire et sécurité
 
-**État : réalisé dans l'arbre de travail, à relire et versionner.**
+**État : versionné (`b19de46`) ; reste la relecture par l'exploitant.**
 
 - [x] README et avertissement de sécurité
 - [x] index et sources de vérité
@@ -45,7 +48,9 @@ Un chantier n'est terminé que si :
 - [x] Documenter le déploiement, les préconditions sudo et le rollback
 - [x] Écrire la procédure initiale de sauvegarde et de restauration
 - [x] Définir les contrôles quotidiens, hebdomadaires et mensuels
-- [ ] Fixer et vérifier la rétention journald
+- [x] Fixer et vérifier la rétention journald — `SystemMaxUse=200M` appliqué et constaté actif sur le Pi
+      ([relevé](operations/production-baseline-2026-08-25.md)) ; la source du bruit est tarie côté logiciel
+      (`ds18b20_state=disabled`, voir lot 5)
 - [ ] Exercer le runbook : service mort, config invalide, tâche malsaine, alarme chauffage
 - [ ] Faire lire `healthy` au contrôle de déploiement : `/health/ready` est disponible, `scripts/deploy.sh` interroge encore `/status`
 
@@ -95,20 +100,35 @@ Un chantier n'est terminé que si :
 
 ### Configuration
 
-*(Refonte web : implémenté dans l'arbre de travail, non encore déployé.)*
+*(Phase 3, commit `f840a91` : implémenté et vérifié hors matériel, **non encore déployé**. Bilan :
+[`tasks/audit_phase3_todo.md`](../tasks/audit_phase3_todo.md).)*
 
-- [ ] Créer un `ConfigStore` unique
+- [x] Créer un `ConfigStore` unique — `param/config_store.py`, **seul propriétaire et seul écrivain** de
+      `param.json` ; une unique instance d'`AppConfig` par processus, mutée en place (`replace_from`), donc
+      les références distribuées au boot restent valides sans abonnement
 - [x] Charger une copie candidate et la revalider intégralement
 - [x] Activer `validate_assignment` sur tous les modèles
 - [x] Ajouter les contraintes de bornes et les contraintes croisées température/vitesses
-- [ ] Ajouter les contraintes GPIO (unicité, broches réservées)
-- [ ] Définir migrations et sauvegarde `.bak`
-- [ ] Retirer les lectures disque des chemins de contrôle
+- [ ] Ajouter les contraintes GPIO (unicité, broches réservées) — **bornes BCM 0–27 faites ; l'unicité est
+      délibérément absente** : 27 et 22 portent chacun deux rôles dans la configuration en production, un
+      validateur d'unicité serait un boot mort. Bloqué par le `PinRegistry` et la migration de broches du
+      lot 3, qui doivent arriver ensemble
+- [x] Définir migrations et sauvegarde `.bak` — `param.json.bak` rafraîchi à chaque écriture réussie,
+      repli et **restauration** automatiques au boot si `param.json` est illisible. Pas de « défaut sûr »
+      synthétisable au-delà : sans `GPIO_Settings` aucune broche n'est connue, donc aucune sortie ne peut
+      être mise en état sûr — refuser de démarrer est la seule réponse honnête
+- [x] Retirer les lectures disque des chemins de contrôle — `refresh()` compare `(mtime_ns, taille)` et ne
+      fait **aucune** I/O tant que le fichier est inchangé ; il ne lève jamais, et un échec retient quand
+      même l'empreinte pour ne pas reparser un fichier cassé à chaque tick. Les trois replis artisanaux
+      autour de `AppConfig.load()` ont disparu
 - [x] Distinguer champs à chaud et champs nécessitant redémarrage
 - [x] Créer un `SensorController.reconfigure()` unique avec sérialisation et fermeture
-- [ ] Sortir les secrets vers un environnement protégé
+- [ ] Sortir les secrets vers un environnement protégé — **reporté à la demande de l'exploitant**
+      (26 août 2026)
 - [x] Masquer les secrets dans `/conf`
-- [ ] Faire tourner les identifiants et décider du nettoyage de l'historique Git
+- [ ] Faire tourner les identifiants et décider du nettoyage de l'historique Git — indissociable du point
+      précédent : `pydantic-settings` + `EnvironmentFile=` + `git filter-repo` **puis** rotation effective,
+      en un seul lot ; l'historique reste exposé tant que la rotation n'est pas faite
 
 **Critère de sortie** : aucune configuration invalide n'atteint le disque ou les boucles, toutes les préoccupations observent la même version, et chauffage/ventilation proviennent d'une décision unique testable.
 
@@ -118,7 +138,10 @@ Un chantier n'est terminé que si :
 
 ### I/O et HTTP
 
-*(Refonte web : implémenté dans l'arbre de travail, non encore déployé.)*
+*(Refonte web et capteurs, commits `7d455e4`/`ad39de2` : **déployée et vérifiée** sur le Pi le 25 août 2026
+— [relevé](operations/web-baseline-2026-08-25.md). Contrôle d'origine affiné ensuite par `4eca26d`/`7919419` :
+`Referrer-Policy: same-origin` au lieu de `no-referrer`, faute de quoi Firefox n'envoyait ni `Origin` ni
+`Referer` sur un POST de formulaire et se prenait un `403`.)*
 
 - [x] Migrer vers aiohttp
 - [x] Ajouter timeouts, limites de body et en-têtes de sécurité
@@ -126,10 +149,20 @@ Un chantier n'est terminé que si :
 - [x] Valider `Host` et documenter le filtrage réseau
 - [x] Séparer `/health/live` et `/health/ready`
 - [x] Déplacer l'export Influx et les lectures capteurs hors event loop
-- [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop
-- [ ] Ajouter disjoncteur et métrique d'ancienneté InfluxDB
-- [ ] Ajouter reconnexion Wi-Fi supervisée
-- [ ] Ajouter RTC et politique `time_synced`
+- [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop — **reboot et
+      poweroff faits** (`asyncio.create_subprocess_exec`) ; `nmcli`/`ping`/`timedatectl` restent des
+      `subprocess.run` bloquants **sans `timeout=`**. Ils ne s'exécutent qu'au boot, donc ils ne bloquent
+      pas la boucle aujourd'hui — mais la reconnexion Wi-Fi supervisée ne peut pas exister avant qu'ils en
+      sortent
+- [ ] Ajouter disjoncteur et métrique d'ancienneté InfluxDB — timeout borné (`ClientTimeout(total=4)`) et
+      déduplication des erreurs (`StateLogger`) faits ; rien ne suspend encore les envois après N échecs,
+      et l'ancienneté du dernier point poussé n'est pas publiée
+- [ ] Ajouter reconnexion Wi-Fi supervisée — une perte Wi-Fi en marche reste définitive jusqu'au reboot.
+      **Invariant à préserver** : la régulation locale survit intégralement à une panne réseau
+- [ ] Ajouter RTC et politique `time_synced` — `set_ntp_time()` n'attend ni ne vérifie
+      `NTPSynchronized=yes`, aucun drapeau n'oppose une heure douteuse aux minuteurs journaliers, et le Pi
+      n'a pas de RTC. Après coupure secteur hors réseau, les DailyTimers commutent du 230 V à des heures
+      arbitraires
 
 ### Projet et gouvernance
 
@@ -139,10 +172,17 @@ Un chantier n'est terminé que si :
 - [x] Écrire les ADR initiaux
 - [x] Écrire la checklist de changement sûr
 - [x] Définir le processus de release et de retour arrière
-- [ ] Verrouiller les dépendances compatibles Raspberry Pi
-- [ ] Décider si Docker est supporté, expérimental ou retiré
+- [ ] Verrouiller les dépendances compatibles Raspberry Pi — toujours en `>=`, sans `pip-compile` ni
+      contrôle de vulnérabilités
+- [ ] Décider si Docker est supporté, expérimental ou retiré — **l'image ne démarre pas** :
+      `python:3.9.22-slim-bullseye` alors que `function.py` et `components/dailytimer_handler.py` écrivent
+      `X | None` sans `from __future__ import annotations` (le Pi tourne en 3.11, ce qui masque le défaut).
+      S'y ajoutent `sudo` en PID 1, `NOPASSWD:ALL` et `COPY . .` avant `requirements.txt`. Trancher avant
+      d'investir : réparer ou retirer
 - [x] Supprimer le code mort de la couche web (`api_handler.py`, `monitor.html`, `get_cyclic_period()` cassé)
-- [ ] Supprimer le reste du code mort après vérification des usages
+- [ ] Supprimer le reste du code mort après vérification des usages — `initial_setup_tool.py` reste relatif
+      au répertoire courant (crée un `param.json` fantôme depuis la racine) et écrit encore
+      `period_minutes`, clé que le modèle ne connaît plus ; `param.json.bak-gpio17` traîne dans le dépôt
 - [ ] Mettre en place des validations automatisées minimales et reproductibles
 - [ ] Archiver les TODO remplacés après transfert de leurs informations
 
@@ -160,19 +200,37 @@ Lot 1 Documentation
 
 Le travail documentaire du lot 5 peut commencer plus tôt, mais les références exhaustives de configuration et d'HTTP ne doivent être déclarées stables qu'après les refontes correspondantes.
 
+**Écart assumé au 26 août 2026** : le volet « I/O et HTTP » du lot 5 a été livré **avant** le lot 4, la
+refonte web ayant été menée hors séquence. Cela n'a pas créé de dette — la frontière I/O ne dépendait
+d'aucun des deux autres chantiers — mais le graphe ci-dessus ne décrit plus l'ordre réel. Le seul
+prérequis encore vivant est **lot 3 → contraintes GPIO du lot 4**.
+
 ## Prochaines actions immédiates
 
-1. Relire et versionner le lot 1.
-2. Vérifier le runbook sur le Pi sans déclencher d'action destructive.
-3. Capturer l'unité systemd et ses drop-ins en masquant toute donnée sensible.
-4. Clôturer ou documenter la rotation réelle des logs.
-5. Préparer le schéma et la fenêtre d'intervention matérielle du lot 3.
-6. Ouvrir une décision d'architecture pour l'arbitre thermique avant son implémentation.
+*(Révisées le 26 août 2026. Les lots 4 « thermique » et 4 « configuration » sont clos côté code ; l'ordre
+ci-dessous suit le risque physique résiduel, cohérent avec le séquencement du § 8 de l'audit.)*
+
+1. **Déployer et vérifier le magasin de configuration** (`f840a91`) sur le Pi — c'est le seul chantier
+   terminé qui ne soit pas encore en production.
+2. **Ouvrir le lot 3** : schéma électrique relu hors tension, puis `PinRegistry`, migration des broches
+   moteur et génération de la configuration de boot. Seul chantier restant qui touche la sûreté
+   électrique, et il débloque la contrainte d'unicité GPIO laissée désactivée au lot 4.
+3. **Traiter le temps et le réseau** (RTC / `time_synced`, reconnexion Wi-Fi supervisée) — première classe
+   de panne non électrique : commutation 230 V à contretemps après une coupure secteur hors réseau.
+4. **Exercer le runbook** sur les quatre scénarios prévus, et faire lire `/health/ready` au contrôle de
+   déploiement (`scripts/deploy.sh` interroge encore `/status`).
+5. **Hygiène de build** : épinglage des dépendances, décision Docker, validations automatisées minimales.
+6. **Essai thermique sur plages limites** — dépend de la saison et de la remise en service du chauffage,
+   se planifie indépendamment.
+7. **Secrets (rotation et historique Git)** — reporté par décision de l'exploitant, à reprendre en un lot
+   indivisible.
 
 ## Relation avec les anciens plans
 
-- `AUDIT-2026-08-25.md` reste la preuve historique détaillée.
-- `tasks/audit_phase0_todo.md` et `tasks/audit_phase1_todo.md` restent les bilans des phases réalisées et reportées.
+- `AUDIT-2026-08-25.md` reste la preuve historique détaillée ; son § 8 est le seul suivi d'avancement tenu
+  à jour, cette roadmap en étant la vue par lot livrable.
+- `tasks/audit_phase0_todo.md` à `tasks/audit_phase3_todo.md` restent les bilans des phases réalisées et
+  reportées, avec leurs preuves de vérification.
 - `tasks/logging_refonte_plan.md` conserve le plan initial de logging.
 - `tasks/todo.md` conserve des actions ponctuelles historiques.
 
