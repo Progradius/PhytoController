@@ -56,6 +56,48 @@ Vérifier également les équipements physiquement actifs et les prochaines éch
 
 Le découplage entre santé globale et santé de contrôle modifie la condition de caresse du watchdog. Déployer d'abord avec `PHYTO_HW_WATCHDOG=0` pendant 48 h et neutraliser aussi temporairement `WatchdogSec` si systemd fournit `WATCHDOG_USEC` (`PHYTO_HW_WATCHDOG` ne désactive que l'accès direct à `/dev/watchdog`). Comparer `health.tasks`, `health.domains`, `healthy` et `control_healthy`, puis seulement réarmer le watchdog. Le rollback est déclenché par un écart de régulation, un `control_healthy=false` sans défaut de contrôle réel, ou une absence de heartbeat d'une boucle saine. L'opérateur tranche après conservation du snapshot API, des logs et de l'état GPIO.
 
+#### Dérogation acceptée le 26 août 2026 : observation watchdog armé
+
+Après déploiement et correction du jalon 1, l'opérateur a choisi de conserver le watchdog systemd
+armé à 600 s pendant la fenêtre d'observation. Le désarmer rétroactivement aurait retiré le dernier
+filet de récupération automatique d'une serre déjà en fonctionnement et imposé un redémarrage
+supplémentaire. Cette décision déroge au protocole initial ci-dessus ; elle est acceptée à condition
+que tout redémarrage ou faux négatif de `control_healthy` reste explicitement observable.
+
+La preuve est recueillie pendant 48 h par `scripts/observe-jalon1-watchdog.sh`, sans commande GPIO,
+mutation de configuration ni redémarrage de service. Le script exige un watchdog armé, fixe comme
+références le PID, le compteur systemd `NRestarts`, le `boot_id` et `WatchdogUSec`, puis contrôle toutes
+les minutes :
+
+- `/health/ready`, `healthy` et `control_healthy` ;
+- présence d'au moins une tâche `gates_watchdog` ;
+- vie, santé, restart, stall et dernière erreur de toutes les tâches ;
+- fraîcheur et suivi demandé/réel des actionneurs ;
+- état des capteurs et fiabilité temporelle ;
+- absence de changement de PID, boot, compteur systemd et configuration watchdog.
+
+Lancer depuis `RPi Version/` après le dernier déploiement du jalon 1 :
+
+```bash
+nohup bash ./scripts/observe-jalon1-watchdog.sh \
+  > /tmp/phyto-jalon1-observation.log 2>&1 &
+echo $!
+```
+
+Suivre sans interrompre l'observateur :
+
+```bash
+tail -f /tmp/phyto-jalon1-observation.log
+cat ~/phyto-observations/latest-jalon1-watchdog-arme.txt
+```
+
+Le répertoire indiqué contient `metadata.txt`, `samples.jsonl` et, au terme des 48 h,
+`summary.json`. Le résultat n'est accepté que si `summary.json.status` vaut `accepted`, sans
+échantillon en échec. Une interruption, un redémarrage, une tâche relancée/bloquée, une perte de
+santé ou une modification du watchdog invalide la fenêtre. Un capteur non `ok` ou une heure non
+fiable produit un avertissement à examiner, sans masquer l'état du contrôle. Aucun déploiement ne doit
+être lancé pendant cette fenêtre, puisqu'il changerait volontairement le PID et invaliderait la preuve.
+
 ## Rollback manuel d'urgence
 
 Ne pas improviser un `git reset --hard`. Avant une action manuelle :
