@@ -30,6 +30,7 @@ from controllers.PuppetMaster import PuppetMaster
 from model.SensorStats import SensorStats
 
 from param.config_store import shared_config
+from utils.time_reliability import time_reliability
 
 # =============================================================
 #                  VARIABLES GLOBALES SÉCURITÉ
@@ -202,6 +203,7 @@ except Exception:
 try:
     action("Synchronisation NTP…", name=LOGGER_NAME)
     set_ntp_time()
+    time_reliability().probe()
 except Exception:
     warning("NTP indisponible → heure non synchronisée", name=LOGGER_NAME)
 

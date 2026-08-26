@@ -16,6 +16,13 @@
         "stop_hour": 11,
         "stop_minute": 0
     },
+    "Day_Night_Settings": {
+        "source": "dailytimer1",
+        "start_hour": 8,
+        "start_minute": 0,
+        "stop_hour": 20,
+        "stop_minute": 0
+    },
     "Cyclic1_Settings": {
         "enabled": "enabled",
         "mode": "séquentiel",

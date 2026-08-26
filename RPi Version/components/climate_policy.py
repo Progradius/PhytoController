@@ -196,6 +196,7 @@ class ClimateDecision:
 
     heater_on: bool
     motor_speed: int
+    motor_speed_requested: int
     state: str
     reason: str
     alarm: str | None = None
@@ -207,6 +208,7 @@ class ClimateDecision:
     renew_minutes_quota: float = 0.0
     humidity_minutes_used: float = 0.0
     humidity_minutes_quota: float = 0.0
+    dwell_remaining_seconds: float = 0.0
 
 
 # ─────────────────────────────────────────────────────────────
@@ -539,6 +541,7 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
     decision = ClimateDecision(
         heater_on=heater_on,
         motor_speed=speed,
+        motor_speed_requested=wanted,
         state=state,
         reason=f"chauffage : {heater_reason} · ventilation : {motor_reason}",
         alarm=alarm,
@@ -550,6 +553,11 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
         renew_minutes_quota=settings.winter_refresh_minutes_per_hour,
         humidity_minutes_used=round(memory.humidity_minutes_used, 2),
         humidity_minutes_quota=settings.winter_humidity_minutes_per_hour,
+        dwell_remaining_seconds=round(
+            max(0.0, settings.min_dwell_seconds - (inputs.now_mono - memory.motor_speed_since)), 1
+            if speed != wanted else 0.0,
+            1,
+        ),
     )
     return decision, memory
 

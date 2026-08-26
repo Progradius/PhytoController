@@ -2,13 +2,15 @@
 # Author  : Progradius
 # License : AGPL-3.0
 
-from datetime import datetime, timedelta, time, date
+from datetime import datetime, timedelta, time
 from time import time as epoch_now
 
 from utils.pretty_console import box, debug, info, error, warning
 from utils.state_store import shared_store
 from utils.supervisor import beat, sleep as hb_sleep
-from param.config import AppConfig
+from utils.operational_state import publish
+from utils.schedule import is_day
+from utils.time_reliability import time_reliability
 from param.config_store import shared_config
 
 LOGGER_NAME = "timer.cyclic"
@@ -21,6 +23,23 @@ aSYNC_COL_INFO = "cyan"
 aSYNC_COL_WARN = "red"
 
 aSYNC_SLEEP_TEMPLATE = "[J] #{tid} SLEEP {msg}"
+
+
+def _next_journalier_trigger(now: datetime, period_days: int,
+                             triggers_per_day: int, first_hour: int) -> datetime:
+    """Retourne le prochain déclenchement strictement futur, sans rattrapage."""
+    interval = aSYNC_DAY // triggers_per_day
+    for offset in range(0, period_days + 2):
+        candidate_day = now.date() + timedelta(days=offset)
+        if candidate_day.toordinal() % period_days:
+            continue
+        first = datetime.combine(candidate_day, time(first_hour, 0))
+        for index in range(triggers_per_day):
+            candidate = first + timedelta(seconds=index * interval)
+            if candidate > now:
+                return candidate
+    # La boucle couvre toujours au moins un jour admissible ; garde défensive.
+    return datetime.combine(now.date() + timedelta(days=period_days), time(first_hour, 0))
 
 
 def _save_phase(store, section: str, phase: str, duration: float) -> None:
@@ -81,6 +100,7 @@ async def timer_cyclic(cyclic_timer) -> None:
     # sortie cyclique (audit C7, E7).
     config_store = shared_config()
     zero_cycle_reported = False
+    equipment_id = f"cyclic_{tid}"
 
     while True:
         beat()
@@ -106,6 +126,9 @@ async def timer_cyclic(cyclic_timer) -> None:
             except Exception as e:
                 error(f"Cyclic #{tid} : extinction du GPIO {gpio_pin} échouée → {e}",
                       name=LOGGER_NAME)
+            publish(equipment_id, stale_after=10, requested="off", mode="désactivé",
+                    reason="minuterie désactivée", since_mono=None,
+                    next_transition={"type": "none"})
             await hb_sleep(5)
             continue
 
@@ -125,40 +148,45 @@ async def timer_cyclic(cyclic_timer) -> None:
             triggers_per_day  = cyclic_timer.get_triggers_per_day()
             first_hour        = cyclic_timer.get_first_trigger_hour()
             action_duration   = cyclic_timer.get_action_duration()
-            interval_seconds  = aSYNC_DAY // triggers_per_day
+            reliability = time_reliability()
+            if reliability.daily_suspended():
+                comp.set_state(0)
+                publish(equipment_id, stale_after=70, requested="suspended",
+                        mode="journalier", reason="heure inconnue : impulsions suspendues",
+                        since_mono=reliability.boot_mono,
+                        next_transition={"type": "safety_deadline",
+                                         "in_seconds": round(max(0, 900 - reliability.unknown_seconds), 1)})
+                await hb_sleep(30)
+                continue
 
-            today_ord   = date.today().toordinal()
-            days_offset = (period_days - (today_ord % period_days)) % period_days
-            if days_offset:
-                msg = f"{days_offset} jour{'s' if days_offset > 1 else ''}"
-                debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=msg), name=LOGGER_NAME)
-                await hb_sleep(days_offset * aSYNC_DAY)
-
-            # on refait la journée
-            day0 = date.today()
-            trigger0 = datetime.combine(day0, time(first_hour, 0))
-            for n in range(triggers_per_day):
-                trig_time = trigger0 + timedelta(seconds=n * interval_seconds)
-                now = datetime.now()
-                if trig_time > now:
-                    delay = (trig_time - now).total_seconds()
-                    debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{int(delay)} s"), name=LOGGER_NAME)
-                    await hb_sleep(delay)
-
-                # ON → attente → OFF garanti : le `finally` du contexte coupe
-                # la sortie même si la tâche est annulée ou lève pendant
-                # l'attente (audit E5).
-                box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
-                with comp.energized():
-                    await hb_sleep(action_duration)
-                box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
-
-            # fin de journée
-            debug(aSYNC_SLEEP_TEMPLATE.format(tid=tid, msg=f"{period_days} jour(s)"), name=LOGGER_NAME)
-            await hb_sleep(period_days * aSYNC_DAY)
+            now = datetime.now()
+            trigger = _next_journalier_trigger(now, period_days, triggers_per_day, first_hour)
+            delay = (trigger - now).total_seconds()
+            publish(equipment_id, stale_after=70, requested="off", mode="journalier",
+                    reason="attente de la prochaine impulsion future", since_mono=None,
+                    next_transition={"type": "clock", "at": trigger.isoformat(timespec="seconds")})
+            # Tranches courtes : un hand-edit de param.json est pris en compte
+            # sans attendre plusieurs jours. Le prochain tour recalcule tout.
+            if delay > 30:
+                await hb_sleep(30)
+                continue
+            await hb_sleep(delay)
+            if datetime.now() < trigger:
+                continue
+            from time import monotonic
+            started = monotonic()
+            publish(equipment_id, stale_after=max(70, 2 * action_duration), requested="on",
+                    mode="journalier", reason="impulsion planifiée", since_mono=started,
+                    next_transition={"type": "clock", "in_seconds": action_duration})
+            box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
+            with comp.energized():
+                await hb_sleep(action_duration)
+            box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
 
         elif mode == "séquentiel":
-            if _is_day_from(cfg):
+            # Avant une preuve NTP, le séquentiel continue avec ses paramètres
+            # nuit : jamais de suspension ni d'OFF illimité.
+            if time_reliability().use_day_settings() and is_day(cfg):
                 on_d  = cyclic_timer.get_on_time_day()
                 off_d = cyclic_timer.get_off_time_day()
                 phase = "Jour"
@@ -178,6 +206,9 @@ async def timer_cyclic(cyclic_timer) -> None:
                             "rien à piloter, cycle en attente", name=LOGGER_NAME)
                     zero_cycle_reported = True
                 comp.set_state(0)
+                publish(equipment_id, stale_after=130, requested="off", mode="séquentiel",
+                        reason=f"{phase.lower()} : cycle nul", since_mono=None,
+                        next_transition={"type": "none"})
                 await hb_sleep(60)
                 continue
             zero_cycle_reported = False
@@ -195,34 +226,31 @@ async def timer_cyclic(cyclic_timer) -> None:
                     # La phase ON du cycle interrompu est déjà passée : on
                     # termine l'attente OFF avant de reprendre le cycle normal.
                     _save_phase(store, state_section, "off", remaining)
+                    publish(equipment_id, stale_after=max(70, 2 * remaining), requested="off",
+                            mode="séquentiel", reason="reprise de la phase OFF",
+                            since_mono=None, next_transition={"type": "clock", "in_seconds": round(remaining, 1)})
                     await hb_sleep(remaining)
                     continue
 
             # ON → attente → OFF garanti (audit E5)
             box(f"[S][{phase}] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
             _save_phase(store, state_section, "on", on_remaining)
+            from time import monotonic
+            publish(equipment_id, stale_after=max(70, 2 * on_remaining), requested="on",
+                    mode="séquentiel", reason=f"phase ON ({phase.lower()})",
+                    since_mono=monotonic(),
+                    next_transition={"type": "clock", "in_seconds": round(on_remaining, 1)})
             with comp.energized():
                 await hb_sleep(on_remaining)
 
             box(f"[S][{phase}] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
             _save_phase(store, state_section, "off", off_remaining)
+            publish(equipment_id, stale_after=max(70, 2 * off_remaining), requested="off",
+                    mode="séquentiel", reason=f"phase OFF ({phase.lower()})",
+                    since_mono=monotonic(),
+                    next_transition={"type": "clock", "in_seconds": round(off_remaining, 1)})
             await hb_sleep(off_remaining)
 
         else:
             error(f"CyclicTimer #{tid} mode inconnu : « {mode} » → arrêt du timer", name=LOGGER_NAME)
             return
-
-
-def _is_day_from(cfg: AppConfig) -> bool:
-    from datetime import datetime
-    now      = datetime.now()
-    start_h  = cfg.daily_timer1.start_hour
-    start_m  = cfg.daily_timer1.start_minute
-    stop_h   = cfg.daily_timer1.stop_hour
-    stop_m   = cfg.daily_timer1.stop_minute
-
-    start = start_h * 60 + start_m
-    stop  = stop_h  * 60 + stop_m
-    now_m = now.hour * 60 + now.minute
-
-    return (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)

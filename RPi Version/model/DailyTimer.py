@@ -7,9 +7,10 @@
 # -------------------------------------------------------------
 
 from datetime import datetime
-from function import convert_time_to_minutes
 from param.config import AppConfig
 from param.config_store import shared_config
+from utils.schedule import clock_in_range
+from utils.time_reliability import time_reliability
 from utils.pretty_console import debug, info, error
 
 LOGGER_NAME = "timer.daily"
@@ -52,8 +53,9 @@ class DailyTimer:
             name=LOGGER_NAME,
         )
 
-        # Synchronisation immédiate
-        if self.enabled:
+        # Synchronisation immédiate uniquement si l'heure est exploitable. Au
+        # boot inconnu, la broche reste dans l'état sûr HIGH posé par main.py.
+        if self.enabled and not time_reliability().daily_suspended():
             changed = self.toggle_state_daily()
             if changed:
                 state = "ON" if self.component.get_state() else "OFF"
@@ -132,14 +134,10 @@ class DailyTimer:
             return False
 
         # 2. logique habituelle
-        start = convert_time_to_minutes(self.start_hour, self.start_minute)
-        stop = convert_time_to_minutes(self.stop_hour, self.stop_minute)
         now = datetime.now()
-        now_m = convert_time_to_minutes(now.hour, now.minute)
-
-        active = (
-            (start <= now_m <= stop) if start <= stop
-            else (now_m >= start or now_m <= stop)
+        active = clock_in_range(
+            now, self.start_hour, self.start_minute,
+            self.stop_hour, self.stop_minute,
         )
         current = bool(self.component.get_state())
         changed = False

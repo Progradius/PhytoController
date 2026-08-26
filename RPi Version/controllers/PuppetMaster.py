@@ -19,6 +19,8 @@ from utils.supervisor import TaskSupervisor
 from utils.supervisor import beat, sleep as hb_sleep
 from utils import watchdog
 from param.config import AppConfig
+from utils.operational_state import publish
+from utils.time_reliability import monitor_time_reliability
 
 LOGGER_NAME = "puppetmaster"
 
@@ -46,8 +48,10 @@ class PuppetMaster:
       • Serveur HTTP (pages + API)
 
     Chaque job est confié au `TaskSupervisor` : il est relancé après remise à
-    l'état sûr, son battement de cœur est surveillé, et sa santé conditionne le
-    coup de patte au watchdog. Une régulation ne peut plus s'arrêter en silence.
+    l'état sûr et son battement de cœur est surveillé. Seuls timers, climat et
+    acquisition conditionnent le watchdog ; HTTP et télémétrie restent visibles
+    dans la santé globale sans pouvoir redémarrer la serre. Une régulation ne
+    peut plus s'arrêter en silence.
     """
 
     def __init__(
@@ -110,9 +114,22 @@ class PuppetMaster:
             component.set_state(0)
         return _safe
 
+    @staticmethod
+    def _component_off_reported(component, equipment_id):
+        def _safe():
+            component.set_state(0)
+            publish(equipment_id, stale_after=MAX_SILENCE_SECONDS * 2,
+                    requested="off", mode="état sûr",
+                    reason="relance après défaut", since_mono=None,
+                    next_transition={"type": "none"})
+        return _safe
+
     def _motor_off(self) -> None:
         """État sûr moteur : les 4 relais actifs-HAUT à LOW."""
         self.motor_handler.all_off()
+        publish("motor", stale_after=MAX_SILENCE_SECONDS * 2, requested=0,
+                applied=0, mode="état sûr", reason="relance après défaut",
+                since_mono=None, next_transition={"type": "none"})
 
     def _climate_off(self) -> None:
         """
@@ -124,8 +141,11 @@ class PuppetMaster:
         """
         try:
             self.heater.set_state(0)
+            publish("heater", stale_after=MAX_SILENCE_SECONDS * 2,
+                    requested="off", mode="état sûr", reason="relance après défaut",
+                    since_mono=None, next_transition={"type": "none"})
         finally:
-            self.motor_handler.all_off()
+            self._motor_off()
 
     # ──────────────────────────────────────────────────────────
     def _register_jobs(self) -> None:
@@ -135,28 +155,32 @@ class PuppetMaster:
         sup.register(
             "daily_timer_1",
             lambda: timer_daily(self.dailytimer1, sampling_time=60),
-            safe_state=self._component_off(self.dailytimer1.component),
+            safe_state=self._component_off_reported(self.dailytimer1.component, "daily_1"),
             max_silence=MAX_SILENCE_SECONDS,
+            domain="timers", gates_watchdog=True,
         )
         sup.register(
             "daily_timer_2",
             lambda: timer_daily(self.dailytimer2, sampling_time=60),
-            safe_state=self._component_off(self.dailytimer2.component),
+            safe_state=self._component_off_reported(self.dailytimer2.component, "daily_2"),
             max_silence=MAX_SILENCE_SECONDS,
+            domain="timers", gates_watchdog=True,
         )
 
         # --- Cyclic timers ---
         sup.register(
             "cyclic_timer_1",
             lambda: timer_cyclic(self.cyclic_timer1),
-            safe_state=self._component_off(self.cyclic_timer1.component),
+            safe_state=self._component_off_reported(self.cyclic_timer1.component, "cyclic_1"),
             max_silence=MAX_SILENCE_SECONDS,
+            domain="timers", gates_watchdog=True,
         )
         sup.register(
             "cyclic_timer_2",
             lambda: timer_cyclic(self.cyclic_timer2),
-            safe_state=self._component_off(self.cyclic_timer2.component),
+            safe_state=self._component_off_reported(self.cyclic_timer2.component, "cyclic_2"),
             max_silence=MAX_SILENCE_SECONDS,
+            domain="timers", gates_watchdog=True,
         )
 
         # --- Arbitre thermique (chauffage + ventilation) ---
@@ -173,6 +197,7 @@ class PuppetMaster:
             ),
             safe_state=self._climate_off,
             max_silence=MAX_SILENCE_SECONDS,
+            domain="climate", gates_watchdog=True,
         )
 
         # --- Snapshot capteurs partagé ---
@@ -180,6 +205,7 @@ class PuppetMaster:
             "sensor_snapshot",
             lambda: refresh_sensor_snapshot(self.sensor_handler, period=10),
             max_silence=MAX_SILENCE_SECONDS,
+            domain="sensors", gates_watchdog=True,
         )
 
         # --- InfluxDB push ---
@@ -196,7 +222,8 @@ class PuppetMaster:
         sup.register(
             "influx_push",
             lambda: write_sensor_values(period=60),
-            max_silence=MAX_SILENCE_SECONDS,
+            max_silence=None,
+            domain="telemetry", gates_watchdog=False,
         )
 
         # --- Serveur HTTP ---
@@ -215,7 +242,13 @@ class PuppetMaster:
             cyclic_timer2=self.cyclic_timer2,
             heater_component=self.heater,
         )
-        sup.register("http_server", server.run, max_silence=None)
+        sup.register("http_server", server.run, max_silence=None,
+                     domain="http", gates_watchdog=False)
+
+        sup.register(
+            "time_monitor", monitor_time_reliability,
+            max_silence=120, domain="time", gates_watchdog=False,
+        )
 
     # ──────────────────────────────────────────────────────────
     async def main_loop(self) -> None:
@@ -230,8 +263,8 @@ class PuppetMaster:
         # de la panne (audit E2).
         loop.create_task(
             watchdog.watchdog_loop(
-                self.supervisor.is_healthy,
-                self.supervisor.unhealthy_names,
+                self.supervisor.control_healthy,
+                self.supervisor.unhealthy_control_names,
             ),
             name="watchdog",
         )

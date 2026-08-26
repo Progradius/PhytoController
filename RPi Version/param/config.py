@@ -37,6 +37,15 @@ class DailyTimerSettings(ValidatedModel):
         return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
+class DayNightSettings(ValidatedModel):
+    """Référence globale du jour/nuit, héritée explicitement ou personnalisée."""
+    source: Literal["dailytimer1", "custom"] = "dailytimer1"
+    start_hour: int = Field(8, ge=0, le=23)
+    start_minute: int = Field(0, ge=0, le=59)
+    stop_hour: int = Field(20, ge=0, le=23)
+    stop_minute: int = Field(0, ge=0, le=59)
+
+
 class CyclicSettings(ValidatedModel):
     """
     Deux modes :
@@ -233,6 +242,7 @@ class AppConfig(ValidatedModel):
     life_period: LifePeriod = Field(..., alias="Life_Period")
     daily_timer1: DailyTimerSettings = Field(..., alias="DailyTimer1_Settings")
     daily_timer2: DailyTimerSettings = Field(..., alias="DailyTimer2_Settings")
+    day_night: DayNightSettings = Field(default_factory=DayNightSettings, alias="Day_Night_Settings")
     cyclic1: CyclicSettings = Field(..., alias="Cyclic1_Settings")
     cyclic2: CyclicSettings = Field(..., alias="Cyclic2_Settings")
     temperature: TemperatureSettings = Field(..., alias="Temperature_Settings")
