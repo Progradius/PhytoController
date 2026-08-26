@@ -344,7 +344,8 @@ if (( failure_count > 0 )); then
     exit 1
 fi
 if (( warning_count > 0 )); then
-    info "Résultat : accepté avec $warning_count avertissement(s)"
+    info "Résultat : À EXAMINER ($warning_count avertissement(s))"
+    exit 3
 else
     info "Résultat : accepté sans anomalie"
 fi
