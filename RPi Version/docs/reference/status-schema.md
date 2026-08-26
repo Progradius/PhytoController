@@ -13,12 +13,26 @@ Exemple abrégé, sans valeurs de production :
   "generated_at": "2026-08-25T21:14:03.512Z",
   "health": {
     "healthy": true,
+    "control_healthy": true,
     "heater_alarm": null,
     "tasks": {
       "climate_control": {
         "alive": true, "healthy": true, "silence_s": 4.2, "max_silence_s": 300.0,
         "restarts": 0, "reloads": 1, "stalls": 0, "last_error": null
       }
+    }
+  },
+  "time": {
+    "state": "synchronized", "observed_state": "synchronized",
+    "daily_timers_suspended": false, "alarm": null
+  },
+  "day_night": {"source": "dailytimer1", "start": "19:00", "stop": "07:00", "empty": false},
+  "equipment": {"daily_1": {"display_name": "Éclairage 1", "dashboard_visible": true}},
+  "actuators": {
+    "daily_1": {
+      "requested": "on", "actual": "on", "reason": "dans la plage [début, fin)",
+      "since_seconds": 121.4, "stale": false, "tracking": "ok",
+      "next_transition": {"type": "clock", "at": "07:00"}
     }
   },
   "outputs": {
@@ -61,9 +75,15 @@ Exemple abrégé, sans valeurs de production :
 | `schema_version` | Entier ; toute évolution non additive doit l'incrémenter |
 | `generated_at` | Instant de génération, UTC ISO 8601 suffixé `Z` |
 | `health.healthy` | Santé agrégée du superviseur |
+| `health.control_healthy` | Santé des seuls timers, climat et acquisition qui gouvernent le watchdog |
+| `health.domains` | Santé regroupée par domaine, contrôle et auxiliaires distingués |
 | `health.heater_alarm` | `null` ou texte d'alarme thermique persistante (nom historique conservé) |
 | `health.tasks` | Snapshot par travail supervisé |
 | `outputs` | État **logique** de chaque sortie : `on`, `off` ou `unknown` |
+| `time` | Fiabilité de l'heure, suspension bornée des minuteries et alarme éventuelle |
+| `day_night` | Source et plage jour/nuit effectivement résolues |
+| `equipment` | Métadonnées descriptives, sans effet sur le contrôle |
+| `actuators` | Consigne, relecture GPIO instantanée, motif, durée monotone, prochaine transition et suivi demandé/réel |
 | `motor.speed` / `motor.percent` | Vitesse logique 0–4 et son pourcentage |
 | `climate.state` | État de l'arbitre : `DESACTIVE`, `CHAUFFER`, `NEUTRE`, `VENTILER`, `RENOUVELER`, `DESHUMIDIFIER`, `SECURITE_HAUTE`, `PLANCHER_THERMIQUE`, `REPLI_CAPTEUR`, `MANUEL` |
 | `climate.reason` | Motif lisible de la décision, chauffage puis ventilation |
@@ -100,6 +120,10 @@ Pour une tâche :
 - `reloads` : relances **volontaires** après changement de configuration ;
 - `stalls` : blocages silencieux détectés ;
 - `last_error` : dernière erreur connue.
+- `domain` : domaine de santé affiché ;
+- `gates_watchdog` : indique si cette tâche participe à `control_healthy`.
+
+Le registre `actuators` ne conserve jamais l'état matériel réel : celui-ci est relu pendant la requête HTTP. Une publication métier plus vieille que deux périodes porte `stale=true`, une consigne `unknown` et un suivi `unknown`. `tracking=known_hardware_fault` signifie que l'écart demandé/relu est couvert par l'annotation `out_of_service`, non qu'il est résolu.
 
 ## `/health/live` et `/health/ready`
 
@@ -122,14 +146,16 @@ les fautifs. C'est la sonde à brancher sur une supervision externe.
   "cyclic": {"period": 1, "duration": 30},
   "heater_alarm": null,
   "healthy": true,
+  "control_healthy": true,
+  "time": {"state": "synchronized"},
   "tasks": {}
 }
 ```
 
-`cyclic.period` est désormais une période en **jours** (`period_days`) ; le contournement par
+Les champs historiques restent figés ; les ajouts `control_healthy`, `time` et `health_domains`
+sont additifs. `cyclic.period` est désormais une période en **jours** (`period_days`) ; le contournement par
 `getattr` a disparu en même temps que le champ `period_minutes` inexistant lu par
-`SystemStatus.get_cyclic_period()`. Ce format est figé : toute nouvelle information va dans
-`/api/v1/state`.
+`SystemStatus.get_cyclic_period()`. Les détails d'actionneurs restent réservés à `/api/v1/state`.
 
 ## Interprétation
 

@@ -10,6 +10,8 @@
 | `NOTIFY_SOCKET` | fourni par systemd | Active `sd_notify` | Fourni avec `Type=notify` |
 | `WATCHDOG_USEC` | fourni par systemd | Timeout watchdog applicatif | 600 s observés |
 | `WATCHDOG_PID` | fourni éventuellement par systemd | Vérifie le destinataire | Géré par systemd |
+| `PHYTO_FAKE_TIME_UNSYNCED` | absent | Injection de vérification : force l'état temporel `unknown` | **Jamais en production nominale** |
+| `PHYTO_FAKE_CONTROL_UNHEALTHY` | absent | Injection de vérification : force `control_healthy()` à faux | **Jamais en production nominale** |
 
 Variables des scripts locaux :
 

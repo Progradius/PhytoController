@@ -17,6 +17,7 @@ Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `po
 | `Life_Period` | `LifePeriod` | Stade affiché/métier | Objet partagé, comportement limité |
 | `DailyTimer1_Settings` | `DailyTimerSettings` | Sortie journalière 1 | Relue en boucle |
 | `DailyTimer2_Settings` | `DailyTimerSettings` | Sortie journalière 2 | Relue en boucle |
+| `Day_Night_Settings` | `DayNightSettings` | Référence globale jour/nuit | À chaud ; héritage explicite ou horaires personnalisés |
 | `Cyclic1_Settings` | `CyclicSettings` | Sortie cyclique 1 | Relue par itération, parfois tardivement |
 | `Cyclic2_Settings` | `CyclicSettings` | Sortie cyclique 2 | Relue par itération, parfois tardivement |
 | `Temperature_Settings` | `TemperatureSettings` | Consignes et arbitrage thermique | À chaud : relance de `climate_control` |
@@ -37,7 +38,11 @@ Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `po
 | `stop_hour` | int | 0–23 | Borné dans le modèle |
 | `stop_minute` | int | 0–59 | Borné dans le modèle |
 
-Les plages traversant minuit sont gérées. L'IHM poste `start_time`/`stop_time` au format `HH:MM` (les secondes éventuelles d'un navigateur sont ignorées) ; une valeur hors bornes est refusée en 422 sans toucher au fichier.
+Les plages traversant minuit sont gérées avec une sémantique unique `[début, fin)` : la borne de fin est exclue et `début == fin` décrit une plage vide. L'IHM poste `start_time`/`stop_time` au format `HH:MM` (les secondes éventuelles d'un navigateur sont ignorées) ; une valeur hors bornes est refusée en 422 sans toucher au fichier.
+
+## Référence jour/nuit
+
+`Day_Night_Settings.source` vaut `dailytimer1` ou `custom`. Avec `dailytimer1`, le climat et les cycles séquentiels suivent en continu les horaires de la minuterie 1 ; les quatre horaires personnalisés restent mémorisés sans être utilisés. Avec `custom`, ils définissent la plage jour selon la même règle `[début, fin)`. Avant une preuve NTP, le climat et les cycles séquentiels utilisent toujours les paramètres nuit.
 
 ## Timers cycliques
 
@@ -54,7 +59,11 @@ Les plages traversant minuit sont gérées. L'IHM poste `start_time`/`stop_time`
 | `on_time_night` | int | >= 0 | Secondes ON la nuit |
 | `off_time_night` | int | >= 0 | Secondes OFF la nuit |
 
-Une désactivation peut être prise en compte tardivement si la boucle dort sur une longue période métier. Le futur ordonnanceur doit recalculer des échéances absolues à intervalle court.
+Le mode journalier recalcule une échéance strictement future toutes les 30 secondes : aucune impulsion passée n'est rattrapée. Les longues attentes restent donc réactives à un hand-edit de configuration. Le mode séquentiel conserve sa phase persistée et utilise les paramètres nuit tant que l'heure n'est pas synchronisée.
+
+## Métadonnées d'équipements
+
+`param/equipment_metadata.json` est volontairement séparé de `param.json` et écrit atomiquement. Il indexe `daily_1`, `daily_2`, `cyclic_1`, `cyclic_2`, `motor` et `heater`. Les champs descriptifs (`display_name`, `usage_type`, `zone`, `icon`, `wiring_note`, `dashboard_visible`, `out_of_service`) n'ont aucun effet sur le contrôle. Les booléens sont des booléens JSON natifs. Un fichier absent ou illisible rend le catalogue par défaut sans empêcher le démarrage.
 
 ## Température et chauffage
 
