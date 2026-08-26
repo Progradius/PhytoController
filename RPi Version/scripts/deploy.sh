@@ -2,13 +2,22 @@
 # ---------------------------------------------------------------------------
 # Deploiement PhytoController — a lancer DEPUIS le Raspberry Pi de prod.
 #
-#   ./scripts/deploy.sh                 # pull sur la branche courante + restart
-#   ./scripts/deploy.sh master          # bascule sur master, pull, restart
-#   ./scripts/deploy.sh --config-git    # prend aussi le param.json du depot
-#   ./scripts/deploy.sh --sans-restart  # met a jour le code sans toucher au service
+#   ./scripts/deploy.sh                      # redeploie la derniere cible utilisee
+#   ./scripts/deploy.sh master               # deploie origin/master
+#   ./scripts/deploy.sh feature/ma-branche   # deploie origin/feature/ma-branche
+#   ./scripts/deploy.sh v1.2.0               # deploie un tag, ou un SHA
+#   ./scripts/deploy.sh --config-git         # prend aussi le param.json du depot
+#   ./scripts/deploy.sh --sans-restart       # met a jour le code sans toucher au service
+#
+# Le Pi est un checkout de LECTURE : HEAD est toujours detache sur la cible
+# (origin/<branche>, tag ou SHA). Aucune branche locale n'est creee ni deplacee,
+# donc pas d'echec "fast-forward impossible" quand la branche de test est
+# reecrite (rebase, force-push), et un rollback qui ne detruit aucun historique.
+# La cible est memorisee dans `git config phyto.deployRef` et reprise telle
+# quelle quand deploy.sh est relance sans argument.
 #
 # Garanties :
-#   - la config vivante (param/param.json, sensor_stats.json) est sauvegardee
+#   - la config vivante (param.json, metadonnees, sensor_stats.json) est sauvegardee
 #     puis restauree : un deploiement ne perd jamais les reglages de la serre ;
 #   - le code est verifie (compileall) AVANT de couper le service ;
 #   - si le service ne repond pas apres redemarrage, rollback automatique sur
@@ -35,10 +44,14 @@ SERVICE="phyto"
 PORT="8123"
 VENV_PY="$APP_DIR/venv/bin/python3"
 SAUVEGARDES="$HOME/phyto-backups"
-FICHIERS_CONFIG=("param/param.json" "param/sensor_stats.json")
+FICHIERS_CONFIG=(
+    "param/param.json"
+    "param/equipment_metadata.json"
+    "param/sensor_stats.json"
+)
 DELAI_SANTE=45                                     # secondes avant de declarer l'echec
 
-BRANCHE=""
+CIBLE=""
 CONFIG_DEPUIS_GIT=0
 AVEC_RESTART=1
 
@@ -58,11 +71,17 @@ for arg in "$@"; do
     case "$arg" in
         --config-git)    CONFIG_DEPUIS_GIT=1 ;;
         --sans-restart)  AVEC_RESTART=0 ;;
-        -h|--help)       sed -n '2,14p' "$0"; exit 0 ;;
+        -h|--help)       sed -n '2,24p' "$0"; exit 0 ;;
         -*)              mourir "Option inconnue : $arg" ;;
-        *)               BRANCHE="$arg" ;;
+        *)               [[ -z "$CIBLE" ]] || mourir "Une seule cible a la fois (recu : $CIBLE puis $arg)."
+                         CIBLE="$arg" ;;
     esac
 done
+
+# `git branch -a` affiche "remotes/origin/feature/x" : on accepte ce copier-coller
+# comme "feature/x". Le prefixe est retire, jamais le nom de branche lui-meme.
+CIBLE="${CIBLE#remotes/}"
+CIBLE="${CIBLE#origin/}"
 
 # --- Verifications prealables ------------------------------------------------
 [[ $EUID -ne 0 ]] || mourir "Ne pas lancer en root : le service tourne sous $(id -un 1000 2>/dev/null || echo progradius)."
@@ -71,12 +90,17 @@ sudo -n true 2>/dev/null || mourir "sudo sans mot de passe requis (systemctl res
 
 cd "$REPO_DIR"
 
-# Branche cible : l'argument, sinon la branche suivie par HEAD, sinon la branche
-# par defaut du depot distant. Le nom local peut differer du nom distant (un
-# clone nomme "main" en face d'un depot dont la branche est "master") : c'est le
-# nom cote origin qui compte pour le fetch/merge.
-branche_par_defaut() {
-    local amont tete
+# Cible : l'argument, sinon la derniere cible deployee (memorisee ici meme),
+# sinon la branche suivie par HEAD, sinon la branche par defaut du depot distant.
+# Le nom local peut differer du nom distant (un clone nomme "main" en face d'un
+# depot dont la branche est "master") : c'est le nom cote origin qui compte.
+cible_par_defaut() {
+    local memo amont tete courante
+    memo="$(git config --local --get phyto.deployRef 2>/dev/null || true)"
+    if [[ -n "$memo" ]]; then
+        printf '%s\n' "$memo"
+        return
+    fi
     amont="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
     if [[ -n "$amont" ]]; then
         printf '%s\n' "${amont#origin/}"
@@ -87,12 +111,16 @@ branche_par_defaut() {
         printf '%s\n' "${tete#origin/}"
         return
     fi
-    git rev-parse --abbrev-ref HEAD
+    # HEAD deja detache sans memo : on ne peut pas deviner, master est la
+    # branche de production de ce depot.
+    courante="$(git rev-parse --abbrev-ref HEAD)"
+    [[ "$courante" == "HEAD" ]] && courante="master"
+    printf '%s\n' "$courante"
 }
-BRANCHE="${BRANCHE:-$(branche_par_defaut)}"
+CIBLE="${CIBLE:-$(cible_par_defaut)}"
 SHA_AVANT="$(git rev-parse HEAD)"
 info "Depot   : $REPO_DIR"
-info "Branche : $(git rev-parse --abbrev-ref HEAD) -> $BRANCHE"
+info "Cible   : $CIBLE"
 info "Commit  : $(git log -1 --oneline)"
 
 # --- 1. Sauvegarde de la config vivante --------------------------------------
@@ -126,23 +154,29 @@ fi
 
 # --- 3. Recuperation du code -------------------------------------------------
 info "git fetch origin"
-git fetch --prune origin
+git fetch --prune --tags origin
 git remote set-head origin --auto >/dev/null 2>&1 || true
-if ! git rev-parse --verify "origin/$BRANCHE" >/dev/null 2>&1; then
-    echec "La branche origin/$BRANCHE n'existe pas. Branches disponibles :"
+
+# Une branche distante d'abord (le cas courant), sinon un tag ou un SHA : la
+# meme commande sert a deployer une branche de test et a rejouer un commit precis.
+if git rev-parse --verify --quiet "refs/remotes/origin/$CIBLE^{commit}" >/dev/null; then
+    CIBLE_REF="origin/$CIBLE"
+elif git rev-parse --verify --quiet "$CIBLE^{commit}" >/dev/null; then
+    CIBLE_REF="$CIBLE"
+else
+    echec "Ni la branche origin/$CIBLE, ni un tag/commit '$CIBLE' n'existe. Branches disponibles :"
     git branch --remotes --list 'origin/*' --format='%(refname:short)' \
         | grep -v '^origin/HEAD$' | sed 's/^/     /' >&2
     mourir "Relancer avec le bon nom, p. ex. : $0 master"
 fi
 
-if [[ "$(git rev-parse --abbrev-ref HEAD)" != "$BRANCHE" ]]; then
-    git checkout "$BRANCHE"
-fi
-
-if ! git merge --ff-only "origin/$BRANCHE"; then
-    mourir "Fast-forward impossible : la branche locale a diverge de origin/$BRANCHE."
-fi
+# HEAD detache : on ne cree ni ne deplace aucune branche locale sur le Pi. Une
+# branche de test rebasee ou force-pushee se deploie donc sans divergence
+# possible, et le rollback (etape 8) ne peut pas reecrire un historique.
+info "Bascule sur $CIBLE_REF"
+git checkout --detach "$CIBLE_REF"
 SHA_APRES="$(git rev-parse HEAD)"
+git config --local phyto.deployRef "$CIBLE"
 
 if [[ "$SHA_AVANT" == "$SHA_APRES" ]]; then
     ok "Deja a jour ($(git log -1 --oneline))"
@@ -183,7 +217,7 @@ info "Verification du code (compileall)"
 if ! "$VENV_PY" -m compileall -q -x '(venv|\.git|__pycache__|lib/sensors)' "$APP_DIR" >/tmp/phyto-compile.log 2>&1; then
     cat /tmp/phyto-compile.log >&2
     echec "Erreur de syntaxe : rollback sur $SHA_AVANT, le service n'a pas ete touche."
-    git reset --hard "$SHA_AVANT" >/dev/null
+    git checkout --force --detach "$SHA_AVANT" >/dev/null 2>&1
     for f in "${FICHIERS_CONFIG[@]}"; do
         [[ -f "$DOSSIER_SAUVEGARDE/$(basename "$f")" ]] \
             && cp -p "$DOSSIER_SAUVEGARDE/$(basename "$f")" "$APP_DIR/$f"
@@ -227,7 +261,7 @@ if attendre_sante "$DELAI_SANTE"; then
     printf "\n"
     info "Derniers logs :"
     journalctl -u "$SERVICE" -n 15 --no-pager -o cat | sed 's/^/     /'
-    ok "Deploiement termine — $(git log -1 --oneline)"
+    ok "Deploiement termine — $CIBLE_REF @ $(git log -1 --oneline)"
     exit 0
 fi
 
@@ -239,7 +273,7 @@ if [[ "$SHA_AVANT" == "$SHA_APRES" ]]; then
     mourir "Aucun commit n'a ete applique : la panne vient d'ailleurs (materiel, config)."
 fi
 
-git reset --hard "$SHA_AVANT" >/dev/null
+git checkout --force --detach "$SHA_AVANT" >/dev/null 2>&1
 for f in "${FICHIERS_CONFIG[@]}"; do
     [[ -f "$DOSSIER_SAUVEGARDE/$(basename "$f")" ]] \
         && cp -p "$DOSSIER_SAUVEGARDE/$(basename "$f")" "$APP_DIR/$f"
