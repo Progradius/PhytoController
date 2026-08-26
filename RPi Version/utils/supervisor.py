@@ -276,7 +276,7 @@ class TaskSupervisor:
         return {name: job.snapshot() for name, job in self._jobs.items()}
 
     def request_reload(self, name: str) -> bool:
-        """Relance volontairement un travail après application de son état sûr."""
+        """Relance volontairement un travail sans réappliquer son état sûr."""
         job = self._jobs.get(name)
         if job is None or job.inner is None or job.inner.done():
             return False
