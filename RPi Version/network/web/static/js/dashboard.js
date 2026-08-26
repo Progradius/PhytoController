@@ -130,6 +130,11 @@
       card.classList.remove("tracking-ok", "tracking-mismatch", "tracking-known_hardware_fault", "tracking-unknown");
       card.classList.add(`tracking-${actuator.tracking || "unknown"}`);
       text(".actuator-name", actuator.metadata?.display_name || key, card);
+      const iconUse = card.querySelector(".equipment-icon use");
+      if (iconUse && actuator.metadata?.icon) {
+        const iconBase = (iconUse.getAttribute("href") || "").split("#", 1)[0];
+        iconUse.setAttribute("href", `${iconBase}#${actuator.metadata.icon}`);
+      }
       text(".actuator-actual", String(actuator.actual ?? "unknown"), card);
       text(".actuator-requested", String(actuator.requested ?? "unknown"), card);
       text(".actuator-reason", actuator.reason || "Motif indisponible", card);

@@ -242,6 +242,7 @@ class Server:
             web.get("/static/js/config.js", self._config_js),
             web.get("/static/js/console.js", self._console_js),
             web.get("/static/fonts/visitor1.ttf", self._font),
+            web.get("/static/equipment-icons.svg", self._equipment_icons),
         ])
         return app
 
@@ -779,6 +780,7 @@ class Server:
     async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")
     async def _console_js(self, request): return await self._asset("js/console.js", "application/javascript")
     async def _font(self, request): return await self._asset("fonts/visitor1.ttf", "font/ttf")
+    async def _equipment_icons(self, request): return await self._asset("equipment-icons.svg", "image/svg+xml")
     async def _favicon(self, request): return await self._asset("favicon.svg", "image/svg+xml")
 
     async def _favicon_redirect(self, request: web.Request) -> web.Response:

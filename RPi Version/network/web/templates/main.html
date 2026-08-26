@@ -50,7 +50,10 @@
     {% if meta.dashboard_visible %}
     <article class="card actuator-card tracking-{{ actuator.tracking or 'unknown' }}" data-actuator="{{ key }}">
       <div class="card-kicker"><span>{{ meta.usage_type }}</span><span class="state-badge actuator-actual">{{ actuator.actual if actuator.actual is defined else 'unknown' }}</span></div>
-      <h3 class="actuator-name">{{ meta.display_name }}</h3>
+      <div class="actuator-heading">
+        <svg class="equipment-icon" aria-hidden="true" focusable="false"><use href="/static/equipment-icons.svg?v={{ asset_versions.equipment_icons }}#{{ meta.icon }}"></use></svg>
+        <h3 class="actuator-name">{{ meta.display_name }}</h3>
+      </div>
       <dl class="operator-state">
         <div><dt>Demandé</dt><dd class="actuator-requested">{{ actuator.requested if actuator.requested is defined else 'unknown' }}</dd></div>
         <div><dt>Pourquoi</dt><dd class="actuator-reason">{{ actuator.reason or 'En attente de la boucle métier.' }}</dd></div>

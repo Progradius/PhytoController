@@ -66,6 +66,9 @@ progress { width: 100%; height: .7rem; margin-top: 1rem; border: 0; border-radiu
 progress::-webkit-progress-bar { background: var(--soft); } progress::-webkit-progress-value { background: var(--green); } progress::-moz-progress-bar { background: var(--green); }
 .timer-description { margin: .75rem 0 0; color: var(--muted); }
 .operator-state { margin: .8rem 0 0; }
+.actuator-heading { display: flex; align-items: center; gap: .75rem; margin-bottom: .35rem; }
+.actuator-heading h3 { margin-bottom: 0; }
+.equipment-icon { width: 2.25rem; height: 2.25rem; flex: 0 0 auto; color: var(--green); filter: drop-shadow(0 0 .45rem rgb(80 227 138 / 22%)); }
 .operator-state div { display: grid; grid-template-columns: 5.3rem 1fr; gap: .6rem; padding-block: .35rem; border-bottom: 1px solid var(--border); }
 .operator-state dt { color: var(--muted); }.operator-state dd { margin: 0; overflow-wrap: anywhere; }
 .known-fault { margin: .8rem 0 0; color: var(--amber); font-size: .84rem; }

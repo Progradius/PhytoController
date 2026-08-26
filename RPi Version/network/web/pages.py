@@ -28,6 +28,7 @@ def _asset_versions() -> dict[str, str]:
         "console": STATIC_DIR / "js" / "console.js",
         "font": STATIC_DIR / "fonts" / "visitor1.ttf",
         "favicon": STATIC_DIR / "favicon.svg",
+        "equipment_icons": STATIC_DIR / "equipment-icons.svg",
     }
     versions = {}
     for name, path in assets.items():
