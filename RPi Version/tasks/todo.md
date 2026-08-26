@@ -165,7 +165,8 @@ de `GENERIC_SAFE_PINS` dans `main.py`.
 
 - [ ] Commiter, déployer sur le Pi et relever le comportement réel (`/health/ready`, console SSE,
       sauvegarde d'une section, bascule capteur)
-- [ ] `scripts/deploy.sh` : passer la sonde de `/status` à `/health/ready`
+- [x] `scripts/deploy.sh` : qualifier service, liveness, readiness, contrôle, commit, alarmes critiques
+      et stabilité continue avant succès ou après rollback
 - [ ] Transformer le harnais de fumigation HTTP en vérification reproductible
 - [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop
 - [ ] Contraintes GPIO (unicité, broches réservées) — dépend du `PinRegistry` du lot 3

@@ -37,15 +37,27 @@ La cible peut être une branche distante, un tag ou un commit. Le préfixe `remo
 7. Mise à jour des dépendances si nécessaire.
 8. `compileall` avant interruption du service.
 9. Redémarrage systemd.
-10. Attente jusqu'à 45 secondes de `systemctl active` et de cinq réponses saines consécutives de `/health/ready`.
+10. Attente jusqu'à 45 secondes de la qualification complète, maintenue 15 secondes sans interruption.
 11. Rollback sur le commit précédent si le contrôle échoue.
 
 ## Contrôle post-déploiement
 
-Le contrôle actuel de `deploy.sh` vérifie la disponibilité, pas le contenu du JSON. Compléter manuellement :
+`deploy.sh` ne conclut au succès que si, pendant au moins 15 secondes continues :
+
+- le service systemd reste actif ;
+- `/health/live` répond 200 avec `live=true` ;
+- `/health/ready` répond 200 avec `ready=true` ;
+- `/api/v1/state` publie `health.control_healthy=true` ;
+- le commit annoncé par le processus correspond exactement au commit ciblé ;
+- `alarms.critical_count` vaut zéro.
+
+Toute rupture remet la fenêtre de stabilité à zéro. Les mêmes critères qualifient le commit précédent
+après un rollback automatique. Pour compléter le diagnostic opérateur après le déploiement :
 
 ```bash
-curl -fsS http://127.0.0.1:8123/status | jq -e '.healthy == true'
+curl -fsS http://127.0.0.1:8123/health/live | jq '{live,version}'
+curl -fsS http://127.0.0.1:8123/health/ready | jq .
+curl -fsS http://127.0.0.1:8123/api/v1/state | jq '{version,control_healthy:.health.control_healthy,critical_alarms:.alarms.critical_count}'
 systemctl show phyto.service -p NRestarts -p ActiveState -p SubState -p StatusText
 journalctl -u phyto -n 50 --no-pager -o cat
 ```
@@ -142,10 +154,6 @@ la désinstaller ou effacer les données du site Chrome. Les fichiers TLS sous `
 pas gérés par `deploy.sh` et restent disponibles pour un redéploiement.
 
 Si le rollback automatique a restauré le commit mais que le service reste indisponible, suivre le [runbook](incident-runbook.md) : la panne peut venir de la configuration vivante, du venv, des permissions ou du matériel.
-
-## Amélioration prioritaire
-
-Faire pointer le contrôle de déploiement vers une readiness qui renvoie un échec lorsque `healthy=false`. Une réponse HTTP du serveur ne doit pas certifier la régulation.
 
 ## Dépendances retirées de `requirements.txt`
 

@@ -35,6 +35,7 @@ from param.equipment_metadata import (
 )
 from utils import pretty_console as ui
 from utils.csrf import load_or_create_token
+from utils.deployment_info import DEPLOYED_VERSION
 from utils.log_stream import console_stream
 from utils.pretty_console import debug, error, info, success, warning
 from utils.operational_state import snapshot as operational_snapshot
@@ -823,6 +824,7 @@ class Server:
         operator = self._operator_snapshot()
         return {
             "schema_version": 1,
+            "version": DEPLOYED_VERSION,
             "generated_at": _utc_now(),
             "web": {
                 "https": {
@@ -978,7 +980,7 @@ class Server:
         return web.json_response(payload)
 
     async def _health_live(self, request: web.Request) -> web.Response:
-        return web.json_response({"live": True})
+        return web.json_response({"live": True, "version": DEPLOYED_VERSION})
 
     async def _health_ready(self, request: web.Request) -> web.Response:
         healthy = self.supervisor.is_healthy() if self.supervisor else True

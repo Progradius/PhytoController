@@ -20,7 +20,7 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | GET | `/api/v1/alarms/active` | Snapshot léger des occurrences actives en mémoire, sans SQLite ni lecture matérielle | JSON 200 |
 | GET | `/api/v1/history?hours=24\|48\|72` | Tendances locales agrégées | JSON 200 ou 503 |
 | GET | `/status` | Ancien format d'état, conservé pour les scripts existants | JSON 200 |
-| GET | `/health/live` | Le processus HTTP répond | JSON 200 |
+| GET | `/health/live` | Le processus HTTP répond et annonce le commit chargé | JSON 200, `live=true`, `version` |
 | GET | `/health/ready` | Superviseur sain | JSON 200 ou **503** |
 | POST | `/actions/stats/reset` | Efface un min/max (`key=`) | 303 vers `/#statistiques` |
 | POST | `/actions/system/reboot` | `sudo reboot` | 202 |

@@ -112,7 +112,10 @@ Le script de déploiement est conçu pour être exécuté depuis le Raspberry Pi
 ./scripts/deploy.sh
 ```
 
-Il sauvegarde la configuration vivante, récupère le code en fast-forward, vérifie sa compilation avant de couper le service, redémarre, contrôle `/status` puis effectue un rollback si le service ne répond pas. La réponse HTTP de `/status` prouve actuellement la disponibilité du serveur, pas nécessairement la santé complète : vérifier également que le champ JSON `healthy` vaut `true`.
+Il sauvegarde la configuration vivante, récupère le code, vérifie sa compilation avant de couper le
+service, puis redémarre. Le succès exige pendant 15 secondes continues : service actif,
+`/health/live`, `/health/ready` en 200, `control_healthy=true`, commit chargé identique à la cible et
+aucune alarme critique. Tout échec déclenche le rollback automatique, qualifié avec les mêmes critères.
 
 ## Vérification
 

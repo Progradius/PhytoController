@@ -20,8 +20,8 @@
 #   - la config vivante (param.json, metadonnees, sensor_stats.json) est sauvegardee
 #     puis restauree : un deploiement ne perd jamais les reglages de la serre ;
 #   - le code est verifie (compileall) AVANT de couper le service ;
-#   - si le service ne repond pas apres redemarrage, rollback automatique sur
-#     le commit precedent et redemarrage.
+#   - si la santé complète ne reste pas stable après redémarrage, rollback
+#     automatique sur le commit précédent et qualification identique.
 # ---------------------------------------------------------------------------
 set -Eeuo pipefail
 
@@ -31,10 +31,13 @@ set -Eeuo pipefail
 if [[ "${PHYTO_DEPLOY_REEXEC:-0}" != "1" ]]; then
     PHYTO_APP_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
     _copie="$(mktemp /tmp/phyto-deploy.XXXXXX.sh)"
+    _validateur="$(mktemp /tmp/phyto-deployment-health.XXXXXX.py)"
     cp "$(readlink -f "$0")" "$_copie"
+    cp "$PHYTO_APP_DIR/utils/deployment_health.py" "$_validateur"
     chmod +x "$_copie"
-    trap 'rm -f "$_copie"' EXIT
-    PHYTO_DEPLOY_REEXEC=1 PHYTO_APP_DIR="$PHYTO_APP_DIR" "$_copie" "$@"
+    trap 'rm -f "$_copie" "$_validateur"' EXIT
+    PHYTO_DEPLOY_REEXEC=1 PHYTO_APP_DIR="$PHYTO_APP_DIR" \
+        PHYTO_DEPLOY_HEALTH_VALIDATOR="$_validateur" "$_copie" "$@"
     exit $?
 fi
 
@@ -43,13 +46,15 @@ REPO_DIR="$(git -C "$APP_DIR" rev-parse --show-toplevel)"
 SERVICE="phyto"
 PORT="8123"
 VENV_PY="$APP_DIR/venv/bin/python3"
+VALIDATEUR_SANTE="${PHYTO_DEPLOY_HEALTH_VALIDATOR:?}"
 SAUVEGARDES="$HOME/phyto-backups"
 FICHIERS_CONFIG=(
     "param/param.json"
     "param/equipment_metadata.json"
     "param/sensor_stats.json"
 )
-DELAI_SANTE=45                                     # secondes avant de declarer l'echec
+DELAI_SANTE=45                                     # délai total après le redémarrage
+STABILITE_SANTE=15                                 # secondes saines sans interruption
 
 CIBLE=""
 CONFIG_DEPUIS_GIT=0
@@ -239,31 +244,77 @@ fi
 # main.py prend aussi un verrou d'instance : si l'ancien processus n'est pas
 # encore mort, le nouveau attend 15 s puis sort en erreur (visible ici) plutot
 # que de piloter les memes broches en double.
+sonder_sante() {
+    local version_attendue=$1 dossier=$2 code_live code_ready code_state
+    if ! systemctl is-active --quiet "$SERVICE"; then
+        printf '%s\n' "service inactif"
+        return 1
+    fi
+
+    code_live="$(curl -sS -o "$dossier/live.json" -w '%{http_code}' --max-time 3 \
+        "http://127.0.0.1:$PORT/health/live" 2>"$dossier/curl.err" || true)"
+    if [[ "$code_live" != "200" ]]; then
+        printf '%s\n' "/health/live indisponible (HTTP ${code_live:-aucun})"
+        return 1
+    fi
+
+    code_ready="$(curl -sS -o "$dossier/ready.json" -w '%{http_code}' --max-time 3 \
+        "http://127.0.0.1:$PORT/health/ready" 2>"$dossier/curl.err" || true)"
+    if [[ "$code_ready" != "200" ]]; then
+        printf '%s\n' "/health/ready refuse la disponibilité (HTTP ${code_ready:-aucun})"
+        return 1
+    fi
+
+    code_state="$(curl -sS -o "$dossier/state.json" -w '%{http_code}' --max-time 3 \
+        "http://127.0.0.1:$PORT/api/v1/state" 2>"$dossier/curl.err" || true)"
+    if [[ "$code_state" != "200" ]]; then
+        printf '%s\n' "/api/v1/state indisponible (HTTP ${code_state:-aucun})"
+        return 1
+    fi
+
+    "$VENV_PY" "$VALIDATEUR_SANTE" "$version_attendue" \
+        "$dossier/live.json" "$dossier/ready.json" "$dossier/state.json"
+}
+
+nettoyer_sonde() {
+    local dossier=$1
+    rm -f "$dossier/live.json" "$dossier/ready.json" "$dossier/state.json" "$dossier/curl.err"
+    rmdir "$dossier"
+}
+
 attendre_sante() {
-    local limite=$1 i succes_consecutifs=0
-    for ((i = 0; i < limite; i++)); do
-        if systemctl is-active --quiet "$SERVICE" \
-           && curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:$PORT/health/ready"; then
-            ((succes_consecutifs += 1))
-            # Une socket HTTP ouverte une fraction de seconde avant le crash
-            # d'une boucle ne doit plus certifier un déploiement. Cinq sondes
-            # saines consécutives laissent les premiers ticks métier s'exécuter.
-            if (( succes_consecutifs >= 5 )); then
+    local limite=$1 version_attendue=$2 debut=$SECONDS stable_depuis=-1
+    local dossier diagnostic dernier_diagnostic=""
+    dossier="$(mktemp -d /tmp/phyto-health.XXXXXX)"
+    while (( SECONDS - debut < limite )); do
+        if diagnostic="$(sonder_sante "$version_attendue" "$dossier")"; then
+            if (( stable_depuis < 0 )); then
+                stable_depuis=$SECONDS
+                dernier_diagnostic=""
+                info "Santé complète acquise ; observation pendant ${STABILITE_SANTE}s"
+            fi
+            if (( SECONDS - stable_depuis >= STABILITE_SANTE )); then
+                nettoyer_sonde "$dossier"
                 return 0
             fi
         else
-            succes_consecutifs=0
+            stable_depuis=-1
+            if [[ "$diagnostic" != "$dernier_diagnostic" ]]; then
+                attn "Contrôle en attente : $diagnostic"
+                dernier_diagnostic="$diagnostic"
+            fi
         fi
         sleep 1
     done
+    nettoyer_sonde "$dossier"
     return 1
 }
 
 info "Redemarrage de $SERVICE"
 sudo systemctl restart "$SERVICE"
 
-if attendre_sante "$DELAI_SANTE"; then
-    ok "Service actif, /health/ready sain 5 fois sur le port $PORT"
+if attendre_sante "$DELAI_SANTE" "$SHA_APRES"; then
+    ok "Service actif et santé complète stable ${STABILITE_SANTE}s sur le port $PORT"
     printf "\n"
     systemctl --no-pager --lines=0 status "$SERVICE" | head -5
     printf "\n"
@@ -274,7 +325,7 @@ if attendre_sante "$DELAI_SANTE"; then
 fi
 
 # --- 8. Rollback -------------------------------------------------------------
-echec "Le service n'est pas prêt après ${DELAI_SANTE}s — rollback."
+echec "La santé complète n'est pas stable après ${DELAI_SANTE}s — rollback."
 journalctl -u "$SERVICE" -n 30 --no-pager -o cat | sed 's/^/     /' >&2
 
 if [[ "$SHA_AVANT" == "$SHA_APRES" ]]; then
@@ -288,7 +339,7 @@ for f in "${FICHIERS_CONFIG[@]}"; do
 done
 sudo systemctl restart "$SERVICE"
 
-if attendre_sante "$DELAI_SANTE"; then
+if attendre_sante "$DELAI_SANTE" "$SHA_AVANT"; then
     attn "Rollback reussi : retour sur $(git log -1 --oneline)"
 else
     echec "Rollback effectue mais le service ne repond toujours pas. Intervention manuelle requise :"

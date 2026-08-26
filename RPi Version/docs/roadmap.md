@@ -52,7 +52,8 @@ Un chantier n'est terminé que si :
       ([relevé](operations/production-baseline-2026-08-25.md)) ; la source du bruit est tarie côté logiciel
       (`ds18b20_state=disabled`, voir lot 5)
 - [ ] Exercer le runbook : service mort, config invalide, tâche malsaine, alarme chauffage
-- [ ] Faire lire `healthy` au contrôle de déploiement : `/health/ready` est disponible, `scripts/deploy.sh` interroge encore `/status`
+- [x] Qualifier le déploiement sur le service actif, `/health/live`, `/health/ready`,
+      `control_healthy`, le commit attendu, l'absence d'alarme critique et 15 s de stabilité continue
 
 **Critère de sortie** : un second Pi peut être installé avec les artefacts du dépôt et des secrets fournis séparément ; sa configuration système est comparable à la référence.
 
@@ -220,8 +221,8 @@ ci-dessous suit le risque physique résiduel, cohérent avec le séquencement du
    électrique, et il débloque la contrainte d'unicité GPIO laissée désactivée au lot 4.
 3. **Traiter le temps et le réseau** (RTC / `time_synced`, reconnexion Wi-Fi supervisée) — première classe
    de panne non électrique : commutation 230 V à contretemps après une coupure secteur hors réseau.
-4. **Exercer le runbook** sur les quatre scénarios prévus, et faire lire `/health/ready` au contrôle de
-   déploiement (`scripts/deploy.sh` interroge encore `/status`).
+4. **Exercer le runbook** sur les quatre scénarios prévus. Le contrôle de déploiement qualifie désormais
+   `/health/live`, `/health/ready`, la santé du contrôle, le commit et les alarmes sur une fenêtre stable.
 5. **Hygiène de build** : épinglage des dépendances, décision Docker, validations automatisées minimales.
 6. **Essai thermique sur plages limites** — dépend de la saison et de la remise en service du chauffage,
    se planifie indépendamment.

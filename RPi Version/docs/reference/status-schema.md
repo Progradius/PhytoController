@@ -10,6 +10,7 @@ Exemple abrégé, sans valeurs de production :
 ```json
 {
   "schema_version": 1,
+  "version": "0123456789abcdef0123456789abcdef01234567",
   "generated_at": "2026-08-25T21:14:03.512Z",
   "web": {"https": {"configured": true, "ready": true, "port": 443}},
   "health": {
@@ -74,6 +75,7 @@ Exemple abrégé, sans valeurs de production :
 | Champ | Sens |
 |---|---|
 | `schema_version` | Entier ; toute évolution non additive doit l'incrémenter |
+| `version` | Commit Git figé au chargement du processus, ou valeur explicite de `PHYTO_VERSION` hors checkout |
 | `generated_at` | Instant de génération, UTC ISO 8601 suffixé `Z` |
 | `web.https` | Configuration, disponibilité réelle et port du second point d'écoute HTTPS ; aucun chemin de clé ou de certificat n'est publié |
 | `health.healthy` | Santé agrégée du superviseur |
