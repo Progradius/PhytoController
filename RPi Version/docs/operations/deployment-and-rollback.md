@@ -37,7 +37,7 @@ La cible peut être une branche distante, un tag ou un commit. Le préfixe `remo
 7. Mise à jour des dépendances si nécessaire.
 8. `compileall` avant interruption du service.
 9. Redémarrage systemd.
-10. Attente jusqu'à 45 secondes de `systemctl active` et d'une réponse `/status`.
+10. Attente jusqu'à 45 secondes de `systemctl active` et de cinq réponses saines consécutives de `/health/ready`.
 11. Rollback sur le commit précédent si le contrôle échoue.
 
 ## Contrôle post-déploiement

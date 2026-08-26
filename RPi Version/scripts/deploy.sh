@@ -240,11 +240,19 @@ fi
 # encore mort, le nouveau attend 15 s puis sort en erreur (visible ici) plutot
 # que de piloter les memes broches en double.
 attendre_sante() {
-    local limite=$1 i
+    local limite=$1 i succes_consecutifs=0
     for ((i = 0; i < limite; i++)); do
         if systemctl is-active --quiet "$SERVICE" \
-           && curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:$PORT/status"; then
-            return 0
+           && curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:$PORT/health/ready"; then
+            ((succes_consecutifs += 1))
+            # Une socket HTTP ouverte une fraction de seconde avant le crash
+            # d'une boucle ne doit plus certifier un déploiement. Cinq sondes
+            # saines consécutives laissent les premiers ticks métier s'exécuter.
+            if (( succes_consecutifs >= 5 )); then
+                return 0
+            fi
+        else
+            succes_consecutifs=0
         fi
         sleep 1
     done
@@ -255,7 +263,7 @@ info "Redemarrage de $SERVICE"
 sudo systemctl restart "$SERVICE"
 
 if attendre_sante "$DELAI_SANTE"; then
-    ok "Service actif, /status repond sur le port $PORT"
+    ok "Service actif, /health/ready sain 5 fois sur le port $PORT"
     printf "\n"
     systemctl --no-pager --lines=0 status "$SERVICE" | head -5
     printf "\n"
@@ -266,7 +274,7 @@ if attendre_sante "$DELAI_SANTE"; then
 fi
 
 # --- 8. Rollback -------------------------------------------------------------
-echec "Le service ne repond pas apres ${DELAI_SANTE}s — rollback."
+echec "Le service n'est pas prêt après ${DELAI_SANTE}s — rollback."
 journalctl -u "$SERVICE" -n 30 --no-pager -o cat | sed 's/^/     /' >&2
 
 if [[ "$SHA_AVANT" == "$SHA_APRES" ]]; then

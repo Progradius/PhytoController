@@ -554,8 +554,11 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
         humidity_minutes_used=round(memory.humidity_minutes_used, 2),
         humidity_minutes_quota=settings.winter_humidity_minutes_per_hour,
         dwell_remaining_seconds=round(
-            max(0.0, settings.min_dwell_seconds - (inputs.now_mono - memory.motor_speed_since)), 1
-            if speed != wanted else 0.0,
+            max(
+                0.0,
+                settings.min_dwell_seconds
+                - (inputs.now_mono - memory.motor_speed_since),
+            ) if speed != wanted else 0.0,
             1,
         ),
     )

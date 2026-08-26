@@ -135,7 +135,15 @@ class SupervisedJob:
         return monotonic() - self.last_beat
 
     def is_alive(self) -> bool:
-        return self.task is not None and not self.task.done()
+        # Le runner survit volontairement aux exceptions pour pouvoir relancer
+        # le travail. Il ne prouve donc pas que la boucle métier tourne : en
+        # plein back-off, `task` est vivant mais `inner` est déjà terminé.
+        return (
+            self.task is not None
+            and not self.task.done()
+            and self.inner is not None
+            and not self.inner.done()
+        )
 
     def is_stale(self) -> bool:
         return self.max_silence is not None and self.silence_seconds > self.max_silence
