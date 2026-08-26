@@ -17,7 +17,7 @@ from pydantic import ValidationError
 from components.climate_control import get_climate_alarm, get_climate_snapshot
 from controllers.sensor_catalog import SENSOR_CATALOG
 from network.web import influx_handler
-from network.web.pages import conf_page, console_page, error_page, main_page
+from network.web.pages import alarms_page, conf_page, console_page, error_page, main_page
 from param.config_store import shared_config
 from param.equipment_metadata import (
     EQUIPMENT_IDS, EquipmentMetadata, EquipmentMetadataStore,
@@ -44,7 +44,9 @@ HTTP_ERROR_TITLES = {
     413: "Requête trop volumineuse",
     421: "Hôte non autorisé",
     422: "Valeurs refusées",
+    429: "Trop de requêtes",
     500: "Erreur interne",
+    503: "Service indisponible",
 }
 
 SENSITIVE_FIELDS = {
@@ -179,6 +181,8 @@ class Server:
         cyclic_timer1=None,
         cyclic_timer2=None,
         heater_component=None,
+        operator_service=None,
+        equipment_store=None,
     ):
         self.controller_status = controller_status
         self.sensor_handler = sensor_handler
@@ -194,12 +198,14 @@ class Server:
         self.cyclic_timer1 = cyclic_timer1
         self.cyclic_timer2 = cyclic_timer2
         self.heater_component = heater_component
+        self.operator_service = operator_service
         self.stats = sensor_handler.stats
-        self.equipment_store = EquipmentMetadataStore()
+        self.equipment_store = equipment_store or EquipmentMetadataStore()
         # Jeton persistant : un redémarrage du service ne doit pas invalider
         # les pages laissées ouvertes (voir utils/csrf.py).
         self.csrf_token = load_or_create_token()
         self._runner: web.AppRunner | None = None
+        self._history_query_running = False
         self._allowed_names = self._build_allowed_names()
         console_stream.install()
 
@@ -228,7 +234,11 @@ class Server:
             web.post("/conf/{section}", self._configuration_post),
             web.get("/console", self._console),
             web.get("/console/stream", self._console_stream),
+            web.get("/alarms", self._alarms),
             web.get("/api/v1/state", self._api_state),
+            web.get("/api/v1/alarms", self._api_alarms),
+            web.get("/api/v1/history", self._api_history),
+            web.post("/actions/alarms/ack", self._acknowledge_alarm),
             web.post("/actions/stats/reset", self._reset_stats),
             web.post("/actions/system/reboot", self._reboot),
             web.post("/actions/system/poweroff", self._poweroff),
@@ -241,6 +251,8 @@ class Server:
             web.get("/static/js/dashboard.js", self._dashboard_js),
             web.get("/static/js/config.js", self._config_js),
             web.get("/static/js/console.js", self._console_js),
+            web.get("/static/js/alarms.js", self._alarms_js),
+            web.get("/static/js/history.js", self._history_js),
             web.get("/static/fonts/visitor1.ttf", self._font),
             web.get("/static/equipment-icons.svg", self._equipment_icons),
         ])
@@ -369,6 +381,17 @@ class Server:
     async def _dashboard(self, request: web.Request) -> web.Response:
         return self._html(main_page(self._state_payload(), self.csrf_token))
 
+    def _operator_snapshot(self) -> dict:
+        if self.operator_service is None:
+            return {
+                "alarms": {"active_count": 0, "unacknowledged_count": 0,
+                           "critical_count": 0, "control_count": 0,
+                           "auxiliary_count": 0, "highest_severity": None},
+                "history": {"available": False},
+                "network": {"status": "unknown"},
+            }
+        return self.operator_service.snapshot()
+
     async def _monitor_redirect(self, request: web.Request) -> web.Response:
         raise web.HTTPSeeOther(location="/#surveillance")
 
@@ -379,6 +402,7 @@ class Server:
         return self._html(conf_page(
             self.config,
             self.csrf_token,
+            alarm_summary=self._operator_snapshot()["alarms"],
             equipment=self.equipment_store.current,
             success=success_section,
             active_section=success_section,
@@ -393,6 +417,7 @@ class Server:
         if errors:
             return self._html(conf_page(
                 self.config, self.csrf_token, equipment=self.equipment_store.current,
+                alarm_summary=self._operator_snapshot()["alarms"],
                 errors=errors, active_section=section,
             ), status=422)
 
@@ -408,6 +433,7 @@ class Server:
             errors = self._format_validation_errors(exc)
             return self._html(conf_page(
                 self.config, self.csrf_token, equipment=self.equipment_store.current,
+                alarm_summary=self._operator_snapshot()["alarms"],
                 errors=errors, active_section=section,
             ), status=422)
 
@@ -420,6 +446,7 @@ class Server:
             return self._html(conf_page(
                 self.config,
                 self.csrf_token,
+                alarm_summary=self._operator_snapshot()["alarms"],
                 equipment=self.equipment_store.current,
                 errors={"__all__": "Écriture impossible : la configuration active est inchangée."},
                 active_section=section,
@@ -501,6 +528,7 @@ class Server:
         except (KeyError, ValueError, ValidationError, OSError) as exc:
             return self._html(conf_page(
                 self.config, self.csrf_token, equipment=self.equipment_store.current,
+                alarm_summary=self._operator_snapshot()["alarms"],
                 errors={"__all__": f"Métadonnées refusées : {exc}"},
                 active_section="equipment",
             ), status=422 if not isinstance(exc, OSError) else 500)
@@ -529,7 +557,86 @@ class Server:
                 self.supervisor.request_reload(job_name)
 
     async def _console(self, request: web.Request) -> web.Response:
-        return self._html(console_page(self.csrf_token))
+        return self._html(console_page(
+            self.csrf_token, alarm_summary=self._operator_snapshot()["alarms"]
+        ))
+
+    @staticmethod
+    def _alarm_filters(request: web.Request) -> dict:
+        filters = {
+            "status": request.query.get("status", "active"),
+            "severity": request.query.get("severity", ""),
+            "category": request.query.get("category", ""),
+            "acknowledged": request.query.get("acknowledged", ""),
+            "limit": request.query.get("limit", "500"),
+        }
+        if filters["status"] not in {"active", "resolved", "all"}:
+            raise web.HTTPBadRequest(text="Filtre de statut invalide")
+        if filters["severity"] not in {"", "warning", "error", "critical"}:
+            raise web.HTTPBadRequest(text="Filtre de gravité invalide")
+        if filters["acknowledged"] not in {"", "yes", "no"}:
+            raise web.HTTPBadRequest(text="Filtre d'acquittement invalide")
+        try:
+            filters["limit"] = max(1, min(int(filters["limit"]), 2000))
+        except ValueError:
+            raise web.HTTPBadRequest(text="Limite invalide")
+        return filters
+
+    async def _alarms(self, request: web.Request) -> web.Response:
+        if self.operator_service is None:
+            raise web.HTTPServiceUnavailable(text="Service d'alarmes indisponible")
+        filters = self._alarm_filters(request)
+        alarms = await self.operator_service.list_alarm_payloads(filters)
+        return self._html(alarms_page(
+            alarms, filters, self._operator_snapshot()["alarms"], self.csrf_token,
+        ))
+
+    async def _api_alarms(self, request: web.Request) -> web.Response:
+        if self.operator_service is None:
+            raise web.HTTPServiceUnavailable(text="Service d'alarmes indisponible")
+        filters = self._alarm_filters(request)
+        return web.json_response({
+            "generated_at": _utc_now(),
+            "summary": self._operator_snapshot()["alarms"],
+            "alarms": await self.operator_service.list_alarm_payloads(filters),
+        })
+
+    async def _acknowledge_alarm(self, request: web.Request) -> web.Response:
+        if self.operator_service is None:
+            raise web.HTTPServiceUnavailable(text="Service d'alarmes indisponible")
+        form = request["form_data"]
+        occurrence_id = str(form.get("occurrence_id", ""))
+        alias = str(form.get("alias", "")).strip()
+        try:
+            payload = await self.operator_service.acknowledge(occurrence_id, alias)
+        except (ValueError, KeyError):
+            raise web.HTTPBadRequest(text="Alarme ou alias invalide")
+        if "application/json" in request.headers.get("Accept", ""):
+            return web.json_response(payload)
+        raise web.HTTPSeeOther(location="/alarms")
+
+    async def _api_history(self, request: web.Request) -> web.Response:
+        if self.operator_service is None or not self.operator_service.history.available:
+            raise web.HTTPServiceUnavailable(text="Historique local indisponible")
+        try:
+            hours = int(request.query.get("hours", "24"))
+        except ValueError:
+            raise web.HTTPBadRequest(text="Période invalide")
+        if hours not in {24, 48, 72}:
+            raise web.HTTPBadRequest(text="Période acceptée : 24, 48 ou 72 heures")
+        if self._history_query_running:
+            raise web.HTTPTooManyRequests(
+                text="Une requête d'historique est déjà en cours",
+                headers={"Retry-After": "2"},
+            )
+        self._history_query_running = True
+        try:
+            return web.json_response(await self.operator_service.query_history(hours))
+        except Exception as exc:
+            warning(f"Historique HTTP indisponible ({exc.__class__.__name__})", name=LOGGER_NAME)
+            raise web.HTTPServiceUnavailable(text="Historique local indisponible")
+        finally:
+            self._history_query_running = False
 
     async def _console_stream(self, request: web.Request) -> web.StreamResponse:
         response = web.StreamResponse(headers={
@@ -576,15 +683,22 @@ class Server:
                 "max": item.get("max"),
                 "max_at": item.get("max_date"),
             })
-        try:
-            measured_speed = self.controller_status.get_motor_speed()
-        except Exception:
-            measured_speed = None
+        equipment = self.equipment_store.payload()
+        actuator_entries = (
+            self.operator_service.actuator_snapshot()
+            if self.operator_service is not None else operational_snapshot()
+        )
+        if self.operator_service is not None:
+            motor_actual = actuator_entries.get("motor", {}).get("actual")
+            measured_speed = motor_actual if isinstance(motor_actual, int) else None
+        else:
+            try:
+                measured_speed = self.controller_status.get_motor_speed()
+            except Exception:
+                measured_speed = None
         # Le champ legacy garde son entier historique ; `actuators.motor.actual`
         # reste honnête et publie `unknown` si la relecture GPIO échoue.
         speed = measured_speed if measured_speed is not None else 0
-        equipment = self.equipment_store.payload()
-        actuator_entries = operational_snapshot()
         components = {
             "daily_1": getattr(self.dailytimer1, "component", None),
             "daily_2": getattr(self.dailytimer2, "component", None),
@@ -593,6 +707,8 @@ class Server:
             "heater": self.heater_component,
         }
         for equipment_id, item in actuator_entries.items():
+            if self.operator_service is not None:
+                continue
             if equipment_id == "motor":
                 item["actual"] = measured_speed if measured_speed is not None else "unknown"
             else:
@@ -617,6 +733,7 @@ class Server:
                 else "ok"
             )
         start_h, start_m, stop_h, stop_m = day_night_times(self.config)
+        operator = self._operator_snapshot()
         return {
             "schema_version": 1,
             "generated_at": _utc_now(),
@@ -628,6 +745,9 @@ class Server:
                 "domains": self.supervisor.health_domains() if self.supervisor else {},
             },
             "time": time_reliability().snapshot(),
+            "alarms": operator["alarms"],
+            "history": operator["history"],
+            "network": operator["network"],
             "equipment": equipment,
             "actuators": actuator_entries,
             "day_night": {
@@ -724,6 +844,10 @@ class Server:
 
     async def _system_command(self, command: tuple[str, ...], label: str) -> web.Response:
         warning(f"{label} demandé via l'interface web", name=LOGGER_NAME)
+        if self.operator_service is not None:
+            await self.operator_service.record_system_action(
+                "reboot" if "reboot" in command else "poweroff"
+            )
         try:
             process = await asyncio.create_subprocess_exec(*command)
             returncode = await process.wait()
@@ -750,6 +874,7 @@ class Server:
             },
             "heater_alarm": get_climate_alarm(),
             "time": time_reliability().snapshot(),
+            "operator": self._operator_snapshot(),
         }
         if self.supervisor is not None:
             payload["healthy"] = self.supervisor.is_healthy()
@@ -779,6 +904,8 @@ class Server:
     async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
     async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")
     async def _console_js(self, request): return await self._asset("js/console.js", "application/javascript")
+    async def _alarms_js(self, request): return await self._asset("js/alarms.js", "application/javascript")
+    async def _history_js(self, request): return await self._asset("js/history.js", "application/javascript")
     async def _font(self, request): return await self._asset("fonts/visitor1.ttf", "font/ttf")
     async def _equipment_icons(self, request): return await self._asset("equipment-icons.svg", "image/svg+xml")
     async def _favicon(self, request): return await self._asset("favicon.svg", "image/svg+xml")

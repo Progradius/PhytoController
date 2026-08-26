@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero compact">
+  <div><p class="eyebrow">Diagnostic explicable</p><h1>Alarmes</h1><p class="hero-copy">Occurrences actives et résolues, séparées entre contrôle et services auxiliaires.</p></div>
+  <div class="alarm-summary"><strong>{{ alarm_summary.active_count }}</strong><span>active(s)</span><small>{{ alarm_summary.control_count }} contrôle · {{ alarm_summary.auxiliary_count }} auxiliaire</small></div>
+</section>
+
+<form class="alarm-filters" method="get" action="/alarms">
+  <label>État<select name="status"><option value="active"{% if filters.status == 'active' %} selected{% endif %}>Actives</option><option value="resolved"{% if filters.status == 'resolved' %} selected{% endif %}>Résolues</option><option value="all"{% if filters.status == 'all' %} selected{% endif %}>Toutes</option></select></label>
+  <label>Gravité<select name="severity"><option value="">Toutes</option>{% for value in ('warning','error','critical') %}<option value="{{ value }}"{% if filters.severity == value %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
+  <label>Catégorie<input name="category" value="{{ filters.category }}" maxlength="40" placeholder="Toutes"></label>
+  <label>Acquittement<select name="acknowledged"><option value="">Tous</option><option value="no"{% if filters.acknowledged == 'no' %} selected{% endif %}>Non acquittées</option><option value="yes"{% if filters.acknowledged == 'yes' %} selected{% endif %}>Acquittées</option></select></label>
+  <button class="button" type="submit">Filtrer</button>
+</form>
+
+<section class="alarm-list" aria-live="polite">
+{% for alarm in alarms %}
+  <article class="alarm-card severity-{{ alarm.severity }} {{ 'is-resolved' if alarm.status == 'resolved' else '' }}" data-alarm-id="{{ alarm.id }}">
+    <div class="alarm-card-heading"><div><span class="alarm-severity">{{ alarm.severity }}</span><span class="alarm-category">{{ alarm.category }}</span></div><span>{{ 'Active' if alarm.status == 'active' else 'Résolue' }}</span></div>
+    <h2>{{ alarm.title }}</h2>
+    {% if alarm.detail %}<p class="alarm-detail">{{ alarm.detail }}</p>{% endif %}
+    <dl class="alarm-facts"><div><dt>Depuis</dt><dd><time data-timestamp="{{ alarm.started_ts }}">{{ alarm.started_ts }}</time></dd></div><div><dt>Durée</dt><dd data-duration="{{ alarm.duration_seconds }}">{{ alarm.duration_seconds }} s</dd></div><div><dt>Impact</dt><dd>{{ 'Contrôle' if alarm.affects_control else 'Auxiliaire' }}</dd></div></dl>
+    <p><strong>Conséquence :</strong> {{ alarm.consequence }}</p><p><strong>Action conseillée :</strong> {{ alarm.advice }}</p>
+    <div class="alarm-actions"><a class="button button-secondary" href="{{ alarm.link }}">Diagnostiquer</a>
+    {% if alarm.status == 'active' and not alarm.acknowledged_ts %}
+      <form method="post" action="/actions/alarms/ack" class="alarm-ack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="occurrence_id" value="{{ alarm.id }}"><label>Opérateur <input name="alias" maxlength="32" autocomplete="nickname" placeholder="facultatif"></label><button class="button" type="submit">Acquitter</button></form>
+    {% elif alarm.acknowledged_ts %}<span class="acknowledged">Acquittée{% if alarm.acknowledged_by %} par {{ alarm.acknowledged_by }}{% endif %}</span>{% endif %}
+    </div>
+  </article>
+{% else %}<article class="card empty-state"><h2>Aucune occurrence</h2><p>Aucune alarme ne correspond aux filtres choisis.</p></article>{% endfor %}
+</section>
+{% endblock %}
+{% block page_scripts %}<script src="/static/js/alarms.js?v={{ asset_versions.alarms }}" defer></script>{% endblock %}

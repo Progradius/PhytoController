@@ -52,6 +52,7 @@ STATE_SECTION = "climate"
 
 # Alarme persistante, lisible depuis l'extérieur (destinée à /status et à l'IHM).
 _alarm: str | None = None
+_alarm_code: str | None = None
 # Dernier instantané publié — l'API le sert sans jamais déclencher de lecture.
 _snapshot: dict = {
     "state": None,
@@ -60,6 +61,10 @@ _snapshot: dict = {
     "motor_speed": 0,
     "temperature": None,
     "humidity": None,
+    "temp_min": None,
+    "temp_max": None,
+    "alarm": None,
+    "alarm_code": None,
     "vent_threshold": None,
     "heater_off_threshold": None,
     "renew_minutes_used": 0.0,
@@ -75,6 +80,11 @@ def get_climate_alarm() -> str | None:
     return _alarm
 
 
+def get_climate_alarm_status() -> dict:
+    """Forme structurée pour le centre d'alarmes, sans casser l'alias legacy."""
+    return {"code": _alarm_code, "message": _alarm}
+
+
 # L'API publique et le runbook parlent d'« alarme chauffage » depuis la Phase 0 :
 # on garde le nom historique en alias plutôt que de casser des scripts d'exploitation.
 get_heater_alarm = get_climate_alarm
@@ -85,18 +95,20 @@ def get_climate_snapshot() -> dict:
     return dict(_snapshot)
 
 
-def _set_alarm(reason: str) -> None:
-    global _alarm
-    if _alarm != reason:
+def _set_alarm(code: str, reason: str) -> None:
+    global _alarm, _alarm_code
+    if _alarm != reason or _alarm_code != code:
         _alarm = reason
+        _alarm_code = code
         error(f"ALARME thermique : {reason}", name=LOGGER_NAME)
 
 
 def _clear_alarm() -> None:
-    global _alarm
+    global _alarm, _alarm_code
     if _alarm is not None:
         info(f"Alarme thermique levée ({_alarm})", name=LOGGER_NAME)
         _alarm = None
+        _alarm_code = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -300,11 +312,11 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
                 f"{'ON' if decision.heater_on else 'OFF'} — intervention requise",
                 name=LOGGER_NAME,
             )
-            _set_alarm("écriture GPIO du chauffage sans effet")
+            _set_alarm("heater_gpio_mismatch", "écriture GPIO du chauffage sans effet")
             # La mémoire est recalée au tick suivant par `_sync_heater` : on ne
             # prétend pas connaître un état qu'on n'a pas obtenu.
         elif decision.alarm:
-            _set_alarm(decision.alarm)
+            _set_alarm(decision.alarm_code or "climate_safety", decision.alarm)
         else:
             _clear_alarm()
 
@@ -351,6 +363,10 @@ def _publish(decision, memory: ClimateMemory, now_mono: float,
         "dwell_remaining_seconds": decision.dwell_remaining_seconds,
         "temperature": decision.temperature,
         "humidity": decision.humidity,
+        "temp_min": decision.temp_min,
+        "temp_max": decision.temp_max,
+        "alarm": decision.alarm,
+        "alarm_code": decision.alarm_code,
         "vent_threshold": round(decision.vent_threshold, 2),
         "heater_off_threshold": round(decision.heater_off_threshold, 2),
         "renew_minutes_used": decision.renew_minutes_used,

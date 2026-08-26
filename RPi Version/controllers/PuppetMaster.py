@@ -21,6 +21,9 @@ from utils import watchdog
 from param.config import AppConfig
 from utils.operational_state import publish
 from utils.time_reliability import monitor_time_reliability
+from controllers.OperatorService import OperatorService
+from param.config_store import shared_config
+from param.equipment_metadata import EquipmentMetadataStore
 
 LOGGER_NAME = "puppetmaster"
 
@@ -64,7 +67,9 @@ class PuppetMaster:
         cyclic_timer1,
         cyclic_timer2,
         motor_handler,
-        heater_component
+        heater_component,
+        operator_history,
+        alarm_manager,
     ):
         self.config             = config
         self.controller_status  = controller_status
@@ -75,6 +80,10 @@ class PuppetMaster:
         self.cyclic_timer2      = cyclic_timer2
         self.motor_handler      = motor_handler
         self.heater             = heater_component
+        self.operator_history   = operator_history
+        self.alarm_manager      = alarm_manager
+        self.equipment_store    = EquipmentMetadataStore()
+        self.operator_service   = None
 
         self.supervisor = TaskSupervisor()
 
@@ -231,6 +240,23 @@ class PuppetMaster:
         # fonctionnement normal, un silence n'y prouve rien.
         # Instance unique : `run()` referme sa socket en sortant (`async with`),
         # donc une relance rouvre proprement le port sans recréer les stats.
+        self.operator_service = OperatorService(
+            history=self.operator_history,
+            alarm_manager=self.alarm_manager,
+            supervisor=self.supervisor,
+            config_store=shared_config(),
+            sensor_handler=self.sensor_handler,
+            components={
+                "daily_1": self.dailytimer1.component,
+                "daily_2": self.dailytimer2.component,
+                "cyclic_1": self.cyclic_timer1.component,
+                "cyclic_2": self.cyclic_timer2.component,
+                "heater": self.heater,
+            },
+            motor=self.motor_handler.motor,
+            equipment_store=self.equipment_store,
+        )
+
         server = Server(
             controller_status=self.controller_status,
             sensor_handler=self.sensor_handler,
@@ -241,6 +267,8 @@ class PuppetMaster:
             cyclic_timer1=self.cyclic_timer1,
             cyclic_timer2=self.cyclic_timer2,
             heater_component=self.heater,
+            operator_service=self.operator_service,
+            equipment_store=self.equipment_store,
         )
         sup.register("http_server", server.run, max_silence=None,
                      domain="http", gates_watchdog=False)
@@ -248,6 +276,10 @@ class PuppetMaster:
         sup.register(
             "time_monitor", monitor_time_reliability,
             max_silence=120, domain="time", gates_watchdog=False,
+        )
+        sup.register(
+            "operator_service", self.operator_service.run,
+            max_silence=120, domain="operations", gates_watchdog=False,
         )
 
     # ──────────────────────────────────────────────────────────
@@ -278,3 +310,4 @@ class PuppetMaster:
             await self.supervisor.wait()
         finally:
             await self.sensor_handler.close()
+            await self.operator_history.close()

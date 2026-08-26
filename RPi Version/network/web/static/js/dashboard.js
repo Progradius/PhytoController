@@ -181,6 +181,27 @@
     if (banner) banner.className = `health-banner ${healthy ? "is-ok" : "is-alert"}`;
     text("#health-title", healthy ? "Système opérationnel" : "Attention requise");
     text("#health-detail", alarm || (state.health.healthy ? "Toutes les tâches supervisées répondent." : "Une tâche supervisée est en défaut."));
+    text("#alarm-count", state.alarms?.active_count ?? 0);
+    text("#control-alarm-count", state.alarms?.control_count ?? 0);
+    text("#aux-alarm-count", state.alarms?.auxiliary_count ?? 0);
+    text("#history-state", state.history?.available ? "Disponible" : "Indisponible");
+    text("#network-state", state.network?.status || "unknown");
+    text("#network-detail", `${state.network?.interface || "Interface inconnue"} · ${state.network?.ipv4 || "sans IPv4"}`);
+    let globalAlarm = document.getElementById("global-alarm");
+    if ((state.alarms?.active_count || 0) === 0) {
+      globalAlarm?.remove();
+    } else {
+      if (!globalAlarm) {
+        globalAlarm = document.createElement("aside"); globalAlarm.id = "global-alarm";
+        globalAlarm.setAttribute("aria-live", "polite");
+        const title = document.createElement("strong"); const detail = document.createElement("span");
+        const link = document.createElement("a"); link.href = "/alarms"; link.textContent = "Examiner";
+        globalAlarm.append(title, detail, link); document.querySelector(".site-header")?.after(globalAlarm);
+      }
+      globalAlarm.className = `global-alarm severity-${state.alarms.highest_severity || "warning"}`;
+      text("strong", `${state.alarms.active_count} alarme(s) active(s)`, globalAlarm);
+      text("span", `${state.alarms.control_count} contrôle · ${state.alarms.auxiliary_count} auxiliaire`, globalAlarm);
+    }
     const timeAlert = state.time.alarm || state.time.daily_timers_suspended;
     const timeBanner = document.getElementById("time-banner");
     if (timeBanner) timeBanner.className = `time-banner ${timeAlert ? "is-alert" : "is-ok"}`;

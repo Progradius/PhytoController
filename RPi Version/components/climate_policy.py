@@ -58,6 +58,8 @@ RH_VALID_MAX = 100.0
 # Lectures invalides consécutives tolérées avant de couper. À 30 s de période,
 # cela laisse 2 min 30 au capteur pour se rétablir.
 MAX_CONSECUTIVE_SENSOR_FAILURES = 5
+ALARM_CONTINUOUS_LIMIT = "heater_continuous_limit"
+ALARM_SENSOR_FALLBACK = "sensor_fallback"
 
 # Durée maximale d'allumage continu, **indépendante du capteur** : même avec une
 # température parfaitement valide mais bloquée sur une valeur basse (défaut
@@ -200,8 +202,11 @@ class ClimateDecision:
     state: str
     reason: str
     alarm: str | None = None
+    alarm_code: str | None = None
     temperature: float | None = None
     humidity: float | None = None
+    temp_min: float = 0.0
+    temp_max: float = 0.0
     vent_threshold: float = 0.0
     heater_off_threshold: float = 0.0
     renew_minutes_used: float = 0.0
@@ -311,12 +316,12 @@ def _roll_budgets(settings: ClimateSettings, inputs: ClimateInputs,
 # ─────────────────────────────────────────────────────────────
 def _decide_heater(settings: ClimateSettings, inputs: ClimateInputs,
                    memory: ClimateMemory, temp: float | None,
-                   sensor_lost: bool) -> tuple[bool, str | None, str, ClimateMemory]:
-    """Retourne `(chauffage_on, alarme, motif, mémoire)`."""
+                   sensor_lost: bool) -> tuple[bool, str | None, str | None, str, ClimateMemory]:
+    """Retourne `(chauffage_on, code_alarme, alarme, motif, mémoire)`."""
     now = inputs.now_mono
 
     if not settings.heater_enabled:
-        return False, None, "chauffage désactivé", replace(
+        return False, None, None, "chauffage désactivé", replace(
             memory, heater_cooldown_until=None
         )
 
@@ -332,7 +337,7 @@ def _decide_heater(settings: ClimateSettings, inputs: ClimateInputs,
             f"repos forcé de {FORCED_OFF_COOLDOWN_MINUTES} min "
             "(capteur bloqué ? puissance de chauffe insuffisante ?)"
         )
-        return False, alarm, f"durée max de {MAX_CONTINUOUS_ON_MINUTES} min atteinte", memory
+        return False, ALARM_CONTINUOUS_LIMIT, alarm, f"durée max de {MAX_CONTINUOUS_ON_MINUTES} min atteinte", memory
 
     in_cooldown = (memory.heater_cooldown_until is not None
                    and now < memory.heater_cooldown_until)
@@ -343,27 +348,31 @@ def _decide_heater(settings: ClimateSettings, inputs: ClimateInputs,
     if sensor_lost:
         alarm = ("température ambiante illisible → chauffage coupé, "
                  "régulation impossible")
-        return False, alarm, (
+        return False, ALARM_SENSOR_FALLBACK, alarm, (
             f"repli capteur ({memory.sensor_failures} lectures manquées)"
         ), memory
 
     if temp is None:
         # Panne transitoire : on conserve l'état, le compteur fait le reste.
-        return memory.heater_on, None, (
+        return memory.heater_on, None, None, (
             f"lecture manquée {memory.sensor_failures}/"
             f"{MAX_CONSECUTIVE_SENSOR_FAILURES} → état conservé"
         ), memory
 
     if in_cooldown:
-        return False, None, "repos forcé en cours → allumage inhibé", memory
+        alarm = (
+            f"repos forcé après {MAX_CONTINUOUS_ON_MINUTES} min de chauffe "
+            f"continue ({FORCED_OFF_COOLDOWN_MINUTES} min de cooldown)"
+        )
+        return False, ALARM_CONTINUOUS_LIMIT, alarm, "repos forcé en cours → allumage inhibé", memory
 
     if temp <= settings.temp_min:
-        return True, None, f"{temp:.1f}°C ≤ {settings.temp_min:.1f}°C", memory
+        return True, None, None, f"{temp:.1f}°C ≤ {settings.temp_min:.1f}°C", memory
     if temp > settings.heater_off_threshold:
-        return False, None, (
+        return False, None, None, (
             f"{temp:.1f}°C > {settings.heater_off_threshold:.1f}°C"
         ), memory
-    return memory.heater_on, None, (
+    return memory.heater_on, None, None, (
         f"{temp:.1f}°C dans la bande morte "
         f"]{settings.temp_min:.1f} ; {settings.heater_off_threshold:.1f}]"
     ), memory
@@ -500,7 +509,7 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
     memory = replace(memory, sensor_failures=failures)
     sensor_lost = failures >= MAX_CONSECUTIVE_SENSOR_FAILURES
 
-    heater_on, alarm, heater_reason, memory = _decide_heater(
+    heater_on, alarm_code, alarm, heater_reason, memory = _decide_heater(
         settings, inputs, memory, temp, sensor_lost
     )
     if heater_on != memory.heater_on:
@@ -545,6 +554,7 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
         state=state,
         reason=f"chauffage : {heater_reason} · ventilation : {motor_reason}",
         alarm=alarm,
+        alarm_code=alarm_code,
         temperature=temp,
         humidity=rh,
         vent_threshold=settings.vent_threshold,
@@ -561,6 +571,8 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
             ) if speed != wanted else 0.0,
             1,
         ),
+        temp_min=settings.temp_min,
+        temp_max=settings.temp_max,
     )
     return decision, memory
 

@@ -2,11 +2,12 @@
 
 import asyncio
 import gc
+from time import time
 from typing import TYPE_CHECKING
 
 import aiohttp
 
-from utils.pretty_console import debug, info, warning, error
+from utils.pretty_console import debug, info
 from utils.log_dedup import StateLogger
 from utils.supervisor import beat, sleep as hb_sleep
 from param.config import AppConfig
@@ -22,9 +23,24 @@ _sensor_handler = None
 _write_url = ""
 _write_params: dict[str, str] = {}
 _endpoint_label = ""
+_health = {
+    "state": "never",
+    "last_success_ts": None,
+    "last_failure_ts": None,
+    "last_error": None,
+}
 
 # Anti-flood : 1 ligne à l'entrée en panne, 1 au rétablissement
 _push_state = StateLogger("Push InfluxDB", name=LOGGER_NAME)
+
+
+def get_health() -> dict:
+    """État sûr de l'export, sans endpoint ni identifiant."""
+    enabled = bool(
+        _params is not None
+        and str(_params.network.host_machine_state).lower() == "online"
+    )
+    return {**_health, "enabled": enabled, "failures": _push_state.failures}
 
 
 def reload_sensor_handler(config: AppConfig, sensor_handler: "SensorController | None" = None) -> None:
@@ -73,15 +89,15 @@ async def _send_grouped_point(
     session: aiohttp.ClientSession,
     measurement: str,
     values: dict[str, float],
-) -> None:
+) -> tuple[bool | None, str | None]:
     if not values:
         debug(f"{measurement} : aucune donnée à envoyer", name=LOGGER_NAME)
-        return
+        return None, None
 
     field_parts = [f"{_escape_field_key(k)}={v}" for k, v in values.items() if v is not None]
     if not field_parts:
         debug(f"{measurement} : toutes les valeurs sont None", name=LOGGER_NAME)
-        return
+        return None, None
 
     payload = f"{measurement} {','.join(field_parts)}"
     # Les valeurs sont déjà dans Influx : inutile de les dupliquer en INFO
@@ -93,14 +109,12 @@ async def _send_grouped_point(
             await response.read()
     except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
         # Surtout pas repr(exc) : certains clients recopient l'URL complète.
-        _push_state.fail(f"{_endpoint_label} → {exc.__class__.__name__}")
-        return
+        return False, exc.__class__.__name__
 
     if status != 204:
-        _push_state.fail(f"{_endpoint_label} → HTTP {status}")
-        return
+        return False, f"HTTP {status}"
 
-    _push_state.ok()
+    return True, None
 
 
 async def write_sensor_values(period: int = 60) -> None:
@@ -110,18 +124,44 @@ async def write_sensor_values(period: int = 60) -> None:
         while True:
             beat()
             if _sensor_handler is None:
-                warning("Handler InfluxDB non initialisé → collecte ignorée", name=LOGGER_NAME)
+                _push_state.fail("handler non initialisé")
+                _health.update(
+                    state="error", last_failure_ts=time(),
+                    last_error="handler non initialisé",
+                )
             elif str(_params.network.host_machine_state).lower() != "online":
                 debug("Export InfluxDB désactivé", name=LOGGER_NAME)
+                _push_state.ok("export désactivé")
+                _health.update(state="disabled", last_error=None)
             else:
                 snapshot = _sensor_handler.snapshot()
+                attempted = False
+                failures = []
                 for measurement, sensors in _sensor_handler.sensor_dict.items():
                     sensor_values = {
                         sensor_name: snapshot[sensor_name]["value"]
                         for sensor_name in sensors
                         if snapshot.get(sensor_name, {}).get("status") == "ok"
                     }
-                    await _send_grouped_point(session, measurement, sensor_values)
+                    outcome, detail = await _send_grouped_point(session, measurement, sensor_values)
+                    if outcome is not None:
+                        attempted = True
+                    if outcome is False:
+                        failures.append(detail or "échec")
+                if failures:
+                    safe_detail = failures[0]
+                    _push_state.fail(f"{_endpoint_label} → {safe_detail}")
+                    _health.update(
+                        state="error", last_failure_ts=time(), last_error=safe_detail,
+                    )
+                elif attempted:
+                    _push_state.ok()
+                    _health.update(
+                        state="ok", last_success_ts=time(), last_error=None,
+                    )
+                else:
+                    _push_state.ok("aucune mesure valide à exporter")
+                    _health.update(state="idle", last_error=None)
 
             gc.collect()
             await hb_sleep(period)

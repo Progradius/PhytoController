@@ -77,6 +77,13 @@ param/runtime_state.json
 # Elle porte les mêmes identifiants en clair que param.json : aucune raison
 # qu'elle entre à son tour dans l'historique.
 param/param.json.bak
+# Historique opérateur propre à la machine et annexes SQLite.
+param/operator_history.sqlite3
+param/operator_history.sqlite3-wal
+param/operator_history.sqlite3-shm
+param/operator_history.sqlite3.corrupt.*
+# Statistiques réécrites à l'exécution, restaurées séparément par deploy.sh.
+param/sensor_stats.json
 
 # MicroPython precompiled files (si présents)
 *.mpy

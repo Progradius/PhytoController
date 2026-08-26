@@ -166,6 +166,14 @@ to `PuppetMaster`.
   no `unsafe-inline`.
 - `network/web/influx_handler.py` — InfluxDB **v1** line protocol over async aiohttp with a bounded timeout.
   It consumes the shared sensor snapshot and never performs or duplicates a hardware read.
+- `controllers/OperatorService.py` + `utils/alarm_manager.py` + `utils/operator_history.py` — couche
+  opérateur **auxiliaire** (jalon 2). Elle relit les snapshots existants et les GPIO, détecte les
+  alarmes idempotentes, puis confie tous les accès SQLite à un unique thread dédié. La base locale
+  conserve 72 h d'échantillons d'une minute et 30 jours d'occurrences résolues ; une panne ou une
+  corruption de cet historique alarme mais ne dégrade jamais `control_healthy()` ni le watchdog.
+  `/alarms`, `/api/v1/alarms` et `/api/v1/history?hours=24|48|72` exposent ce diagnostic. Ne faites
+  aucune lecture matérielle supplémentaire pour l'historique et ne déplacez jamais SQLite dans une
+  boucle de contrôle ou dans l'event loop.
 
 ## GPIO conventions — read before touching any pin code
 

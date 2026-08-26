@@ -10,9 +10,17 @@ from __future__ import annotations
 from time import monotonic
 
 _entries: dict[str, dict] = {}
+_transition_sink = None
+
+
+def set_transition_sink(callback) -> None:
+    """Branche un observateur non bloquant; jamais une dépendance de contrôle."""
+    global _transition_sink
+    _transition_sink = callback
 
 
 def publish(equipment_id: str, *, stale_after: float, **values) -> None:
+    previous = _entries.get(equipment_id, {})
     transition = values.get("next_transition")
     if isinstance(transition, dict) and transition.get("in_seconds") is not None:
         transition = dict(transition)
@@ -26,6 +34,15 @@ def publish(equipment_id: str, *, stale_after: float, **values) -> None:
         "published_mono": monotonic(),
         "stale_after_seconds": float(stale_after),
     }
+    if _transition_sink is not None:
+        before = (previous.get("requested"), previous.get("applied"))
+        after = (values.get("requested"), values.get("applied"))
+        if before != after:
+            try:
+                _transition_sink(equipment_id, values)
+            except Exception:
+                # L'observabilité ne doit jamais casser la boucle métier.
+                pass
 
 
 def snapshot() -> dict[str, dict]:

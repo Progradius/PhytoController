@@ -19,10 +19,18 @@
     </div>
     <nav class="navbar" aria-label="Navigation principale">
       <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau de bord</a>
+      <a href="/alarms"{% if current_page == 'alarms' %} aria-current="page"{% endif %}>Alarmes{% if alarm_summary and alarm_summary.active_count %} <span class="nav-count">{{ alarm_summary.active_count }}</span>{% endif %}</a>
       <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
       <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
     </nav>
   </header>
+  {% if alarm_summary and alarm_summary.active_count %}
+  <aside id="global-alarm" class="global-alarm severity-{{ alarm_summary.highest_severity }}" aria-live="polite">
+    <strong>{{ alarm_summary.active_count }} alarme(s) active(s)</strong>
+    <span>{{ alarm_summary.control_count }} contrôle · {{ alarm_summary.auxiliary_count }} auxiliaire</span>
+    <a href="/alarms">Examiner</a>
+  </aside>
+  {% endif %}
   <main id="contenu" class="page-shell">
     {% block content %}{% endblock %}
   </main>

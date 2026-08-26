@@ -31,6 +31,8 @@ from model.SensorStats import SensorStats
 
 from param.config_store import shared_config
 from utils.time_reliability import time_reliability
+from utils.alarm_manager import AlarmManager
+from utils.operator_history import OperatorHistory
 
 # =============================================================
 #                  VARIABLES GLOBALES SÉCURITÉ
@@ -145,6 +147,11 @@ title("Phyto-Controller - Boot", name=LOGGER_NAME)
 # chaque modification (audit C5, C7, M4).
 config = shared_config().current
 
+# Historique auxiliaire : initialisé avant l'event loop, sur son propre thread.
+# Une indisponibilité ne bloque jamais le boot et sera exposée comme alarme.
+operator_history = OperatorHistory()
+alarm_manager = AlarmManager(operator_history.startup_alarms)
+
 # Niveau et rétention de log : env PHYTO_LOG_LEVEL > param.json > INFO
 ui.apply_log_settings(config.logs.level, config.logs.retention_days)
 # Diffusion des logs du processus courant vers la page /console
@@ -252,6 +259,8 @@ puppet_master = PuppetMaster(
     cyclic_timer2      = cyclic_timer2,
     motor_handler      = motor_handler,
     heater_component   = heater,
+    operator_history   = operator_history,
+    alarm_manager      = alarm_manager,
 )
 
 # (12) Info mémoire

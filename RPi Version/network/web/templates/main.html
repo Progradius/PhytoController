@@ -11,6 +11,26 @@
   </div>
 </section>
 
+<section class="operator-summary" aria-labelledby="operator-title">
+  <div class="section-heading"><div><p class="eyebrow">Diagnostic</p><h2 id="operator-title">Vue opérateur</h2></div><a class="button button-secondary" href="/alarms">Voir les alarmes</a></div>
+  <div class="card-grid operator-summary-grid">
+    <article class="card"><span class="card-kicker">ALARMES</span><p class="metric"><span id="alarm-count">{{ state.alarms.active_count }}</span></p><p class="card-meta"><span id="control-alarm-count">{{ state.alarms.control_count }}</span> contrôle · <span id="aux-alarm-count">{{ state.alarms.auxiliary_count }}</span> auxiliaire</p></article>
+    <article class="card"><span class="card-kicker">HISTORIQUE LOCAL</span><p class="metric compact-metric" id="history-state">{{ 'Disponible' if state.history.available else 'Indisponible' }}</p><p class="card-meta">Rétention glissante de 72 h, indépendante d’InfluxDB.</p></article>
+    <article class="card"><span class="card-kicker">RÉSEAU</span><p class="metric compact-metric" id="network-state">{{ state.network.status }}</p><p class="card-meta" id="network-detail">{{ state.network.interface or 'Interface inconnue' }} · {{ state.network.ipv4 or 'sans IPv4' }}</p></article>
+  </div>
+</section>
+
+<section id="tendances" class="history-section" aria-labelledby="history-title" data-history-available="{{ 'true' if state.history.available else 'false' }}">
+  <div class="section-heading"><div><p class="eyebrow">72 heures explicables</p><h2 id="history-title">Tendances locales</h2></div><div class="history-range" role="group" aria-label="Période"><button class="button button-secondary is-selected" data-hours="24">24 h</button><button class="button button-secondary" data-hours="48">48 h</button><button class="button button-secondary" data-hours="72">72 h</button></div></div>
+  <p id="history-message" class="card-meta" role="status">Chargement de l’historique…</p>
+  <div class="history-grid">
+    <article class="card chart-card"><h3>Températures et consignes</h3><canvas id="temperature-chart" height="240" aria-label="Tendances de température"></canvas></article>
+    <article class="card chart-card"><h3>Humidité</h3><canvas id="humidity-chart" height="240" aria-label="Tendances d’humidité"></canvas></article>
+    <article class="card chart-card chart-wide"><h3>Taux de marche des actionneurs</h3><canvas id="actuator-chart" height="220" aria-label="Taux de marche des actionneurs"></canvas></article>
+    <div id="additional-charts" class="additional-charts"></div>
+  </div>
+</section>
+
 <section class="time-banner {{ 'is-alert' if state.time.alarm or state.time.daily_timers_suspended else 'is-ok' }}" id="time-banner" aria-live="polite">
   <div><strong id="time-title">Heure : {{ state.time.state }}</strong><p id="time-detail">{% if state.time.daily_timers_suspended %}Minuteries journalières suspendues, reprise de sécurité au plus tard dans 15 minutes.{% elif state.time.alarm %}{{ state.time.alarm }}{% else %}Horloge exploitable par les ordonnanceurs.{% endif %}</p></div>
 </section>
@@ -145,4 +165,4 @@
 </dialog>
 {% endfor %}
 {% endblock %}
-{% block page_scripts %}<script src="/static/js/dashboard.js?v={{ asset_versions.dashboard }}" defer></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/dashboard.js?v={{ asset_versions.dashboard }}" defer></script><script src="/static/js/history.js?v={{ asset_versions.history }}" defer></script>{% endblock %}

@@ -36,6 +36,7 @@ import asyncio
 import contextvars
 import os
 import traceback
+from collections import deque
 from time import monotonic
 from typing import Awaitable, Callable
 
@@ -51,6 +52,7 @@ BACKOFF_FACTOR = 2.0
 # Une tâche qui a tenu au moins ce temps repart d'un back-off neuf : une panne
 # isolée après 2 h de fonctionnement n'est pas une boucle de crash.
 BACKOFF_RESET_AFTER_SECONDS = 600.0
+RESTART_WINDOW_SECONDS = 10 * 60.0
 
 # Découpage des longues attentes : une sieste de 10 jours (cyclic journalier)
 # ne doit pas ressembler à une tâche morte.
@@ -118,6 +120,7 @@ class SupervisedJob:
 
         self.last_beat: float = monotonic()
         self.restarts: int = 0
+        self.restart_times: deque[float] = deque()
         self.reloads: int = 0
         self.stalls: int = 0
         self.last_error: str | None = None
@@ -151,6 +154,12 @@ class SupervisedJob:
     def is_healthy(self) -> bool:
         return self.is_alive() and not self.is_stale()
 
+    def recent_restart_count(self, now: float | None = None) -> int:
+        current = monotonic() if now is None else now
+        while self.restart_times and current - self.restart_times[0] >= RESTART_WINDOW_SECONDS:
+            self.restart_times.popleft()
+        return len(self.restart_times)
+
     def snapshot(self) -> dict:
         return {
             "domain": self.domain,
@@ -160,6 +169,7 @@ class SupervisedJob:
             "silence_s": round(self.silence_seconds, 1),
             "max_silence_s": self.max_silence,
             "restarts": self.restarts,
+            "restarts_10m": self.recent_restart_count(),
             "reloads": self.reloads,
             "stalls": self.stalls,
             "last_error": self.last_error,
@@ -360,6 +370,8 @@ class TaskSupervisor:
             # alimentée pendant que le superviseur attend.
             self._to_safe_state(job)
             job.restarts += 1
+            job.restart_times.append(monotonic())
+            job.recent_restart_count()
 
             if monotonic() - started >= BACKOFF_RESET_AFTER_SECONDS:
                 backoff = BACKOFF_INITIAL_SECONDS

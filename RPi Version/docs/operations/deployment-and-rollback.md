@@ -98,6 +98,29 @@ santé ou une modification du watchdog invalide la fenêtre. Un capteur non `ok`
 fiable produit un avertissement à examiner, sans masquer l'état du contrôle. Aucun déploiement ne doit
 être lancé pendant cette fenêtre, puisqu'il changerait volontairement le PID et invaliderait la preuve.
 
+### Préparation du jalon 2 — alarmes et historique local
+
+Le jalon 2 ajoute `param/operator_history.sqlite3`, un état propre à la machine, avec ses annexes
+SQLite `-wal` et `-shm`. Ces fichiers ainsi que `param/sensor_stats.json` sont ignorés par Git ; le
+script de déploiement continue de sauvegarder les statistiques avant changement de version. Une base
+historique corrompue est conservée sous le suffixe `.corrupt.<horodatage>`, recréée vide et signalée
+par une alarme auxiliaire : elle ne doit ni empêcher le boot, ni arrêter les caresses watchdog.
+
+Après le futur déploiement du jalon 2, contrôler sans manipuler les GPIO :
+
+```bash
+curl -fsS http://127.0.0.1:8123/api/v1/state | jq '{health,alarms,history,network}'
+curl -fsS 'http://127.0.0.1:8123/api/v1/history?hours=24' | jq '{hours,bucket_seconds,buckets:(.buckets|length)}'
+curl -fsS 'http://127.0.0.1:8123/api/v1/alarms?status=active' | jq '{summary,alarms}'
+```
+
+La fenêtre d'observation minimale est de 24 h pour confirmer l'échantillonnage à la minute, les trous
+non interpolés et l'absence de relance auxiliaire. Le rollback est déclenché par toute régression de
+régulation, toute modification inexpliquée des sorties ou tout `control_healthy=false` sans défaut de
+contrôle réel. Une indisponibilité de l'historique ou d'InfluxDB seule doit rester une alarme auxiliaire
+et ne constitue pas, à elle seule, un motif de reboot automatique. Ne pas déployer ce jalon tant que la
+fenêtre d'observation du jalon 1 ci-dessus n'est pas terminée et acceptée.
+
 ## Rollback manuel d'urgence
 
 Ne pas improviser un `git reset --hard`. Avant une action manuelle :

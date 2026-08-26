@@ -128,6 +128,15 @@ input:invalid { border-color: var(--red); }
 .console-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
 .connection-state { color: var(--muted); } .connection-state.is-online { color: var(--green); } .connection-state.is-offline { color: var(--amber); }
 .console-output { min-height: min(68vh, 760px); margin: 0; padding: 1rem; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: #020503; color: #c8fbd8; font: .88rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nav-count { min-width: 1.35rem; padding: .05rem .35rem; border-radius: 999px; background: var(--red); color: #240303; text-align: center; font-size: .75rem; }
+.global-alarm { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: .65rem clamp(1rem, 4vw, 3rem); border-bottom: 1px solid var(--amber); background: rgb(255 200 87 / 10%); }
+.global-alarm.severity-critical { border-color: var(--red); background: rgb(255 107 107 / 12%); }.global-alarm a { color: var(--text); }
+.operator-summary-grid { grid-template-columns: repeat(3, 1fr); }.compact-metric { font-size: clamp(1.25rem, 3vw, 2rem); text-transform: capitalize; }
+.history-range { display: flex; gap: .35rem; }.history-range .is-selected { border-color: var(--green); color: var(--green); background: rgb(80 227 138 / 10%); }
+.history-grid, .additional-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }.additional-charts { display: contents; }.chart-wide { grid-column: 1 / -1; }.chart-card canvas { display: block; width: 100%; margin-top: .8rem; }
+.alarm-summary { display: grid; min-width: 9rem; padding: .8rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.alarm-summary strong { color: var(--green); font-size: 2rem; }.alarm-summary small { color: var(--muted); }
+.alarm-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; gap: .75rem; margin: 0 0 1.5rem; }.alarm-filters label { color: var(--muted); font-size: .82rem; }.alarm-filters input, .alarm-filters select { margin-top: .3rem; }
+.alarm-list { display: grid; gap: 1rem; }.alarm-card { padding: 1.15rem; border: 1px solid var(--amber); border-radius: var(--radius); background: var(--surface); }.alarm-card.severity-critical { border-color: var(--red); }.alarm-card.is-resolved { border-color: var(--border); opacity: .78; }.alarm-card h2 { margin: .6rem 0; }.alarm-card-heading, .alarm-actions { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }.alarm-severity, .alarm-category, .acknowledged { display: inline-flex; margin-right: .35rem; padding: .18rem .45rem; border-radius: 999px; background: var(--soft); color: var(--muted); font-size: .75rem; text-transform: uppercase; }.alarm-detail { color: var(--amber); }.alarm-facts { display: flex; flex-wrap: wrap; gap: 1.5rem; }.alarm-facts div { display: flex; gap: .4rem; }.alarm-facts dt { color: var(--muted); }.alarm-facts dd { margin: 0; }.alarm-ack-form { display: flex; align-items: end; gap: .5rem; }.alarm-ack-form label { color: var(--muted); font-size: .8rem; }.alarm-ack-form input { margin-top: .25rem; }
 @media (max-width: 680px) {
   .site-header { align-items: flex-start; flex-direction: column; padding-block: .8rem; }
   .navbar { width: 100%; } .navbar a { flex: 1; justify-content: center; padding-inline: .5rem; font-size: .9rem; }
@@ -135,6 +144,7 @@ input:invalid { border-color: var(--red); }
   .freshness { white-space: normal; } .danger-actions { flex-direction: column; }
   .danger-actions .button, .dialog-confirm-form .button, .dialog-actions .button { width: 100%; }
   .config-section > summary { align-items: flex-start; flex-direction: column; gap: .2rem; }
+  .global-alarm, .alarm-card-heading, .alarm-actions { align-items: stretch; flex-direction: column; }.operator-summary-grid, .history-grid, .alarm-filters { grid-template-columns: 1fr; }.chart-wide { grid-column: auto; }.history-range { width: 100%; }.history-range .button { flex: 1; }.alarm-ack-form { align-items: stretch; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

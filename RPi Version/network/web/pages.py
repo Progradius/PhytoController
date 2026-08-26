@@ -26,6 +26,8 @@ def _asset_versions() -> dict[str, str]:
         "dashboard": STATIC_DIR / "js" / "dashboard.js",
         "config": STATIC_DIR / "js" / "config.js",
         "console": STATIC_DIR / "js" / "console.js",
+        "alarms": STATIC_DIR / "js" / "alarms.js",
+        "history": STATIC_DIR / "js" / "history.js",
         "font": STATIC_DIR / "fonts" / "visitor1.ttf",
         "favicon": STATIC_DIR / "favicon.svg",
         "equipment_icons": STATIC_DIR / "equipment-icons.svg",
@@ -44,6 +46,7 @@ ASSET_VERSIONS = _asset_versions()
 
 def render_template(template_name: str, **context) -> str:
     template = env.get_template(template_name)
+    context.setdefault("alarm_summary", None)
     return template.render(asset_versions=ASSET_VERSIONS, **context)
 
 
@@ -53,6 +56,7 @@ def main_page(state: dict, csrf_token: str) -> str:
         page_title="Tableau de bord",
         current_page="dashboard",
         state=state,
+        alarm_summary=state.get("alarms"),
         csrf_token=csrf_token,
     )
 
@@ -65,6 +69,7 @@ def conf_page(
     errors: dict[str, str] | None = None,
     active_section: str | None = None,
     equipment=None,
+    alarm_summary=None,
 ) -> str:
     return render_template(
         "conf.html",
@@ -84,14 +89,30 @@ def conf_page(
             for name in config.gpio.__class__.model_fields
         ],
         equipment=equipment or {},
+        alarm_summary=alarm_summary,
     )
 
 
-def console_page(csrf_token: str) -> str:
+def console_page(csrf_token: str, *, alarm_summary=None) -> str:
     return render_template(
         "console.html",
         page_title="Console",
         current_page="console",
+        csrf_token=csrf_token,
+        alarm_summary=alarm_summary,
+    )
+
+
+def alarms_page(
+    alarms: list[dict], filters: dict, alarm_summary: dict, csrf_token: str
+) -> str:
+    return render_template(
+        "alarms.html",
+        page_title="Alarmes",
+        current_page="alarms",
+        alarms=alarms,
+        filters=filters,
+        alarm_summary=alarm_summary,
         csrf_token=csrf_token,
     )
 
