@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import hmac
 import ipaddress
+import json
 import os
 import socket
+import ssl
 import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +19,16 @@ from pydantic import ValidationError
 from components.climate_control import get_climate_alarm, get_climate_snapshot
 from controllers.sensor_catalog import SENSOR_CATALOG
 from network.web import influx_handler
-from network.web.pages import alarms_page, conf_page, console_page, error_page, main_page
+from network.web.pages import (
+    ASSET_VERSIONS,
+    PWA_CACHE_VERSION,
+    alarms_page,
+    conf_page,
+    console_page,
+    error_page,
+    main_page,
+    offline_page,
+)
 from param.config_store import shared_config
 from param.equipment_metadata import (
     EQUIPMENT_IDS, EquipmentMetadata, EquipmentMetadataStore,
@@ -207,7 +218,28 @@ class Server:
         self._runner: web.AppRunner | None = None
         self._history_query_running = False
         self._allowed_names = self._build_allowed_names()
+        self._https_port, self._https_config_error = self._load_https_port()
+        self._tls_cert_file = os.getenv("PHYTO_TLS_CERT_FILE", "").strip()
+        self._tls_key_file = os.getenv("PHYTO_TLS_KEY_FILE", "").strip()
+        self._https_configured = bool(
+            self._https_port
+            or self._https_config_error
+            or self._tls_cert_file
+            or self._tls_key_file
+        )
+        self._https_ready = False
         console_stream.install()
+
+    @staticmethod
+    def _load_https_port() -> tuple[int, str | None]:
+        raw = os.getenv("PHYTO_HTTPS_PORT", "0").strip()
+        try:
+            port = int(raw)
+        except ValueError:
+            return 0, "port HTTPS invalide"
+        if not 0 <= port <= 65535:
+            return 0, "port HTTPS hors limites"
+        return port, None
 
     def _build_allowed_names(self) -> set[str]:
         hostname = socket.gethostname().lower()
@@ -237,6 +269,7 @@ class Server:
             web.get("/alarms", self._alarms),
             web.get("/api/v1/state", self._api_state),
             web.get("/api/v1/alarms", self._api_alarms),
+            web.get("/api/v1/alarms/active", self._api_active_alarms),
             web.get("/api/v1/history", self._api_history),
             web.post("/actions/alarms/ack", self._acknowledge_alarm),
             web.post("/actions/stats/reset", self._reset_stats),
@@ -247,7 +280,11 @@ class Server:
             web.get("/health/ready", self._health_ready),
             web.get("/favicon.ico", self._favicon_redirect),
             web.get("/favicon.svg", self._favicon),
+            web.get("/app.webmanifest", self._manifest),
+            web.get("/service-worker.js", self._service_worker),
+            web.get("/offline", self._offline),
             web.get("/static/css/style.css", self._style),
+            web.get("/static/js/pwa.js", self._pwa_js),
             web.get("/static/js/dashboard.js", self._dashboard_js),
             web.get("/static/js/config.js", self._config_js),
             web.get("/static/js/console.js", self._console_js),
@@ -255,10 +292,14 @@ class Server:
             web.get("/static/js/history.js", self._history_js),
             web.get("/static/fonts/visitor1.ttf", self._font),
             web.get("/static/equipment-icons.svg", self._equipment_icons),
+            web.get("/static/icons/pwa-192.png", self._pwa_icon_192),
+            web.get("/static/icons/pwa-512.png", self._pwa_icon_512),
+            web.get("/static/icons/pwa-maskable-512.png", self._pwa_icon_maskable),
         ])
         return app
 
     async def run(self) -> None:
+        self._https_ready = False
         app = self.create_app()
         self._runner = web.AppRunner(app, access_log=None, shutdown_timeout=5.0)
         await self._runner.setup()
@@ -277,12 +318,47 @@ class Server:
                 return
             raise
         success(f"HTTP aiohttp prêt sur {self.host}:{self.port}", name=LOGGER_NAME)
+        await self._start_https()
         try:
             await asyncio.Event().wait()
         finally:
             if self._runner is not None:
                 await self._runner.cleanup()
                 self._runner = None
+
+    async def _start_https(self) -> None:
+        if not self._https_configured:
+            debug("HTTPS PWA désactivé", name=LOGGER_NAME)
+            return
+        if self._https_config_error:
+            error(f"HTTPS PWA indisponible : {self._https_config_error}", name=LOGGER_NAME)
+            return
+        if not self._https_port or not self._tls_cert_file or not self._tls_key_file:
+            error(
+                "HTTPS PWA indisponible : port, certificat et clé doivent être configurés ensemble",
+                name=LOGGER_NAME,
+            )
+            return
+        try:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(self._tls_cert_file, self._tls_key_file)
+            site = web.TCPSite(
+                self._runner,
+                self.host,
+                self._https_port,
+                backlog=64,
+                ssl_context=context,
+            )
+            await site.start()
+        except (OSError, ssl.SSLError, ValueError) as exc:
+            error(
+                f"HTTPS PWA indisponible ({exc.__class__.__name__}) ; HTTP reste actif",
+                name=LOGGER_NAME,
+            )
+            return
+        self._https_ready = True
+        success(f"HTTPS PWA prêt sur {self.host}:{self._https_port}", name=LOGGER_NAME)
 
     @web.middleware
     async def _security_middleware(self, request: web.Request, handler):
@@ -303,7 +379,8 @@ class Server:
             "Content-Security-Policy",
             "default-src 'self'; script-src 'self'; style-src 'self'; "
             "font-src 'self'; img-src 'self' data:; connect-src 'self'; "
-            "form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+            "worker-src 'self'; manifest-src 'self'; form-action 'self'; "
+            "frame-ancestors 'none'; base-uri 'none'",
         )
         response.headers.setdefault("Cache-Control", "no-store")
         if request.path.startswith("/static/") or response.content_type == "application/json":
@@ -601,6 +678,16 @@ class Server:
             "alarms": await self.operator_service.list_alarm_payloads(filters),
         })
 
+    async def _api_active_alarms(self, request: web.Request) -> web.Response:
+        if self.operator_service is None:
+            raise web.HTTPServiceUnavailable(text="Service d'alarmes indisponible")
+        return web.json_response({
+            "schema_version": 1,
+            "generated_at": _utc_now(),
+            "summary": self.operator_service.alarms.summary(),
+            "alarms": self.operator_service.alarms.active_payloads(),
+        })
+
     async def _acknowledge_alarm(self, request: web.Request) -> web.Response:
         if self.operator_service is None:
             raise web.HTTPServiceUnavailable(text="Service d'alarmes indisponible")
@@ -737,6 +824,13 @@ class Server:
         return {
             "schema_version": 1,
             "generated_at": _utc_now(),
+            "web": {
+                "https": {
+                    "configured": self._https_configured,
+                    "ready": self._https_ready,
+                    "port": self._https_port or None,
+                },
+            },
             "health": {
                 "healthy": self.supervisor.is_healthy() if self.supervisor else True,
                 "control_healthy": self.supervisor.control_healthy() if self.supervisor else True,
@@ -893,6 +987,72 @@ class Server:
             status=200 if healthy else 503,
         )
 
+    async def _manifest(self, request: web.Request) -> web.Response:
+        icon_192 = f"/static/icons/pwa-192.png?v={ASSET_VERSIONS['icon_192']}"
+        icon_512 = f"/static/icons/pwa-512.png?v={ASSET_VERSIONS['icon_512']}"
+        maskable = (
+            f"/static/icons/pwa-maskable-512.png?v={ASSET_VERSIONS['icon_maskable']}"
+        )
+        payload = {
+            "id": "/",
+            "name": "PhytoController",
+            "short_name": "Phyto",
+            "description": "Supervision locale de la serre PhytoController",
+            "lang": "fr",
+            "start_url": "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#07100c",
+            "theme_color": "#020604",
+            "icons": [
+                {"src": icon_192, "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                {"src": icon_512, "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                {"src": maskable, "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+            ],
+            "shortcuts": [
+                {"name": "Tableau de bord", "short_name": "Tableau", "url": "/", "icons": [{"src": icon_192, "sizes": "192x192", "type": "image/png"}]},
+                {"name": "Alarmes", "short_name": "Alarmes", "url": "/alarms", "icons": [{"src": icon_192, "sizes": "192x192", "type": "image/png"}]},
+            ],
+        }
+        response = web.Response(
+            text=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            content_type="application/manifest+json",
+            charset="utf-8",
+        )
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+    async def _service_worker(self, request: web.Request) -> web.Response:
+        source = (STATIC_DIR / "service-worker.js").read_text(encoding="utf-8")
+        precache = [
+            "/offline",
+            f"/app.webmanifest?v={PWA_CACHE_VERSION}",
+            f"/static/css/style.css?v={ASSET_VERSIONS['style']}",
+            f"/static/js/pwa.js?v={ASSET_VERSIONS['pwa']}",
+            f"/static/js/dashboard.js?v={ASSET_VERSIONS['dashboard']}",
+            f"/static/js/alarms.js?v={ASSET_VERSIONS['alarms']}",
+            f"/static/js/history.js?v={ASSET_VERSIONS['history']}",
+            f"/static/fonts/visitor1.ttf?v={ASSET_VERSIONS['font']}",
+            f"/favicon.svg?v={ASSET_VERSIONS['favicon']}",
+            f"/static/equipment-icons.svg?v={ASSET_VERSIONS['equipment_icons']}",
+            f"/static/icons/pwa-192.png?v={ASSET_VERSIONS['icon_192']}",
+            f"/static/icons/pwa-512.png?v={ASSET_VERSIONS['icon_512']}",
+            f"/static/icons/pwa-maskable-512.png?v={ASSET_VERSIONS['icon_maskable']}",
+        ]
+        source = source.replace("__PHYTO_CACHE_VERSION__", PWA_CACHE_VERSION)
+        source = source.replace("__PHYTO_PRECACHE_URLS__", json.dumps(precache))
+        response = web.Response(
+            text=source,
+            content_type="application/javascript",
+            charset="utf-8",
+        )
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["Service-Worker-Allowed"] = "/"
+        return response
+
+    async def _offline(self, request: web.Request) -> web.Response:
+        return self._html(offline_page())
+
     async def _asset(self, relative: str, content_type: str | None = None) -> web.FileResponse:
         response = web.FileResponse(STATIC_DIR / relative)
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
@@ -901,6 +1061,7 @@ class Server:
         return response
 
     async def _style(self, request): return await self._asset("css/style.css", "text/css")
+    async def _pwa_js(self, request): return await self._asset("js/pwa.js", "application/javascript")
     async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
     async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")
     async def _console_js(self, request): return await self._asset("js/console.js", "application/javascript")
@@ -909,6 +1070,9 @@ class Server:
     async def _font(self, request): return await self._asset("fonts/visitor1.ttf", "font/ttf")
     async def _equipment_icons(self, request): return await self._asset("equipment-icons.svg", "image/svg+xml")
     async def _favicon(self, request): return await self._asset("favicon.svg", "image/svg+xml")
+    async def _pwa_icon_192(self, request): return await self._asset("icons/pwa-192.png", "image/png")
+    async def _pwa_icon_512(self, request): return await self._asset("icons/pwa-512.png", "image/png")
+    async def _pwa_icon_maskable(self, request): return await self._asset("icons/pwa-maskable-512.png", "image/png")
 
     async def _favicon_redirect(self, request: web.Request) -> web.Response:
         raise web.HTTPFound(location="/favicon.svg")

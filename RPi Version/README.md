@@ -66,12 +66,24 @@ Interface web :
 http://<adresse-du-pi>:8123
 ```
 
+La PWA locale utilise, après installation d'une autorité privée sur le terminal Android :
+
+```text
+https://phytocontroller.local/
+```
+
+Elle ajoute l'installation sur l'écran d'accueil, une fenêtre autonome, les raccourcis Tableau de
+bord/Alarmes, la dernière vue connue explicitement marquée hors ligne et des notifications locales
+tant qu'elle reste active. HTTP `:8123` demeure la voie de compatibilité et de récupération. Voir
+[PWA locale et TLS](docs/operations/pwa-local-tls.md).
+
 Routes principales :
 
 - `/` : tableau de bord, rafraîchi toutes les 5 secondes ;
 - `/conf` : configuration, une section validée et enregistrée à la fois ;
 - `/console` : flux des logs du processus courant ;
 - `/api/v1/state` : état complet versionné en JSON ;
+- `/api/v1/alarms/active` : alarmes actives en mémoire pour la PWA ;
 - `/health/live` et `/health/ready` : sondes de disponibilité et de santé (`503` si une tâche est en défaut) ;
 - `/status` : ancien format JSON, conservé pour les scripts existants.
 

@@ -50,6 +50,11 @@ systemctl show phyto.service -p NRestarts -p ActiveState -p SubState -p StatusTe
 journalctl -u phyto -n 50 --no-pager -o cat
 ```
 
+Si le HTTPS PWA est configuré, ajouter le contrôle auxiliaire décrit dans
+[PWA locale et TLS](pwa-local-tls.md). Le déploiement continue délibérément de qualifier la régulation
+sur HTTP loopback : une panne de certificat ne doit pas provoquer un rollback ou un reboot de la
+serre. Elle doit en revanche laisser `web.https.ready=false` et bloquer la qualification PWA.
+
 Vérifier également les équipements physiquement actifs et les prochaines échéances.
 
 ### Fenêtre d'observation du jalon « expérience opérateur »
@@ -130,6 +135,11 @@ Ne pas improviser un `git reset --hard`. Avant une action manuelle :
 3. conserver les logs de l'échec ;
 4. vérifier que le problème vient du code et non du matériel ou de la configuration ;
 5. utiliser de préférence le rollback automatique du script.
+
+Un retour vers un commit antérieur à la PWA supprime le point d'écoute `:443` mais conserve HTTP
+`:8123`. Une application déjà installée peut alors rester sur sa coque locale en affichant hors ligne ;
+la désinstaller ou effacer les données du site Chrome. Les fichiers TLS sous `/etc/phyto/tls` ne sont
+pas gérés par `deploy.sh` et restent disponibles pour un redéploiement.
 
 Si le rollback automatique a restauré le commit mais que le service reste indisponible, suivre le [runbook](incident-runbook.md) : la panne peut venir de la configuration vivante, du venv, des permissions ou du matériel.
 

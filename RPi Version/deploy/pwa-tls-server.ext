@@ -1,0 +1,6 @@
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
+subjectAltName=DNS:phytocontroller.local,DNS:phytocontroller,IP:10.42.0.1
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer

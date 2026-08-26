@@ -4,14 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#020604">
+  <meta name="phyto-secure-url" content="{{ pwa_url }}">
   {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
   <title>{{ page_title }} · PhytoController</title>
   <link rel="icon" href="/favicon.svg?v={{ asset_versions.favicon }}" type="image/svg+xml">
+  <link rel="manifest" href="/app.webmanifest?v={{ asset_versions.icon_512 }}">
+  <link rel="apple-touch-icon" href="/static/icons/pwa-192.png?v={{ asset_versions.icon_192 }}">
   <link rel="stylesheet" href="/static/css/style.css?v={{ asset_versions.style }}">
   {% block head_extra %}{% endblock %}
 </head>
 <body data-page="{{ current_page or 'error' }}">
   <a class="skip-link" href="#contenu">Aller au contenu</a>
+  <aside id="pwa-connection-banner" class="pwa-connection-banner" role="alert" aria-live="assertive" hidden>
+    <strong id="pwa-connection-title">HORS LIGNE</strong>
+    <span id="pwa-connection-detail">Données non actualisées · lecture seule</span>
+  </aside>
+  <aside id="pwa-security-notice" class="pwa-security-notice" role="status" hidden>
+    {% if pwa_https_configured %}
+    <span>Mode web classique : installation et notifications indisponibles sur HTTP.</span>
+    <a id="pwa-security-link" href="{{ pwa_url }}">Ouvrir la version HTTPS</a>
+    {% else %}
+    <span>Mode web classique : HTTPS PWA n’est pas encore configuré par l’administrateur.</span>
+    {% endif %}
+  </aside>
   <header class="site-header">
     <div class="brand" aria-label="PhytoController">
       <span class="brand-mark" aria-hidden="true">⌁</span>
@@ -35,6 +50,7 @@
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">PHYTO · CONTRÔLE LOCAL LAN</footer>
+  <script src="/static/js/pwa.js?v={{ asset_versions.pwa }}" defer></script>
   {% block page_scripts %}{% endblock %}
 </body>
 </html>

@@ -164,6 +164,14 @@ to `PuppetMaster`.
 - `network/web/pages.py` — Jinja2 with autoescape; asset URLs carry a content hash so a redeployed
   CSS/JS file is not served from cache. Every page must stay inline-script/style free: the CSP has
   no `unsafe-inline`.
+- `network/web/static/service-worker.js` + `network/web/static/js/pwa.js` — PWA locale **à
+  fraîcheur dominante**. Le service worker ne met jamais en cache `/api/`, `/health/`, `/status`,
+  le SSE ni une méthode mutante ; il conserve seulement les assets hachés et les dernières pages de
+  lecture. Les snapshots IndexedDB ne sont lus qu'après un échec réseau, gardent la bannière
+  « HORS LIGNE — données datant de… — lecture seule » et ne déclenchent jamais de notification.
+  Aucune commande n'est mise en attente ou rejouée. HTTPS `:443` est un second point d'écoute
+  optionnel ; tout échec TLS laisse HTTP `:8123` et le contrôle actifs. Les notifications sont
+  locales, opt-in, limitées aux alarmes de contrôle/critiques et sans garantie PWA fermée.
 - `network/web/influx_handler.py` — InfluxDB **v1** line protocol over async aiohttp with a bounded timeout.
   It consumes the shared sensor snapshot and never performs or duplicates a hardware read.
 - `controllers/OperatorService.py` + `utils/alarm_manager.py` + `utils/operator_history.py` — couche

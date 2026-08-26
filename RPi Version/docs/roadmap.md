@@ -149,6 +149,9 @@ Un chantier n'est terminé que si :
 - [x] Valider `Host` et documenter le filtrage réseau
 - [x] Séparer `/health/live` et `/health/ready`
 - [x] Déplacer l'export Influx et les lectures capteurs hors event loop
+- [x] Implémenter la PWA locale : HTTPS natif optionnel, manifeste, coque hors ligne à fraîcheur
+      dominante et notifications locales actives — **code non déployé**, autorité Android et scénarios
+      coupure/reconnexion encore à qualifier
 - [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop — **reboot et
       poweroff faits** (`asyncio.create_subprocess_exec`) ; `nmcli`/`ping`/`timedatectl` restent des
       `subprocess.run` bloquants **sans `timeout=`**. Ils ne s'exécutent qu'au boot, donc ils ne bloquent

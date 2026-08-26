@@ -6,8 +6,11 @@
     <h1 id="dashboard-title">Tableau de bord</h1>
     <p class="hero-copy">État du contrôle local, mesures actives et alarmes opérationnelles.</p>
   </div>
-  <div class="freshness" id="freshness" data-generated-at="{{ state.generated_at }}" aria-live="polite">
-    Mise à jour en cours…
+  <div class="hero-actions">
+    <div class="freshness" id="freshness" data-generated-at="{{ state.generated_at }}" aria-live="polite">
+      Mise à jour en cours…
+    </div>
+    <button class="button button-secondary" id="pwa-install-button" type="button" hidden>Installer l’application</button>
   </div>
 </section>
 

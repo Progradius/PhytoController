@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import socket
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -28,8 +30,13 @@ def _asset_versions() -> dict[str, str]:
         "console": STATIC_DIR / "js" / "console.js",
         "alarms": STATIC_DIR / "js" / "alarms.js",
         "history": STATIC_DIR / "js" / "history.js",
+        "pwa": STATIC_DIR / "js" / "pwa.js",
+        "service_worker": STATIC_DIR / "service-worker.js",
         "font": STATIC_DIR / "fonts" / "visitor1.ttf",
         "favicon": STATIC_DIR / "favicon.svg",
+        "icon_192": STATIC_DIR / "icons" / "pwa-192.png",
+        "icon_512": STATIC_DIR / "icons" / "pwa-512.png",
+        "icon_maskable": STATIC_DIR / "icons" / "pwa-maskable-512.png",
         "equipment_icons": STATIC_DIR / "equipment-icons.svg",
     }
     versions = {}
@@ -42,11 +49,38 @@ def _asset_versions() -> dict[str, str]:
 
 
 ASSET_VERSIONS = _asset_versions()
+PWA_CACHE_VERSION = hashlib.sha256(
+    "|".join(f"{key}:{value}" for key, value in sorted(ASSET_VERSIONS.items())).encode()
+).hexdigest()[:16]
+
+
+def _pwa_url() -> str:
+    hostname = socket.gethostname().lower()
+    try:
+        port = int(os.getenv("PHYTO_HTTPS_PORT", "0"))
+    except ValueError:
+        port = 0
+    suffix = "" if port in {0, 443} else f":{port}"
+    return f"https://{hostname}.local{suffix}/"
+
+
+def _pwa_https_configured() -> bool:
+    try:
+        port = int(os.getenv("PHYTO_HTTPS_PORT", "0"))
+    except ValueError:
+        return False
+    return bool(
+        port > 0
+        and os.getenv("PHYTO_TLS_CERT_FILE", "").strip()
+        and os.getenv("PHYTO_TLS_KEY_FILE", "").strip()
+    )
 
 
 def render_template(template_name: str, **context) -> str:
     template = env.get_template(template_name)
     context.setdefault("alarm_summary", None)
+    context.setdefault("pwa_url", _pwa_url())
+    context.setdefault("pwa_https_configured", _pwa_https_configured())
     return template.render(asset_versions=ASSET_VERSIONS, **context)
 
 
@@ -125,4 +159,13 @@ def error_page(status: int, title: str, message: str) -> str:
         status=status,
         title=title,
         message=message,
+    )
+
+
+def offline_page() -> str:
+    return render_template(
+        "offline.html",
+        page_title="Hors ligne",
+        current_page="offline",
+        csrf_token=None,
     )

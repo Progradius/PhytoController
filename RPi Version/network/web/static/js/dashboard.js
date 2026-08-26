@@ -2,7 +2,9 @@
   "use strict";
 
   let lastGeneratedAt = null;
+  let lastReceivedAt = null;
   let fetchFailed = false;
+  let storedStateLoaded = false;
 
   const text = (selector, value, root = document) => {
     const node = root.querySelector(selector);
@@ -19,7 +21,12 @@
     const node = document.getElementById("freshness");
     if (!node) return;
     if (fetchFailed) {
-      node.textContent = "Actualisation interrompue · nouvelle tentative automatique";
+      if (Number.isFinite(lastReceivedAt)) {
+        const age = Math.max(0, Math.round((Date.now() - lastReceivedAt) / 1000));
+        node.textContent = `Données non actualisées · dernière réception il y a ${age} s`;
+      } else {
+        node.textContent = "Actualisation interrompue · aucune réception enregistrée";
+      }
       node.className = "freshness is-error";
       return;
     }
@@ -172,9 +179,12 @@
     });
   };
 
-  const updateState = (state) => {
+  const updateState = (state, {fresh = true, receivedAt = Date.now()} = {}) => {
     lastGeneratedAt = state.generated_at;
-    fetchFailed = false;
+    if (fresh) {
+      lastReceivedAt = receivedAt;
+      fetchFailed = false;
+    }
     const alarm = state.health.heater_alarm;
     const healthy = state.health.healthy && !alarm;
     const banner = document.getElementById("health-banner");
@@ -230,10 +240,23 @@
   const refresh = async () => {
     try {
       const response = await fetch("/api/v1/state", { headers: { Accept: "application/json" }, cache: "no-store" });
+      await window.PhytoPwa?.markServerContact();
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      updateState(await response.json());
-    } catch (_error) {
+      const state = await response.json();
+      const receivedAt = Date.now();
+      await window.PhytoPwa?.recordNetworkSuccess("state", state, receivedAt);
+      updateState(state, {fresh: true, receivedAt});
+    } catch (error) {
+      if (error instanceof TypeError) window.PhytoPwa?.markServerFailure();
       fetchFailed = true;
+      if (!storedStateLoaded) {
+        storedStateLoaded = true;
+        const stored = await window.PhytoPwa?.loadSnapshot("state");
+        if (stored?.data) {
+          lastReceivedAt = stored.receivedAt;
+          updateState(stored.data, {fresh: false, receivedAt: stored.receivedAt});
+        }
+      }
       updateFreshness();
     }
   };

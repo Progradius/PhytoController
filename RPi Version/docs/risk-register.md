@@ -2,7 +2,7 @@
 
 **Public** : pilotage, exploitation, développement et audit.
 **Référence initiale** : audit du 25 août 2026, recalé sur le commit `61ad3df`.
-**Dernière mise à jour** : 25 août 2026, après la refonte de l'interface web.
+**Dernière mise à jour** : 26 août 2026, après l'implémentation de la PWA locale (non déployée).
 
 Les réductions apportées par la refonte web sont **implémentées, déployées et vérifiées** sur le
 Pi le 25 août 2026 (commit `ad39de2`, service démarré à 23:36 CEST). Preuve :
@@ -27,6 +27,8 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | R-SAFE-06 | Élevé | Plusieurs relais moteur actifs sont signalés mais pas coupés | `get_motor_speed()` renvoie 0 sans agir | Coupure immédiate, verrouillage dégradé et interlock | Injection d'état multi-HIGH et vérification all-OFF |
 | R-CONF-02 | Critique | Secrets Wi-Fi/Influx versionnés | Toujours en clair dans `param.json` suivi par git ; **plus affichés** par l'IHM depuis la refonte web | Variables/fichier d'environnement, rotation, nettoyage historique décidé | Scan Git, UI et logs sans secret ; nouveaux identifiants actifs |
 | R-WEB-02 | Élevé | IHM sans authentification | Choix LAN-only assumé. `Host` désormais validé (DNS rebinding fermé), CSRF et `Origin` sur toute méthode mutante ; **aucune authentification** | Documenter le filtrage réseau, réévaluer l'auth ou un reverse-proxy TLS sur 127.0.0.1 | Règles réseau vérifiées ; décision d'auth consignée |
+| R-WEB-05 | Élevé | Autorité TLS privée compromise ou mal distribuée | PWA codée, non déployée ; clé racine prévue hors Pi, empreinte vérifiée avant installation Android | Exercer le provisioning, protéger et sauvegarder la racine hors ligne, qualifier le renouvellement | Clé racine absente du Pi/Git, chaîne et empreinte vérifiées, renouvellement exercé |
+| R-WEB-06 | Moyen | Une vue hors ligne pourrait faire passer un état ancien pour courant | API jamais servie par le service worker ; snapshots IndexedDB lus seulement après échec, bannière persistante et actions désactivées | Qualification Chrome Android avec coupure/reconnexion et inspection Cache Storage | Âge croissant, aucune API en cache, aucune mutation rejouée, bannière retirée seulement après réponse fraîche |
 | R-ASYNC-01 | Moyen | I/O bloquantes dans l'event loop | Capteurs sortis sur un exécuteur dédié à un fil, Influx passé en aiohttp avec délai de garde de 4 s. **Restent bloquants** : `nmcli`/`ping`/`timedatectl` du boot et les commandes système | Sortir les commandes système, borner leurs délais | Mesure de latence event loop sous panne I/O |
 | R-TIME-01 | Élevé | Heure fausse au boot hors réseau | NTP tenté, pas de RTC ni garde `time_synced` | RTC, vérification NTP et politique dégradée | Reboot hors réseau sans commutation à contretemps |
 | R-NET-01 | Élevé | Pas de reconnexion Wi-Fi supervisée | Tentative au boot seulement | Tâche réseau supervisée | Coupure/restauration AP avec reconnexion automatique |
@@ -57,6 +59,7 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | M-WEB-02 | Traversée de chemin sous `/static/` (ancien R-WEB-01) | Liste blanche exacte de chemins servis ; plus aucune jonction de chemin issue de l'URL | Toute nouvelle ressource doit être ajoutée explicitement à la liste |
 | M-WEB-03 | Absence de limites HTTP (ancien R-WEB-03) | aiohttp : corps 64 Kio, ligne et en-têtes 8190 octets, `shutdown_timeout` 5 s, `backlog` 64 | Slowloris et nombre de connexions simultanées non mesurés en conditions réelles |
 | M-WEB-04 | Disponibilité et readiness confondues (ancien R-WEB-04) | `/health/live` (200) et `/health/ready` (503 sur défaut, avec `unhealthy`) | `scripts/deploy.sh` interroge encore `/status` — voir R-OPS-02 |
+| M-WEB-05 | HTTP empêchait service worker et notifications locales | Second point d'écoute TLS natif optionnel, manifeste, worker, icônes et installation `standalone` ; HTTP 8123 conservé | Autorité privée et Chrome Android restent à déployer et qualifier ; aucune notification PWA fermée |
 | M-CONF-02 | `/conf` mutait la configuration sans revalidation (ancien R-CONF-01) | Candidat complet revalidé, écriture atomique, puis `replace_from()` ; un rejet ne modifie ni disque ni mémoire | L'arbitrage chauffage/ventilation n'est plus une contrainte de validation : il est garanti par construction dans `climate_policy` |
 | M-CONF-03 | Contrôleurs capteurs multiples après reconfiguration (ancien R-CONF-03) | Instance unique, `reconfigure()` en place dans l'exécuteur, `close()` à l'arrêt, instantané partagé | Bascule capteur à confirmer sur le Pi avec le matériel réel |
 

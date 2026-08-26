@@ -1,6 +1,7 @@
 # Interface HTTP
 
-**Implémentation** : serveur `aiohttp` (`network/web/server.py`), écoute `0.0.0.0:8123`.
+**Implémentation** : serveur `aiohttp` (`network/web/server.py`), écoute HTTP `0.0.0.0:8123` et,
+si les trois variables TLS sont valides, HTTPS `0.0.0.0:443` dans le même processus.
 **Contrainte** : LAN de confiance uniquement, aucune authentification.
 **Statut** : implémenté, **déployé et vérifié sur le Pi** le 25 août 2026 (commit `ad39de2`) —
 relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-25.md).
@@ -15,6 +16,9 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | GET | `/console` | Console de journalisation | HTML 200 |
 | GET | `/console/stream` | Historique puis logs live (SSE, keep-alive 15 s) | Flux 200 |
 | GET | `/api/v1/state` | État complet versionné | JSON 200 |
+| GET | `/api/v1/alarms` | Occurrences filtrées, actives ou résolues | JSON 200 |
+| GET | `/api/v1/alarms/active` | Snapshot léger des occurrences actives en mémoire, sans SQLite ni lecture matérielle | JSON 200 |
+| GET | `/api/v1/history?hours=24\|48\|72` | Tendances locales agrégées | JSON 200 ou 503 |
 | GET | `/status` | Ancien format d'état, conservé pour les scripts existants | JSON 200 |
 | GET | `/health/live` | Le processus HTTP répond | JSON 200 |
 | GET | `/health/ready` | Superviseur sain | JSON 200 ou **503** |
@@ -24,7 +28,9 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | GET | `/monitor` | **Redirection** vers `/#surveillance` | 303 |
 | POST | `/monitor` | Compatibilité : `reset_sensor`, `reboot=1`, `poweroff=1` | Comme les routes dédiées |
 | GET | `/favicon.ico`, `/favicon.svg` | Icône | 302 puis fichier |
+| GET | `/app.webmanifest`, `/service-worker.js`, `/offline` | Manifeste, worker racine et repli PWA | Manifeste/JS/HTML 200 |
 | GET | `/static/css/style.css`, `/static/js/*.js`, `/static/fonts/visitor1.ttf` | Assets locaux | Fichier |
+| GET | `/static/icons/pwa-*.png` | Icônes PWA normale et maskable | PNG |
 
 Toute autre route renvoie 404. Il n'existe **pas** de service de répertoire : la liste ci-dessus
 est la liste exhaustive des chemins servis, ce qui remplace l'ancien `/static/` non confiné.
@@ -52,8 +58,27 @@ est la liste exhaustive des chemins servis, ce qui remplace l'ancien `/static/` 
 - **Secrets** : `/conf` n'affiche plus aucun mot de passe. Les champs sensibles sont vides et
   indiquent seulement si une valeur est enregistrée ; les laisser vides conserve l'existant.
 
-Ce qui **reste ouvert** : aucune authentification, port en clair. Ne pas exposer 8123 sur
-Internet ni sur un réseau partagé avec des clients non maîtrisés.
+Ce qui **reste ouvert** : aucune authentification. HTTPS authentifie le contrôleur pour les terminaux
+qui ont installé l'autorité locale, mais n'authentifie pas l'opérateur. Ne jamais exposer `8123` ou
+`443` sur Internet ni sur un réseau partagé avec des clients non maîtrisés.
+
+## Cache PWA et fraîcheur
+
+Le service worker n'est enregistré que depuis une origine sécurisée. Il précache les assets hachés,
+garde la dernière réponse HTML 200 de `/` et `/alarms`, et fournit `/offline` aux autres navigations
+injoignables. Ses règles sont volontairement asymétriques :
+
+- `/api/v1/**`, `/health/**`, `/status` et le SSE restent **réseau uniquement** ;
+- toute méthode mutante reste réseau uniquement, sans Background Sync ni rejeu ;
+- `/conf` et `/console` ne sont jamais conservés comme vues hors ligne ;
+- les derniers snapshots d'état, d'alarmes et d'historique sont conservés séparément dans IndexedDB,
+  puis lus uniquement après l'échec d'une requête réseau ;
+- une réponse IndexedDB ne retire jamais la bannière « HORS LIGNE » et ne déclenche jamais de
+  notification ; seule une nouvelle réponse HTTP du contrôleur le peut.
+
+La PWA demande la permission de notification uniquement sur clic. Elle notifie les nouvelles alarmes
+affectant le contrôle et toutes les alarmes critiques, avec déduplication par UUID. Il ne s'agit pas de
+Web Push : Chrome peut suspendre la page, donc aucune notification n'est garantie PWA fermée.
 
 ## Configuration POST
 

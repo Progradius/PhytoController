@@ -116,8 +116,27 @@
     message.textContent = `${data.buckets.length} intervalle(s) · bandes min/moyenne/max · traits verticaux : alarmes et configuration. Les lacunes ne sont pas interpolées.`;
   };
   const load = async (hours) => { message.textContent = "Chargement de l’historique…";
-    try { const response = await fetch(`/api/v1/history?hours=${hours}`, {headers: {Accept: "application/json"}, cache: "no-store"}); if (!response.ok) throw new Error(`HTTP ${response.status}`); render(await response.json()); }
-    catch (error) { message.textContent = `Historique local indisponible (${error.message}). Le contrôle reste actif.`; }
+    try {
+      const response = await fetch(`/api/v1/history?hours=${hours}`, {headers: {Accept: "application/json"}, cache: "no-store"});
+      await window.PhytoPwa?.markServerContact();
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      await window.PhytoPwa?.storeSnapshot("history", data, Date.now());
+      render(data);
+    }
+    catch (error) {
+      if (error instanceof TypeError) window.PhytoPwa?.markServerFailure();
+      const stored = await window.PhytoPwa?.loadSnapshot("history");
+      if (stored?.data) {
+        render(stored.data);
+        const storedHours = Number(stored.data.hours || hours);
+        document.querySelectorAll("[data-hours]").forEach((item) => item.classList.toggle("is-selected", Number(item.dataset.hours) === storedHours));
+        const age = Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000));
+        message.textContent = `Historique enregistré il y a ${age} min · données non actualisées, lacunes conservées.`;
+      } else {
+        message.textContent = `Historique local indisponible (${error.message}). Aucune vue enregistrée ; le contrôle reste actif.`;
+      }
+    }
   };
   document.querySelectorAll("[data-hours]").forEach((button) => button.addEventListener("click", () => { document.querySelectorAll("[data-hours]").forEach((item) => item.classList.toggle("is-selected", item === button)); load(Number(button.dataset.hours)); }));
   let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => current && render(current), 150); });

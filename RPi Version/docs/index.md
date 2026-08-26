@@ -50,6 +50,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md)
 - [Relevé de l'arbitre thermique du 26 août 2026](operations/climate-baseline-2026-08-26.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
+- [PWA locale et autorité TLS privée](operations/pwa-local-tls.md)
 - [Monitoring](operations/monitoring.md)
 - [Sauvegarde et restauration](operations/backup-and-restore.md)
 - [Registre vivant des risques](risk-register.md)

@@ -5,6 +5,19 @@
   <div class="alarm-summary"><strong>{{ alarm_summary.active_count }}</strong><span>active(s)</span><small>{{ alarm_summary.control_count }} contrôle · {{ alarm_summary.auxiliary_count }} auxiliaire</small></div>
 </section>
 
+<section class="notification-panel card" aria-labelledby="notification-title">
+  <div>
+    <p class="eyebrow">Alertes du terminal</p>
+    <h2 id="notification-title">Notifications locales</h2>
+    <p class="card-meta">Alarmes de contrôle et alarmes critiques uniquement. Elles sont disponibles tant que cette application reste active ; aucune alerte n’est garantie lorsqu’elle est fermée.</p>
+    <p id="notification-status" class="card-meta" role="status" aria-live="polite">Vérification de la compatibilité…</p>
+  </div>
+  <div class="notification-actions">
+    <button class="button" id="notification-enable" type="button" hidden>Activer les notifications</button>
+    <button class="button button-secondary" id="notification-disable" type="button" hidden>Désactiver</button>
+  </div>
+</section>
+
 <form class="alarm-filters" method="get" action="/alarms">
   <label>État<select name="status"><option value="active"{% if filters.status == 'active' %} selected{% endif %}>Actives</option><option value="resolved"{% if filters.status == 'resolved' %} selected{% endif %}>Résolues</option><option value="all"{% if filters.status == 'all' %} selected{% endif %}>Toutes</option></select></label>
   <label>Gravité<select name="severity"><option value="">Toutes</option>{% for value in ('warning','error','critical') %}<option value="{{ value }}"{% if filters.severity == value %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
@@ -13,7 +26,7 @@
   <button class="button" type="submit">Filtrer</button>
 </form>
 
-<section class="alarm-list" aria-live="polite">
+<section class="alarm-list" id="alarm-list" data-live-refresh="{{ 'true' if filters.status == 'active' and not filters.severity and not filters.category and not filters.acknowledged else 'false' }}" aria-live="polite">
 {% for alarm in alarms %}
   <article class="alarm-card severity-{{ alarm.severity }} {{ 'is-resolved' if alarm.status == 'resolved' else '' }}" data-alarm-id="{{ alarm.id }}">
     <div class="alarm-card-heading"><div><span class="alarm-severity">{{ alarm.severity }}</span><span class="alarm-category">{{ alarm.category }}</span></div><span>{{ 'Active' if alarm.status == 'active' else 'Résolue' }}</span></div>

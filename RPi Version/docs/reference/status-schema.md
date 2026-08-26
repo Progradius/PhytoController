@@ -11,6 +11,7 @@ Exemple abrégé, sans valeurs de production :
 {
   "schema_version": 1,
   "generated_at": "2026-08-25T21:14:03.512Z",
+  "web": {"https": {"configured": true, "ready": true, "port": 443}},
   "health": {
     "healthy": true,
     "control_healthy": true,
@@ -74,6 +75,7 @@ Exemple abrégé, sans valeurs de production :
 |---|---|
 | `schema_version` | Entier ; toute évolution non additive doit l'incrémenter |
 | `generated_at` | Instant de génération, UTC ISO 8601 suffixé `Z` |
+| `web.https` | Configuration, disponibilité réelle et port du second point d'écoute HTTPS ; aucun chemin de clé ou de certificat n'est publié |
 | `health.healthy` | Santé agrégée du superviseur |
 | `health.control_healthy` | Santé des seuls timers, climat et acquisition qui gouvernent le watchdog |
 | `health.domains` | Santé regroupée par domaine, contrôle et auxiliaires distingués |
@@ -109,6 +111,13 @@ utilisée comme mesure courante.
 
 Aucune lecture matérielle n'est déclenchée par une requête HTTP : le job supervisé
 `sensor_snapshot` rafraîchit l'instantané toutes les 10 s, l'IHM et InfluxDB le consomment.
+
+## `/api/v1/alarms/active` (schéma 1)
+
+Ce snapshot contient `schema_version`, `generated_at`, le résumé d'alarmes et les occurrences actives
+déjà tenues en mémoire par `AlarmManager`. Il ne consulte ni SQLite, ni GPIO, ni capteur. La PWA
+l'interroge toutes les cinq secondes lorsqu'elle est exécutée ; une occurrence conserve le même UUID
+tant qu'elle reste active, ce qui permet la déduplication locale des notifications.
 
 Pour une tâche :
 

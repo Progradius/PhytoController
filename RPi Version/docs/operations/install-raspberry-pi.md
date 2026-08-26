@@ -86,6 +86,11 @@ systemctl status phyto --no-pager
 curl -fsS http://127.0.0.1:8123/status | jq '{healthy, heater_alarm, tasks}'
 ```
 
+La PWA demande en plus une autorité privée, un certificat serveur et le drop-in qui autorise le bind
+sur `:443`. Cette étape est volontairement séparée de l'installation de base : suivre
+[PWA locale et autorité TLS privée](pwa-local-tls.md), puis vérifier les deux transports avant
+d'installer l'autorité sur Android.
+
 ## Mise en service progressive
 
 1. Démarrer sans charges et vérifier une seule instance.

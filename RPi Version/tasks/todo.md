@@ -226,3 +226,120 @@ harnais `/tmp/claude-1000/phyto/test_fixes.py`, **21 contrôles, aucun échec**)
 
 - Le Pi exécute `aiohttp 3.11.18`, sous le plancher `>=3.12.15` du nouveau `requirements.txt` :
   `scripts/deploy.sh` met le venv à jour automatiquement, une installation manuelle non.
+
+---
+
+# TODO — Qualification opérationnelle de la PWA locale
+
+**État : code implémenté et vérifié statiquement, non déployé et non qualifié sur Chrome Android.**
+
+Procédure de référence : [`docs/operations/pwa-local-tls.md`](../docs/operations/pwa-local-tls.md).
+HTTP `:8123` doit rester la voie de compatibilité et de récupération pendant toute la qualification.
+Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()` ou le watchdog.
+
+## 1. Préparer et activer TLS
+
+- [ ] Créer l'autorité privée sur le poste d'administration, dans un emplacement protégé situé hors
+      du dépôt ; conserver et sauvegarder `phyto-root-ca.key` hors du Raspberry Pi et d'Android
+- [ ] Générer le certificat serveur avec `deploy/pwa-tls-server.ext`, puis vérifier sa chaîne, son
+      échéance, l'usage `TLS Web Server Authentication` et les SAN `phytocontroller.local`,
+      `phytocontroller` et `10.42.0.1`
+- [ ] Comparer et consigner l'empreinte SHA-256 de `phyto-root-ca.crt` avant toute distribution
+- [ ] Installer sur le Pi uniquement `server.crt`, `server.key` et le certificat public de la racine,
+      avec les propriétaires et modes documentés ; confirmer que la clé privée est lisible par
+      `progradius` mais pas par les autres utilisateurs
+- [ ] Installer le drop-in `deploy/phyto.service.d/pwa-tls.conf`, exécuter `daemon-reload`, puis
+      planifier le redémarrage comme une opération de production avec vérification des états GPIO sûrs
+- [ ] Vérifier que `:8123` et `:443` écoutent simultanément, que `/health/ready` répond sur HTTP et que
+      `/health/live` répond en HTTPS avec validation complète de la chaîne et du nom d'hôte
+- [ ] Vérifier dans `/api/v1/state` que `web.https.configured=true`, `ready=true` et `port=443`, sans
+      exposition des chemins de clé ou de certificat
+- [ ] Simuler un échec TLS contrôlé pendant une fenêtre prévue et confirmer que HTTP `:8123`, la
+      régulation, `control_healthy()` et le watchdog restent sains, avec `web.https.ready=false`
+
+## 2. Installer et contrôler la PWA sur Chrome Android
+
+- [ ] Transférer uniquement `phyto-root-ca.crt` sur le terminal Android et comparer son empreinte
+      SHA-256 avec celle consignée sur le poste d'administration
+- [ ] Installer la racine comme autorité pour les applications ; ne jamais transférer
+      `phyto-root-ca.key`, `server.key` ni un fichier PKCS#12 sur le terminal
+- [ ] Ouvrir `https://phytocontroller.local/` dans Chrome et vérifier l'absence d'interstitiel ou
+      d'avertissement TLS
+- [ ] Installer la PWA avec le bouton du tableau de bord et confirmer le lancement en fenêtre
+      autonome, l'icône normale/maskable et le nom `PhytoController`
+- [ ] Vérifier les raccourcis d'écran d'accueil « Tableau de bord » et « Alarmes » et confirmer qu'ils
+      ouvrent la bonne vue dans la PWA
+
+## 3. Qualifier la coupure réseau et la fraîcheur dominante
+
+- [ ] En ligne, ouvrir le tableau de bord et les alarmes, attendre au moins un rafraîchissement réussi
+      de l'état, des alarmes et de l'historique, puis relever leurs heures de réception
+- [ ] Couper réellement le réseau entre Android et le Pi sans arrêter la PWA
+- [ ] Vérifier que la bannière rouge `HORS LIGNE` apparaît rapidement et reste visible sur toutes les
+      vues avec « données datant au mieux de… · non actualisées · lecture seule »
+- [ ] Vérifier que l'âge affiché augmente avec le temps et qu'aucun snapshot IndexedDB ne remet la vue
+      en état « à jour »
+- [ ] Vérifier que les dernières vues Tableau de bord et Alarmes restent lisibles, que l'historique
+      annonce explicitement l'âge de son snapshot et que les alarmes stockées portent « État non
+      confirmé » / « Lecture seule hors ligne »
+- [ ] Vérifier que tous les formulaires et boutons de mutation sont désactivés hors ligne, notamment
+      acquittement, configuration, remise à zéro, reboot et extinction
+- [ ] Inspecter Cache Storage et confirmer l'absence de `/api/**`, `/health/**`, `/status`, du SSE et
+      de toute requête POST ; confirmer qu'aucune commande n'est mise en attente ou rejouée
+- [ ] Tenter d'ouvrir `/conf`, `/console` et une URL inconnue hors ligne : elles doivent afficher le
+      repli neutre, jamais une ancienne page de configuration ou de console
+
+## 4. Qualifier la reconnexion
+
+- [ ] Rétablir le réseau et confirmer que la bannière ne disparaît qu'après une réponse HTTP réelle du
+      contrôleur, jamais sur le seul événement navigateur `online`
+- [ ] Si la PWA a démarré hors ligne, confirmer qu'elle recharge une seule fois la vue après le premier
+      contact réussi, sans boucle de rechargement
+- [ ] Vérifier que l'état, les alarmes et l'historique redeviennent frais, que les actions sont
+      réactivées et qu'aucune mutation ancienne n'est envoyée
+- [ ] Répéter au moins deux cycles coupure/reconnexion et confirmer que l'âge, la bannière et les
+      snapshots restent cohérents
+
+## 5. Qualifier les notifications locales
+
+- [ ] Depuis la page Alarmes, vérifier que Chrome ne demande aucune permission avant le clic explicite
+      sur « Activer les notifications »
+- [ ] Activer les notifications et confirmer que les alarmes déjà présentes servent de référence sans
+      déclencher une rafale rétrospective
+- [ ] Provoquer de façon sûre une **nouvelle** alarme non acquittée affectant le contrôle, puis vérifier
+      une notification unique, son libellé minimal et l'ouverture du bon diagnostic au toucher
+- [ ] Vérifier qu'une alarme auxiliaire non critique ne notifie pas et qu'une alarme critique notifie
+      même si elle est auxiliaire
+- [ ] Vérifier qu'un rafraîchissement de la même occurrence UUID ne renotifie pas ; vérifier qu'une
+      escalade de gravité peut renotifier une fois
+- [ ] Couper le réseau avec un snapshot d'alarme enregistré et confirmer que sa restauration ne
+      déclenche aucune notification
+- [ ] Désactiver les notifications depuis l'IHM et confirmer qu'aucune nouvelle notification locale
+      n'est émise
+- [ ] Consigner la limite attendue : aucune garantie lorsque Chrome suspend ou ferme complètement la
+      PWA, puisqu'il n'existe ni Web Push ni service externe
+
+## 6. Exercer le rollback contrôlé
+
+- [ ] Avant rollback, relever le commit, l'état de `phyto.service`, `NRestarts`, `/health/ready`, les
+      sorties physiques et la disponibilité simultanée de `:8123` et `:443`
+- [ ] Effectuer le rollback selon `docs/operations/deployment-and-rollback.md`, sans `git reset --hard`
+      improvisé et sans supprimer les certificats sous `/etc/phyto/tls`
+- [ ] Confirmer après rollback que la régulation et HTTP `:8123` sont sains, même si `:443` disparaît
+      avec une version antérieure à la PWA
+- [ ] Confirmer que la PWA déjà installée reste honnêtement hors ligne avec son dernier snapshot et ne
+      présente jamais ces données comme actuelles
+- [ ] Redéployer la version PWA, vérifier le retour de `:443`, l'actualisation du service worker et le
+      rétablissement des données fraîches
+- [ ] Si la coque locale reste bloquée sur une ancienne version, exercer puis documenter la procédure
+      de désinstallation ou d'effacement des données du site Chrome
+
+## Critères de clôture
+
+- [ ] Toutes les cases précédentes sont accompagnées d'une date, du terminal Android/Chrome utilisé et
+      des observations utiles, sans recopier de secret ni de clé
+- [ ] Aucun défaut TLS, cache, notification ou navigateur observé pendant la qualification n'a affecté
+      les boucles de contrôle, les sorties GPIO, `control_healthy()` ou le watchdog
+- [ ] La clé `phyto-root-ca.key` est absente du Pi, d'Android, de Git et des sauvegardes applicatives
+- [ ] Les risques `R-WEB-05` et `R-WEB-06` de `docs/risk-register.md` sont réévalués avec les preuves de
+      qualification avant de déclarer la PWA déployée et vérifiée

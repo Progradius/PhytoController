@@ -6,6 +6,21 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### PWA locale
+
+**Implémentée, non déployée et non encore qualifiée sur Android.**
+
+- Second point d'écoute HTTPS aiohttp optionnel, en parallèle du HTTP historique `:8123` ; une panne
+  TLS reste auxiliaire et ne coupe ni l'IHM HTTP, ni le contrôle.
+- Manifeste `standalone`, icônes normale/maskable et raccourcis Tableau de bord/Alarmes.
+- Service worker limité aux assets et aux dernières pages de lecture : API, SSE et mutations restent
+  strictement réseau, sans Background Sync ni rejeu.
+- Derniers snapshots état/alarmes/historique conservés dans IndexedDB, toujours accompagnés d'une
+  bannière « HORS LIGNE — données datant de… — lecture seule » et d'actions désactivées.
+- Notifications locales opt-in pour les alarmes de contrôle ou critiques, dédupliquées par UUID et
+  seulement lorsque la PWA reste exécutée ; aucun Web Push ni service externe.
+- Artefacts systemd, extension de certificat et procédure d'autorité locale versionnés.
+
 ### Arbitre thermique unifié (audit — phase 2)
 
 **Code `e93644a` ; déployé et vérifié sur le Pi le 26 août 2026** (`a04abbd`) — relevé dans

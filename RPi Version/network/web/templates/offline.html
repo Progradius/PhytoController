@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero compact">
+  <div>
+    <p class="eyebrow">Contrôleur injoignable</p>
+    <h1>Vue hors ligne</h1>
+    <p class="hero-copy">Aucune page enregistrée ne correspond à cette adresse. Les dernières données disponibles restent accessibles depuis les vues de lecture seules.</p>
+  </div>
+</section>
+<section class="card-grid">
+  <article class="card">
+    <h2>Tableau de bord</h2>
+    <p class="card-meta">Dernier état, capteurs et actionneurs enregistrés sur ce terminal.</p>
+    <a class="button button-secondary" href="/">Ouvrir</a>
+  </article>
+  <article class="card">
+    <h2>Alarmes</h2>
+    <p class="card-meta">Dernières occurrences actives connues, explicitement marquées comme non confirmées.</p>
+    <a class="button button-secondary" href="/alarms">Ouvrir</a>
+  </article>
+</section>
+{% endblock %}
