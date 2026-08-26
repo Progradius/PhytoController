@@ -39,7 +39,7 @@
 {% endif %}
 
 <nav class="config-toc" aria-label="Sommaire de la configuration">
-  <a href="#culture">Culture</a><a href="#planification">Planification</a><a href="#climat">Climat</a><a href="#capteurs">Capteurs</a><a href="#reseau">Réseau</a><a href="#systeme">Système</a>
+  <a href="#culture">Culture</a><a href="#equipements">Équipements</a><a href="#planification">Planification</a><a href="#climat">Climat</a><a href="#capteurs">Capteurs</a><a href="#reseau">Réseau</a><a href="#systeme">Système</a>
 </nav>
 
 <div class="config-layout">
@@ -54,8 +54,50 @@
   </details>
 </section>
 
+<section id="equipements" class="config-group" aria-labelledby="equipment-title">
+  <div class="section-heading"><div><p class="eyebrow">Poste de conduite</p><h2 id="equipment-title">Équipements</h2></div></div>
+  <details class="config-section" id="equipment"{% if active_section == 'equipment' %} open{% endif %}>
+    <summary><span>Noms et annotations</span><span class="summary-value">Sans effet sur le contrôle</span></summary>
+    <form method="post" action="/conf/equipment" data-config-form>{{ csrf() }}
+      <p class="field-help">Ces informations sont stockées séparément de param.json. « Hors service » documente un défaut matériel connu sans modifier les commandes.</p>
+      {% for equipment_id, item in equipment.items() %}
+      <fieldset class="metadata-fieldset"><legend>{{ equipment_id }}</legend>
+        <div class="field-grid two">
+          <div class="field"><label for="{{ equipment_id }}-name">Nom affiché</label><input id="{{ equipment_id }}-name" name="{{ equipment_id }}__display_name" value="{{ item.display_name }}" maxlength="64" required></div>
+          <div class="field"><label for="{{ equipment_id }}-usage">Usage</label><input id="{{ equipment_id }}-usage" name="{{ equipment_id }}__usage_type" value="{{ item.usage_type }}" maxlength="32" required></div>
+          <div class="field"><label for="{{ equipment_id }}-zone">Zone</label><input id="{{ equipment_id }}-zone" name="{{ equipment_id }}__zone" value="{{ item.zone }}" maxlength="64"></div>
+          <div class="field"><label for="{{ equipment_id }}-icon">Icône</label><select id="{{ equipment_id }}-icon" name="{{ equipment_id }}__icon">{% for icon in ('light','pump','fan','heater','relay','equipment') %}<option value="{{ icon }}"{% if item.icon == icon %} selected{% endif %}>{{ icon }}</option>{% endfor %}</select></div>
+          <div class="field"><label for="{{ equipment_id }}-note">Note de câblage</label><input id="{{ equipment_id }}-note" name="{{ equipment_id }}__wiring_note" value="{{ item.wiring_note }}" maxlength="240"></div>
+        </div>
+        {{ switch(equipment_id ~ '__dashboard_visible', item.dashboard_visible, 'Visible sur le tableau de bord', equipment_id ~ '-visible', 'true', 'false') }}
+        {{ switch(equipment_id ~ '__out_of_service', item.out_of_service, 'Défaut matériel connu', equipment_id ~ '-out-of-service', 'true', 'false') }}
+      </fieldset>
+      {% endfor %}
+      {{ save_button() }}
+    </form>
+  </details>
+</section>
+
 <section id="planification" class="config-group" aria-labelledby="planning-title">
   <div class="section-heading"><div><p class="eyebrow">Automatisation</p><h2 id="planning-title">Planification</h2></div></div>
+  <details class="config-section" id="day-night"{% if active_section == 'day-night' %} open{% endif %}>
+    <summary><span>Référence jour / nuit</span><span class="summary-value">{{ 'Minuterie 1' if config.day_night.source == 'dailytimer1' else 'Personnalisée' }}</span></summary>
+    <form method="post" action="/conf/day-night" data-config-form>{{ csrf() }}
+      <fieldset class="segmented-field"><legend>Source</legend><div class="segmented-control">
+        <input class="visually-hidden" type="radio" id="day-night-source-daily" name="source" value="dailytimer1"{% if config.day_night.source == 'dailytimer1' %} checked{% endif %}><label for="day-night-source-daily">Suivre la minuterie 1</label>
+        <input class="visually-hidden" type="radio" id="day-night-source-custom" name="source" value="custom"{% if config.day_night.source == 'custom' %} checked{% endif %}><label for="day-night-source-custom">Horaires personnalisés</label>
+      </div></fieldset>
+      <div class="field-grid two">
+        <div class="field"><label for="day-night-start">Début</label><input id="day-night-start" name="start_time" type="time" value="{{ '%02d:%02d'|format(config.day_night.start_hour, config.day_night.start_minute) }}" required></div>
+        <div class="field"><label for="day-night-stop">Fin</label><input id="day-night-stop" name="stop_time" type="time" value="{{ '%02d:%02d'|format(config.day_night.stop_hour, config.day_night.stop_minute) }}" required></div>
+      </div>
+      <p class="field-help">Plage [début, fin) : l’heure de fin est exclue. Si début = fin, la plage est vide. En héritage, les valeurs personnalisées restent mémorisées mais les horaires de la minuterie 1 sont suivis en continu.</p>
+      {% if config.day_night.source == 'custom' and (config.day_night.start_hour != config.daily_timer1.start_hour or config.day_night.start_minute != config.daily_timer1.start_minute or config.day_night.stop_hour != config.daily_timer1.stop_hour or config.day_night.stop_minute != config.daily_timer1.stop_minute) %}
+      <div class="notice warning"><p>Le jour/nuit ({{ '%02d:%02d'|format(config.day_night.start_hour, config.day_night.start_minute) }} → {{ '%02d:%02d'|format(config.day_night.stop_hour, config.day_night.stop_minute) }}) diffère de l’éclairage 1 ({{ '%02d:%02d'|format(config.daily_timer1.start_hour, config.daily_timer1.start_minute) }} → {{ '%02d:%02d'|format(config.daily_timer1.stop_hour, config.daily_timer1.stop_minute) }}).</p></div>
+      {% endif %}
+      {{ save_button() }}
+    </form>
+  </details>
   {% for num, timer in ((1, config.daily_timer1), (2, config.daily_timer2)) %}
   <details class="config-section" id="daily-timer-{{ num }}"{% if active_section == 'daily-timer-' ~ num %} open{% endif %}>
     <summary><span>Minuterie quotidienne {{ num }}</span><span class="summary-value">{{ '%02d:%02d'|format(timer.start_hour, timer.start_minute) }} → {{ '%02d:%02d'|format(timer.stop_hour, timer.stop_minute) }}</span></summary>

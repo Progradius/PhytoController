@@ -104,6 +104,69 @@
     );
   };
 
+  const formatDuration = (seconds) => {
+    if (seconds === null || seconds === undefined) return "—";
+    if (seconds < 60) return `${Math.round(seconds)} s`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+    return `${(seconds / 3600).toFixed(1)} h`;
+  };
+
+  const formatNext = (next) => {
+    if (!next || next.type === "none") return "Aucune transition planifiée";
+    if (next.type === "condition") return next.condition || "À la prochaine condition de régulation";
+    if (next.type === "safety_deadline") return `Échéance de sécurité dans ${formatDuration(next.in_seconds)}`;
+    if (next.in_seconds !== undefined) return `Dans ${formatDuration(next.in_seconds)}`;
+    if (next.at) {
+      const parsed = Date.parse(next.at);
+      return Number.isNaN(parsed) ? `À ${next.at}` : new Date(parsed).toLocaleString("fr-FR");
+    }
+    return "—";
+  };
+
+  const updateActuators = (actuators) => {
+    Object.entries(actuators || {}).forEach(([key, actuator]) => {
+      const card = document.querySelector(`[data-actuator="${CSS.escape(key)}"]`);
+      if (!card) return;
+      card.classList.remove("tracking-ok", "tracking-mismatch", "tracking-known_hardware_fault", "tracking-unknown");
+      card.classList.add(`tracking-${actuator.tracking || "unknown"}`);
+      text(".actuator-name", actuator.metadata?.display_name || key, card);
+      text(".actuator-actual", String(actuator.actual ?? "unknown"), card);
+      text(".actuator-requested", String(actuator.requested ?? "unknown"), card);
+      text(".actuator-reason", actuator.reason || "Motif indisponible", card);
+      text(".actuator-since", formatDuration(actuator.since_seconds), card);
+      text(".actuator-next", formatNext(actuator.next_transition), card);
+      const fault = card.querySelector(".known-fault");
+      if (fault) {
+        fault.hidden = actuator.tracking !== "known_hardware_fault";
+        fault.textContent = `Défaut matériel connu : ${actuator.metadata?.wiring_note || "écart demandé/relu documenté."}`;
+      }
+      const progress = card.querySelector(".motor-progress");
+      if (progress) { progress.value = Number(actuator.actual) || 0; progress.textContent = `${actuator.actual ?? 0}/4`; }
+      if (key === "motor") {
+        text(".actuator-details", `Vitesse voulue ${actuator.requested ?? "—"} · appliquée ${actuator.applied ?? "—"} · dwell ${actuator.dwell_remaining_seconds ?? 0} s`, card);
+      } else if (key === "heater") {
+        text(".actuator-details", `Seuil d’arrêt ${actuator.heater_off_threshold ?? "—"} °C · durée ON ${actuator.on_seconds ?? 0} s / ${actuator.continuous_limit_seconds ?? "—"} s`, card);
+      }
+    });
+  };
+
+  const updateTimers = (timers) => {
+    (timers || []).forEach((timer) => {
+      const card = document.querySelector(`[data-timer="${CSS.escape(timer.id)}"]`);
+      if (!card) return;
+      text(".card-kicker span:last-child", timer.enabled ? "Activé" : "Désactivé", card);
+      let description;
+      if (timer.kind === "daily") {
+        description = `${timer.schedule.start} → ${timer.schedule.stop}`;
+      } else if (timer.schedule.mode === "journalier") {
+        description = `${timer.schedule.triggers_per_day} action(s), tous les ${timer.schedule.period_days} jour(s), dès ${timer.schedule.first_trigger_hour} h`;
+      } else {
+        description = `Séquentiel · jour ${timer.schedule.on_time_day} s ON / ${timer.schedule.off_time_day} s OFF · nuit ${timer.schedule.on_time_night} s ON / ${timer.schedule.off_time_night} s OFF`;
+      }
+      text(".timer-description", description, card);
+    });
+  };
+
   const updateState = (state) => {
     lastGeneratedAt = state.generated_at;
     fetchFailed = false;
@@ -113,18 +176,26 @@
     if (banner) banner.className = `health-banner ${healthy ? "is-ok" : "is-alert"}`;
     text("#health-title", healthy ? "Système opérationnel" : "Attention requise");
     text("#health-detail", alarm || (state.health.healthy ? "Toutes les tâches supervisées répondent." : "Une tâche supervisée est en défaut."));
+    const timeAlert = state.time.alarm || state.time.daily_timers_suspended;
+    const timeBanner = document.getElementById("time-banner");
+    if (timeBanner) timeBanner.className = `time-banner ${timeAlert ? "is-alert" : "is-ok"}`;
+    text("#time-title", `Heure : ${state.time.state}`);
+    text("#time-detail", state.time.daily_timers_suspended
+      ? "Minuteries journalières suspendues, reprise de sécurité au plus tard dans 15 minutes."
+      : (state.time.alarm || "Horloge exploitable par les ordonnanceurs."));
     Object.entries(state.outputs).forEach(([key, value]) => {
       const badge = document.querySelector(`[data-output="${CSS.escape(key)}"]`);
       if (badge) { badge.textContent = value; badge.className = `state-badge state-${value}`; }
     });
-    const progress = document.getElementById("motor-progress");
-    if (progress) { progress.value = state.motor.speed; progress.textContent = `${state.motor.percent} %`; }
-    text("#motor-level", `Niveau ${state.motor.speed}/4`);
+    updateActuators(state.actuators);
     updateClimate(state.climate);
+    updateTimers(state.timers);
     state.stats.forEach((stat) => {
       const card = document.querySelector(`[data-stat="${CSS.escape(stat.key)}"]`);
       if (!card) return;
       text(".stat-min", stat.min ?? "—", card); text(".stat-max", stat.max ?? "—", card);
+      text(".stat-min-at", stat.min_at ? `le ${stat.min_at}` : "", card);
+      text(".stat-max-at", stat.max_at ? `le ${stat.max_at}` : "", card);
     });
     updateSensors(state.sensors);
     updateFreshness();

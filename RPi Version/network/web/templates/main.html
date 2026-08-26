@@ -11,6 +11,10 @@
   </div>
 </section>
 
+<section class="time-banner {{ 'is-alert' if state.time.alarm or state.time.daily_timers_suspended else 'is-ok' }}" id="time-banner" aria-live="polite">
+  <div><strong id="time-title">Heure : {{ state.time.state }}</strong><p id="time-detail">{% if state.time.daily_timers_suspended %}Minuteries journalières suspendues, reprise de sécurité au plus tard dans 15 minutes.{% elif state.time.alarm %}{{ state.time.alarm }}{% else %}Horloge exploitable par les ordonnanceurs.{% endif %}</p></div>
+</section>
+
 <section id="health-banner" class="health-banner {{ 'is-ok' if state.health.healthy and not state.health.heater_alarm else 'is-alert' }}" aria-live="polite">
   <span class="status-dot" aria-hidden="true"></span>
   <div>
@@ -40,25 +44,25 @@
 
 <section aria-labelledby="outputs-title">
   <div class="section-heading"><div><p class="eyebrow">Actionneurs</p><h2 id="outputs-title">Sorties et ventilation</h2></div></div>
-  <div class="card-grid actuator-grid">
-    {% set outputs = (
-      ('daily_timer_1', 'Minuterie quotidienne 1'),
-      ('daily_timer_2', 'Minuterie quotidienne 2'),
-      ('cyclic_1', 'Sortie cyclique 1'),
-      ('cyclic_2', 'Sortie cyclique 2'),
-      ('heater', 'Chauffage')
-    ) %}
-    {% for key, label in outputs %}
-    <article class="card actuator-card" data-output-card="{{ key }}">
-      <div class="card-kicker"><span>RELAIS</span><span class="state-badge state-{{ state.outputs[key] }}" data-output="{{ key }}">{{ state.outputs[key] }}</span></div>
-      <h3>{{ label }}</h3>
+  <div class="card-grid actuator-grid" id="actuator-grid">
+    {% for key in ('daily_1','daily_2','cyclic_1','cyclic_2','motor','heater') %}
+    {% set meta = state.equipment[key] %}{% set actuator = state.actuators.get(key, {}) %}
+    {% if meta.dashboard_visible %}
+    <article class="card actuator-card tracking-{{ actuator.tracking or 'unknown' }}" data-actuator="{{ key }}">
+      <div class="card-kicker"><span>{{ meta.usage_type }}</span><span class="state-badge actuator-actual">{{ actuator.actual if actuator.actual is defined else 'unknown' }}</span></div>
+      <h3 class="actuator-name">{{ meta.display_name }}</h3>
+      <dl class="operator-state">
+        <div><dt>Demandé</dt><dd class="actuator-requested">{{ actuator.requested if actuator.requested is defined else 'unknown' }}</dd></div>
+        <div><dt>Pourquoi</dt><dd class="actuator-reason">{{ actuator.reason or 'En attente de la boucle métier.' }}</dd></div>
+        <div><dt>Depuis</dt><dd class="actuator-since">{{ (actuator.since_seconds|string ~ ' s') if actuator.since_seconds is defined and actuator.since_seconds is not none else '—' }}</dd></div>
+        <div><dt>Ensuite</dt><dd class="actuator-next">—</dd></div>
+      </dl>
+      <p class="known-fault"{% if actuator.tracking != 'known_hardware_fault' %} hidden{% endif %}>Défaut matériel connu : {{ meta.wiring_note or 'écart demandé/relu documenté.' }}</p>
+      {% if key == 'motor' %}<progress class="motor-progress" max="4" value="{{ actuator.actual or 0 }}">{{ actuator.actual or 0 }}/4</progress><p class="card-meta actuator-details">Vitesse voulue {{ actuator.requested or '—' }} · appliquée {{ actuator.applied or '—' }} · dwell {{ actuator.dwell_remaining_seconds or 0 }} s</p>{% endif %}
+      {% if key == 'heater' %}<p class="card-meta actuator-details">Seuil d’arrêt {{ actuator.heater_off_threshold or '—' }} °C · durée ON {{ actuator.on_seconds or 0 }} s / {{ actuator.continuous_limit_seconds or '—' }} s</p>{% endif %}
     </article>
+    {% endif %}
     {% endfor %}
-    <article class="card motor-card">
-      <div class="card-kicker"><span>MOTEUR</span><span id="motor-level">Niveau {{ state.motor.speed }}/4</span></div>
-      <h3>Ventilation</h3>
-      <progress id="motor-progress" max="4" value="{{ state.motor.speed }}">{{ state.motor.percent }} %</progress>
-    </article>
     <article class="card climate-card">
       <div class="card-kicker"><span>ARBITRE</span><span id="climate-state">{{ state.climate.state or '—' }}</span></div>
       <h3>Régulation thermique</h3>
@@ -102,8 +106,8 @@
     <article class="card stat-card" data-stat="{{ stat.key }}">
       <h3>{{ stat.key }}</h3>
       <dl class="stat-list">
-        <div><dt>Minimum</dt><dd class="stat-min">{{ stat.min if stat.min is not none else '—' }}</dd></div>
-        <div><dt>Maximum</dt><dd class="stat-max">{{ stat.max if stat.max is not none else '—' }}</dd></div>
+        <div><dt>Minimum</dt><dd><span class="stat-min">{{ stat.min if stat.min is not none else '—' }}</span><small class="stat-min-at">{{ stat.min_at or '' }}</small></dd></div>
+        <div><dt>Maximum</dt><dd><span class="stat-max">{{ stat.max if stat.max is not none else '—' }}</span><small class="stat-max-at">{{ stat.max_at or '' }}</small></dd></div>
       </dl>
       <form method="post" action="/actions/stats/reset">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

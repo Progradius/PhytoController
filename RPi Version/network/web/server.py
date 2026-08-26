@@ -19,10 +19,16 @@ from controllers.sensor_catalog import SENSOR_CATALOG
 from network.web import influx_handler
 from network.web.pages import conf_page, console_page, error_page, main_page
 from param.config_store import shared_config
+from param.equipment_metadata import (
+    EQUIPMENT_IDS, EquipmentMetadata, EquipmentMetadataStore,
+)
 from utils import pretty_console as ui
 from utils.csrf import load_or_create_token
 from utils.log_stream import console_stream
 from utils.pretty_console import debug, error, info, success, warning
+from utils.operational_state import snapshot as operational_snapshot
+from utils.schedule import day_night_times
+from utils.time_reliability import time_reliability
 
 
 LOGGER_NAME = "http"
@@ -58,6 +64,11 @@ SECTION_FIELDS: dict[str, dict[str, tuple[str, str] | str]] = {
         "enabled": ("DailyTimer2_Settings", "enabled"),
         "start_time": "daily_start",
         "stop_time": "daily_stop",
+    },
+    "day-night": {
+        "source": ("Day_Night_Settings", "source"),
+        "start_time": "day_night_start",
+        "stop_time": "day_night_stop",
     },
     "cyclic-1": {
         name: ("Cyclic1_Settings", name)
@@ -111,6 +122,14 @@ SECTION_FIELDS: dict[str, dict[str, tuple[str, str] | str]] = {
         "level": ("Log_Settings", "level"),
         "retention_days": ("Log_Settings", "retention_days"),
     },
+    "equipment": {
+        f"{equipment_id}__{field}": "equipment_metadata"
+        for equipment_id in EQUIPMENT_IDS
+        for field in (
+            "display_name", "usage_type", "zone", "icon", "wiring_note",
+            "dashboard_visible", "out_of_service",
+        )
+    },
 }
 
 for _sensor_field in (
@@ -127,6 +146,7 @@ RELOAD_JOBS = {
     "temperature": ("climate_control",),
     "heater": ("climate_control",),
     "motor": ("climate_control",),
+    "day-night": ("cyclic_timer_1", "cyclic_timer_2", "climate_control"),
     "sensors": ("climate_control",),
 }
 
@@ -175,6 +195,7 @@ class Server:
         self.cyclic_timer2 = cyclic_timer2
         self.heater_component = heater_component
         self.stats = sensor_handler.stats
+        self.equipment_store = EquipmentMetadataStore()
         # Jeton persistant : un redémarrage du service ne doit pas invalider
         # les pages laissées ouvertes (voir utils/csrf.py).
         self.csrf_token = load_or_create_token()
@@ -357,6 +378,7 @@ class Server:
         return self._html(conf_page(
             self.config,
             self.csrf_token,
+            equipment=self.equipment_store.current,
             success=success_section,
             active_section=success_section,
         ))
@@ -369,8 +391,12 @@ class Server:
         errors = self._validate_form_shape(section, form)
         if errors:
             return self._html(conf_page(
-                self.config, self.csrf_token, errors=errors, active_section=section,
+                self.config, self.csrf_token, equipment=self.equipment_store.current,
+                errors=errors, active_section=section,
             ), status=422)
+
+        if section == "equipment":
+            return await self._equipment_configuration_post(form)
 
         payload = self.config.model_dump(by_alias=True)
         changed_fields: list[str] = []
@@ -380,7 +406,8 @@ class Server:
         except (ValidationError, ValueError) as exc:
             errors = self._format_validation_errors(exc)
             return self._html(conf_page(
-                self.config, self.csrf_token, errors=errors, active_section=section,
+                self.config, self.csrf_token, equipment=self.equipment_store.current,
+                errors=errors, active_section=section,
             ), status=422)
 
         try:
@@ -392,6 +419,7 @@ class Server:
             return self._html(conf_page(
                 self.config,
                 self.csrf_token,
+                equipment=self.equipment_store.current,
                 errors={"__all__": "Écriture impossible : la configuration active est inchangée."},
                 active_section=section,
             ), status=500)
@@ -421,7 +449,7 @@ class Server:
             raw = str(form[field_name])
             if field_name in SENSITIVE_FIELDS and raw == "":
                 continue
-            if target == "daily_start" or target == "daily_stop":
+            if target in {"daily_start", "daily_stop", "day_night_start", "day_night_stop"}:
                 # `<input type="time">` renvoie « HH:MM », mais certains
                 # navigateurs ajoutent les secondes : elles sont ignorées.
                 try:
@@ -429,8 +457,12 @@ class Server:
                     hour, minute = int(parts[0]), int(parts[1])
                 except (IndexError, ValueError, TypeError):
                     raise ValueError(f"Horaire invalide pour {field_name}")
-                top = "DailyTimer1_Settings" if section.endswith("1") else "DailyTimer2_Settings"
-                prefix = "start" if target == "daily_start" else "stop"
+                if target.startswith("day_night"):
+                    top = "Day_Night_Settings"
+                    prefix = "start" if target.endswith("start") else "stop"
+                else:
+                    top = "DailyTimer1_Settings" if section.endswith("1") else "DailyTimer2_Settings"
+                    prefix = "start" if target == "daily_start" else "stop"
                 if payload[top][f"{prefix}_hour"] != hour or payload[top][f"{prefix}_minute"] != minute:
                     changed.append(field_name)
                 payload[top][f"{prefix}_hour"] = hour
@@ -449,6 +481,30 @@ class Server:
             if current != value:
                 changed.append(field_name)
             payload[top][nested] = value
+
+    async def _equipment_configuration_post(self, form) -> web.Response:
+        candidate = {}
+        try:
+            for equipment_id in EQUIPMENT_IDS:
+                prefix = f"{equipment_id}__"
+                candidate[equipment_id] = EquipmentMetadata.model_validate({
+                    "display_name": str(form[prefix + "display_name"]),
+                    "usage_type": str(form[prefix + "usage_type"]),
+                    "zone": str(form[prefix + "zone"]),
+                    "icon": str(form[prefix + "icon"]),
+                    "wiring_note": str(form[prefix + "wiring_note"]),
+                    "dashboard_visible": str(form[prefix + "dashboard_visible"]).lower() == "true",
+                    "out_of_service": str(form[prefix + "out_of_service"]).lower() == "true",
+                })
+            self.equipment_store.save(candidate)
+        except (KeyError, ValueError, ValidationError, OSError) as exc:
+            return self._html(conf_page(
+                self.config, self.csrf_token, equipment=self.equipment_store.current,
+                errors={"__all__": f"Métadonnées refusées : {exc}"},
+                active_section="equipment",
+            ), status=422 if not isinstance(exc, OSError) else 500)
+        info("Métadonnées des équipements sauvegardées", name=LOGGER_NAME)
+        raise web.HTTPSeeOther(location="/conf?success=equipment#equipment")
 
     @staticmethod
     def _format_validation_errors(exc: Exception) -> dict[str, str]:
@@ -519,14 +575,65 @@ class Server:
                 "max": item.get("max"),
                 "max_at": item.get("max_date"),
             })
-        speed = self.controller_status.get_motor_speed() or 0
+        try:
+            measured_speed = self.controller_status.get_motor_speed()
+        except Exception:
+            measured_speed = None
+        # Le champ legacy garde son entier historique ; `actuators.motor.actual`
+        # reste honnête et publie `unknown` si la relecture GPIO échoue.
+        speed = measured_speed if measured_speed is not None else 0
+        equipment = self.equipment_store.payload()
+        actuator_entries = operational_snapshot()
+        components = {
+            "daily_1": getattr(self.dailytimer1, "component", None),
+            "daily_2": getattr(self.dailytimer2, "component", None),
+            "cyclic_1": getattr(self.cyclic_timer1, "component", None),
+            "cyclic_2": getattr(self.cyclic_timer2, "component", None),
+            "heater": self.heater_component,
+        }
+        for equipment_id, item in actuator_entries.items():
+            if equipment_id == "motor":
+                item["actual"] = measured_speed if measured_speed is not None else "unknown"
+            else:
+                item["actual"] = self._logical_state(components.get(equipment_id))
+            item["metadata"] = equipment.get(equipment_id, {})
+            if item.get("stale"):
+                item["requested"] = "unknown"
+                item["reason"] = "publication métier périmée"
+            requested = item.get("applied", item.get("requested"))
+            actual = item.get("actual")
+            normalized_requested = (
+                1 if requested == "on" else 0 if requested == "off" else requested
+            )
+            normalized_actual = (
+                1 if actual == "on" else 0 if actual == "off" else actual
+            )
+            item["tracking"] = (
+                "unknown" if item.get("stale") or actual == "unknown"
+                else "known_hardware_fault"
+                if normalized_requested != normalized_actual and item["metadata"].get("out_of_service")
+                else "mismatch" if normalized_requested != normalized_actual
+                else "ok"
+            )
+        start_h, start_m, stop_h, stop_m = day_night_times(self.config)
         return {
             "schema_version": 1,
             "generated_at": _utc_now(),
             "health": {
                 "healthy": self.supervisor.is_healthy() if self.supervisor else True,
+                "control_healthy": self.supervisor.control_healthy() if self.supervisor else True,
                 "heater_alarm": get_climate_alarm(),
                 "tasks": self.supervisor.snapshot() if self.supervisor else {},
+                "domains": self.supervisor.health_domains() if self.supervisor else {},
+            },
+            "time": time_reliability().snapshot(),
+            "equipment": equipment,
+            "actuators": actuator_entries,
+            "day_night": {
+                "source": self.config.day_night.source,
+                "start": f"{start_h:02d}:{start_m:02d}",
+                "stop": f"{stop_h:02d}:{stop_m:02d}",
+                "empty": start_h == stop_h and start_m == stop_m,
             },
             "outputs": {
                 "daily_timer_1": self._logical_state(getattr(self.dailytimer1, "component", None)),
@@ -641,10 +748,13 @@ class Server:
                 "duration": self.config.cyclic1.action_duration_seconds,
             },
             "heater_alarm": get_climate_alarm(),
+            "time": time_reliability().snapshot(),
         }
         if self.supervisor is not None:
             payload["healthy"] = self.supervisor.is_healthy()
+            payload["control_healthy"] = self.supervisor.control_healthy()
             payload["tasks"] = self.supervisor.snapshot()
+            payload["health_domains"] = self.supervisor.health_domains()
         return web.json_response(payload)
 
     async def _health_live(self, request: web.Request) -> web.Response:

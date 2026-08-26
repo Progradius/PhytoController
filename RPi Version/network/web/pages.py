@@ -63,6 +63,7 @@ def conf_page(
     success: str | None = None,
     errors: dict[str, str] | None = None,
     active_section: str | None = None,
+    equipment=None,
 ) -> str:
     return render_template(
         "conf.html",
@@ -81,6 +82,7 @@ def conf_page(
             (name, getattr(config.gpio, name))
             for name in config.gpio.__class__.model_fields
         ],
+        equipment=equipment or {},
     )
 
 

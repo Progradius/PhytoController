@@ -1,0 +1,56 @@
+{
+  "daily_1": {
+    "display_name": "Éclairage 1",
+    "usage_type": "éclairage",
+    "zone": "Serre",
+    "icon": "light",
+    "wiring_note": "",
+    "dashboard_visible": true,
+    "out_of_service": false
+  },
+  "daily_2": {
+    "display_name": "Éclairage 2",
+    "usage_type": "éclairage",
+    "zone": "Serre",
+    "icon": "light",
+    "wiring_note": "",
+    "dashboard_visible": true,
+    "out_of_service": false
+  },
+  "cyclic_1": {
+    "display_name": "Sortie cyclique 1",
+    "usage_type": "cycle",
+    "zone": "Serre",
+    "icon": "pump",
+    "wiring_note": "",
+    "dashboard_visible": true,
+    "out_of_service": false
+  },
+  "cyclic_2": {
+    "display_name": "Sortie cyclique 2",
+    "usage_type": "cycle",
+    "zone": "Serre",
+    "icon": "relay",
+    "wiring_note": "",
+    "dashboard_visible": true,
+    "out_of_service": false
+  },
+  "motor": {
+    "display_name": "Ventilation",
+    "usage_type": "ventilation",
+    "zone": "Serre",
+    "icon": "fan",
+    "wiring_note": "Vitesses 1 et 3 hors service côté puissance.",
+    "dashboard_visible": true,
+    "out_of_service": true
+  },
+  "heater": {
+    "display_name": "Chauffage",
+    "usage_type": "chauffage",
+    "zone": "Serre",
+    "icon": "heater",
+    "wiring_note": "",
+    "dashboard_visible": true,
+    "out_of_service": false
+  }
+}
