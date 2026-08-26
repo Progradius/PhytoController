@@ -24,6 +24,8 @@ sudo python3 main.py                 # run (root needed: GPIO, nmcli Wi-Fi, time
 PHYTO_RUN_MODE=service python3 main.py   # run under systemd — see "Run modes" below
 python3 initial_setup_tool.py        # interactive TUI to generate/edit param.json (writes to CWD, see gotchas)
 pip install -r requirements.txt
+pip install -r requirements-dev.txt  # dépendances runtime + validation hors matériel
+python3 -m pytest                    # suite reproductible sans GPIO réel
 docker build -t phyto . && docker run --privileged -p 8123:8123 phyto
 ```
 
@@ -31,8 +33,11 @@ Web UI: `http://<pi>:8123` — `/` dashboard with 5 s live refresh, `/conf` sect
 `/console` (SSE log stream), `/api/v1/state` (versioned JSON), `/health/live`, `/health/ready` and the
 legacy `/status`. `/monitor` redirects to the dashboard; reset/reboot/poweroff remain **POST-only**.
 
-There is **no test suite and no linter configured** in this tree. Do not invent one; verify changes by
-reading the code and, when hardware is involved, by describing the expected GPIO transitions.
+The repository has a small `pytest` suite under `tests/`; run it for every Python change. It uses a
+recording fake for GPIO and temporary configuration files, and must remain runnable without root,
+external network or Raspberry Pi hardware (HTTP tests use loopback only). It does **not** qualify electrical behaviour: changes involving real
+pins, relays or loads also require the supervised procedure in `docs/development/hardware-validation.md`.
+There is still no linter configured; do not invent one as part of an unrelated change.
 
 ## Architecture
 

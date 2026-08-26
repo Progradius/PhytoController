@@ -38,6 +38,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 ### Intervenir sur le matériel
 
 - [Matrice GPIO, polarités et collisions](hardware/gpio-matrix.md)
+- [Validation matérielle des sorties](development/hardware-validation.md)
 - [Modèle de sûreté](architecture/safety-model.md)
 - [Runbook d'incident](operations/incident-runbook.md)
 
@@ -62,6 +63,8 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Référence de configuration](reference/configuration.md)
 - [Interface HTTP](reference/http-interface.md) et [schémas d'état JSON](reference/status-schema.md)
 - [Checklist de changement sûr](development/safe-change-checklist.md)
+- [Stratégie de vérification](development/verification.md)
+- [Validation matérielle des sorties](development/hardware-validation.md)
 - [Décisions d'architecture](decisions/README.md)
 - [Registre vivant des risques](risk-register.md)
 - [Roadmap consolidée](roadmap.md)

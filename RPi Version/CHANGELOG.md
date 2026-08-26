@@ -6,6 +6,26 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Qualification du déploiement
+
+- Le processus publie désormais le commit Git figé à son démarrage dans `/health/live` et
+  `/api/v1/state`.
+- `scripts/deploy.sh` exige le service actif, liveness, readiness 200, santé du contrôle, commit
+  attendu et zéro alarme critique pendant 15 secondes continues avant de conclure au succès.
+- Toute rupture remet la fenêtre de stabilité à zéro ; le rollback est qualifié par les mêmes critères.
+
+### Validation automatisée minimale
+
+- Suite `pytest` sans matériel couvrant la politique climatique et ses invariants, les quotas hiver,
+  le repli capteur, la durée maximale de chauffe, les horaires jour/nuit, `ConfigStore`, le superviseur
+  et les protections HTTP.
+- Faux `RPi.GPIO` enregistrant les transitions des relais actifs-BAS et du moteur actif-HAUT, y compris
+  la coupure sur exception/annulation et le passage tout-LOW avant un changement de vitesse.
+- Configuration de test entièrement fictive et écritures confinées aux répertoires temporaires ; aucune
+  commande reboot/poweroff n'est exécutée.
+- Protocole de qualification électrique séparé : la suite automatique ne prétend pas remplacer la
+  vérification sur Raspberry Pi, relais puis charges sous surveillance.
+
 ### PWA locale
 
 **Implémentée, non déployée et non encore qualifiée sur Android.**

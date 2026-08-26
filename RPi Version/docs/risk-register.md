@@ -33,12 +33,10 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | R-TIME-01 | Élevé | Heure fausse au boot hors réseau | NTP tenté, pas de RTC ni garde `time_synced` | RTC, vérification NTP et politique dégradée | Reboot hors réseau sans commutation à contretemps |
 | R-NET-01 | Élevé | Pas de reconnexion Wi-Fi supervisée | Tentative au boot seulement | Tâche réseau supervisée | Coupure/restauration AP avec reconnexion automatique |
 | R-OPS-01 | Élevé | Unité systemd et drop-ins non reproductibles | Capturés le 25/08/2026 et recopiés sous `deploy/`, mais installation vierge non exercée et capacités larges | Revoir capacités puis exercer l'installation | Reconstruction d'un Pi avec diff nul par rapport à la référence |
-| R-OPS-02 | Élevé | Sonde de déploiement ne valide pas `healthy` | `curl -f /status` seulement, alors que `/health/ready` renvoie désormais 503 sur défaut | Basculer `scripts/deploy.sh` sur `/health/ready` | Injection d'une tâche malsaine provoquant rollback/refus |
 | R-HW-01 | Élevé | Collisions GPIO possibles dans la configuration | BCM 27 et 22 ont plusieurs rôles déclarés | PinRegistry et validation d'unicité | Config conflictuelle refusée avant accès GPIO |
 | R-HW-02 | Élevé | DS18B20/1-Wire et autres capteurs peuvent être déclarés sans câblage fiable | DS18 désactivé dans la config versionnée actuelle | Inventaire matériel et procédure de mise en service | Mesures stables ou capteur explicitement absent |
 | R-MAINT-01 | Moyen | Dépendances non verrouillées et environnement non reproductible | Bornes minimales dans `requirements.txt` ; `requests` retiré, `jinja2` et `aiohttp` désormais requis | Lock compatible Pi, politique de mise à jour | Installation répétée produisant les mêmes versions validées |
 | R-MAINT-02 | Moyen | Docker ne reflète pas clairement la production | Image privilégiée, sudo et services système implicites | Décider support, corriger ou marquer expérimental | Procédure testée ou retrait documenté |
-| R-MAINT-03 | Moyen | Pas de suite de vérification permanente | Harnais jetables et observation | Ajouter validations minimales après décision de périmètre | Contrôles reproductibles exécutés avant déploiement |
 | R-LEGAL-01 | Moyen | AGPL-3.0 déclarée sans fichier `LICENSE` | Ouvert | Ajouter le texte de licence approprié | Fichier versionné et README cohérent |
 
 ## Risques réduits, à surveiller
@@ -55,13 +53,15 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | M-ASYNC-01 | Tâche morte silencieusement | Superviseur, heartbeats, back-off et état sûr | Event loop bloqué couvert seulement par watchdog |
 | M-WDOG-01 | Watchdog aveugle | Caresse conditionnelle, même event loop, fd unique | Configuration systemd à versionner et exercer |
 | M-OPS-03 | Rotation quotidienne des logs jamais constatée en réel (ancien R-OPS-03) | Vérifiée sur le Pi le 26/08/2026 à 00:18 : `phyto.log.2026-08-25.gz` (4,6 Kio) contient la journée entière, `phyto.log` repart à la ligne 1, aucune erreur | La rotation est **paresseuse** : elle se déclenche à la première écriture après minuit, pas à minuit. Une archive absente sur un contrôleur silencieux n'est pas une panne |
+| M-OPS-02 | Sonde de déploiement limitée à la disponibilité HTTP (ancien R-OPS-02) | Service actif, liveness, readiness 200, `control_healthy`, commit chargé et zéro alarme critique exigés pendant 15 s continues ; même qualification après rollback | Exercer sur le Pi les refus par tâche malsaine, mauvais commit et alarme critique |
 | M-WEB-01 | Reboot/poweroff déclenchables en GET | Routes POST dédiées, jeton CSRF, contrôle `Origin`, confirmation navigateur | Aucune authentification : le LAN reste la seule frontière |
 | M-WEB-02 | Traversée de chemin sous `/static/` (ancien R-WEB-01) | Liste blanche exacte de chemins servis ; plus aucune jonction de chemin issue de l'URL | Toute nouvelle ressource doit être ajoutée explicitement à la liste |
 | M-WEB-03 | Absence de limites HTTP (ancien R-WEB-03) | aiohttp : corps 64 Kio, ligne et en-têtes 8190 octets, `shutdown_timeout` 5 s, `backlog` 64 | Slowloris et nombre de connexions simultanées non mesurés en conditions réelles |
-| M-WEB-04 | Disponibilité et readiness confondues (ancien R-WEB-04) | `/health/live` (200) et `/health/ready` (503 sur défaut, avec `unhealthy`) | `scripts/deploy.sh` interroge encore `/status` — voir R-OPS-02 |
+| M-WEB-04 | Disponibilité et readiness confondues (ancien R-WEB-04) | `/health/live` (200) et `/health/ready` (503 sur défaut, avec `unhealthy`) sont contrôlés séparément au déploiement | Garder leurs contrats distincts : liveness ne doit pas devenir une sonde métier |
 | M-WEB-05 | HTTP empêchait service worker et notifications locales | Second point d'écoute TLS natif optionnel, manifeste, worker, icônes et installation `standalone` ; HTTP 8123 conservé | Autorité privée et Chrome Android restent à déployer et qualifier ; aucune notification PWA fermée |
 | M-CONF-02 | `/conf` mutait la configuration sans revalidation (ancien R-CONF-01) | Candidat complet revalidé, écriture atomique, puis `replace_from()` ; un rejet ne modifie ni disque ni mémoire | L'arbitrage chauffage/ventilation n'est plus une contrainte de validation : il est garanti par construction dans `climate_policy` |
 | M-CONF-03 | Contrôleurs capteurs multiples après reconfiguration (ancien R-CONF-03) | Instance unique, `reconfigure()` en place dans l'exécuteur, `close()` à l'arrêt, instantané partagé | Bascule capteur à confirmer sur le Pi avec le matériel réel |
+| M-MAINT-03 | Pas de suite de vérification permanente (ancien R-MAINT-03) | Suite `pytest` reproductible : climat, planning, ConfigStore, GPIO logique, superviseur et HTTP ; configuration fictive et fichiers temporaires | Ajouter tout scénario de régression durable ; la qualification électrique reste manuelle et supervisée |
 
 ## Procédure de mise à jour
 

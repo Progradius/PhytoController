@@ -9,6 +9,20 @@ deux doivent rester cohérentes.
 
 La roadmap privilégie la réduction du risque physique, puis la reproductibilité et enfin la modernisation. Chaque chantier doit rester livrable, réversible et vérifiable indépendamment.
 
+## Validation automatisée minimale
+
+**État : implémentée hors matériel.**
+
+- [x] Tests paramétrés de `climate_policy.decide()` et de ses invariants thermiques
+- [x] Plancher absolu, quotas hiver, repli capteur, durée maximale et cooldown
+- [x] Transitions jour/nuit, plages semi-ouvertes et passage à minuit
+- [x] `ConfigStore` : sauvegarde, corruption, `.bak`, rollback de commit et erreur d'écriture
+- [x] Faux GPIO enregistrant les polarités et le break-before-make moteur
+- [x] Superviseur : crash, retour anormal, stall, back-off, reload et état sûr
+- [x] HTTP : formulaires, CSRF, Origin, Host, corps borné et actions POST-only
+- [x] Protocole matériel séparé, jamais lancé par la suite par défaut
+- [ ] Exécuter la suite automatiquement dans une CI au niveau racine du dépôt
+
 ## Définitions de sortie
 
 Un chantier n'est terminé que si :

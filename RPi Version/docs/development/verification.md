@@ -1,12 +1,28 @@
 # Stratégie de vérification
 
-Il n'existe pas encore de suite de tests ou linter configurés. Ne pas déclarer un changement sûr sur la seule base de `compileall`.
+Une suite `pytest` reproductible couvre les contrats purs, la persistance, les doubles GPIO, le
+superviseur et l'interface HTTP. Elle est obligatoire pour tout changement Python, mais ne suffit pas à
+qualifier une transition électrique réelle. Il n'existe pas de linter configuré et `compileall` seul ne
+constitue jamais une preuve de sûreté.
+
+## Commandes
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest
+```
+
+Les tests doivent rester exécutables sans root, réseau externe, bus I²C ou Raspberry Pi. Les tests HTTP
+utilisent uniquement un socket loopback éphémère. Ils ne chargent jamais
+le `param/param.json` vivant comme fixture : `tests/conftest.py` construit une configuration fictive et
+chaque test persistant écrit sous `tmp_path`. Les imports de `RPi.GPIO` ne sont autorisés qu'après
+installation explicite du faux de `tests/fakes/rpi_gpio.py`.
 
 ## Niveaux
 
 1. **Statique** : lecture des flux, imports, polarités, exceptions et annulations.
 2. **Syntaxe** : compilation avec le venv Pi.
-3. **Harnais ciblé** : stubs RPi.GPIO/smbus2 et scénarios déterministes.
+3. **Suite automatisée** : `pytest`, faux `RPi.GPIO`, fichiers temporaires et scénarios déterministes.
 4. **Intégration sans charge** : processus, HTTP, configuration, supervision.
 5. **Matériel sous surveillance** : GPIO, relais puis équipement.
 6. **Production** : déploiement, statut, logs, métriques et rollback.
@@ -39,7 +55,18 @@ Il n'existe pas encore de suite de tests ou linter configurés. Ne pas déclarer
 
 La politique thermique est une **fonction pure** (`components/climate_policy.decide()`) : ses scénarios se rejouent sans matériel, sans horloge et sans disque. C'est le seul endroit du dépôt où une régulation peut être vérifiée de façon déterministe — 35 scénarios y ont été rejoués lors de la phase 2. Toute évolution de la politique doit être accompagnée des siens.
 
-Une passe de fumigation HTTP couvrant ces points existe sous forme de harnais jetable (aiohttp `TestClient`, stubs `RPi.GPIO`/`smbus2`, sauvegarde/restauration de `param.json`). Elle est à transformer en vérification reproductible : c'est le premier candidat d'une suite de tests, puisqu'elle protège des invariants durables.
+La fumigation HTTP utilise `aiohttp.TestClient`, un `ConfigStore` temporaire et des doubles sans I/O
+matérielle. Les actions reboot/poweroff sont vérifiées comme POST-only et protégées, sans jamais lancer
+de sous-processus.
+
+L'invariant climatique « jamais chauffage et ventilation simultanés » concerne la **ventilation
+thermique** (`VENTILER`/`SECURITE_HAUTE`). En hiver, les épisodes bornés `RENOUVELER` et
+`DESHUMIDIFIER` peuvent volontairement coexister avec la chauffe ; en manuel, la vitesse vient de
+l'opérateur. Les tests distinguent ces contrats au lieu d'interdire globalement tout moteur pendant la
+chauffe.
+
+La qualification des niveaux électriques suit séparément
+[`hardware-validation.md`](hardware-validation.md), charges consignées puis relais seuls.
 
 ## Traçabilité
 

@@ -5,7 +5,8 @@
 1. Définir le contenu et les risques associés.
 2. Vérifier compatibilité de `param.json` et dépendances.
 3. Mettre à jour documentation, roadmap, registre et changelog.
-4. Exécuter les vérifications proportionnées.
+4. Exécuter `python3 -m pytest`, puis les vérifications matérielles proportionnées si le changement
+   touche les sorties, la supervision ou l'arrêt.
 5. Préparer rollback et fenêtre d'intervention matérielle.
 
 ## Livraison

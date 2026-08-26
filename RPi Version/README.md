@@ -119,7 +119,23 @@ aucune alarme critique. Tout échec déclenche le rollback automatique, qualifi�
 
 ## Vérification
 
-Il n'existe pas encore de suite de tests ni de linter configurés dans cette arborescence. Les changements sont vérifiés par lecture, harnais matériels ou stubs ciblés et observation du Raspberry Pi. Toute modification de GPIO, chauffage, moteur, timer, arrêt ou watchdog doit décrire les transitions attendues au démarrage, en régime nominal, sur exception, sur annulation et à l'arrêt.
+La validation automatisée sans matériel repose sur `pytest` :
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest
+```
+
+La suite emploie uniquement une configuration fictive, des répertoires temporaires et un faux GPIO
+enregistrant chaque transition. Elle ne nécessite ni root, ni réseau externe, ni Raspberry Pi ; les
+tests HTTP ouvrent seulement un socket loopback éphémère et ne lancent aucune commande système. Elle couvre la politique climatique, les passages jour/nuit et minuit, le magasin de
+configuration, les polarités GPIO, le superviseur et les protections HTTP.
+
+Elle ne remplace pas une qualification électrique. Toute modification de GPIO, chauffage, moteur,
+timer, arrêt ou watchdog doit aussi suivre le protocole supervisé de
+[`docs/development/hardware-validation.md`](docs/development/hardware-validation.md) et décrire les
+transitions attendues au démarrage, en régime nominal, sur exception, sur annulation et à l'arrêt.
+Il n'y a toujours pas de linter configuré.
 
 ## Licence
 
