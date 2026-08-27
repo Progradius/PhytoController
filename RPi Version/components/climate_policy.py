@@ -167,6 +167,8 @@ class ClimateInputs:
     temperature: float | None
     humidity: float | None
     is_day: bool
+    temperature_inconsistent: bool = False
+    temperature_quality_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -346,7 +348,11 @@ def _decide_heater(settings: ClimateSettings, inputs: ClimateInputs,
 
     # Garde-fou 2 : repli sur perte durable du capteur.
     if sensor_lost:
-        alarm = ("température ambiante illisible → chauffage coupé, "
+        diagnostic = (
+            f" ({inputs.temperature_quality_reason})"
+            if inputs.temperature_quality_reason else ""
+        )
+        alarm = (f"température ambiante illisible{diagnostic} → chauffage coupé, "
                  "régulation impossible")
         return False, ALARM_SENSOR_FALLBACK, alarm, (
             f"repli capteur ({memory.sensor_failures} lectures manquées)"
@@ -505,7 +511,11 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
     temp = _valid_temperature(inputs.temperature)
     rh = _valid_humidity(inputs.humidity)
 
-    failures = 0 if temp is not None else memory.sensor_failures + 1
+    failures = (
+        MAX_CONSECUTIVE_SENSOR_FAILURES
+        if inputs.temperature_inconsistent
+        else 0 if temp is not None else memory.sensor_failures + 1
+    )
     memory = replace(memory, sensor_failures=failures)
     sensor_lost = failures >= MAX_CONSECUTIVE_SENSOR_FAILURES
 

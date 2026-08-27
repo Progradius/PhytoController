@@ -26,7 +26,35 @@ Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `po
 | `GPIO_Settings` | `GPIOSettings` | Broches | **Lecture seule dans l'IHM** ; redémarrage et intervention matérielle |
 | `Motor_Settings` | `MotorSettings` | Modes et consignes moteur | À chaud : relance de `climate_control` |
 | `Sensor_State` | `SensorState` | Capteurs activés | À chaud : `SensorController.reconfigure()` sur l'instance unique, puis rechargement Influx |
+| `Sensor_Quality` | `SensorQualitySettings` | Calibration, fraîcheur, plausibilité, figement, identités et redondance | À chaud ; mode observation par défaut, armement explicite du repli qualité |
 | `Log_Settings` | `LogSettings` | Niveau et rétention | À chaud |
+
+## Calibration et qualité des capteurs
+
+`Sensor_Quality.mode` vaut `observe` par défaut. Dans ce mode, les diagnostics sont publiés et
+alarmés, mais un figement plausible ou un désaccord redondant ne modifie pas encore les sorties.
+Le passage à `enforce` exige la confirmation littérale `ARMER` dans l'IHM ; une incohérence déjà
+confirmée sur `BME280T` déclenche alors immédiatement `REPLI_CAPTEUR` sans attendre cinq erreurs
+d'acquisition. Les valeurs hors plage et périmées ne sont jamais autorisées, quel que soit le mode.
+
+`profiles` est indexé par la clé canonique (`BME280T`, `DS18B#1`, etc.). Chaque profil peut
+surcharger l'offset additif, la date et la durée de validité de calibration, le seuil de fraîcheur,
+la plage plausible, l'epsilon de variation, la durée et le nombre minimal d'échantillons nécessaires
+pour déclarer un figement. `freeze_after_seconds: "disabled"` désactive seulement ce diagnostic.
+Les plages configurées doivent rester incluses dans les limites matérielles du catalogue.
+
+`ds18b20_bindings` lie chaque nom métier DS18B à son identifiant 1-Wire stable au format
+`28-xxxxxxxxxxxx`. Une sonde activée mais non liée est déclarée absente : l'ordre de découverte
+sysfs ne doit jamais déplacer une calibration d'une sonde physique à une autre.
+
+`redundancy_groups` contient des groupes de mesures de même unité, une tolérance et un quorum.
+Une mesure ne peut appartenir qu'à un groupe. Avec deux sondes en désaccord, aucune n'est choisie
+arbitrairement ; avec trois sondes ou plus, le plus grand groupe cohérent identifie les valeurs
+divergentes. Trois comparaisons cohérentes consécutives sont requises pour sortir du diagnostic.
+
+Modifier l'offset ou la date de calibration réinitialise les compteurs qualité et les min/max de la
+mesure concernée. L'état de figement et les compteurs sont conservés dans
+`param/runtime_state.json`; les instants monotones ne sont volontairement pas restaurés.
 
 ## Timers journaliers
 

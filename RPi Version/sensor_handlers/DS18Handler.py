@@ -24,7 +24,7 @@ class DS18Handler:
         # recherche des répertoires 28-*
         self._sensors: List[Path] = [Path(p) for p in glob.glob(SYSFS_GLOB)]
         # Sondes manquantes déjà signalées (1 warning à l'init, puis silence)
-        self._missing_reported: set[int] = set()
+        self._missing_reported: set[int | str] = set()
         if self._sensors:
             info(f"{len(self._sensors)} DS18B20 détectée(s) via sysfs", name=LOGGER_NAME)
             self.available = True
@@ -69,4 +69,25 @@ class DS18Handler:
             return round(temp_c, 1)
         except Exception as e:
             error(f"Parsing température DS18B20 #{sensor_number} : {e}", name=LOGGER_NAME)
+            return None
+
+    def get_ds18_temp_by_id(self, hardware_id: str) -> Optional[float]:
+        """Lit une sonde par son identité 1-Wire stable, jamais par ordre de glob."""
+        try:
+            sensor_path = next(path for path in self._sensors if path.name == hardware_id)
+        except StopIteration:
+            if hardware_id not in self._missing_reported:
+                self._missing_reported.add(hardware_id)
+                warning(f"Capteur DS18B20 {hardware_id} absent du bus", name=LOGGER_NAME)
+            else:
+                debug(f"Capteur DS18B20 {hardware_id} toujours absent", name=LOGGER_NAME)
+            return None
+        slave_file = sensor_path / "w1_slave"
+        try:
+            text = slave_file.read_text().splitlines()
+            if not text or not text[0].strip().endswith("YES"):
+                return None
+            return round(int(text[1].split("t=")[1]) / 1000.0, 1)
+        except Exception as exc:
+            error(f"Lecture DS18B20 {hardware_id} : {exc.__class__.__name__}", name=LOGGER_NAME)
             return None

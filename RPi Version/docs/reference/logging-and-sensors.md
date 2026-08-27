@@ -25,7 +25,7 @@ Constatée en conditions réelles le 26 août 2026 à 00:18 : `logs/phyto.log.20
 
 ## Capteurs
 
-`controllers/sensor_catalog.py` est la **table canonique** des mesures : clé interne, famille matérielle, champ d'activation dans `Sensor_State`, measurement InfluxDB, libellé et unité affichés, nombre de décimales, suivi min/max. Toute nouvelle mesure s'ajoute là et nulle part ailleurs — c'est ce qui a supprimé les listes divergentes entre l'IHM, l'export et les capteurs de distance.
+`controllers/sensor_catalog.py` est la **table canonique** des mesures : clé interne, famille matérielle, champ d'activation dans `Sensor_State`, measurement InfluxDB, libellé, unité, limites plausibles, fraîcheur et paramètres de figement par défaut. Toute nouvelle mesure s'ajoute là et nulle part ailleurs.
 
 `SensorController` est l'unique propriétaire du matériel. Il ouvre `/dev/i2c-1` une fois et instancie seulement les handlers activés :
 
@@ -41,13 +41,26 @@ Toutes les lectures passent par un **exécuteur à un seul fil** : elles ne gèl
 
 Le job supervisé `sensor_snapshot` rafraîchit les mesures actives toutes les 10 s et publie un instantané horodaté. Ce sont HTTP et InfluxDB qui le **consomment** : une requête web ne déclenche plus aucune lecture matérielle. Les boucles moteur et chauffage utilisent `fresh_value(clé, max_age=20)`, qui réutilise l'instantané s'il est frais et ne relit le capteur que sinon.
 
-Chaque mesure porte un état : `ok`, `stale` (dernière réussite de plus de 30 s), `error`, `never` ou `disabled`. La valeur exposée est toujours la dernière valeur valide connue, accompagnée de son ancienneté — jamais une valeur reconstruite. Le Pi observé avait BME280 actif et les autres familles désactivées dans la configuration versionnée locale ; la configuration vivante ne doit pas être imprimée pour confirmer ce point.
+`controllers/sensor_quality.py` qualifie chaque tentative sans I/O : offset, plage plausible,
+fraîcheur, compteur d'échecs, calibration échue, figement par durée **et** nombre d'échantillons,
+puis comparaison redondante éventuelle. Les états publiés sont `normal`, `degraded`, `absent` et
+`inconsistent`. Trois mesures réellement variables réarment un figement ; une simple oscillation
+unique suivie d'une nouvelle constante ne suffit pas.
+
+Le snapshot sépare `raw_value`, `observed_value` et `value` qualifiée. Le tableau de bord montre une
+valeur suspecte comme telle au lieu de la transformer en donnée valide. Les compteurs et diagnostics
+sont persistés atomiquement ; la date de calibration n'est déclarée échue que si l'horloge civile est
+fiable. Les DS18B20 sont lus par identité 1-Wire configurée, jamais par position dans un glob sysfs.
 
 ## InfluxDB
 
 L'export utilise le protocole ligne InfluxDB v1 via une session **aiohttp** partagée, avec un délai de garde total de 4 s et les identifiants transmis en paramètres de requête, jamais dans une URL journalisée. Les clés de capteur sont groupées en mesures selon le catalogue : `air`, `water`, `distance`, `lux`, `surface_temp` et `uv`.
 
-Plus aucun appel bloquant ne subsiste dans l'event loop pour cet export. Il ne lit rien lui-même : il envoie les points `ok` de l'instantané partagé, ce qui garantit qu'une valeur périmée ou en erreur n'est pas écrite dans la base.
+Plus aucun appel bloquant ne subsiste dans l'event loop pour cet export. Il ne lit rien lui-même : les
+measurements métier ne reçoivent que `value` qualifiée. Un point séparé
+`sensor_quality,sensor=<clé>` exporte le statut, l'autorité de contrôle, les échecs, la durée sans
+variation et les valeurs brute/observée éventuelles. Une valeur suspecte reste donc analysable sans
+polluer la série de confiance.
 
 Le job `influx_push` reste enregistré même hors ligne : `host_machine_state` le suspend ou le réactive à chaud, sans passer par le registre du superviseur ni par un redémarrage.
 

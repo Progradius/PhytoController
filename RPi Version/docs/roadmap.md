@@ -106,7 +106,7 @@ Un chantier n'est terminé que si :
 - [x] Nommer deux budgets distincts — renouvellement et déshumidification, bornés et comptés en temps réellement écoulé
 - [x] Ajouter une hystérésis à état — seuil de relâchement distinct et `min_dwell_seconds`
 - [x] Persister quota hiver et phase cyclique — `utils/state_store.py`
-- [x] Définir le comportement sur capteur absent, hors plage ou figé — repli nommé `REPLI_CAPTEUR`
+- [x] Définir le comportement sur capteur absent, hors plage ou figé — qualification complète, déploiement initial en `observe`, puis repli nommé `REPLI_CAPTEUR` après armement explicite
 - [x] Vérification en production : huit travaux sains, cohérence décision ↔ `pinctrl`, état persisté,
       rechargement à chaud sans coupure de sortie
 - [ ] Essai sur plages limites avec le matériel réel : la serre est en chauffage désactivé et moteur

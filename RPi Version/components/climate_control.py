@@ -282,8 +282,16 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
             )
 
         # 2) lecture capteurs (une seule fois pour les deux organes) -------
-        temperature = await sensor_handler.fresh_value("BME280T", max_age=20.0)
-        humidity = await sensor_handler.fresh_value("BME280H", max_age=20.0)
+        temperature_reading = await sensor_handler.fresh_reading("BME280T")
+        humidity_reading = await sensor_handler.fresh_reading("BME280H")
+        temperature = (
+            temperature_reading.get("observed_value")
+            if temperature_reading and temperature_reading.get("control_usable") else None
+        )
+        humidity = (
+            humidity_reading.get("observed_value")
+            if humidity_reading and humidity_reading.get("control_usable") else None
+        )
 
         # 3) resynchronisation sur le matériel ----------------------------
         now_mono = monotonic()
@@ -297,6 +305,15 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
             temperature=temperature,
             humidity=humidity,
             is_day=is_day,
+            temperature_inconsistent=bool(
+                temperature_reading
+                and temperature_reading.get("status") == "inconsistent"
+                and temperature_reading.get("enforcement_mode") == "enforce"
+            ),
+            temperature_quality_reason=(
+                ", ".join(temperature_reading.get("reason_codes", []))
+                if temperature_reading else None
+            ),
         )
         decision, memory = decide(settings, inputs, memory)
 

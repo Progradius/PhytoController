@@ -3,13 +3,13 @@
 Deux formats coexistent : `/api/v1/state`, versionné et destiné à l'IHM comme à
 l'automatisation, et `/status`, conservé tel quel pour ne pas casser les scripts existants.
 
-## `/api/v1/state` (schéma 1)
+## `/api/v1/state` (schéma 2)
 
 Exemple abrégé, sans valeurs de production :
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "version": "0123456789abcdef0123456789abcdef01234567",
   "generated_at": "2026-08-25T21:14:03.512Z",
   "web": {"https": {"configured": true, "ready": true, "port": 443}},
@@ -60,10 +60,19 @@ Exemple abrégé, sans valeurs de production :
                   "first_trigger_hour": 8, "action_duration_seconds": 30}}
   ],
   "sensors": [
-    {"key": "BME280T", "label": "Température de l’air", "unit": "°C", "decimals": 1,
-     "enabled": true, "status": "ok", "value": 21.4,
+    {"key": "BME280T", "family": "BME280", "label": "Température de l’air",
+     "unit": "°C", "decimals": 1, "enabled": true, "status": "normal",
+     "acquisition_status": "ok", "value": 21.4, "observed_value": 21.4,
+     "raw_value": 21.2, "control_usable": true, "would_block_control": false,
+     "control_disposition": "trusted", "reason_codes": [],
      "last_attempt_at": "2026-08-25T21:14:01Z", "last_success_at": "2026-08-25T21:14:01Z",
-     "age_s": 2.1}
+     "last_trusted_at": "2026-08-25T21:14:01Z", "age_s": 2.1,
+     "unchanged_for_s": 0.0, "freshness_threshold_s": 20.0,
+     "plausible_range": {"min": -20.0, "max": 60.0},
+     "calibration": {"offset": 0.2, "calibrated_at": "2026-08-01", "valid_days": 365, "overdue": false},
+     "failures": {"consecutive": 0, "since_calibration": 0,
+                  "incoherences_since_calibration": 0, "last_at": null},
+     "redundancy": {"group": null, "status": "not_configured", "delta": null}}
   ],
   "stats": [
     {"key": "BME280T", "min": 14.2, "min_at": "2026-08-20T05:11:02",
@@ -101,15 +110,22 @@ Exemple abrégé, sans valeurs de production :
 
 Pour un capteur, `status` vaut :
 
-- `ok` : dernière tentative réussie et datant de moins de 30 s ;
-- `stale` : dernière réussite trop ancienne — `value` est la **dernière valeur connue** ;
-- `error` : dernière tentative en échec ;
-- `never` : aucune tentative depuis le démarrage ;
+- `normal` : mesure fraîche, plausible et cohérente ;
+- `degraded` : mesure encore qualifiée mais assortie d'une réserve, par exemple calibration expirée ou redondance indisponible ;
+- `absent` : aucune mesure fraîche et exploitable, après erreurs de lecture ou expiration du seuil de fraîcheur ;
+- `inconsistent` : valeur acquise mais hors plage, figée ou en désaccord avec son groupe redondant ;
 - `disabled` : capteur désactivé dans `Sensor_State` (absent de `sensors`).
 
-`value` est toujours la dernière valeur **valide** connue, jamais une valeur inventée ; `age_s`
-donne son ancienneté. Une valeur affichée avec `status` différent de `ok` ne doit pas être
-utilisée comme mesure courante.
+`raw_value` est la lecture matérielle, `observed_value` cette lecture après offset, et `value`
+uniquement la valeur **qualifiée**. Une valeur incohérente reste visible dans `observed_value` pour
+le diagnostic, mais `value` vaut `null`. `control_usable` est l'autorité explicite pour le contrôle :
+en mode `observe`, un figement ou un désaccord redondant peut être publié comme
+`shadow_accepted`; en mode `enforce`, la même décision devient immédiatement `blocked` sans
+attendre une nouvelle lecture. Une valeur hors plage, absente ou périmée est toujours bloquée.
+
+`reason_codes` explique la décision (`frozen`, `out_of_range`, `stale`,
+`redundancy_mismatch`, `calibration_overdue`, etc.). `age_s` porte l'âge de la dernière valeur
+qualifiée, tandis que `attempt_age_s` porte l'âge de la dernière tentative.
 
 Aucune lecture matérielle n'est déclenchée par une requête HTTP : le job supervisé
 `sensor_snapshot` rafraîchit l'instantané toutes les 10 s, l'IHM et InfluxDB le consomment.

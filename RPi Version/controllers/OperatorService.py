@@ -120,7 +120,7 @@ class OperatorService:
         self._previous_equipment = copy.deepcopy(equipment_store.payload())
         self._dynamic_alarm_keys: set[str] = {
             item["alarm_key"] for item in alarm_manager.active_payloads()
-            if item["alarm_key"].startswith(("gpio:", "control:", "restart:"))
+            if item["alarm_key"].startswith(("gpio:", "control:", "restart:", "sensor:"))
         }
         set_transition_sink(self._on_output_transition)
 
@@ -350,7 +350,10 @@ class OperatorService:
                     "key": definition.key,
                     "status": sensors[definition.key]["status"],
                     "value": sensors[definition.key]["value"]
-                    if sensors[definition.key]["status"] == "ok" else None,
+                    if sensors[definition.key].get("value") is not None else None,
+                    "raw_value": sensors[definition.key].get("raw_value"),
+                    "acquisition_status": sensors[definition.key].get("acquisition_status"),
+                    "reason_codes": sensors[definition.key].get("reason_codes", []),
                 }
                 for definition in SENSOR_CATALOG if sensors[definition.key]["enabled"]
             ],
@@ -433,6 +436,37 @@ class OperatorService:
             )
             detail = f"statut={status}, suivi={item.get('tracking')}"
             self._condition(key, definition, active, detail=detail)
+
+        sensors = self.sensor_handler.snapshot()
+        for definition in SENSOR_CATALOG:
+            item = sensors[definition.key]
+            if not item.get("enabled"):
+                continue
+            key = f"sensor:{definition.key}"
+            current_dynamic.add(key)
+            status = item.get("status")
+            active = status in {"degraded", "absent", "inconsistent"}
+            severity = "warning" if status == "degraded" else "error"
+            affects_control = bool(definition.control_role)
+            quality_definition = AlarmDefinition(
+                code="sensor_quality",
+                title=f"Qualité capteur {definition.key} : {status}",
+                severity=severity,
+                category="sensor",
+                affects_control=affects_control,
+                consequence=(
+                    "La mesure serait exclue du contrôle en mode armé."
+                    if item.get("would_block_control") else
+                    "La mesure reste disponible avec une réserve de qualité."
+                ),
+                advice="Contrôler le capteur, son identité, sa calibration et son câblage.",
+                link="/#surveillance",
+            )
+            detail = (
+                f"statut={status}, raisons={','.join(item.get('reason_codes', [])) or 'aucune'}, "
+                f"mode={item.get('enforcement_mode')}"
+            )
+            self._condition(key, quality_definition, active, detail=detail, severity=severity)
 
         tasks = self.supervisor.snapshot()
         for name, task in tasks.items():

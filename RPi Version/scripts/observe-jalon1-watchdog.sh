@@ -194,7 +194,7 @@ else:
             failures.append(f"suivi_actionneur:{name}:{tracking}")
 
     for sensor in sensors:
-        if sensor.get("status") != "ok":
+        if sensor.get("status") != "normal":
             warnings.append(f"capteur:{sensor.get('key')}:{sensor.get('status')}")
     if time_state not in {"synchronized", "plausible"}:
         warnings.append(f"heure:{time_state}")

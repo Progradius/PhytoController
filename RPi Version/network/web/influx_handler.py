@@ -85,6 +85,35 @@ def _escape_field_key(key: str) -> str:
     return key.replace(" ", r"\ ").replace(",", r"\,").replace("=", r"\=")
 
 
+def _escape_tag(value: str) -> str:
+    return _escape_field_key(value)
+
+
+def _escape_string(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+async def _send_quality_point(session, sensor: dict) -> tuple[bool | None, str | None]:
+    fields = [
+        f'status="{_escape_string(str(sensor.get("status", "absent")))}"',
+        f'control_usable={str(bool(sensor.get("control_usable"))).lower()}',
+        f'consecutive_failures={int(sensor.get("failures", {}).get("consecutive", 0))}i',
+        f'unchanged_seconds={float(sensor.get("unchanged_for_s", 0.0))}',
+    ]
+    if sensor.get("raw_value") is not None:
+        fields.append(f'raw_value={float(sensor["raw_value"])}')
+    if sensor.get("observed_value") is not None:
+        fields.append(f'observed_value={float(sensor["observed_value"])}')
+    payload = f'sensor_quality,sensor={_escape_tag(sensor["key"])} {",".join(fields)}'
+    try:
+        async with session.post(_write_url, params=_write_params, data=payload) as response:
+            status = response.status
+            await response.read()
+    except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        return False, exc.__class__.__name__
+    return (True, None) if status == 204 else (False, f"HTTP {status}")
+
+
 async def _send_grouped_point(
     session: aiohttp.ClientSession,
     measurement: str,
@@ -141,13 +170,21 @@ async def write_sensor_values(period: int = 60) -> None:
                     sensor_values = {
                         sensor_name: snapshot[sensor_name]["value"]
                         for sensor_name in sensors
-                        if snapshot.get(sensor_name, {}).get("status") == "ok"
+                        if snapshot.get(sensor_name, {}).get("status") in {"normal", "degraded", "ok"}
+                        and snapshot.get(sensor_name, {}).get("value") is not None
                     }
                     outcome, detail = await _send_grouped_point(session, measurement, sensor_values)
                     if outcome is not None:
                         attempted = True
                     if outcome is False:
                         failures.append(detail or "échec")
+                for sensor in snapshot.values():
+                    if not sensor.get("enabled"):
+                        continue
+                    attempted = True
+                    outcome, detail = await _send_quality_point(session, sensor)
+                    if outcome is False:
+                        failures.append(detail or "échec qualité")
                 if failures:
                     safe_detail = failures[0]
                     _push_state.fail(f"{_endpoint_label} → {safe_detail}")

@@ -6,6 +6,25 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Calibration et qualité des capteurs
+
+**Implémentée et vérifiée hors matériel ; mode initial `observe`, non encore qualifié ni armé sur le Pi.**
+
+- Catalogue unique enrichi par mesure : limites plausibles, fraîcheur, seuil de variation, durée et
+  échantillons de figement, rôle éventuel dans le contrôle.
+- Profils `Sensor_Quality` persistants : offset, date/validité de calibration, surcharges de seuils,
+  identités DS18B20 stables et groupes redondants validés.
+- Moteur de qualité pur avec états `normal`, `degraded`, `absent`, `inconsistent`, compteurs
+  persistants, récupération sur trois échantillons et séparation brute/observée/qualifiée.
+- Déploiement en deux temps : observation sans changement de sorties, puis armement explicite par
+  confirmation `ARMER`. Une incohérence thermique confirmée déclenche alors immédiatement
+  `REPLI_CAPTEUR` ; une acquisition simplement manquée conserve le garde-fou historique à cinq essais.
+- `/api/v1/state` passe au schéma 2 ; tableau de bord, centre d'alarmes, historique SQLite v2 et point
+  Influx `sensor_quality` publient le diagnostic sans réintroduire une valeur suspecte dans les séries
+  de confiance.
+- Interface `/conf` pour calibrer, lier les identités 1-Wire, configurer la redondance, observer puis
+  armer, et réinitialiser explicitement les diagnostics.
+
 ### Qualification du déploiement
 
 - Le processus publie désormais le commit Git figé à son démarrage dans `/health/live` et

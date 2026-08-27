@@ -60,7 +60,8 @@ section + section { margin-top: clamp(2.2rem, 5vw, 4rem); }
 .metric { margin: 1rem 0 .2rem; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; }
 .metric-unit { color: var(--muted); font-size: .85rem; font-weight: 400; }
 .card-meta { margin-bottom: 0; color: var(--muted); font-size: .84rem; }
-.sensor-card.status-error, .sensor-card.status-stale { border-color: var(--amber); }
+.sensor-card.status-degraded { border-color: var(--amber); }
+.sensor-card.status-absent, .sensor-card.status-inconsistent { border-color: var(--red); }
 .sensor-status, .state-badge { padding: .16rem .42rem; border-radius: 999px; background: var(--soft); }
 .state-on { color: var(--green); } .state-off { color: var(--muted); } .state-unknown { color: var(--amber); }
 progress { width: 100%; height: .7rem; margin-top: 1rem; border: 0; border-radius: 999px; overflow: hidden; background: var(--soft); }

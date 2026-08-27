@@ -15,7 +15,7 @@ from typing import Callable
 from utils.alarm_manager import AlarmOccurrence, AlarmTransition
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 RETENTION_SECONDS = 72 * 3600
 ALARM_RETENTION_SECONDS = 30 * 24 * 3600
 MAX_ALARM_OCCURRENCES = 2000
@@ -100,6 +100,8 @@ class OperatorHistory:
             raise HistoryUnavailable(f"schéma SQLite futur : {version}")
         if version == 0:
             self._create_schema(connection)
+        elif version == 1:
+            self._migrate_v1_to_v2(connection)
         self._assert_owner()
         self.last_sample_ts = connection.execute("SELECT MAX(ts) FROM samples").fetchone()[0]
         os.chmod(self.path, 0o600)
@@ -139,6 +141,9 @@ class OperatorHistory:
                 sensor_key TEXT NOT NULL,
                 value REAL,
                 status TEXT NOT NULL,
+                raw_value REAL,
+                acquisition_status TEXT,
+                reason_json TEXT NOT NULL DEFAULT '[]',
                 PRIMARY KEY (sample_id, sensor_key)
             ) WITHOUT ROWID;
             CREATE INDEX idx_sensor_key ON sensor_values(sensor_key, sample_id);
@@ -185,10 +190,36 @@ class OperatorHistory:
             CREATE UNIQUE INDEX idx_alarm_active_key
                 ON alarm_occurrences(alarm_key) WHERE resolved_ts IS NULL;
             CREATE INDEX idx_alarm_started ON alarm_occurrences(started_ts DESC);
-            PRAGMA user_version=1;
+            PRAGMA user_version=2;
             """
         )
         connection.commit()
+
+    def _migrate_v1_to_v2(self, connection: sqlite3.Connection) -> None:
+        """Migration additive ; la copie v1 permet un rollback de l'auxiliaire."""
+        backup = self.path.with_name(self.path.name + ".pre-v2.bak")
+        if not backup.exists():
+            target = sqlite3.connect(str(backup))
+            try:
+                connection.backup(target)
+            finally:
+                target.close()
+            os.chmod(backup, 0o600)
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("ALTER TABLE sensor_values ADD COLUMN raw_value REAL")
+            connection.execute(
+                "ALTER TABLE sensor_values ADD COLUMN acquisition_status TEXT"
+            )
+            connection.execute(
+                "ALTER TABLE sensor_values ADD COLUMN reason_json "
+                "TEXT NOT NULL DEFAULT '[]'"
+            )
+            connection.execute("PRAGMA user_version=2")
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
 
     def _assert_owner(self) -> None:
         if self._owner_thread_id != threading.get_ident():
@@ -258,9 +289,15 @@ class OperatorHistory:
             )
             sample_id = cursor.lastrowid
             connection.executemany(
-                "INSERT INTO sensor_values(sample_id,sensor_key,value,status) VALUES(?,?,?,?)",
+                """INSERT INTO sensor_values(
+                       sample_id,sensor_key,value,status,raw_value,acquisition_status,reason_json
+                   ) VALUES(?,?,?,?,?,?,?)""",
                 [
-                    (sample_id, item["key"], item.get("value"), item["status"])
+                    (
+                        sample_id, item["key"], item.get("value"), item["status"],
+                        item.get("raw_value"), item.get("acquisition_status"),
+                        json.dumps(item.get("reason_codes", []), separators=(",", ":")),
+                    )
                     for item in sample.get("sensors", [])
                 ],
             )
@@ -414,12 +451,27 @@ class OperatorHistory:
         seen_series = set()
         for row in self._dict_rows(sensor_rows):
             ts = float(row["bucket_start_ts"])
-            bucket = buckets.setdefault(ts, {"bucket_start_ts": ts, "sensors": {}, "setpoints": {}, "actuators": {}})
+            bucket = buckets.setdefault(ts, {"bucket_start_ts": ts, "sensors": {}, "sensor_quality": {}, "setpoints": {}, "actuators": {}})
             bucket["sensors"][row["sensor_key"]] = {
                 "min": row["min_value"], "avg": row["avg_value"],
                 "max": row["max_value"], "valid_count": row["valid_count"],
             }
             seen_series.add(row["sensor_key"])
+
+        status_rows = connection.execute(
+            """SELECT CAST(s.ts / ? AS INTEGER) * ? AS bucket_start_ts,
+                      v.sensor_key,v.status,COUNT(*) AS status_count
+               FROM samples s JOIN sensor_values v ON v.sample_id=s.id
+               WHERE s.ts>=? AND s.ts<=?
+               GROUP BY bucket_start_ts,v.sensor_key,v.status
+               ORDER BY bucket_start_ts,v.sensor_key""",
+            (bucket_seconds, bucket_seconds, start_ts, end_ts),
+        )
+        for row in self._dict_rows(status_rows):
+            ts = float(row["bucket_start_ts"])
+            bucket = buckets.setdefault(ts, {"bucket_start_ts": ts, "sensors": {}, "sensor_quality": {}, "setpoints": {}, "actuators": {}})
+            counts = bucket["sensor_quality"].setdefault(row["sensor_key"], {})
+            counts[row["status"]] = int(row["status_count"])
 
         setpoint_rows = connection.execute(
             """SELECT CAST(ts / ? AS INTEGER) * ? AS bucket_start_ts,
@@ -433,7 +485,7 @@ class OperatorHistory:
         )
         for row in self._dict_rows(setpoint_rows):
             ts = float(row.pop("bucket_start_ts"))
-            bucket = buckets.setdefault(ts, {"bucket_start_ts": ts, "sensors": {}, "setpoints": {}, "actuators": {}})
+            bucket = buckets.setdefault(ts, {"bucket_start_ts": ts, "sensors": {}, "sensor_quality": {}, "setpoints": {}, "actuators": {}})
             bucket["setpoints"] = row
 
         actuator_rows = connection.execute(
@@ -454,7 +506,7 @@ class OperatorHistory:
         for row in self._dict_rows(actuator_rows):
             ts = float(row.pop("bucket_start_ts"))
             equipment_id = row.pop("equipment_id")
-            bucket = buckets.setdefault(ts, {"bucket_start_ts": ts, "sensors": {}, "setpoints": {}, "actuators": {}})
+            bucket = buckets.setdefault(ts, {"bucket_start_ts": ts, "sensors": {}, "sensor_quality": {}, "setpoints": {}, "actuators": {}})
             bucket["actuators"][equipment_id] = row
 
         event_cursor = connection.execute(

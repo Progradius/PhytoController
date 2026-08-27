@@ -17,7 +17,7 @@ from aiohttp import web
 from pydantic import ValidationError
 
 from components.climate_control import get_climate_alarm, get_climate_snapshot
-from controllers.sensor_catalog import SENSOR_CATALOG
+from controllers.sensor_catalog import SENSOR_CATALOG, SENSORS_BY_KEY
 from network.web import influx_handler
 from network.web.pages import (
     ASSET_VERSIONS,
@@ -121,6 +121,7 @@ SECTION_FIELDS: dict[str, dict[str, tuple[str, str] | str]] = {
         )
     },
     "sensors": {},
+    "sensor-quality": {},
     "wifi": {
         "wifi_ssid": ("Network_Settings", "wifi_ssid"),
         "wifi_password": ("Network_Settings", "wifi_password"),
@@ -274,6 +275,7 @@ class Server:
             web.get("/api/v1/history", self._api_history),
             web.post("/actions/alarms/ack", self._acknowledge_alarm),
             web.post("/actions/stats/reset", self._reset_stats),
+            web.post("/actions/sensors/reset-quality", self._reset_sensor_quality),
             web.post("/actions/system/reboot", self._reboot),
             web.post("/actions/system/poweroff", self._poweroff),
             web.get("/status", self._legacy_status),
@@ -484,6 +486,8 @@ class Server:
             equipment=self.equipment_store.current,
             success=success_section,
             active_section=success_section,
+            sensor_snapshot=self.sensor_handler.snapshot(),
+            discovered_ds18=getattr(self.sensor_handler, "discovered_ds18_ids", lambda: [])(),
         ))
 
     async def _configuration_post(self, request: web.Request) -> web.Response:
@@ -491,6 +495,8 @@ class Server:
         if section not in SECTION_FIELDS:
             raise web.HTTPNotFound(text="Section inconnue")
         form = request["form_data"]
+        if section == "sensor-quality":
+            return await self._sensor_quality_configuration_post(form)
         errors = self._validate_form_shape(section, form)
         if errors:
             return self._html(conf_page(
@@ -612,6 +618,103 @@ class Server:
             ), status=422 if not isinstance(exc, OSError) else 500)
         info("Métadonnées des équipements sauvegardées", name=LOGGER_NAME)
         raise web.HTTPSeeOther(location="/conf?success=equipment#equipment")
+
+    async def _sensor_quality_configuration_post(self, form) -> web.Response:
+        payload = self.config.model_dump(by_alias=True, mode="json")
+        quality = payload.setdefault("Sensor_Quality", {})
+        quality.setdefault("profiles", {})
+        quality.setdefault("redundancy_groups", {})
+        quality.setdefault("ds18b20_bindings", {})
+        action = str(form.get("sensor_key", ""))
+        reset_key = None
+        reset_stats_key = None
+        try:
+            common = {"csrf_token", "sensor_key"}
+            allowed = (
+                common | {"mode", "confirm_enforce"} if action == "__mode__" else
+                common | {"ds18b-1", "ds18b-2", "ds18b-3"} if action == "__bindings__" else
+                common | {"group_name", "members", "tolerance", "minimum_agreeing", "delete"} if action == "__group__" else
+                common | {"offset", "calibrated_at", "calibration_valid_days", "freshness_seconds",
+                          "plausible_min", "plausible_max", "freeze_epsilon",
+                          "freeze_after_seconds", "freeze_min_samples"}
+            )
+            unexpected = set(form) - allowed
+            duplicated = [key for key in form if len(form.getall(key)) != 1]
+            if unexpected or duplicated:
+                raise ValueError("forme de formulaire qualité invalide")
+            if action == "__mode__":
+                mode = str(form.get("mode", ""))
+                if mode == "enforce" and self.config.sensor_quality.mode != "enforce":
+                    if str(form.get("confirm_enforce", "")) != "ARMER":
+                        raise ValueError("saisir ARMER pour activer le repli qualité")
+                quality["mode"] = mode
+            elif action == "__bindings__":
+                bindings = {}
+                for index in (1, 2, 3):
+                    value = str(form.get(f"ds18b-{index}", "")).strip()
+                    if value:
+                        bindings[f"DS18B#{index}"] = value
+                quality["ds18b20_bindings"] = bindings
+            elif action == "__group__":
+                name = str(form.get("group_name", "")).strip()
+                if not name:
+                    raise ValueError("nom de groupe requis")
+                if str(form.get("delete", "")) == "yes":
+                    quality["redundancy_groups"].pop(name, None)
+                else:
+                    members = [item.strip() for item in str(form.get("members", "")).split(",") if item.strip()]
+                    quality["redundancy_groups"][name] = {
+                        "members": members,
+                        "tolerance": float(form.get("tolerance", "")),
+                        "minimum_agreeing": int(form.get("minimum_agreeing", "")),
+                    }
+            elif action in SENSORS_BY_KEY:
+                profile = {
+                    "offset": float(form.get("offset", 0)),
+                    "calibrated_at": str(form.get("calibrated_at", "")).strip() or None,
+                    "calibration_valid_days": int(form["calibration_valid_days"])
+                    if str(form.get("calibration_valid_days", "")).strip() else None,
+                    "freshness_seconds": float(form.get("freshness_seconds", "")),
+                    "plausible_min": float(form.get("plausible_min", "")),
+                    "plausible_max": float(form.get("plausible_max", "")),
+                    "freeze_epsilon": float(form.get("freeze_epsilon", "")),
+                    "freeze_after_seconds": (
+                        "disabled" if str(form.get("freeze_after_seconds", "")).strip().lower() == "disabled"
+                        else float(form.get("freeze_after_seconds", ""))
+                    ),
+                    "freeze_min_samples": int(form.get("freeze_min_samples", "")),
+                }
+                previous = quality["profiles"].get(action, {})
+                quality["profiles"][action] = profile
+                if previous != profile:
+                    reset_key = action
+                if (previous.get("offset") != profile["offset"]
+                        or previous.get("calibrated_at") != profile["calibrated_at"]):
+                    reset_stats_key = action
+            else:
+                raise ValueError("action qualité inconnue")
+            candidate = self.config.__class__.model_validate(payload)
+            self.config_store.save(candidate)
+        except (ValidationError, ValueError, OSError, KeyError) as exc:
+            return self._html(conf_page(
+                self.config, self.csrf_token, equipment=self.equipment_store.current,
+                alarm_summary=self._operator_snapshot()["alarms"],
+                errors={"__all__": f"Qualité capteur refusée : {exc}"},
+                active_section="sensor-quality",
+                sensor_snapshot=self.sensor_handler.snapshot(),
+                discovered_ds18=getattr(self.sensor_handler, "discovered_ds18_ids", lambda: [])(),
+            ), status=422 if not isinstance(exc, OSError) else 500)
+        if reset_key and hasattr(self.sensor_handler, "reset_quality"):
+            self.sensor_handler.reset_quality(reset_key)
+        if reset_stats_key in self.stats.KEYS:
+            self.stats.clear_key(reset_stats_key)
+        if action == "__bindings__" and hasattr(self.sensor_handler, "reset_quality"):
+            for key in ("DS18B#1", "DS18B#2", "DS18B#3"):
+                self.sensor_handler.reset_quality(key)
+        if self.supervisor is not None and action in {"__mode__", "BME280T", "BME280H"}:
+            self.supervisor.request_reload("climate_control")
+        info(f"Qualité capteur enregistrée : {action}", name=LOGGER_NAME)
+        raise web.HTTPSeeOther(location="/conf?success=sensor-quality#sensor-quality")
 
     @staticmethod
     def _format_validation_errors(exc: Exception) -> dict[str, str]:
@@ -823,7 +926,7 @@ class Server:
         start_h, start_m, stop_h, stop_m = day_night_times(self.config)
         operator = self._operator_snapshot()
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "version": DEPLOYED_VERSION,
             "generated_at": _utc_now(),
             "web": {
@@ -916,11 +1019,19 @@ class Server:
         if key not in self.stats.KEYS:
             raise web.HTTPBadRequest(text="Clé de statistique invalide")
         self.stats.clear_key(key)
-        value = self.sensor_handler.cached_value(key, max_age=30.0)
+        value = self.sensor_handler.snapshot().get(key, {}).get("value")
         if value is not None:
             self.stats.update(key, float(value))
         info(f"Stat {key} réinitialisée", name=LOGGER_NAME)
         raise web.HTTPSeeOther(location="/#statistiques")
+
+    async def _reset_sensor_quality(self, request: web.Request) -> web.Response:
+        key = str(request["form_data"].get("key", ""))
+        if key not in SENSORS_BY_KEY or not hasattr(self.sensor_handler, "reset_quality"):
+            raise web.HTTPBadRequest(text="Clé de diagnostic capteur invalide")
+        self.sensor_handler.reset_quality(key)
+        info(f"Diagnostic qualité {key} réinitialisé", name=LOGGER_NAME)
+        raise web.HTTPSeeOther(location="/conf#sensor-quality")
 
     async def _legacy_monitor_action(self, request: web.Request) -> web.Response:
         form = request["form_data"]

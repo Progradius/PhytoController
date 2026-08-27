@@ -91,6 +91,7 @@ Chauffage et ventilation sont décidés ensemble par `components/climate_policy.
 
 - plage valide strictement comprise entre -20 °C et 60 °C ;
 - cinq lectures manquées ou invalides consécutives avant arrêt forcé, état nommé `REPLI_CAPTEUR` : chauffage OFF, moteur à `sensor_fallback_speed` ;
+- une température confirmée figée ou incohérente déclenche immédiatement le même repli quand la qualité est en mode `enforce` ; le mode initial `observe` permet de qualifier les seuils sans agir sur les sorties ;
 - alarme persistante accessible dans `/status` et `/api/v1/state` ;
 - maximum de 120 minutes d'allumage continu ;
 - repos forcé de 15 minutes après dépassement ;
@@ -102,7 +103,7 @@ Chauffage et ventilation sont décidés ensemble par `components/climate_policy.
 
 Ces protections ne couvrent pas :
 
-- un capteur figé sur une valeur basse mais plausible ;
+- un figement plus court que le seuil configuré, ou commun à plusieurs capteurs redondants soumis à la même cause ;
 - un relais mécaniquement collé ;
 - un processus tué sans handler ;
 - une défaillance du Pi, de l'alimentation ou de la carte SD ;
@@ -119,6 +120,7 @@ Un thermostat ou fusible thermique indépendant et câblé en série reste requi
 | Tâche silencieuse > 300 s | Annulation et relance | État sûr de la tâche | Event loop fonctionnel requis |
 | Event loop bloqué | Plus de caresse watchdog | Redémarrage après timeout | Niveaux au reset à garantir matériellement |
 | Cinq mesures T invalides | `REPLI_CAPTEUR` : chauffage forcé OFF, moteur au repli, alarme | Chauffage HIGH/OFF | Thermostat indépendant requis |
+| Température figée/incohérente confirmée, mode armé | `REPLI_CAPTEUR` immédiat et valeur exclue | Chauffage HIGH/OFF | Seuils à qualifier en observation ; défaut commun non détectable |
 | Écriture GPIO chauffage sans effet | Alarme CRITICAL, mémoire recalée au tick suivant | Écart signalé, pas corrigé | Intervention physique requise |
 | Chauffe > 120 min | OFF pendant 15 min | Chauffage HIGH/OFF | Relais collé non couvert |
 | SIGTERM/SIGINT/SIGHUP | Fermeture watchdog et état sûr | Génériques HIGH, moteur LOW | Vérifié sur Pi le 25/08/2026 |

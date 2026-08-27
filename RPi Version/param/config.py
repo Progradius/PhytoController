@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 import json
+import re
+from datetime import date
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
@@ -234,6 +236,109 @@ class SensorState(ValidatedModel):
         return str(v).lower() in ("enabled", "true", "1", "yes")
 
 
+class SensorQualityProfile(ValidatedModel):
+    """Surcharge facultative des valeurs qualité portées par le catalogue."""
+    offset: float | None = None
+    calibrated_at: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    calibration_valid_days: int | None = Field(None, ge=1, le=3650)
+    freshness_seconds: float | None = Field(None, gt=0, le=3600)
+    plausible_min: float | None = None
+    plausible_max: float | None = None
+    freeze_epsilon: float | None = Field(None, ge=0)
+    freeze_after_seconds: float | Literal["disabled"] | None = None
+    freeze_min_samples: int | None = Field(None, ge=2, le=100000)
+
+    @model_validator(mode="after")
+    def _validate_profile(self):
+        import math
+        for name in ("offset", "freshness_seconds", "plausible_min", "plausible_max", "freeze_epsilon"):
+            value = getattr(self, name)
+            if value is not None and not math.isfinite(float(value)):
+                raise ValueError(f"{name} doit être fini")
+        if isinstance(self.freeze_after_seconds, (int, float)):
+            if not math.isfinite(float(self.freeze_after_seconds)) or not 30 <= self.freeze_after_seconds <= 30 * 24 * 3600:
+                raise ValueError("freeze_after_seconds doit être compris entre 30 s et 30 jours")
+        if self.plausible_min is not None and self.plausible_max is not None:
+            if self.plausible_min >= self.plausible_max:
+                raise ValueError("la borne plausible minimale doit être inférieure au maximum")
+        if self.calibrated_at is not None:
+            try:
+                date.fromisoformat(self.calibrated_at)
+            except ValueError as exc:
+                raise ValueError("calibrated_at doit être une date réelle") from exc
+        return self
+
+
+class SensorRedundancyGroup(ValidatedModel):
+    members: list[str] = Field(min_length=2)
+    tolerance: float = Field(gt=0)
+    minimum_agreeing: int = Field(2, ge=2)
+
+    @model_validator(mode="after")
+    def _validate_group(self):
+        import math
+        if not math.isfinite(float(self.tolerance)):
+            raise ValueError("la tolérance redondante doit être finie")
+        if len(set(self.members)) != len(self.members):
+            raise ValueError("un groupe redondant contient une mesure en double")
+        if self.minimum_agreeing > len(self.members):
+            raise ValueError("le quorum dépasse le nombre de membres")
+        return self
+
+
+class SensorQualitySettings(ValidatedModel):
+    mode: Literal["observe", "enforce"] = "observe"
+    profiles: dict[str, SensorQualityProfile] = Field(default_factory=dict)
+    redundancy_groups: dict[str, SensorRedundancyGroup] = Field(default_factory=dict)
+    ds18b20_bindings: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_catalog_references(self):
+        from controllers.sensor_catalog import SENSORS_BY_KEY
+        unknown_profiles = set(self.profiles) - set(SENSORS_BY_KEY)
+        if unknown_profiles:
+            raise ValueError(f"profils capteur inconnus : {', '.join(sorted(unknown_profiles))}")
+        if any(not name.strip() or len(name) > 64 for name in self.redundancy_groups):
+            raise ValueError("le nom d'un groupe redondant doit contenir 1 à 64 caractères")
+        for key, profile in self.profiles.items():
+            definition = SENSORS_BY_KEY[key]
+            minimum = (
+                definition.plausible_min
+                if profile.plausible_min is None else profile.plausible_min
+            )
+            maximum = (
+                definition.plausible_max
+                if profile.plausible_max is None else profile.plausible_max
+            )
+            if minimum < definition.plausible_min or maximum > definition.plausible_max:
+                raise ValueError(
+                    f"profil {key} : la plage ne peut pas dépasser la plage matérielle"
+                )
+            if minimum >= maximum:
+                raise ValueError(f"profil {key} : plage plausible vide")
+        assigned: set[str] = set()
+        for name, group in self.redundancy_groups.items():
+            unknown = set(group.members) - set(SENSORS_BY_KEY)
+            if unknown:
+                raise ValueError(f"groupe {name} : capteurs inconnus {', '.join(sorted(unknown))}")
+            units = {SENSORS_BY_KEY[key].unit for key in group.members}
+            if len(units) != 1:
+                raise ValueError(f"groupe {name} : unités incompatibles")
+            overlap = assigned.intersection(group.members)
+            if overlap:
+                raise ValueError(f"mesures présentes dans plusieurs groupes : {', '.join(sorted(overlap))}")
+            assigned.update(group.members)
+        allowed_ds = {"DS18B#1", "DS18B#2", "DS18B#3"}
+        if set(self.ds18b20_bindings) - allowed_ds:
+            raise ValueError("liaison DS18B20 inconnue")
+        bindings = list(self.ds18b20_bindings.values())
+        if len(set(bindings)) != len(bindings):
+            raise ValueError("un identifiant DS18B20 est lié plusieurs fois")
+        if any(re.fullmatch(r"28-[0-9a-fA-F]{12}", value) is None for value in bindings):
+            raise ValueError("un identifiant DS18B20 doit suivre le format 28-xxxxxxxxxxxx")
+        return self
+
+
 # ────────────────────────────────────────────────────────────────
 #  Modèle principal
 # ────────────────────────────────────────────────────────────────
@@ -251,6 +356,7 @@ class AppConfig(ValidatedModel):
     gpio: GPIOSettings = Field(..., alias="GPIO_Settings")
     motor: MotorSettings = Field(..., alias="Motor_Settings")
     sensors: SensorState = Field(..., alias="Sensor_State")
+    sensor_quality: SensorQualitySettings = Field(default_factory=SensorQualitySettings, alias="Sensor_Quality")
     logs: LogSettings = Field(default_factory=LogSettings, alias="Log_Settings")
 
     _path: ClassVar[Path] = Path(__file__).parent.parent / "param" / "param.json"
@@ -296,7 +402,7 @@ class AppConfig(ValidatedModel):
         atomiquement. Un modèle qui s'écrit tout seul, c'est un second écrivain
         de `param.json` — donc deux vérités possibles.
         """
-        payload = self.model_dump(by_alias=True, exclude={"_path"})
+        payload = self.model_dump(by_alias=True, exclude={"_path"}, mode="json")
 
         # heater
         payload["Heater_Settings"]["enabled"] = (

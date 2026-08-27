@@ -1,5 +1,9 @@
 (() => {
   "use strict";
+  const sensorStatusLabels = {
+    normal: "normal", degraded: "dégradé", absent: "absent",
+    inconsistent: "incohérent", disabled: "désactivé",
+  };
 
   let lastGeneratedAt = null;
   let lastReceivedAt = null;
@@ -48,7 +52,7 @@
     key.textContent = sensor.key;
     const status = document.createElement("span");
     status.className = "sensor-status";
-    status.textContent = sensor.status;
+    status.textContent = sensorStatusLabels[sensor.status] || sensor.status;
     kicker.append(key, status);
 
     const title = document.createElement("h3");
@@ -62,7 +66,9 @@
     metric.append(value, " ", unit);
     const age = document.createElement("p");
     age.className = "card-meta sensor-age";
-    card.append(kicker, title, metric, age);
+    const quality = document.createElement("p");
+    quality.className = "card-meta sensor-quality";
+    card.append(kicker, title, metric, age, quality);
     return card;
   };
 
@@ -78,11 +84,15 @@
       let card = grid.querySelector(`[data-sensor="${CSS.escape(sensor.key)}"]`);
       if (!card) { card = createSensorCard(sensor); grid.append(card); }
       card.className = `card sensor-card status-${sensor.status}`;
-      text(".sensor-status", sensor.status, card);
+      text(".sensor-status", sensorStatusLabels[sensor.status] || sensor.status, card);
       const value = sensor.value === null ? "—" : Number(sensor.value).toFixed(sensor.decimals);
       text(".sensor-value", value, card);
       text(".metric-unit", sensor.unit, card);
       text(".sensor-age", formatAge(sensor.age_s), card);
+      const reasons = (sensor.reason_codes || []).join(", ") || "Mesure qualifiée";
+      const suspect = sensor.value === null && sensor.observed_value !== null && sensor.observed_value !== undefined
+        ? ` · valeur suspecte ${Number(sensor.observed_value).toFixed(sensor.decimals)} ${sensor.unit}` : "";
+      text(".sensor-quality", `${reasons} · inchangée ${Math.round(sensor.unchanged_for_s || 0)} s${suspect}`, card);
     });
     if (!sensors.length) {
       const empty = document.createElement("article");

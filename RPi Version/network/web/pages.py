@@ -9,7 +9,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from controllers.sensor_catalog import SENSOR_CATALOG
+from controllers.sensor_catalog import SENSOR_CATALOG, effective_quality_profile
 
 
 WEB_DIR = Path(__file__).parent
@@ -104,6 +104,8 @@ def conf_page(
     active_section: str | None = None,
     equipment=None,
     alarm_summary=None,
+    sensor_snapshot=None,
+    discovered_ds18=None,
 ) -> str:
     return render_template(
         "conf.html",
@@ -115,6 +117,12 @@ def conf_page(
         errors=errors or {},
         active_section=active_section,
         sensor_catalog=SENSOR_CATALOG,
+        sensor_quality_profiles={
+            definition.key: effective_quality_profile(config, definition)
+            for definition in SENSOR_CATALOG
+        },
+        sensor_snapshot=sensor_snapshot or {},
+        discovered_ds18=discovered_ds18 or [],
         wifi_password_set=bool(config.network.wifi_password),
         influx_user_set=bool(config.network.influx_db_user),
         influx_password_set=bool(config.network.influx_db_password),

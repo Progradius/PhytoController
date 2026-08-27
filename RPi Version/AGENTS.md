@@ -156,6 +156,13 @@ to `PuppetMaster`.
   `Sensor_State`, maintains the shared timestamped snapshot consumed by HTTP and InfluxDB, and exposes
   fresh cached reads to the motor/heater loops. `controllers/sensor_catalog.py` is the canonical mapping
   for keys, activation flags, UI labels/units and InfluxDB measurements.
+- `controllers/sensor_quality.py` — pure calibration/quality policy. The catalog also owns hard plausible
+  bounds, freshness and freeze defaults; `Sensor_Quality` only narrows/overrides them. Snapshots separate
+  `raw_value`, offset-adjusted `observed_value` and trusted `value`, with statuses `normal`, `degraded`,
+  `absent`, `inconsistent`. Quality starts in `observe`; switching to `enforce` requires the literal UI
+  confirmation `ARMER`, and an already-confirmed BME280T inconsistency must enter `REPLI_CAPTEUR`
+  immediately. Never restore DS18B20 discovery-order addressing: calibration is bound to stable 1-Wire
+  IDs. Freeze/counter state is persisted, but monotonic timestamps are deliberately not restored.
 - `sensor_handlers/` wrap the vendored drivers in `lib/sensors/`. A failed read returns `None` rather than
   raising — every consumer must handle `None`.
 - `network/web/server.py` — aiohttp server with explicit routes and exact static-asset allow-list. It

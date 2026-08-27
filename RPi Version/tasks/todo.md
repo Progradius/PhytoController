@@ -1,3 +1,122 @@
+# TODO — Déploiement et armement de la qualité des capteurs
+
+**État** : code implémenté et vérifié hors matériel ; non déployé, non qualifié électriquement et
+mode `Sensor_Quality.mode = observe` à conserver jusqu'à validation complète.
+
+Références :
+
+- [`docs/reference/configuration.md`](../docs/reference/configuration.md#calibration-et-qualité-des-capteurs) ;
+- [`docs/reference/status-schema.md`](../docs/reference/status-schema.md) ;
+- [`docs/development/hardware-validation.md`](../docs/development/hardware-validation.md) ;
+- [`docs/operations/deployment-and-rollback.md`](../docs/operations/deployment-and-rollback.md).
+
+## 1. Déployer sans armer
+
+- [ ] Commiter puis déployer la version avec `Sensor_Quality.mode = observe` ; ne pas saisir
+      `ARMER` pendant ce premier déploiement
+- [ ] Vérifier après déploiement : `phyto.service` actif, `/health/live` et `/health/ready` à 200,
+      `control_healthy=true`, commit attendu, aucun redémarrage ou blocage de tâche et aucune alarme
+      critique nouvelle
+- [ ] Vérifier dans `/api/v1/state` que `schema_version=2`, que chaque capteur actif publie
+      `status`, `reason_codes`, `raw_value`, `observed_value`, `value`, `control_usable`, les compteurs
+      et les seuils effectifs, sans secret ni valeur inventée
+- [ ] Confirmer physiquement que le déploiement en observation n'a modifié aucune sortie et relever
+      les GPIO selon la procédure matérielle supervisée
+
+## 2. Observer une période représentative
+
+- [ ] Laisser fonctionner le système en mode `observe` pendant plusieurs cycles jour/nuit et une
+      durée représentative des périodes naturellement stables de la serre
+- [ ] Relever pour chaque mesure les statuts, `unchanged_for_s`, échecs consécutifs, incohérences,
+      expirations de calibration et raisons de dégradation
+- [ ] Vérifier le measurement Influx `sensor_quality` et confirmer qu'une valeur suspecte reste
+      analysable dans cette série sans apparaître dans les measurements métier de confiance
+- [ ] Vérifier que les alarmes qualité sont idempotentes, se résolvent au rétablissement et ne
+      dégradent ni `control_healthy()` ni le watchdog
+- [ ] Consigner les faux positifs et faux négatifs constatés, avec date et contexte, sans recopier
+      la configuration sensible
+
+## 3. Calibrer les profils
+
+- [ ] Comparer chaque capteur actif avec un instrument de référence adapté et consigner la méthode,
+      la date, les conditions et l'incertitude de la comparaison
+- [ ] Renseigner l'offset et la date de calibration, puis vérifier que les diagnostics, compteurs et
+      min/max concernés sont réinitialisés comme prévu
+- [ ] Ajuster, mesure par mesure, la fraîcheur, la plage plausible, l'epsilon, la durée et le nombre
+      minimal d'échantillons de figement à partir des observations réelles
+- [ ] Confirmer après chaque modification que les seuils effectifs publiés par l'API correspondent à
+      la configuration et qu'aucun ancien diagnostic calculé avec les seuils précédents ne subsiste
+- [ ] Laisser à nouveau fonctionner au moins une période représentative après le dernier ajustement
+
+## 4. Stabiliser les identités DS18B20
+
+- [ ] Si les DS18B20 restent désactivés, consigner que cette étape est non applicable ; sinon relever
+      physiquement l'identifiant `28-xxxxxxxxxxxx` de chaque sonde
+- [ ] Lier chaque `DS18B#1`, `DS18B#2` et `DS18B#3` actif à son identifiant 1-Wire stable depuis
+      `/conf`, sans utiliser l'ordre de découverte sysfs
+- [ ] Redémarrer le service et vérifier que chaque nom métier conserve la même sonde, la même
+      calibration et la même zone malgré un ordre de découverte éventuellement différent
+- [ ] Débrancher puis rebrancher une sonde pendant une procédure contrôlée et confirmer qu'elle est
+      déclarée absente puis rétablie sans emprunter l'identité d'une autre sonde
+
+## 5. Qualifier la redondance
+
+- [ ] Ne créer un groupe que pour des sondes de même unité, physiquement comparables et exposées au
+      même phénomène ; documenter leur emplacement et la tolérance retenue
+- [ ] Vérifier avec deux sondes en désaccord qu'aucune n'est choisie arbitrairement
+- [ ] Pour tout groupe de trois sondes ou plus, vérifier qu'une valeur divergente est isolée par un
+      quorum cohérent
+- [ ] Vérifier qu'un quorum indisponible produit un état dégradé ou incohérent explicite et non une
+      fausse mesure de confiance
+- [ ] Vérifier qu'après un désaccord, trois comparaisons cohérentes sont nécessaires au réarmement
+- [ ] Refaire une période d'observation après toute modification d'un groupe ou de sa tolérance
+
+## 6. Qualifier matériellement le repli
+
+- [ ] Planifier une intervention supervisée, charges haute tension consignées au premier passage,
+      conformément à `docs/development/hardware-validation.md`
+- [ ] Vérifier d'abord le repli historique sur cinq lectures de température manquées : chauffage
+      réellement OFF, moteur à `sensor_fallback_speed`, alarme persistante et GPIO cohérents
+- [ ] Simuler de façon bornée un figement plausible de `BME280T` en restant en mode `observe` et
+      confirmer que le diagnostic apparaît sans changement de sortie
+- [ ] Vérifier la récupération du figement sur trois variations plausibles réelles
+- [ ] Préparer le scénario armé avec chauffage et moteur sous surveillance, une méthode de retour
+      immédiat vers `observe` et une protection thermique indépendante fonctionnelle
+
+## 7. Armer progressivement
+
+- [ ] Avant armement, confirmer : période d'observation terminée, zéro faux positif non expliqué,
+      profils stabilisés, identités DS18B20 fixées, redondance qualifiée, matériel validé et moyen de
+      retour disponible
+- [ ] Relever le commit, l'heure, l'opérateur, les statuts qualité, l'état climatique, les GPIO,
+      `control_healthy()`, le watchdog et les alarmes actives
+- [ ] Dans `/conf`, passer de `observe` à `enforce` en saisissant explicitement `ARMER`
+- [ ] Vérifier immédiatement qu'une incohérence déjà confirmée déclenche `REPLI_CAPTEUR` sans attendre
+      une nouvelle lecture : chauffage OFF et moteur à `sensor_fallback_speed`
+- [ ] Vérifier qu'en l'absence d'incohérence confirmée l'armement ne provoque ni clignotement de relais,
+      ni transition moteur, ni redémarrage anormal d'une tâche
+- [ ] Surveiller étroitement un premier cycle complet, puis une période représentative, avec contrôle
+      conjoint de l'API, des alarmes, d'InfluxDB, des GPIO et de l'état physique de la serre
+
+## 8. Rollback et critères de clôture
+
+- [ ] Tester le retour `enforce` → `observe` et confirmer qu'une décision qualité déjà en cache perd
+      immédiatement son autorité de blocage sans nécessiter de nouvelle lecture matérielle
+- [ ] Exercer si nécessaire le rollback applicatif selon la procédure documentée, sans modifier les
+      identités ni effacer les preuves de calibration
+- [ ] Confirmer après retour ou rollback : service prêt, contrôle sain, watchdog caressé, sorties
+      cohérentes, données de confiance non contaminées et alarmes expliquées
+- [ ] Mettre à jour le changelog, la roadmap, le registre des risques et un relevé d'exploitation avec
+      les dates, seuils retenus, résultats et limites résiduelles
+- [ ] Ne déclarer la qualité capteurs « déployée et armée » qu'après clôture de toutes les cases
+      applicables et preuve qu'aucune étape n'a dégradé la régulation ou la sûreté électrique
+
+**Limites à conserver dans la clôture** : la détection logicielle ne couvre pas un défaut commun à
+plusieurs sondes, un figement plus court que le seuil, un relais mécaniquement collé, la fenêtre de
+boot ou une défaillance du Pi. Le thermostat ou fusible thermique indépendant reste obligatoire.
+
+---
+
 # TODO — Refonte de la journalisation (plan `tasks/logging_refonte_plan.md`)
 
 ## P3 — Sécurité

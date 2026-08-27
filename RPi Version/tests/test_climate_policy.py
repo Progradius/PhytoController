@@ -205,6 +205,31 @@ def test_retour_capteur_quitte_le_repli(climate_settings):
     assert decision.heater_on is True
 
 
+def test_incoherence_confirmee_declenche_le_repli_sans_attendre(climate_settings):
+    settings = climate_settings()
+    memory = ClimateMemory(heater_on=True, heater_on_since=0.0, motor_speed=1)
+    decision, memory = decide(
+        settings,
+        ClimateInputs(
+            now_mono=1.0,
+            now_epoch=1_001.0,
+            temperature=None,
+            humidity=50.0,
+            is_day=True,
+            temperature_inconsistent=True,
+            temperature_quality_reason="frozen",
+        ),
+        memory,
+    )
+
+    assert memory.sensor_failures == MAX_CONSECUTIVE_SENSOR_FAILURES
+    assert decision.state == STATE_SENSOR_FALLBACK
+    assert decision.heater_on is False
+    assert decision.motor_speed == settings.sensor_fallback_speed
+    assert decision.alarm_code == ALARM_SENSOR_FALLBACK
+    assert "frozen" in decision.alarm
+
+
 def test_duree_maximale_et_cooldown_chauffage(climate_settings):
     settings = climate_settings()
     decision, memory = run_tick(settings, mono=0.0, temperature=19.0)
