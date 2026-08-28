@@ -9,7 +9,7 @@
   const setup = (canvas) => {
     const ratio = window.devicePixelRatio || 1;
     const width = Math.max(320, canvas.clientWidth || canvas.parentElement.clientWidth - 32);
-    const height = Number(canvas.getAttribute("height")) || 220;
+    const height = Number(canvas.dataset.chartHeight) || 220;
     canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
     const context = canvas.getContext("2d"); context.setTransform(ratio, 0, 0, ratio, 0, 0);
     return {context, width, height};
@@ -108,7 +108,7 @@
     otherUnits.forEach((unit) => {
       const card = document.createElement("article"); card.className = "card chart-card";
       const title = document.createElement("h3"); title.textContent = `Mesures · ${unit}`;
-      const canvas = document.createElement("canvas"); canvas.height = 240;
+      const canvas = document.createElement("canvas"); canvas.dataset.chartHeight = "240"; canvas.height = 240;
       canvas.setAttribute("aria-label", `Tendances des mesures en ${unit}`);
       card.append(title, canvas); additional.append(card);
       drawSensorChart(canvas, data, data.series.filter((item) => item.unit === unit), unit);

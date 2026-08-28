@@ -184,6 +184,17 @@ async def test_pages_dynamiques_et_secrets_absents(web_context):
     assert "Content-Security-Policy" in response.headers
 
 
+async def test_graphiques_conservent_une_hauteur_logique_immuable(web_context):
+    client, *_ = web_context
+    page = await (await client.get("/")).text()
+    script = await (await client.get("/static/js/history.js")).text()
+
+    assert page.count('data-chart-height="240"') == 2
+    assert page.count('data-chart-height="220"') == 1
+    assert "canvas.dataset.chartHeight" in script
+    assert 'canvas.getAttribute("height")' not in script
+
+
 async def test_sondes_publient_la_version_chargee(web_context):
     client, *_ = web_context
     live = await (await client.get("/health/live")).json()
