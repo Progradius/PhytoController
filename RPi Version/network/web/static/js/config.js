@@ -168,20 +168,32 @@
       const phase = climate.phases[key];
       if (!phase) return;
       const heater = climate.heater_enabled
-        ? `chauffage sous ${decimal(phase.heater_on_at_or_below)} °C, coupé au-dessus de ${decimal(phase.heater_off_above)} °C`
+        ? `chauffage allumé à ${decimal(phase.heater_on_at_or_below)} °C ou moins, coupé au-dessus de ${decimal(phase.heater_off_above)} °C (hystérésis ${decimal(phase.heater_hysteresis)} °C)`
         : "chauffage désactivé";
       line(panel, `${label} · ${heater} · ventilation dès ${decimal(phase.vent_threshold)} °C`);
       if (phase.vent_threshold_raised) {
         line(
           panel,
-          `${label} · seuil de ventilation relevé à ${decimal(phase.vent_threshold)} °C : la consigne haute saisie (${decimal(phase.temp_max)} °C) est sous minimum + hystérésis + zone morte. La serre montera d’autant avant de ventiler.`,
+          `${label} · seuil de ventilation relevé à ${decimal(phase.vent_threshold)} °C : la consigne haute saisie (${decimal(phase.temp_max)} °C) est sous minimum + hystérésis + zone morte. La serre montera jusqu’à ${decimal(phase.vent_threshold)} °C avant de ventiler, soit ${decimal(phase.vent_threshold - phase.temp_max)} °C de plus que la consigne.`,
           "preview-warning",
         );
       }
-      const ladder = (phase.vent_ladder || [])
+      const rungs = phase.vent_ladder || [];
+      const ladder = rungs
         .map((rung) => `${decimal(rung.starts_at)} °C → vitesse ${rung.effective_speed}`)
         .join(" · ");
       if (ladder) line(panel, `${label} · paliers : ${ladder}`, "preview-detail");
+      // Sans cette ligne, l'hystérésis des paliers reste invisible : le seuil
+      // d'engagement seul laisse croire qu'un dixième de degré suffit à
+      // redescendre d'un cran, ce qui ferait battre le relais.
+      if (rungs.length > 0) {
+        const releases = rungs.map((rung) => decimal(rung.releases_below)).join(" / ");
+        line(
+          panel,
+          `${label} · un palier ne redescend que sous ${releases} °C (relâchement ${decimal(phase.vent_release)} °C) et jamais avant ${phase.min_dwell_seconds} s de maintien.`,
+          "preview-detail",
+        );
+      }
     });
   };
 

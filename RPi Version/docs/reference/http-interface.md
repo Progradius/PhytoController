@@ -127,9 +127,20 @@ reposer un refus Pydantic sur le champ réellement saisi, horaires compris.
 `POST /api/v1/config/preview` projette une saisie sur un candidat `AppConfig` complet **sans
 écrire quoi que ce soit**. Corps JSON `{"section": "...", "fields": {...}}`, jeton en en-tête
 `X-CSRF-Token` (le middleware CSRF consomme `request.post()`, qui laisse intact un corps JSON).
-La réponse porte les écarts détectés, les refus humanisés et l'arbitrage thermique effectif :
-seuil de coupure du chauffage, **seuil de ventilation reconstruit** avec son indicateur
-« relevé », et l'échelle des paliers avec la vitesse réellement commandée après `clamp_speed`.
+La réponse porte les écarts détectés, les refus humanisés et l'arbitrage thermique effectif. Les
+**deux** hystérésis du système y sont lisibles, car elles ne se voient pas dans le formulaire :
+
+- celle du **chauffage** — `heater_on_at_or_below`, `heater_off_above`, `heater_hysteresis` :
+  la bande morte dans laquelle le chauffage reste dans son état, allumé sous la consigne basse et
+  coupé seulement au-dessus de consigne basse + hystérésis ;
+- celle des **paliers de ventilation** — `vent_release` et, pour chaque palier, `starts_at` et
+  `releases_below` : un palier engagé ne redescend que sous un seuil distinct, et jamais avant
+  `min_dwell_seconds`. Sans ce second seuil affiché, une température oscillant d'un dixième autour
+  du seuil d'engagement semblerait inoffensive alors qu'elle ferait battre le relais.
+
+S'y ajoutent le **seuil de ventilation reconstruit** avec son indicateur « relevé » et l'écart en
+degrés par rapport à la consigne saisie, et l'échelle des paliers avec la vitesse réellement
+commandée après `clamp_speed`.
 
 C'est le seul moyen de voir avant enregistrement que `vent_threshold` peut dépasser la consigne
 haute saisie de l'hystérésis plus la zone morte — un écart que le formulaire seul tairait. Les

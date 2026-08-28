@@ -644,6 +644,11 @@ def preview_thresholds(config) -> dict:
             "temp_max": settings.temp_max,
             "heater_on_at_or_below": settings.temp_min,
             "heater_off_above": round(settings.heater_off_threshold, 2),
+            # Les deux hystérésis du système sont republiées telles quelles :
+            # celle du chauffage (largeur de la bande morte) et celle des
+            # paliers de ventilation (écart entre engagement et relâchement).
+            "heater_hysteresis": settings.heater_hysteresis,
+            "vent_release": settings.vent_release,
             "vent_threshold": round(settings.vent_threshold, 2),
             "vent_threshold_raised": settings.vent_threshold_raised,
             "vent_ladder": [

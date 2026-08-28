@@ -798,3 +798,21 @@ async def test_compte_rendu_equipement_ne_liste_que_les_ecarts(web_context):
     token = response.headers["Location"].split("flash=", 1)[1].split("#", 1)[0]
     body = await (await client.get(f"/conf?flash={token}")).text()
     assert "Champs modifiés : daily_1 · Nom affiché." in body
+
+
+async def test_previsualisation_publie_les_deux_hysteresis(web_context):
+    """Hystérésis chauffage **et** relâchement de palier doivent être lisibles."""
+    client, *_ = web_context
+    response = await client.post(
+        "/api/v1/config/preview",
+        json={"section": "temperature", "fields": {"hysteresis_offset": "2", "vent_release": "0.5"}},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    day = (await response.json())["climate"]["phases"]["day"]
+    # Bande morte du chauffage : 20 °C → 22 °C.
+    assert day["heater_hysteresis"] == 2.0
+    assert (day["heater_on_at_or_below"], day["heater_off_above"]) == (20.0, 22.0)
+    # Hystérésis des paliers : un cran engagé à 24 °C ne se relâche que sous 23,5 °C.
+    assert day["vent_release"] == 0.5
+    first = day["vent_ladder"][0]
+    assert (first["starts_at"], first["releases_below"]) == (24.0, 23.5)
