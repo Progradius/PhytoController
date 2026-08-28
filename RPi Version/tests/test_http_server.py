@@ -146,6 +146,9 @@ class FakeEquipmentStore:
     def payload(self):
         return {key: value.model_dump() for key, value in self.current.items()}
 
+    def save(self, candidate):
+        self.current = dict(candidate)
+
 
 @pytest.fixture
 async def web_context(config_path, monkeypatch):
@@ -773,3 +776,25 @@ async def test_compte_rendu_est_opaque_et_a_usage_unique(web_context):
     # Usage unique : un rechargement ne rejoue pas le compte rendu.
     again = await client.get(f"/conf?flash={token}")
     assert "Appliqué à chaud : niveau et rétention" not in await again.text()
+
+
+async def test_compte_rendu_equipement_ne_liste_que_les_ecarts(web_context):
+    client, _server, _store, *_ = web_context
+    catalog = default_catalog()
+    data = {"csrf_token": CSRF_TOKEN}
+    for equipment_id, item in catalog.items():
+        data[f"{equipment_id}__display_name"] = (
+            "Lampe de floraison" if equipment_id == "daily_1" else item.display_name
+        )
+        data[f"{equipment_id}__usage_type"] = item.usage_type
+        data[f"{equipment_id}__zone"] = item.zone
+        data[f"{equipment_id}__icon"] = item.icon
+        data[f"{equipment_id}__wiring_note"] = item.wiring_note
+        data[f"{equipment_id}__dashboard_visible"] = "true" if item.dashboard_visible else "false"
+        data[f"{equipment_id}__out_of_service"] = "true" if item.out_of_service else "false"
+
+    response = await client.post("/conf/equipment", data=data, allow_redirects=False)
+    assert response.status == 303
+    token = response.headers["Location"].split("flash=", 1)[1].split("#", 1)[0]
+    body = await (await client.get(f"/conf?flash={token}")).text()
+    assert "Champs modifiés : daily_1 · Nom affiché." in body

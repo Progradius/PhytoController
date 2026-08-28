@@ -1124,6 +1124,12 @@ class Server:
     async def _equipment_configuration_post(self, form, submitted: dict[str, str]) -> web.Response:
         candidate = {}
         equipment_id = ""
+        # Le magasin ne suit pas les écarts : sans cette photo préalable, le
+        # compte rendu listerait les 42 champs postés comme « modifiés ».
+        previous = {
+            key: value.model_dump() for key, value in self.equipment_store.current.items()
+        }
+        changed_fields: list[str] = []
         try:
             for equipment_id in EQUIPMENT_IDS:
                 prefix = f"{equipment_id}__"
@@ -1136,6 +1142,12 @@ class Server:
                     "dashboard_visible": str(form[prefix + "dashboard_visible"]).lower() == "true",
                     "out_of_service": str(form[prefix + "out_of_service"]).lower() == "true",
                 })
+                before = previous.get(equipment_id, {})
+                changed_fields.extend(
+                    f"{equipment_id}__{field}"
+                    for field in _EQUIPMENT_LABELS
+                    if before.get(field) != getattr(candidate[equipment_id], field)
+                )
             self.equipment_store.save(candidate)
         except OSError:
             return self._conf_refusal(
@@ -1157,7 +1169,7 @@ class Server:
             }
             return self._conf_refusal("equipment", errors, values=submitted)
         info("Métadonnées des équipements sauvegardées", name=LOGGER_NAME)
-        token = self._store_flash("equipment", sorted(submitted))
+        token = self._store_flash("equipment", changed_fields)
         raise web.HTTPSeeOther(location=f"/conf?flash={token}#equipment")
 
     async def _sensor_quality_configuration_post(self, form) -> web.Response:
