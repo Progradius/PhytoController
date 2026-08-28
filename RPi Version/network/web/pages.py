@@ -101,12 +101,29 @@ def conf_page(
     *,
     success: str | None = None,
     errors: dict[str, str] | None = None,
+    field_errors: dict[str, dict[str, str]] | None = None,
+    form_values: dict[str, dict[str, str]] | None = None,
     active_section: str | None = None,
     equipment=None,
     alarm_summary=None,
     sensor_snapshot=None,
     discovered_ds18=None,
 ) -> str:
+    # `form_values` et `field_errors` sont indexés par **portée** de formulaire —
+    # l'identifiant de section, ou `sensor-quality:<clé capteur>` pour les
+    # sous-fiches. Les noms de champs se répètent d'une section à l'autre
+    # (`enabled`, `mode`, `start_time`) : sans portée, la saisie refusée d'une
+    # section réapparaîtrait dans une autre.
+    values = form_values or {}
+    field_messages = field_errors or {}
+
+    def form_value(scope: str, name: str, current):
+        """Valeur à afficher : la saisie refusée si elle existe, sinon la config."""
+        return values.get(scope, {}).get(name, current)
+
+    def field_error(scope: str, name: str):
+        return field_messages.get(scope, {}).get(name)
+
     return render_template(
         "conf.html",
         page_title="Configuration",
@@ -115,6 +132,9 @@ def conf_page(
         csrf_token=csrf_token,
         success=success,
         errors=errors or {},
+        form_value=form_value,
+        field_error=field_error,
+        error_count=len(errors or {}) + sum(len(item) for item in field_messages.values()),
         active_section=active_section,
         sensor_catalog=SENSOR_CATALOG,
         sensor_quality_profiles={

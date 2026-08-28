@@ -113,6 +113,9 @@ progress::-webkit-progress-bar { background: var(--soft); } progress::-webkit-pr
 input, select { min-height: 44px; width: 100%; padding: .65rem .75rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-size: 16px; }
 input:hover, select:hover { border-color: var(--green); }
 input:invalid { border-color: var(--red); }
+input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--red); }
+.field-invalid > label, .field-invalid legend { color: var(--red); }
+.field-error { margin: .38rem 0 0; color: var(--red); font-size: .84rem; font-weight: 650; }
 .input-with-unit, .secret-input { display: flex; align-items: stretch; }
 .input-with-unit input, .secret-input input { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 .input-with-unit span { min-width: 3rem; display: inline-flex; align-items: center; justify-content: center; padding-inline: .65rem; border: 1px solid var(--border-strong); border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; color: var(--muted); background: var(--soft); white-space: nowrap; }

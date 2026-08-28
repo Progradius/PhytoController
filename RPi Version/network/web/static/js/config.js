@@ -27,5 +27,19 @@
   document.querySelectorAll("[data-config-form]").forEach((form) => form.addEventListener("submit", () => {
     const button = form.querySelector("[data-save-button]"); if (button) { button.disabled = true; button.textContent = "Enregistrement…"; }
   }));
-  document.getElementById("form-errors")?.focus();
+  // Le premier champ refusé, pas le bandeau : c'est là que la correction se
+  // fait. Un groupe de boutons radio n'est pas focalisable lui-même, on vise
+  // donc la première commande qu'il contient.
+  const firstInvalid = document.querySelector('[aria-invalid="true"]');
+  if (firstInvalid) {
+    const target = firstInvalid.matches("input, select, textarea")
+      ? firstInvalid
+      : firstInvalid.querySelector("input, select, textarea");
+    const focusable = target || firstInvalid;
+    focusable.closest("details")?.setAttribute("open", "");
+    focusable.focus({ preventScroll: true });
+    focusable.scrollIntoView({ block: "center" });
+  } else {
+    document.getElementById("form-errors")?.focus();
+  }
 })();

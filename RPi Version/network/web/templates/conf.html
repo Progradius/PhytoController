@@ -1,23 +1,82 @@
 {% extends "base.html" %}
+{#
+  Chaque champ est rendu par une macro qui prend la **portée** de son formulaire
+  en premier argument : l'identifiant de section, ou « sensor-quality:<clé> »
+  pour les sous-fiches qualité. Les noms de champs se répètent d'une section à
+  l'autre (`enabled`, `mode`, `start_time`) ; sans portée, une saisie refusée
+  ressortirait dans une section qui n'a pas été soumise.
+  `form_value` et `field_error` viennent du contexte de rendu (pages.py) et sont
+  donc visibles depuis les macros.
+#}
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
-{% macro switch(name, checked, label='État', id_prefix='', on_value='enabled', off_value='disabled') %}
+{% macro err_attrs(scope, name, control_id) %}{% if field_error(scope, name) %} aria-invalid="true" aria-describedby="{{ control_id }}-error"{% endif %}{% endmacro %}
+{% macro err_note(scope, name, control_id) %}{% set message = field_error(scope, name) %}{% if message %}<p class="field-error" id="{{ control_id }}-error">{{ message }}</p>{% endif %}{% endmacro %}
+{% macro switch(scope, name, checked, label='État', id_prefix='', on_value='enabled', off_value='disabled') %}
 {% set control_id = id_prefix or name %}
-<fieldset class="segmented-field">
+{% set shown = form_value(scope, name, on_value if checked else off_value)|string %}
+<fieldset class="segmented-field{% if field_error(scope, name) %} field-invalid{% endif %}"{{ err_attrs(scope, name, control_id) }}>
   <legend>{{ label }}</legend>
   <div class="segmented-control">
-    <input class="visually-hidden" type="radio" id="{{ control_id }}-on" name="{{ name }}" value="{{ on_value }}"{% if checked %} checked{% endif %}>
+    <input class="visually-hidden" type="radio" id="{{ control_id }}-on" name="{{ name }}" value="{{ on_value }}"{% if shown == on_value %} checked{% endif %}>
     <label for="{{ control_id }}-on">Activé</label>
-    <input class="visually-hidden" type="radio" id="{{ control_id }}-off" name="{{ name }}" value="{{ off_value }}"{% if not checked %} checked{% endif %}>
+    <input class="visually-hidden" type="radio" id="{{ control_id }}-off" name="{{ name }}" value="{{ off_value }}"{% if shown != on_value %} checked{% endif %}>
     <label for="{{ control_id }}-off">Désactivé</label>
   </div>
+  {{ err_note(scope, name, control_id) }}
 </fieldset>
 {% endmacro %}
-{% macro number(name, label, value, unit='', min='', max='', step='1', help='', id_prefix='') %}
+{% macro radios(scope, name, current, label, options, id_prefix='') %}
 {% set control_id = id_prefix or name %}
-<div class="field">
+{% set shown = form_value(scope, name, current)|string %}
+<fieldset class="segmented-field{% if field_error(scope, name) %} field-invalid{% endif %}"{{ err_attrs(scope, name, control_id) }}>
+  <legend>{{ label }}</legend>
+  <div class="segmented-control">
+    {% for value, option_label in options %}<input class="visually-hidden" type="radio" id="{{ control_id }}-{{ loop.index }}" name="{{ name }}" value="{{ value }}"{% if shown == value %} checked{% endif %}><label for="{{ control_id }}-{{ loop.index }}">{{ option_label }}</label>{% endfor %}
+  </div>
+  {{ err_note(scope, name, control_id) }}
+</fieldset>
+{% endmacro %}
+{% macro number(scope, name, label, value, unit='', min='', max='', step='1', help='', id_prefix='', required=False) %}
+{% set control_id = id_prefix or name %}
+{% set invalid = field_error(scope, name) %}
+{% set shown = form_value(scope, name, value) %}
+<div class="field{% if invalid %} field-invalid{% endif %}">
   <label for="{{ control_id }}">{{ label }}</label>
-  <div class="input-with-unit"><input id="{{ control_id }}" name="{{ name }}" type="number" value="{{ value }}" step="{{ step }}"{% if min != '' %} min="{{ min }}"{% endif %}{% if max != '' %} max="{{ max }}"{% endif %}><span>{{ unit }}</span></div>
+  {# Un champ refusé repasse en texte : `type="number"` vide silencieusement une
+     saisie non numérique, et l'opérateur ne verrait jamais ce qui a été rejeté. #}
+  <div class="input-with-unit"><input id="{{ control_id }}" name="{{ name }}" type="{{ 'text' if invalid else 'number' }}"{% if invalid %} inputmode="decimal"{% endif %} value="{{ shown }}" step="{{ step }}"{% if min != '' %} min="{{ min }}"{% endif %}{% if max != '' %} max="{{ max }}"{% endif %}{% if required %} required{% endif %}{{ err_attrs(scope, name, control_id) }}><span>{{ unit }}</span></div>
+  {{ err_note(scope, name, control_id) }}
   {% if help %}<p class="field-help">{{ help }}</p>{% endif %}
+</div>
+{% endmacro %}
+{% macro text(scope, name, label, value, type='text', help='', id_prefix='', maxlength='', required=False, placeholder='', autocomplete='', sticky=True) %}
+{% set control_id = id_prefix or name %}
+{% set shown = form_value(scope, name, value) if sticky else value %}
+<div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
+  <label for="{{ control_id }}">{{ label }}</label>
+  <input id="{{ control_id }}" name="{{ name }}" type="{{ type }}" value="{{ shown }}"{% if maxlength != '' %} maxlength="{{ maxlength }}"{% endif %}{% if required %} required{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{{ err_attrs(scope, name, control_id) }}>
+  {{ err_note(scope, name, control_id) }}
+  {% if help %}<p class="field-help">{{ help }}</p>{% endif %}
+</div>
+{% endmacro %}
+{% macro secret(scope, name, label, is_set, help_suffix='Laisser vide pour la conserver.', id_prefix='') %}
+{% set control_id = id_prefix or name %}
+{# Un secret n'est jamais réémis, refusé ou non : il repartirait dans le HTML
+   d'une interface sans authentification. #}
+<div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
+  <label for="{{ control_id }}">{{ label }}</label>
+  <div class="secret-input"><input id="{{ control_id }}" name="{{ name }}" type="password" value="" autocomplete="new-password"{{ err_attrs(scope, name, control_id) }}><button type="button" class="reveal-button" data-reveal="{{ control_id }}" aria-label="Afficher la nouvelle valeur">Afficher</button></div>
+  {{ err_note(scope, name, control_id) }}
+  <p class="field-help">{{ 'Une valeur est enregistrée.' if is_set else 'Aucune valeur enregistrée.' }} {{ help_suffix }}</p>
+</div>
+{% endmacro %}
+{% macro choice(scope, name, label, value, options, id_prefix='') %}
+{% set control_id = id_prefix or name %}
+{% set shown = form_value(scope, name, value)|string %}
+<div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
+  <label for="{{ control_id }}">{{ label }}</label>
+  <select id="{{ control_id }}" name="{{ name }}"{{ err_attrs(scope, name, control_id) }}>{% for option in options %}<option value="{{ option }}"{% if shown == option %} selected{% endif %}>{{ option }}</option>{% endfor %}</select>
+  {{ err_note(scope, name, control_id) }}
 </div>
 {% endmacro %}
 {% macro save_button(restart=False) %}
@@ -31,10 +90,12 @@
 </section>
 
 {% if success %}<div class="notice success" role="status">La section « {{ success }} » a été enregistrée.</div>{% endif %}
-{% if errors %}
+{% if error_count %}
 <div class="notice error" role="alert" tabindex="-1" id="form-errors">
-  <strong>La configuration n’a pas été modifiée.</strong>
-  <ul>{% for field, message in errors.items() %}<li>{{ field }} : {{ message }}</li>{% endfor %}</ul>
+  <strong>La configuration n’a pas été modifiée.</strong> Votre saisie est conservée ci-dessous.
+  {% if errors %}<ul>{% for field, message in errors.items() %}<li>{% if field != '__all__' %}{{ field }} : {% endif %}{{ message }}</li>{% endfor %}</ul>{% endif %}
+  {% set field_count = error_count - errors|length %}
+  {% if field_count > 0 %}<p>{{ field_count }} champ{{ 's' if field_count > 1 else '' }} refusé{{ 's' if field_count > 1 else '' }} : le détail est affiché sous chaque champ concerné.</p>{% endif %}
 </div>
 {% endif %}
 
@@ -48,7 +109,7 @@
   <details class="config-section" id="life"{% if active_section == 'life' %} open{% endif %}>
     <summary><span>Stade de culture</span><span class="summary-value">{{ config.life_period.stage }}</span></summary>
     <form method="post" action="/conf/life" data-config-form>{{ csrf() }}
-      <div class="field"><label for="stage">Stade actuel</label><input id="stage" name="stage" value="{{ config.life_period.stage }}" maxlength="64" required><p class="field-help">Information descriptive, sans effet direct sur les sorties.</p></div>
+      {{ text('life', 'stage', 'Stade actuel', config.life_period.stage, maxlength=64, required=True, help='Information descriptive, sans effet direct sur les sorties.') }}
       {{ save_button() }}
     </form>
   </details>
@@ -63,14 +124,14 @@
       {% for equipment_id, item in equipment.items() %}
       <fieldset class="metadata-fieldset"><legend>{{ equipment_id }}</legend>
         <div class="field-grid two">
-          <div class="field"><label for="{{ equipment_id }}-name">Nom affiché</label><input id="{{ equipment_id }}-name" name="{{ equipment_id }}__display_name" value="{{ item.display_name }}" maxlength="64" required></div>
-          <div class="field"><label for="{{ equipment_id }}-usage">Usage</label><input id="{{ equipment_id }}-usage" name="{{ equipment_id }}__usage_type" value="{{ item.usage_type }}" maxlength="32" required></div>
-          <div class="field"><label for="{{ equipment_id }}-zone">Zone</label><input id="{{ equipment_id }}-zone" name="{{ equipment_id }}__zone" value="{{ item.zone }}" maxlength="64"></div>
-          <div class="field"><label for="{{ equipment_id }}-icon">Icône</label><select id="{{ equipment_id }}-icon" name="{{ equipment_id }}__icon">{% for icon in ('light','pump','fan','heater','relay','equipment') %}<option value="{{ icon }}"{% if item.icon == icon %} selected{% endif %}>{{ icon }}</option>{% endfor %}</select></div>
-          <div class="field"><label for="{{ equipment_id }}-note">Note de câblage</label><input id="{{ equipment_id }}-note" name="{{ equipment_id }}__wiring_note" value="{{ item.wiring_note }}" maxlength="240"></div>
+          {{ text('equipment', equipment_id ~ '__display_name', 'Nom affiché', item.display_name, maxlength=64, required=True, id_prefix=equipment_id ~ '-name') }}
+          {{ text('equipment', equipment_id ~ '__usage_type', 'Usage', item.usage_type, maxlength=32, required=True, id_prefix=equipment_id ~ '-usage') }}
+          {{ text('equipment', equipment_id ~ '__zone', 'Zone', item.zone, maxlength=64, id_prefix=equipment_id ~ '-zone') }}
+          {{ choice('equipment', equipment_id ~ '__icon', 'Icône', item.icon, ('light','pump','fan','heater','relay','equipment'), equipment_id ~ '-icon') }}
+          {{ text('equipment', equipment_id ~ '__wiring_note', 'Note de câblage', item.wiring_note, maxlength=240, id_prefix=equipment_id ~ '-note') }}
         </div>
-        {{ switch(equipment_id ~ '__dashboard_visible', item.dashboard_visible, 'Visible sur le tableau de bord', equipment_id ~ '-visible', 'true', 'false') }}
-        {{ switch(equipment_id ~ '__out_of_service', item.out_of_service, 'Défaut matériel connu', equipment_id ~ '-out-of-service', 'true', 'false') }}
+        {{ switch('equipment', equipment_id ~ '__dashboard_visible', item.dashboard_visible, 'Visible sur le tableau de bord', equipment_id ~ '-visible', 'true', 'false') }}
+        {{ switch('equipment', equipment_id ~ '__out_of_service', item.out_of_service, 'Défaut matériel connu', equipment_id ~ '-out-of-service', 'true', 'false') }}
       </fieldset>
       {% endfor %}
       {{ save_button() }}
@@ -83,13 +144,10 @@
   <details class="config-section" id="day-night"{% if active_section == 'day-night' %} open{% endif %}>
     <summary><span>Référence jour / nuit</span><span class="summary-value">{{ 'Minuterie 1' if config.day_night.source == 'dailytimer1' else 'Personnalisée' }}</span></summary>
     <form method="post" action="/conf/day-night" data-config-form>{{ csrf() }}
-      <fieldset class="segmented-field"><legend>Source</legend><div class="segmented-control">
-        <input class="visually-hidden" type="radio" id="day-night-source-daily" name="source" value="dailytimer1"{% if config.day_night.source == 'dailytimer1' %} checked{% endif %}><label for="day-night-source-daily">Suivre la minuterie 1</label>
-        <input class="visually-hidden" type="radio" id="day-night-source-custom" name="source" value="custom"{% if config.day_night.source == 'custom' %} checked{% endif %}><label for="day-night-source-custom">Horaires personnalisés</label>
-      </div></fieldset>
+      {{ radios('day-night', 'source', config.day_night.source, 'Source', (('dailytimer1','Suivre la minuterie 1'),('custom','Horaires personnalisés')), 'day-night-source') }}
       <div class="field-grid two">
-        <div class="field"><label for="day-night-start">Début</label><input id="day-night-start" name="start_time" type="time" value="{{ '%02d:%02d'|format(config.day_night.start_hour, config.day_night.start_minute) }}" required></div>
-        <div class="field"><label for="day-night-stop">Fin</label><input id="day-night-stop" name="stop_time" type="time" value="{{ '%02d:%02d'|format(config.day_night.stop_hour, config.day_night.stop_minute) }}" required></div>
+        {{ text('day-night', 'start_time', 'Début', '%02d:%02d'|format(config.day_night.start_hour, config.day_night.start_minute), type='time', required=True, id_prefix='day-night-start') }}
+        {{ text('day-night', 'stop_time', 'Fin', '%02d:%02d'|format(config.day_night.stop_hour, config.day_night.stop_minute), type='time', required=True, id_prefix='day-night-stop') }}
       </div>
       <p class="field-help">Plage [début, fin) : l’heure de fin est exclue. Si début = fin, la plage est vide. En héritage, les valeurs personnalisées restent mémorisées mais les horaires de la minuterie 1 sont suivis en continu.</p>
       {% if config.day_night.source == 'custom' and (config.day_night.start_hour != config.daily_timer1.start_hour or config.day_night.start_minute != config.daily_timer1.start_minute or config.day_night.stop_hour != config.daily_timer1.stop_hour or config.day_night.stop_minute != config.daily_timer1.stop_minute) %}
@@ -99,41 +157,40 @@
     </form>
   </details>
   {% for num, timer in ((1, config.daily_timer1), (2, config.daily_timer2)) %}
-  <details class="config-section" id="daily-timer-{{ num }}"{% if active_section == 'daily-timer-' ~ num %} open{% endif %}>
+  {% set scope = 'daily-timer-' ~ num %}
+  <details class="config-section" id="daily-timer-{{ num }}"{% if active_section == scope %} open{% endif %}>
     <summary><span>Minuterie quotidienne {{ num }}</span><span class="summary-value">{{ '%02d:%02d'|format(timer.start_hour, timer.start_minute) }} → {{ '%02d:%02d'|format(timer.stop_hour, timer.stop_minute) }}</span></summary>
     <form method="post" action="/conf/daily-timer-{{ num }}" data-config-form>{{ csrf() }}
-      {{ switch('enabled', timer.enabled, 'Activation', 'daily-' ~ num ~ '-enabled') }}
+      {{ switch(scope, 'enabled', timer.enabled, 'Activation', 'daily-' ~ num ~ '-enabled') }}
       <div class="field-grid two">
-        <div class="field"><label for="daily-{{ num }}-start">Début</label><input id="daily-{{ num }}-start" name="start_time" type="time" value="{{ '%02d:%02d'|format(timer.start_hour, timer.start_minute) }}" required></div>
-        <div class="field"><label for="daily-{{ num }}-stop">Fin</label><input id="daily-{{ num }}-stop" name="stop_time" type="time" value="{{ '%02d:%02d'|format(timer.stop_hour, timer.stop_minute) }}" required></div>
+        {{ text(scope, 'start_time', 'Début', '%02d:%02d'|format(timer.start_hour, timer.start_minute), type='time', required=True, id_prefix='daily-' ~ num ~ '-start') }}
+        {{ text(scope, 'stop_time', 'Fin', '%02d:%02d'|format(timer.stop_hour, timer.stop_minute), type='time', required=True, id_prefix='daily-' ~ num ~ '-stop') }}
       </div>{{ save_button() }}
     </form>
   </details>
   {% endfor %}
 
   {% for num, cycle in ((1, config.cyclic1), (2, config.cyclic2)) %}
-  <details class="config-section" id="cyclic-{{ num }}"{% if active_section == 'cyclic-' ~ num %} open{% endif %}>
+  {% set scope = 'cyclic-' ~ num %}
+  <details class="config-section" id="cyclic-{{ num }}"{% if active_section == scope %} open{% endif %}>
     <summary><span>Cycle {{ num }}</span><span class="summary-value">{{ cycle.mode|capitalize }}</span></summary>
     <form method="post" action="/conf/cyclic-{{ num }}" data-config-form data-mode-form>{{ csrf() }}
-      {{ switch('enabled', cycle.enabled, 'Activation', 'cyclic-' ~ num ~ '-enabled') }}
-      <fieldset class="segmented-field"><legend>Mode de fonctionnement</legend><div class="segmented-control">
-        <input class="visually-hidden" type="radio" id="cyclic-{{ num }}-daily" name="mode" value="journalier"{% if cycle.mode == 'journalier' %} checked{% endif %}><label for="cyclic-{{ num }}-daily">Journalier</label>
-        <input class="visually-hidden" type="radio" id="cyclic-{{ num }}-seq" name="mode" value="séquentiel"{% if cycle.mode == 'séquentiel' %} checked{% endif %}><label for="cyclic-{{ num }}-seq">Séquentiel</label>
-      </div></fieldset>
-      <div data-mode-fields="journalier"{% if cycle.mode != 'journalier' %} hidden{% endif %}>
+      {{ switch(scope, 'enabled', cycle.enabled, 'Activation', 'cyclic-' ~ num ~ '-enabled') }}
+      {{ radios(scope, 'mode', cycle.mode, 'Mode de fonctionnement', (('journalier','Journalier'),('séquentiel','Séquentiel')), 'cyclic-' ~ num ~ '-mode') }}
+      <div data-mode-fields="journalier"{% if form_value(scope, 'mode', cycle.mode)|string != 'journalier' %} hidden{% endif %}>
         <div class="field-grid two">
-          {{ number('period_days', 'Période', cycle.period_days, 'jour(s)', 1, id_prefix='cyclic-' ~ num ~ '-period-days') }}
-          {{ number('triggers_per_day', 'Activations par journée', cycle.triggers_per_day, '', 1, id_prefix='cyclic-' ~ num ~ '-triggers-per-day') }}
-          {{ number('first_trigger_hour', 'Première activation', cycle.first_trigger_hour, 'h', 0, 23, id_prefix='cyclic-' ~ num ~ '-first-trigger-hour') }}
-          {{ number('action_duration_seconds', 'Durée d’activation', cycle.action_duration_seconds, 's', 1, id_prefix='cyclic-' ~ num ~ '-action-duration') }}
+          {{ number(scope, 'period_days', 'Période', cycle.period_days, 'jour(s)', 1, id_prefix='cyclic-' ~ num ~ '-period-days') }}
+          {{ number(scope, 'triggers_per_day', 'Activations par journée', cycle.triggers_per_day, '', 1, id_prefix='cyclic-' ~ num ~ '-triggers-per-day') }}
+          {{ number(scope, 'first_trigger_hour', 'Première activation', cycle.first_trigger_hour, 'h', 0, 23, id_prefix='cyclic-' ~ num ~ '-first-trigger-hour') }}
+          {{ number(scope, 'action_duration_seconds', 'Durée d’activation', cycle.action_duration_seconds, 's', 1, id_prefix='cyclic-' ~ num ~ '-action-duration') }}
         </div>
       </div>
-      <div data-mode-fields="séquentiel"{% if cycle.mode != 'séquentiel' %} hidden{% endif %}>
+      <div data-mode-fields="séquentiel"{% if form_value(scope, 'mode', cycle.mode)|string != 'séquentiel' %} hidden{% endif %}>
         <div class="field-grid two">
-          {{ number('on_time_day', 'Jour · durée ON', cycle.on_time_day, 's', 0, id_prefix='cyclic-' ~ num ~ '-on-day') }}
-          {{ number('off_time_day', 'Jour · durée OFF', cycle.off_time_day, 's', 0, id_prefix='cyclic-' ~ num ~ '-off-day') }}
-          {{ number('on_time_night', 'Nuit · durée ON', cycle.on_time_night, 's', 0, id_prefix='cyclic-' ~ num ~ '-on-night') }}
-          {{ number('off_time_night', 'Nuit · durée OFF', cycle.off_time_night, 's', 0, id_prefix='cyclic-' ~ num ~ '-off-night') }}
+          {{ number(scope, 'on_time_day', 'Jour · durée ON', cycle.on_time_day, 's', 0, id_prefix='cyclic-' ~ num ~ '-on-day') }}
+          {{ number(scope, 'off_time_day', 'Jour · durée OFF', cycle.off_time_day, 's', 0, id_prefix='cyclic-' ~ num ~ '-off-day') }}
+          {{ number(scope, 'on_time_night', 'Nuit · durée ON', cycle.on_time_night, 's', 0, id_prefix='cyclic-' ~ num ~ '-on-night') }}
+          {{ number(scope, 'off_time_night', 'Nuit · durée OFF', cycle.off_time_night, 's', 0, id_prefix='cyclic-' ~ num ~ '-off-night') }}
         </div>
       </div>{{ save_button() }}
     </form>
@@ -145,39 +202,37 @@
   <div class="section-heading"><div><p class="eyebrow">Régulation</p><h2 id="climate-config-title">Climat</h2></div></div>
   <details class="config-section" id="temperature"{% if active_section == 'temperature' %} open{% endif %}><summary><span>Consignes de température</span><span class="summary-value">Jour et nuit</span></summary>
     <form method="post" action="/conf/temperature" data-config-form>{{ csrf() }}<div class="field-grid two">
-      {{ number('target_temp_min_day', 'Jour · minimum', config.temperature.target_temp_min_day, '°C', -20, 60, '0.1') }}
-      {{ number('target_temp_max_day', 'Jour · maximum', config.temperature.target_temp_max_day, '°C', -20, 60, '0.1') }}
-      {{ number('target_temp_min_night', 'Nuit · minimum', config.temperature.target_temp_min_night, '°C', -20, 60, '0.1') }}
-      {{ number('target_temp_max_night', 'Nuit · maximum', config.temperature.target_temp_max_night, '°C', -20, 60, '0.1') }}
-      {{ number('hysteresis_offset', 'Hystérésis chauffage', config.temperature.hysteresis_offset, '°C', 0, 20, '0.1') }}
+      {{ number('temperature', 'target_temp_min_day', 'Jour · minimum', config.temperature.target_temp_min_day, '°C', -20, 60, '0.1') }}
+      {{ number('temperature', 'target_temp_max_day', 'Jour · maximum', config.temperature.target_temp_max_day, '°C', -20, 60, '0.1') }}
+      {{ number('temperature', 'target_temp_min_night', 'Nuit · minimum', config.temperature.target_temp_min_night, '°C', -20, 60, '0.1') }}
+      {{ number('temperature', 'target_temp_max_night', 'Nuit · maximum', config.temperature.target_temp_max_night, '°C', -20, 60, '0.1') }}
+      {{ number('temperature', 'hysteresis_offset', 'Hystérésis chauffage', config.temperature.hysteresis_offset, '°C', 0, 20, '0.1') }}
     </div>
     <h3>Arbitrage chauffage / ventilation</h3>
     <p class="field-help">La ventilation ne démarre jamais avant le minimum + l’hystérésis + la zone morte : les deux organes ne peuvent pas être actifs en même temps.</p>
     <div class="field-grid two">
-      {{ number('vent_deadband', 'Zone morte', config.temperature.vent_deadband, '°C', 0, 20, '0.1') }}
-      {{ number('vent_step', 'Largeur d’un palier', config.temperature.vent_step, '°C', 0.1, 20, '0.1') }}
-      {{ number('vent_release', 'Relâchement de palier', config.temperature.vent_release, '°C', 0, 20, '0.1') }}
-      {{ number('absolute_floor_temp', 'Plancher absolu', config.temperature.absolute_floor_temp, '°C', -20, 60, '0.1') }}
-      {{ number('min_dwell_seconds', 'Maintien minimal', config.temperature.min_dwell_seconds, 's', 0, 3600) }}
+      {{ number('temperature', 'vent_deadband', 'Zone morte', config.temperature.vent_deadband, '°C', 0, 20, '0.1') }}
+      {{ number('temperature', 'vent_step', 'Largeur d’un palier', config.temperature.vent_step, '°C', 0.1, 20, '0.1') }}
+      {{ number('temperature', 'vent_release', 'Relâchement de palier', config.temperature.vent_release, '°C', 0, 20, '0.1') }}
+      {{ number('temperature', 'absolute_floor_temp', 'Plancher absolu', config.temperature.absolute_floor_temp, '°C', -20, 60, '0.1') }}
+      {{ number('temperature', 'min_dwell_seconds', 'Maintien minimal', config.temperature.min_dwell_seconds, 's', 0, 3600) }}
     </div>{{ save_button() }}</form>
   </details>
   <details class="config-section" id="heater"{% if active_section == 'heater' %} open{% endif %}><summary><span>Chauffage</span><span class="summary-value">{{ 'Activé' if config.heater_settings.enabled else 'Désactivé' }}</span></summary>
-    <form method="post" action="/conf/heater" data-config-form>{{ csrf() }}{{ switch('enabled', config.heater_settings.enabled, 'Autorisation du chauffage', 'heater-enabled') }}{{ save_button() }}</form>
+    <form method="post" action="/conf/heater" data-config-form>{{ csrf() }}{{ switch('heater', 'enabled', config.heater_settings.enabled, 'Autorisation du chauffage', 'heater-enabled') }}{{ save_button() }}</form>
   </details>
   <details class="config-section" id="motor"{% if active_section == 'motor' %} open{% endif %}><summary><span>Ventilation</span><span class="summary-value">Mode {{ config.motor.motor_mode }}</span></summary>
     <form method="post" action="/conf/motor" data-config-form data-motor-form>{{ csrf() }}
-      <fieldset class="segmented-field"><legend>Mode moteur</legend><div class="segmented-control">
-        {% for value, label in (('manual','Manuel'),('auto','Automatique'),('winter','Hiver')) %}<input class="visually-hidden" type="radio" id="motor-{{ value }}" name="motor_mode" value="{{ value }}"{% if config.motor.motor_mode == value %} checked{% endif %}><label for="motor-{{ value }}">{{ label }}</label>{% endfor %}
-      </div></fieldset>
-      <div data-motor-fields="manual"{% if config.motor.motor_mode != 'manual' %} hidden{% endif %}>{{ number('motor_user_speed', 'Vitesse manuelle', config.motor.motor_user_speed, '/ 4', 0, 4) }}</div>
-      <div class="field-grid two">{{ number('min_speed', 'Vitesse minimale', config.motor.min_speed, '/ 4', 0, 4) }}{{ number('max_speed', 'Vitesse maximale', config.motor.max_speed, '/ 4', 0, 4) }}{{ number('sensor_fallback_speed', 'Vitesse de repli capteur', config.motor.sensor_fallback_speed, '/ 4', 0, 4) }}</div>
-      <div data-motor-fields="winter"{% if config.motor.motor_mode != 'winter' %} hidden{% endif %}><h3>Paramètres hiver</h3><div class="field-grid two">
-        {{ number('winter_default_speed', 'Vitesse par défaut', config.motor.winter_default_speed, '/ 4', 0, 4) }}
-        {{ number('winter_temp_margin', 'Marge basse', config.motor.winter_temp_margin, '°C', 0, 20, '0.1') }}
-        {{ number('winter_refresh_speed', 'Vitesse de renouvellement', config.motor.winter_refresh_speed, '/ 4', 0, 4) }}
-        {{ number('winter_refresh_minutes_per_hour', 'Renouvellement par heure', config.motor.winter_refresh_minutes_per_hour, 'min', 0, 60) }}
-        {{ number('winter_humidity_threshold', 'Seuil d’humidité', config.motor.winter_humidity_threshold, '%', 0, 100, '0.1') }}
-        {{ number('winter_humidity_minutes_per_hour', 'Déshumidification par heure', config.motor.winter_humidity_minutes_per_hour, 'min', 0, 60) }}
+      {{ radios('motor', 'motor_mode', config.motor.motor_mode, 'Mode moteur', (('manual','Manuel'),('auto','Automatique'),('winter','Hiver')), 'motor-mode') }}
+      <div data-motor-fields="manual"{% if form_value('motor', 'motor_mode', config.motor.motor_mode)|string != 'manual' %} hidden{% endif %}>{{ number('motor', 'motor_user_speed', 'Vitesse manuelle', config.motor.motor_user_speed, '/ 4', 0, 4) }}</div>
+      <div class="field-grid two">{{ number('motor', 'min_speed', 'Vitesse minimale', config.motor.min_speed, '/ 4', 0, 4) }}{{ number('motor', 'max_speed', 'Vitesse maximale', config.motor.max_speed, '/ 4', 0, 4) }}{{ number('motor', 'sensor_fallback_speed', 'Vitesse de repli capteur', config.motor.sensor_fallback_speed, '/ 4', 0, 4) }}</div>
+      <div data-motor-fields="winter"{% if form_value('motor', 'motor_mode', config.motor.motor_mode)|string != 'winter' %} hidden{% endif %}><h3>Paramètres hiver</h3><div class="field-grid two">
+        {{ number('motor', 'winter_default_speed', 'Vitesse par défaut', config.motor.winter_default_speed, '/ 4', 0, 4) }}
+        {{ number('motor', 'winter_temp_margin', 'Marge basse', config.motor.winter_temp_margin, '°C', 0, 20, '0.1') }}
+        {{ number('motor', 'winter_refresh_speed', 'Vitesse de renouvellement', config.motor.winter_refresh_speed, '/ 4', 0, 4) }}
+        {{ number('motor', 'winter_refresh_minutes_per_hour', 'Renouvellement par heure', config.motor.winter_refresh_minutes_per_hour, 'min', 0, 60) }}
+        {{ number('motor', 'winter_humidity_threshold', 'Seuil d’humidité', config.motor.winter_humidity_threshold, '%', 0, 100, '0.1') }}
+        {{ number('motor', 'winter_humidity_minutes_per_hour', 'Déshumidification par heure', config.motor.winter_humidity_minutes_per_hour, 'min', 0, 60) }}
       </div><p class="field-help">Renouvellement et déshumidification consomment deux budgets horaires distincts et bornés : l’humidité ne peut plus faire ventiler en continu par grand froid.</p></div>{{ save_button() }}
     </form>
   </details>
@@ -188,7 +243,7 @@
   <details class="config-section" id="sensors"{% if active_section == 'sensors' %} open{% endif %}><summary><span>Capteurs actifs</span><span class="summary-value">Reconfiguration à chaud</span></summary>
     <form method="post" action="/conf/sensors" data-config-form>{{ csrf() }}
       {% for field, label in (('bme280_state','BME280 · air'),('ds18b20_state','DS18B20 · sondes'),('veml6075_state','VEML6075 · UV'),('vl53L0x_state','VL53L0X · distance laser'),('mlx90614_state','MLX90614 · infrarouge'),('tsl2591_state','TSL2591 · lumière'),('hcsr04_state','HC-SR04 · distance ultrason')) %}
-      {{ switch(field, config.sensors|attr(field), label, 'sensor-' ~ field) }}
+      {{ switch('sensors', field, config.sensors|attr(field), label, 'sensor-' ~ field) }}
       {% endfor %}{{ save_button() }}
     </form>
   </details>
@@ -196,29 +251,26 @@
     <div class="notice warning"><strong>Protection en deux temps.</strong> « Observation » diagnostique sans changer les sorties. « Armé » rend une température incohérente immédiatement bloquante.</div>
     <form method="post" action="/conf/sensor-quality" data-config-form>
       {{ csrf() }}<input type="hidden" name="sensor_key" value="__mode__">
-      <fieldset class="segmented-field"><legend>Application au contrôle</legend><div class="segmented-control">
-        <input class="visually-hidden" id="quality-observe" type="radio" name="mode" value="observe"{% if config.sensor_quality.mode == 'observe' %} checked{% endif %}><label for="quality-observe">Observation</label>
-        <input class="visually-hidden" id="quality-enforce" type="radio" name="mode" value="enforce"{% if config.sensor_quality.mode == 'enforce' %} checked{% endif %}><label for="quality-enforce">Armé</label>
-      </div></fieldset>
-      <div class="field"><label for="confirm-enforce">Confirmation d’armement</label><input id="confirm-enforce" name="confirm_enforce" value="" placeholder="ARMER"><p class="field-help">Requis uniquement pour passer d’observation à armé.</p></div>
+      {{ radios('sensor-quality:__mode__', 'mode', config.sensor_quality.mode, 'Application au contrôle', (('observe','Observation'),('enforce','Armé')), 'quality-mode') }}
+      {{ text('sensor-quality:__mode__', 'confirm_enforce', 'Confirmation d’armement', '', placeholder='ARMER', id_prefix='confirm-enforce', help='Requis uniquement pour passer d’observation à armé.') }}
       {{ save_button() }}
     </form>
 
     <h3>Profils par mesure</h3>
-    {% for definition in sensor_catalog %}{% set profile = sensor_quality_profiles[definition.key] %}{% set live = sensor_snapshot.get(definition.key, {}) %}
+    {% for definition in sensor_catalog %}{% set profile = sensor_quality_profiles[definition.key] %}{% set live = sensor_snapshot.get(definition.key, {}) %}{% set scope = 'sensor-quality:' ~ definition.key %}
     <details class="metadata-fieldset"><summary><span>{{ definition.key }} · {{ definition.label }}</span><span class="summary-value">{% if live.get('status') == 'degraded' %}dégradé{% elif live.get('status') == 'inconsistent' %}incohérent{% else %}{{ live.get('status', 'absent') }}{% endif %}</span></summary>
       <form method="post" action="/conf/sensor-quality" data-config-form>
         {{ csrf() }}<input type="hidden" name="sensor_key" value="{{ definition.key }}">
         <div class="field-grid two">
-          {{ number('offset', 'Offset', profile.offset, definition.unit, '', '', '0.01', 'Ajouté à la valeur brute.', definition.slug ~ '-offset') }}
-          <div class="field"><label for="{{ definition.slug }}-calibrated">Dernière calibration</label><input id="{{ definition.slug }}-calibrated" name="calibrated_at" type="date" value="{{ profile.calibrated_at or '' }}"></div>
-          {{ number('calibration_valid_days', 'Validité', profile.calibration_valid_days or '', 'jour(s)', 1, 3650, '1', 'Vide = date informative.', definition.slug ~ '-validity') }}
-          {{ number('freshness_seconds', 'Fraîcheur maximale', profile.freshness_seconds, 's', 1, 3600, '1', '', definition.slug ~ '-freshness') }}
-          {{ number('plausible_min', 'Minimum plausible', profile.plausible_min, definition.unit, '', '', '0.01', '', definition.slug ~ '-minimum') }}
-          {{ number('plausible_max', 'Maximum plausible', profile.plausible_max, definition.unit, '', '', '0.01', '', definition.slug ~ '-maximum') }}
-          {{ number('freeze_epsilon', 'Variation minimale', profile.freeze_epsilon, definition.unit, 0, '', '0.01', '', definition.slug ~ '-epsilon') }}
-          <div class="field"><label for="{{ definition.slug }}-freeze-after">Déclarer figé après</label><div class="input-with-unit"><input id="{{ definition.slug }}-freeze-after" name="freeze_after_seconds" value="{{ profile.freeze_after_seconds if profile.freeze_after_seconds is not none else 'disabled' }}"><span>s</span></div><p class="field-help">Écrire « disabled » pour désactiver.</p></div>
-          {{ number('freeze_min_samples', 'Échantillons minimum', profile.freeze_min_samples, '', 2, 100000, '1', '', definition.slug ~ '-freeze-samples') }}
+          {{ number(scope, 'offset', 'Offset', profile.offset, definition.unit, '', '', '0.01', 'Ajouté à la valeur brute.', definition.slug ~ '-offset') }}
+          {{ text(scope, 'calibrated_at', 'Dernière calibration', profile.calibrated_at or '', type='date', id_prefix=definition.slug ~ '-calibrated') }}
+          {{ number(scope, 'calibration_valid_days', 'Validité', profile.calibration_valid_days or '', 'jour(s)', 1, 3650, '1', 'Vide = date informative.', definition.slug ~ '-validity') }}
+          {{ number(scope, 'freshness_seconds', 'Fraîcheur maximale', profile.freshness_seconds, 's', 1, 3600, '1', '', definition.slug ~ '-freshness') }}
+          {{ number(scope, 'plausible_min', 'Minimum plausible', profile.plausible_min, definition.unit, '', '', '0.01', '', definition.slug ~ '-minimum') }}
+          {{ number(scope, 'plausible_max', 'Maximum plausible', profile.plausible_max, definition.unit, '', '', '0.01', '', definition.slug ~ '-maximum') }}
+          {{ number(scope, 'freeze_epsilon', 'Variation minimale', profile.freeze_epsilon, definition.unit, 0, '', '0.01', '', definition.slug ~ '-epsilon') }}
+          {{ text(scope, 'freeze_after_seconds', 'Déclarer figé après', profile.freeze_after_seconds if profile.freeze_after_seconds is not none else 'disabled', id_prefix=definition.slug ~ '-freeze-after', help='Durée en secondes, ou « disabled » pour désactiver.') }}
+          {{ number(scope, 'freeze_min_samples', 'Échantillons minimum', profile.freeze_min_samples, '', 2, 100000, '1', '', definition.slug ~ '-freeze-samples') }}
         </div>
         <p class="field-help">État : {{ live.get('status', 'absent') }} · raisons : {{ live.get('reason_codes', [])|join(', ') or 'aucune' }} · inchangé {{ live.get('unchanged_for_s', 0) }} s · échecs depuis calibration {{ live.get('failures', {}).get('since_calibration', 0) }}.</p>
         {{ save_button() }}
@@ -230,14 +282,20 @@
     <h3>Identités 1-Wire</h3>
     <form method="post" action="/conf/sensor-quality" data-config-form>{{ csrf() }}<input type="hidden" name="sensor_key" value="__bindings__">
       <p class="field-help">Une calibration DS18B20 n’est jamais appliquée selon l’ordre de découverte. Identifiants détectés : {{ discovered_ds18|join(', ') or 'aucun' }}.</p>
-      <div class="field-grid two">{% for index in (1,2,3) %}<div class="field"><label for="ds18b-{{ index }}">DS18B#{{ index }}</label><input id="ds18b-{{ index }}" name="ds18b-{{ index }}" value="{{ config.sensor_quality.ds18b20_bindings.get('DS18B#' ~ index, '') }}" placeholder="28-…"></div>{% endfor %}</div>{{ save_button() }}
+      <div class="field-grid two">{% for index in (1,2,3) %}{{ text('sensor-quality:__bindings__', 'ds18b-' ~ index, 'DS18B#' ~ index, config.sensor_quality.ds18b20_bindings.get('DS18B#' ~ index, ''), placeholder='28-…') }}{% endfor %}</div>{{ save_button() }}
     </form>
 
     <h3>Comparaisons redondantes</h3>
     {% for name, group in config.sensor_quality.redundancy_groups.items() %}<p class="field-help"><strong>{{ name }}</strong> : {{ group.members|join(', ') }} · tolérance {{ group.tolerance }} · quorum {{ group.minimum_agreeing }}</p>{% else %}<p class="field-help">Aucun groupe actif tant que la proximité physique des sondes n’est pas confirmée.</p>{% endfor %}
     <form method="post" action="/conf/sensor-quality" data-config-form>{{ csrf() }}<input type="hidden" name="sensor_key" value="__group__">
-      <div class="field-grid two"><div class="field"><label for="group-name">Nom</label><input id="group-name" name="group_name" required></div><div class="field"><label for="group-members">Membres séparés par des virgules</label><input id="group-members" name="members" placeholder="BME280T,MLX-AMB"></div>{{ number('tolerance','Tolérance',2,'',0,'','0.01','','group-tolerance') }}{{ number('minimum_agreeing','Quorum',2,'',2,'','1','','group-quorum') }}</div>
-      <p class="field-help">Pour supprimer un groupe existant, saisir son nom et « yes » ci-dessous.</p><div class="field"><label for="group-delete">Suppression</label><input id="group-delete" name="delete" placeholder="yes"></div>{{ save_button() }}
+      <div class="field-grid two">
+        {{ text('sensor-quality:__group__', 'group_name', 'Nom', '', required=True, id_prefix='group-name') }}
+        {{ text('sensor-quality:__group__', 'members', 'Membres séparés par des virgules', '', placeholder='BME280T,MLX-AMB', id_prefix='group-members') }}
+        {{ number('sensor-quality:__group__', 'tolerance', 'Tolérance', 2, '', 0, '', '0.01', '', 'group-tolerance') }}
+        {{ number('sensor-quality:__group__', 'minimum_agreeing', 'Quorum', 2, '', 2, '', '1', '', 'group-quorum') }}
+      </div>
+      <p class="field-help">Pour supprimer un groupe existant, saisir son nom et « yes » ci-dessous.</p>
+      {{ text('sensor-quality:__group__', 'delete', 'Suppression', '', placeholder='yes', id_prefix='group-delete') }}{{ save_button() }}
     </form>
   </details>
 </section>
@@ -246,16 +304,20 @@
   <div class="section-heading"><div><p class="eyebrow">Connectivité</p><h2 id="network-title">Réseau et export</h2></div></div>
   <details class="config-section" id="wifi"{% if active_section == 'wifi' %} open{% endif %}><summary><span>Wi-Fi</span><span class="summary-value">Redémarrage requis</span></summary>
     <form method="post" action="/conf/wifi" data-config-form>{{ csrf() }}
-      <div class="field"><label for="wifi_ssid">Nom du réseau (SSID)</label><input id="wifi_ssid" name="wifi_ssid" value="{{ config.network.wifi_ssid }}" autocomplete="off" required></div>
-      <div class="field"><label for="wifi_password">Nouveau mot de passe</label><div class="secret-input"><input id="wifi_password" name="wifi_password" type="password" value="" autocomplete="new-password"><button type="button" class="reveal-button" data-reveal="wifi_password" aria-label="Afficher la nouvelle valeur">Afficher</button></div><p class="field-help">{{ 'Une valeur est enregistrée.' if wifi_password_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
+      {{ text('wifi', 'wifi_ssid', 'Nom du réseau (SSID)', config.network.wifi_ssid, required=True, autocomplete='off') }}
+      {{ secret('wifi', 'wifi_password', 'Nouveau mot de passe', wifi_password_set) }}
       {{ save_button(True) }}
     </form>
   </details>
   <details class="config-section" id="influx"{% if active_section == 'influx' %} open{% endif %}><summary><span>InfluxDB</span><span class="summary-value">{{ 'Export activé' if config.network.host_machine_state|lower == 'online' else 'Export désactivé' }}</span></summary>
-    <form method="post" action="/conf/influx" data-config-form>{{ csrf() }}{{ switch('host_machine_state', config.network.host_machine_state|lower == 'online', 'Export InfluxDB', 'influx-enabled', 'online', 'offline') }}
-      <div class="field-grid two"><div class="field"><label for="host_machine_address">Serveur</label><input id="host_machine_address" name="host_machine_address" value="{{ config.network.host_machine_address }}" required></div><div class="field"><label for="influx_db_port">Port</label><input id="influx_db_port" name="influx_db_port" type="number" min="1" max="65535" value="{{ config.network.influx_db_port }}" required></div><div class="field"><label for="influx_db_name">Base de données</label><input id="influx_db_name" name="influx_db_name" value="{{ config.network.influx_db_name }}" required></div></div>
-      <div class="field"><label for="influx_db_user">Nouvel utilisateur</label><input id="influx_db_user" name="influx_db_user" value="" autocomplete="off"><p class="field-help">{{ 'Une valeur est enregistrée.' if influx_user_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
-      <div class="field"><label for="influx_db_password">Nouveau mot de passe</label><div class="secret-input"><input id="influx_db_password" name="influx_db_password" type="password" value="" autocomplete="new-password"><button type="button" class="reveal-button" data-reveal="influx_db_password" aria-label="Afficher la nouvelle valeur">Afficher</button></div><p class="field-help">{{ 'Une valeur est enregistrée.' if influx_password_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
+    <form method="post" action="/conf/influx" data-config-form>{{ csrf() }}{{ switch('influx', 'host_machine_state', config.network.host_machine_state|lower == 'online', 'Export InfluxDB', 'influx-enabled', 'online', 'offline') }}
+      <div class="field-grid two">
+        {{ text('influx', 'host_machine_address', 'Serveur', config.network.host_machine_address, required=True) }}
+        {{ number('influx', 'influx_db_port', 'Port', config.network.influx_db_port, '', 1, 65535, required=True) }}
+        {{ text('influx', 'influx_db_name', 'Base de données', config.network.influx_db_name, required=True) }}
+      </div>
+      <div class="field"><label for="influx_db_user">Nouvel utilisateur</label><input id="influx_db_user" name="influx_db_user" type="text" value="" autocomplete="off"{{ err_attrs('influx', 'influx_db_user', 'influx_db_user') }}>{{ err_note('influx', 'influx_db_user', 'influx_db_user') }}<p class="field-help">{{ 'Une valeur est enregistrée.' if influx_user_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
+      {{ secret('influx', 'influx_db_password', 'Nouveau mot de passe', influx_password_set) }}
       {{ save_button() }}
     </form>
   </details>
@@ -264,7 +326,10 @@
 <section id="systeme" class="config-group" aria-labelledby="system-title">
   <div class="section-heading"><div><p class="eyebrow">Avancé</p><h2 id="system-title">Système</h2></div></div>
   <details class="config-section" id="logs"{% if active_section == 'logs' %} open{% endif %}><summary><span>Journalisation</span><span class="summary-value">{{ config.logs.level }}</span></summary>
-    <form method="post" action="/conf/logs" data-config-form>{{ csrf() }}<div class="field-grid two"><div class="field"><label for="level">Niveau</label><select id="level" name="level">{% for level in ('DEBUG','INFO','WARNING','ERROR') %}<option value="{{ level }}"{% if config.logs.level == level %} selected{% endif %}>{{ level }}</option>{% endfor %}</select></div>{{ number('retention_days', 'Rétention', config.logs.retention_days, 'jour(s)', 1) }}</div>{{ save_button() }}</form>
+    <form method="post" action="/conf/logs" data-config-form>{{ csrf() }}<div class="field-grid two">
+      {{ choice('logs', 'level', 'Niveau', config.logs.level, ('DEBUG','INFO','WARNING','ERROR')) }}
+      {{ number('logs', 'retention_days', 'Rétention', config.logs.retention_days, 'jour(s)', 1) }}
+    </div>{{ save_button() }}</form>
   </details>
   <details class="config-section hardware" id="gpio"><summary><span>Matériel GPIO</span><span class="summary-value">Lecture seule</span></summary>
     <div class="notice warning"><strong>Configuration sensible.</strong> Les sorties génériques sont actives-BAS et le moteur actif-HAUT. Toute modification exige une validation matérielle et un redémarrage.</div>

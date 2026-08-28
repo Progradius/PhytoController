@@ -12,6 +12,7 @@ import ssl
 import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 from aiohttp import web
 from pydantic import ValidationError
@@ -67,91 +68,237 @@ SENSITIVE_FIELDS = {
     "influx_db_password",
 }
 
-SECTION_FIELDS: dict[str, dict[str, tuple[str, str] | str]] = {
-    "life": {"stage": ("Life_Period", "stage")},
-    "daily-timer-1": {
-        "enabled": ("DailyTimer1_Settings", "enabled"),
-        "start_time": "daily_start",
-        "stop_time": "daily_stop",
-    },
-    "daily-timer-2": {
-        "enabled": ("DailyTimer2_Settings", "enabled"),
-        "start_time": "daily_start",
-        "stop_time": "daily_stop",
-    },
+class FormFieldError(ValueError):
+    """Refus imputable à un champ précis du formulaire.
+
+    Les parseurs du serveur (horaires, entiers, décimaux) refusent avant même
+    d'atteindre Pydantic : sans porter le nom du champ, leur message finissait
+    dans le bandeau global et l'opérateur devait deviner lequel corriger.
+    """
+
+    def __init__(self, field: str, message: str):
+        super().__init__(message)
+        self.field = field
+        self.message = message
+
+
+class FieldSpec(NamedTuple):
+    """Une entrée du registre des champs de configuration.
+
+    `target` est soit la cible `(section JSON, clé)` dans le document
+    `param.json`, soit le nom d'un parseur dédié (`daily_start`, …) pour les
+    champs dont une saisie unique alimente plusieurs clés.
+
+    `label` est le libellé humain, celui-là même affiché par le formulaire :
+    c'est lui qui rend un message de refus lisible sans obliger le lecteur à
+    connaître le nom PascalCase de la clé sous-jacente.
+    """
+
+    target: tuple[str, str] | str
+    label: str
+
+
+# Parseurs dédiés : un `<input type="time">` alimente deux clés `*_hour` /
+# `*_minute`, donc la cible ne peut pas être une simple paire.
+TIME_TARGETS = frozenset({"daily_start", "daily_stop", "day_night_start", "day_night_stop"})
+
+_CYCLIC_LABELS = {
+    "enabled": "Activation",
+    "mode": "Mode de fonctionnement",
+    "period_days": "Période",
+    "triggers_per_day": "Activations par journée",
+    "first_trigger_hour": "Première activation",
+    "action_duration_seconds": "Durée d’activation",
+    "on_time_day": "Jour · durée ON",
+    "off_time_day": "Jour · durée OFF",
+    "on_time_night": "Nuit · durée ON",
+    "off_time_night": "Nuit · durée OFF",
+}
+
+_TEMPERATURE_LABELS = {
+    "target_temp_min_day": "Jour · minimum",
+    "target_temp_max_day": "Jour · maximum",
+    "target_temp_min_night": "Nuit · minimum",
+    "target_temp_max_night": "Nuit · maximum",
+    "hysteresis_offset": "Hystérésis chauffage",
+    "vent_deadband": "Zone morte",
+    "vent_step": "Largeur d’un palier",
+    "vent_release": "Relâchement de palier",
+    "absolute_floor_temp": "Plancher absolu",
+    "min_dwell_seconds": "Maintien minimal",
+}
+
+_MOTOR_LABELS = {
+    "motor_mode": "Mode moteur",
+    "motor_user_speed": "Vitesse manuelle",
+    "min_speed": "Vitesse minimale",
+    "max_speed": "Vitesse maximale",
+    "sensor_fallback_speed": "Vitesse de repli capteur",
+    "winter_default_speed": "Vitesse par défaut",
+    "winter_temp_margin": "Marge basse",
+    "winter_refresh_speed": "Vitesse de renouvellement",
+    "winter_refresh_minutes_per_hour": "Renouvellement par heure",
+    "winter_humidity_threshold": "Seuil d’humidité",
+    "winter_humidity_minutes_per_hour": "Déshumidification par heure",
+}
+
+_SENSOR_LABELS = {
+    "bme280_state": "BME280 · air",
+    "ds18b20_state": "DS18B20 · sondes",
+    "veml6075_state": "VEML6075 · UV",
+    "vl53L0x_state": "VL53L0X · distance laser",
+    "mlx90614_state": "MLX90614 · infrarouge",
+    "tsl2591_state": "TSL2591 · lumière",
+    "hcsr04_state": "HC-SR04 · distance ultrason",
+}
+
+_INFLUX_LABELS = {
+    "host_machine_state": "Export InfluxDB",
+    "host_machine_address": "Serveur",
+    "influx_db_port": "Port",
+    "influx_db_name": "Base de données",
+    "influx_db_user": "Nouvel utilisateur",
+    "influx_db_password": "Nouveau mot de passe",
+}
+
+_EQUIPMENT_LABELS = {
+    "display_name": "Nom affiché",
+    "usage_type": "Usage",
+    "zone": "Zone",
+    "icon": "Icône",
+    "wiring_note": "Note de câblage",
+    "dashboard_visible": "Visible sur le tableau de bord",
+    "out_of_service": "Défaut matériel connu",
+}
+
+
+def _timer_section(number: int) -> dict[str, FieldSpec]:
+    return {
+        "enabled": FieldSpec((f"DailyTimer{number}_Settings", "enabled"), "Activation"),
+        "start_time": FieldSpec("daily_start", "Début"),
+        "stop_time": FieldSpec("daily_stop", "Fin"),
+    }
+
+
+def _mapped_section(top: str, labels: dict[str, str]) -> dict[str, FieldSpec]:
+    return {name: FieldSpec((top, name), label) for name, label in labels.items()}
+
+
+SECTION_FIELDS: dict[str, dict[str, FieldSpec]] = {
+    "life": {"stage": FieldSpec(("Life_Period", "stage"), "Stade actuel")},
+    "daily-timer-1": _timer_section(1),
+    "daily-timer-2": _timer_section(2),
     "day-night": {
-        "source": ("Day_Night_Settings", "source"),
-        "start_time": "day_night_start",
-        "stop_time": "day_night_stop",
+        "source": FieldSpec(("Day_Night_Settings", "source"), "Source"),
+        "start_time": FieldSpec("day_night_start", "Début"),
+        "stop_time": FieldSpec("day_night_stop", "Fin"),
     },
-    "cyclic-1": {
-        name: ("Cyclic1_Settings", name)
-        for name in (
-            "enabled", "mode", "period_days", "triggers_per_day",
-            "first_trigger_hour", "action_duration_seconds", "on_time_day",
-            "off_time_day", "on_time_night", "off_time_night",
-        )
-    },
-    "cyclic-2": {
-        name: ("Cyclic2_Settings", name)
-        for name in (
-            "enabled", "mode", "period_days", "triggers_per_day",
-            "first_trigger_hour", "action_duration_seconds", "on_time_day",
-            "off_time_day", "on_time_night", "off_time_night",
-        )
-    },
-    "temperature": {
-        name: ("Temperature_Settings", name)
-        for name in (
-            "target_temp_min_day", "target_temp_max_day",
-            "target_temp_min_night", "target_temp_max_night", "hysteresis_offset",
-            "vent_deadband", "vent_step", "vent_release", "absolute_floor_temp",
-            "min_dwell_seconds",
-        )
-    },
-    "heater": {"enabled": ("Heater_Settings", "enabled")},
-    "motor": {
-        name: ("Motor_Settings", name)
-        for name in (
-            "motor_mode", "motor_user_speed", "min_speed", "max_speed",
-            "sensor_fallback_speed",
-            "winter_default_speed", "winter_temp_margin", "winter_refresh_speed",
-            "winter_refresh_minutes_per_hour", "winter_humidity_threshold",
-            "winter_humidity_minutes_per_hour",
-        )
-    },
-    "sensors": {},
+    "cyclic-1": _mapped_section("Cyclic1_Settings", _CYCLIC_LABELS),
+    "cyclic-2": _mapped_section("Cyclic2_Settings", _CYCLIC_LABELS),
+    "temperature": _mapped_section("Temperature_Settings", _TEMPERATURE_LABELS),
+    "heater": {"enabled": FieldSpec(("Heater_Settings", "enabled"), "Autorisation du chauffage")},
+    "motor": _mapped_section("Motor_Settings", _MOTOR_LABELS),
+    "sensors": _mapped_section("Sensor_State", _SENSOR_LABELS),
     "sensor-quality": {},
     "wifi": {
-        "wifi_ssid": ("Network_Settings", "wifi_ssid"),
-        "wifi_password": ("Network_Settings", "wifi_password"),
+        "wifi_ssid": FieldSpec(("Network_Settings", "wifi_ssid"), "Nom du réseau (SSID)"),
+        "wifi_password": FieldSpec(("Network_Settings", "wifi_password"), "Nouveau mot de passe"),
     },
-    "influx": {
-        name: ("Network_Settings", name)
-        for name in (
-            "host_machine_state", "host_machine_address", "influx_db_port",
-            "influx_db_name", "influx_db_user", "influx_db_password",
-        )
-    },
+    "influx": _mapped_section("Network_Settings", _INFLUX_LABELS),
     "logs": {
-        "level": ("Log_Settings", "level"),
-        "retention_days": ("Log_Settings", "retention_days"),
+        "level": FieldSpec(("Log_Settings", "level"), "Niveau"),
+        "retention_days": FieldSpec(("Log_Settings", "retention_days"), "Rétention"),
     },
     "equipment": {
-        f"{equipment_id}__{field}": "equipment_metadata"
+        f"{equipment_id}__{field}": FieldSpec("equipment_metadata", f"{equipment_id} · {label}")
         for equipment_id in EQUIPMENT_IDS
-        for field in (
-            "display_name", "usage_type", "zone", "icon", "wiring_note",
-            "dashboard_visible", "out_of_service",
-        )
+        for field, label in _EQUIPMENT_LABELS.items()
     },
 }
 
-for _sensor_field in (
-    "bme280_state", "ds18b20_state", "veml6075_state", "vl53L0x_state",
-    "mlx90614_state", "tsl2591_state", "hcsr04_state",
-):
-    SECTION_FIELDS["sensors"][_sensor_field] = ("Sensor_State", _sensor_field)
+
+def _time_target(section: str, target: str) -> tuple[str, str]:
+    """Résout un parseur d'horaire vers `(section JSON, préfixe start|stop)`."""
+    if target.startswith("day_night"):
+        return "Day_Night_Settings", "start" if target.endswith("start") else "stop"
+    top = "DailyTimer1_Settings" if section.endswith("1") else "DailyTimer2_Settings"
+    return top, "start" if target == "daily_start" else "stop"
+
+
+def _build_payload_index() -> dict[str, dict[str, str]]:
+    """Index inverse `« Section_JSON.clé » → champ de formulaire`, par section.
+
+    Il est **dérivé** de `SECTION_FIELDS` et non saisi une seconde fois : c'est
+    ce qui garantit qu'un refus Pydantic, dont la localisation est exprimée en
+    clés PascalCase, retrouve toujours le champ que l'opérateur a réellement
+    saisi.
+    """
+    index: dict[str, dict[str, str]] = {}
+    for section, fields in SECTION_FIELDS.items():
+        mapping: dict[str, str] = {}
+        for field_name, spec in fields.items():
+            target = spec.target
+            if isinstance(target, tuple):
+                mapping[f"{target[0]}.{target[1]}"] = field_name
+            elif target in TIME_TARGETS:
+                top, prefix = _time_target(section, target)
+                mapping[f"{top}.{prefix}_hour"] = field_name
+                mapping[f"{top}.{prefix}_minute"] = field_name
+        index[section] = mapping
+    return index
+
+
+PAYLOAD_INDEX = _build_payload_index()
+
+# Messages Pydantic v2 traduits. Les bornes viennent du `ctx` de l'erreur : une
+# phrase qui répète la limite refusée évite l'aller-retour vers la documentation.
+PYDANTIC_MESSAGES: dict[str, str] = {
+    "missing": "Ce champ est obligatoire.",
+    "int_parsing": "Saisir un nombre entier.",
+    "int_type": "Saisir un nombre entier.",
+    "int_from_float": "Saisir un nombre entier, sans décimale.",
+    "float_parsing": "Saisir un nombre (séparateur décimal : le point).",
+    "float_type": "Saisir un nombre (séparateur décimal : le point).",
+    "finite_number": "Saisir un nombre fini.",
+    "bool_parsing": "Choisir « activé » ou « désactivé ».",
+    "string_type": "Saisir du texte.",
+    "string_too_short": "Saisir au moins {min_length} caractère(s).",
+    "string_too_long": "Ne pas dépasser {max_length} caractères.",
+    "string_pattern_mismatch": "Le format attendu n’est pas respecté.",
+    "greater_than": "Saisir une valeur strictement supérieure à {gt}.",
+    "greater_than_equal": "Saisir une valeur supérieure ou égale à {ge}.",
+    "less_than": "Saisir une valeur strictement inférieure à {lt}.",
+    "less_than_equal": "Saisir une valeur inférieure ou égale à {le}.",
+    "multiple_of": "Saisir un multiple de {multiple_of}.",
+    "literal_error": "Choisir une des valeurs proposées.",
+    "enum": "Choisir une des valeurs proposées.",
+    "extra_forbidden": "Ce champ n’est pas accepté ici.",
+}
+
+# Contraintes croisées : un validateur de modèle refuse la *section* entière,
+# donc Pydantic ne désigne aucun champ. Sans cette table, l'opérateur reçoit une
+# erreur globale et doit deviner lequel des deux champs corriger.
+CROSS_CONSTRAINTS: dict[str, tuple[tuple[str, tuple[str, ...], str], ...]] = {
+    "Temperature_Settings": (
+        (
+            "minimale de jour",
+            ("target_temp_min_day", "target_temp_max_day"),
+            "Le minimum de jour doit rester sous le maximum de jour.",
+        ),
+        (
+            "minimale de nuit",
+            ("target_temp_min_night", "target_temp_max_night"),
+            "Le minimum de nuit doit rester sous le maximum de nuit.",
+        ),
+    ),
+    "Motor_Settings": (
+        (
+            "vitesse minimale",
+            ("min_speed", "max_speed"),
+            "La vitesse minimale doit rester sous la vitesse maximale.",
+        ),
+    ),
+}
 
 RELOAD_JOBS = {
     "daily-timer-1": ("daily_timer_1",),
@@ -490,6 +637,54 @@ class Server:
             discovered_ds18=getattr(self.sensor_handler, "discovered_ds18_ids", lambda: [])(),
         ))
 
+    def _conf_refusal(
+        self,
+        section: str,
+        errors: dict[str, str],
+        *,
+        scope: str | None = None,
+        values: dict[str, str] | None = None,
+        status: int = 422,
+    ) -> web.Response:
+        """Rend `/conf` après un refus, **avec la saisie de l'opérateur**.
+
+        Point unique de sortie des quatre chemins de refus : re-rendre la
+        configuration enregistrée au lieu du POST faisait perdre toute la
+        section à la moindre valeur fautive. Les erreurs rattachables à un champ
+        sont rendues sous ce champ ; les autres restent dans le bandeau.
+        """
+        scope = scope or section
+        known = SECTION_FIELDS.get(section, {})
+        field_errors = {name: message for name, message in errors.items() if name in known}
+        banner = {name: message for name, message in errors.items() if name not in known}
+        return self._html(conf_page(
+            self.config,
+            self.csrf_token,
+            equipment=self.equipment_store.current,
+            alarm_summary=self._operator_snapshot()["alarms"],
+            errors=banner,
+            field_errors={scope: field_errors} if field_errors else {},
+            form_values={scope: values} if values else {},
+            active_section=section,
+            sensor_snapshot=self.sensor_handler.snapshot(),
+            discovered_ds18=getattr(self.sensor_handler, "discovered_ds18_ids", lambda: [])(),
+        ), status=status)
+
+    @staticmethod
+    def _submitted_values(section: str, form) -> dict[str, str]:
+        """Saisie à réafficher : champs connus de la section, secrets exclus.
+
+        Un secret n'est jamais réémis, même refusé — il repartirait dans le HTML
+        d'une interface sans authentification. Le champ se re-rend vide, ce que
+        l'aide du formulaire décrit déjà comme « laisser vide pour conserver ».
+        """
+        values: dict[str, str] = {}
+        for name in SECTION_FIELDS.get(section, {}):
+            if name in SENSITIVE_FIELDS or name not in form:
+                continue
+            values[name] = str(form[name])
+        return values
+
     async def _configuration_post(self, request: web.Request) -> web.Response:
         section = request.match_info["section"]
         if section not in SECTION_FIELDS:
@@ -497,16 +692,13 @@ class Server:
         form = request["form_data"]
         if section == "sensor-quality":
             return await self._sensor_quality_configuration_post(form)
+        submitted = self._submitted_values(section, form)
         errors = self._validate_form_shape(section, form)
         if errors:
-            return self._html(conf_page(
-                self.config, self.csrf_token, equipment=self.equipment_store.current,
-                alarm_summary=self._operator_snapshot()["alarms"],
-                errors=errors, active_section=section,
-            ), status=422)
+            return self._conf_refusal(section, errors, values=submitted)
 
         if section == "equipment":
-            return await self._equipment_configuration_post(form)
+            return await self._equipment_configuration_post(form, submitted)
 
         payload = self.config.model_dump(by_alias=True)
         changed_fields: list[str] = []
@@ -514,12 +706,9 @@ class Server:
             self._apply_section_to_payload(section, form, payload, changed_fields)
             candidate = self.config.__class__.model_validate(payload)
         except (ValidationError, ValueError) as exc:
-            errors = self._format_validation_errors(exc)
-            return self._html(conf_page(
-                self.config, self.csrf_token, equipment=self.equipment_store.current,
-                alarm_summary=self._operator_snapshot()["alarms"],
-                errors=errors, active_section=section,
-            ), status=422)
+            return self._conf_refusal(
+                section, self._format_validation_errors(exc, section), values=submitted,
+            )
 
         try:
             # Le magasin revalide, sauvegarde l'ancien contenu en `.bak`, écrit
@@ -527,14 +716,12 @@ class Server:
             # celle que tient déjà `self.config` (audit C5, M4).
             self.config_store.save(candidate)
         except OSError:
-            return self._html(conf_page(
-                self.config,
-                self.csrf_token,
-                alarm_summary=self._operator_snapshot()["alarms"],
-                equipment=self.equipment_store.current,
-                errors={"__all__": "Écriture impossible : la configuration active est inchangée."},
-                active_section=section,
-            ), status=500)
+            return self._conf_refusal(
+                section,
+                {"__all__": "Écriture impossible : la configuration active est inchangée."},
+                values=submitted,
+                status=500,
+            )
         await self._apply_runtime_changes(section)
         if changed_fields:
             safe_names = [f"{name} modifié" if name in SENSITIVE_FIELDS else name for name in changed_fields]
@@ -555,26 +742,22 @@ class Server:
 
     def _apply_section_to_payload(self, section: str, form, payload: dict, changed: list[str]) -> None:
         section_fields = SECTION_FIELDS[section]
-        for field_name, target in section_fields.items():
+        for field_name, spec in section_fields.items():
             if field_name not in form:
                 continue
+            target = spec.target
             raw = str(form[field_name])
             if field_name in SENSITIVE_FIELDS and raw == "":
                 continue
-            if target in {"daily_start", "daily_stop", "day_night_start", "day_night_stop"}:
+            if target in TIME_TARGETS:
                 # `<input type="time">` renvoie « HH:MM », mais certains
                 # navigateurs ajoutent les secondes : elles sont ignorées.
                 try:
                     parts = raw.split(":")
                     hour, minute = int(parts[0]), int(parts[1])
                 except (IndexError, ValueError, TypeError):
-                    raise ValueError(f"Horaire invalide pour {field_name}")
-                if target.startswith("day_night"):
-                    top = "Day_Night_Settings"
-                    prefix = "start" if target.endswith("start") else "stop"
-                else:
-                    top = "DailyTimer1_Settings" if section.endswith("1") else "DailyTimer2_Settings"
-                    prefix = "start" if target == "daily_start" else "stop"
+                    raise FormFieldError(field_name, "Saisir un horaire au format HH:MM.")
+                top, prefix = _time_target(section, target)
                 if payload[top][f"{prefix}_hour"] != hour or payload[top][f"{prefix}_minute"] != minute:
                     changed.append(field_name)
                 payload[top][f"{prefix}_hour"] = hour
@@ -582,20 +765,30 @@ class Server:
                 continue
             top, nested = target
             current = payload[top].get(nested)
-            if isinstance(current, bool):
-                value = raw.lower() in {"enabled", "true", "1", "yes"}
-            elif isinstance(current, int):
-                value = int(raw)
-            elif isinstance(current, float):
-                value = float(raw)
-            else:
-                value = raw
+            try:
+                if isinstance(current, bool):
+                    value = raw.lower() in {"enabled", "true", "1", "yes"}
+                elif isinstance(current, int):
+                    value = int(raw)
+                elif isinstance(current, float):
+                    value = float(raw)
+                else:
+                    value = raw
+            except ValueError:
+                # Le refus vient du typage du formulaire, pas du modèle : sans
+                # ce rattachement, il ressortait en message anglais de CPython
+                # dans le bandeau global.
+                raise FormFieldError(
+                    field_name,
+                    PYDANTIC_MESSAGES["int_parsing" if isinstance(current, int) else "float_parsing"],
+                )
             if current != value:
                 changed.append(field_name)
             payload[top][nested] = value
 
-    async def _equipment_configuration_post(self, form) -> web.Response:
+    async def _equipment_configuration_post(self, form, submitted: dict[str, str]) -> web.Response:
         candidate = {}
+        equipment_id = ""
         try:
             for equipment_id in EQUIPMENT_IDS:
                 prefix = f"{equipment_id}__"
@@ -609,13 +802,25 @@ class Server:
                     "out_of_service": str(form[prefix + "out_of_service"]).lower() == "true",
                 })
             self.equipment_store.save(candidate)
-        except (KeyError, ValueError, ValidationError, OSError) as exc:
-            return self._html(conf_page(
-                self.config, self.csrf_token, equipment=self.equipment_store.current,
-                alarm_summary=self._operator_snapshot()["alarms"],
-                errors={"__all__": f"Métadonnées refusées : {exc}"},
-                active_section="equipment",
-            ), status=422 if not isinstance(exc, OSError) else 500)
+        except OSError:
+            return self._conf_refusal(
+                "equipment",
+                {"__all__": "Écriture impossible : les métadonnées sont inchangées."},
+                values=submitted,
+                status=500,
+            )
+        except KeyError as exc:
+            return self._conf_refusal(
+                "equipment", {str(exc.args[0]): "Ce champ est obligatoire."}, values=submitted,
+            )
+        except (ValueError, ValidationError) as exc:
+            # La validation se fait équipement par équipement : le préfixe manque
+            # à la localisation Pydantic, on le rétablit ici.
+            errors = {
+                f"{equipment_id}__{name}" if name != "__all__" else "__all__": message
+                for name, message in self._format_validation_errors(exc, None).items()
+            }
+            return self._conf_refusal("equipment", errors, values=submitted)
         info("Métadonnées des équipements sauvegardées", name=LOGGER_NAME)
         raise web.HTTPSeeOther(location="/conf?success=equipment#equipment")
 
@@ -628,6 +833,7 @@ class Server:
         action = str(form.get("sensor_key", ""))
         reset_key = None
         reset_stats_key = None
+        allowed: set[str] = set()
         try:
             common = {"csrf_token", "sensor_key"}
             allowed = (
@@ -696,14 +902,26 @@ class Server:
             candidate = self.config.__class__.model_validate(payload)
             self.config_store.save(candidate)
         except (ValidationError, ValueError, OSError, KeyError) as exc:
-            return self._html(conf_page(
-                self.config, self.csrf_token, equipment=self.equipment_store.current,
-                alarm_summary=self._operator_snapshot()["alarms"],
-                errors={"__all__": f"Qualité capteur refusée : {exc}"},
-                active_section="sensor-quality",
-                sensor_snapshot=self.sensor_handler.snapshot(),
-                discovered_ds18=getattr(self.sensor_handler, "discovered_ds18_ids", lambda: [])(),
-            ), status=422 if not isinstance(exc, OSError) else 500)
+            if isinstance(exc, OSError):
+                message = "Écriture impossible : la configuration active est inchangée."
+            else:
+                message = "Qualité capteur refusée : " + " ; ".join(
+                    self._format_validation_errors(exc, None).values()
+                )
+            # La portée est la sous-fiche réellement soumise : les noms de champs
+            # (`offset`, `plausible_min`, …) sont identiques d'un capteur à
+            # l'autre, une portée unique replacerait la saisie sur toutes.
+            return self._conf_refusal(
+                "sensor-quality",
+                {"__all__": message},
+                scope=f"sensor-quality:{action}",
+                values={
+                    key: str(form[key])
+                    for key in sorted(set(form) & allowed)
+                    if key not in {"csrf_token", "sensor_key"}
+                },
+                status=500 if isinstance(exc, OSError) else 422,
+            )
         if reset_key and hasattr(self.sensor_handler, "reset_quality"):
             self.sensor_handler.reset_quality(reset_key)
         if reset_stats_key in self.stats.KEYS:
@@ -717,14 +935,63 @@ class Server:
         raise web.HTTPSeeOther(location="/conf?success=sensor-quality#sensor-quality")
 
     @staticmethod
-    def _format_validation_errors(exc: Exception) -> dict[str, str]:
-        if isinstance(exc, ValidationError):
-            errors = {}
-            for item in exc.errors(include_url=False):
-                loc = ".".join(str(part) for part in item.get("loc", ()))
-                errors[loc or "__all__"] = item.get("msg", "Valeur invalide")
-            return errors
-        return {"__all__": str(exc)}
+    def _humanize(item: dict) -> str:
+        """Traduit un refus Pydantic en une phrase actionnable.
+
+        Les messages natifs sont anglais et décrivent le *modèle* (« Input should
+        be less than or equal to 60 »), pas le geste à faire. Les bornes sont
+        réinjectées depuis le `ctx` de l'erreur pour que la phrase porte la
+        limite réellement dépassée.
+        """
+        kind = str(item.get("type", ""))
+        if kind == "value_error":
+            # Message métier des validateurs de `param/config.py` : déjà français.
+            raw = str(item.get("msg", "Valeur invalide"))
+            message = raw.split("Value error, ", 1)[-1].strip()
+            return (message[:1].upper() + message[1:] + ".") if message else "Valeur invalide."
+        template = PYDANTIC_MESSAGES.get(kind)
+        if template is None:
+            return "Valeur refusée."
+        try:
+            return template.format(**(item.get("ctx") or {}))
+        except (KeyError, IndexError, ValueError):
+            return template
+
+    @classmethod
+    def _format_validation_errors(cls, exc: Exception, section: str | None) -> dict[str, str]:
+        """Localise chaque refus sur le champ que l'opérateur a saisi.
+
+        Trois cas : un refus de champ imbriqué (`Section_JSON.clé`) retrouve son
+        champ par l'index inverse du registre ; un refus de validateur de modèle
+        ne désigne que la section et se rattache aux deux champs de la contrainte
+        croisée ; le reste reste global.
+        """
+        if isinstance(exc, FormFieldError):
+            return {exc.field: exc.message}
+        if not isinstance(exc, ValidationError):
+            return {"__all__": str(exc)}
+        index = PAYLOAD_INDEX.get(section or "", {})
+        known = SECTION_FIELDS.get(section or "", {})
+        errors: dict[str, str] = {}
+        for item in exc.errors(include_url=False):
+            loc = tuple(str(part) for part in item.get("loc", ()))
+            message = cls._humanize(item)
+            targets: tuple[str, ...] = ()
+            if len(loc) >= 2:
+                field = index.get(f"{loc[0]}.{loc[1]}")
+                targets = (field,) if field else ()
+            elif len(loc) == 1:
+                for marker, fields, explanation in CROSS_CONSTRAINTS.get(loc[0], ()):
+                    if marker in str(item.get("msg", "")):
+                        targets = tuple(name for name in fields if name in known)
+                        message = explanation
+                        break
+            if targets:
+                for name in targets:
+                    errors.setdefault(name, message)
+            else:
+                errors.setdefault(".".join(loc) or "__all__", message)
+        return errors
 
     async def _apply_runtime_changes(self, section: str) -> None:
         if section == "logs":

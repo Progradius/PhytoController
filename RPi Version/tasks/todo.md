@@ -1,7 +1,9 @@
 # TODO — Déploiement et armement de la qualité des capteurs
 
-**État** : code implémenté et vérifié hors matériel ; non déployé, non qualifié électriquement et
-mode `Sensor_Quality.mode = observe` à conserver jusqu'à validation complète.
+**État** : lot redéployé au commit `b26d2b1`, pré-monitoring validé et nouvelle observation 48 h en
+cours depuis le 28 août 2026 à 18:59:28 UTC. Première preuve invalidée proprement interrompue et
+archivée. Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à
+validation complète.
 
 Références :
 
@@ -12,12 +14,12 @@ Références :
 
 ## 1. Déployer sans armer
 
-- [ ] Commiter puis déployer la version avec `Sensor_Quality.mode = observe` ; ne pas saisir
+- [x] Commiter puis déployer la version avec `Sensor_Quality.mode = observe` ; ne pas saisir
       `ARMER` pendant ce premier déploiement
-- [ ] Vérifier après déploiement : `phyto.service` actif, `/health/live` et `/health/ready` à 200,
+- [x] Vérifier après déploiement : `phyto.service` actif, `/health/live` et `/health/ready` à 200,
       `control_healthy=true`, commit attendu, aucun redémarrage ou blocage de tâche et aucune alarme
       critique nouvelle
-- [ ] Vérifier dans `/api/v1/state` que `schema_version=2`, que chaque capteur actif publie
+- [x] Vérifier dans `/api/v1/state` que `schema_version=2`, que chaque capteur actif publie
       `status`, `reason_codes`, `raw_value`, `observed_value`, `value`, `control_usable`, les compteurs
       et les seuils effectifs, sans secret ni valeur inventée
 - [ ] Confirmer physiquement que le déploiement en observation n'a modifié aucune sortie et relever
@@ -25,8 +27,19 @@ Références :
 
 ## 2. Observer une période représentative
 
-- [ ] Lancer `scripts/observe-jalon2-operator-quality.sh` pendant 48 h et conserver son répertoire de
-      preuve ; n'accepter automatiquement la fenêtre que si `summary.json.status=accepted`
+- [x] Lancer `scripts/observe-jalon2-operator-quality.sh` pendant 48 h au commit `5520850`. Début :
+      `2026-08-28T18:07:22Z` ; fin attendue : `2026-08-30T18:07:22Z` ; PID observateur initial :
+      `381479` ; PID service de référence : `381022` ; répertoire de preuve :
+      `~/phyto-observations/jalon2-operateur-qualite-20260828T180722Z`
+- [x] Au prochain redéploiement, arrêter proprement le PID observateur vérifié avec `SIGTERM`, attendre
+      son `summary.json` interrompu, redéployer et valider le service, puis nettoyer ou archiver
+      uniquement le répertoire invalidé ci-dessus
+- [x] Après ces contrôles, relancer une nouvelle observation de 172 800 s : début
+      `2026-08-28T18:59:28Z`, fin attendue `2026-08-30T18:59:28Z`, PID observateur initial `388349`,
+      PID service de référence `387866`, commit `b26d2b1`, preuves sous
+      `~/phyto-observations/jalon2-operateur-qualite-20260828T185928Z`
+- [ ] À la fin de cette nouvelle fenêtre, ne l'accepter que si `status=accepted`, durée réelle d'au
+      moins 172 800 s, zéro échantillon en échec et examen explicite de tout avertissement
 - [ ] Laisser fonctionner le système en mode `observe` pendant plusieurs cycles jour/nuit et une
       durée représentative des périodes naturellement stables de la serre
 - [ ] Relever pour chaque mesure les statuts, `unchanged_for_s`, échecs consécutifs, incohérences,
@@ -353,7 +366,9 @@ harnais `/tmp/claude-1000/phyto/test_fixes.py`, **21 contrôles, aucun échec**)
 
 # TODO — Qualification opérationnelle de la PWA locale
 
-**État : code implémenté et vérifié statiquement, non déployé et non qualifié sur Chrome Android.**
+**État : code et HTTPS `:443` déployés ; transport TLS vérifié le 28 août 2026, qualification complète
+sur Chrome Android et essais de dégradation encore ouverts.** Relevé :
+[`docs/operations/pwa-tls-activation-2026-08-28.md`](../docs/operations/pwa-tls-activation-2026-08-28.md).
 
 Procédure de référence : [`docs/operations/pwa-local-tls.md`](../docs/operations/pwa-local-tls.md).
 HTTP `:8123` doit rester la voie de compatibilité et de récupération pendant toute la qualification.
@@ -363,18 +378,18 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 
 - [ ] Créer l'autorité privée sur le poste d'administration, dans un emplacement protégé situé hors
       du dépôt ; conserver et sauvegarder `phyto-root-ca.key` hors du Raspberry Pi et d'Android
-- [ ] Générer le certificat serveur avec `deploy/pwa-tls-server.ext`, puis vérifier sa chaîne, son
+- [x] Générer le certificat serveur avec `deploy/pwa-tls-server.ext`, puis vérifier sa chaîne, son
       échéance, l'usage `TLS Web Server Authentication` et les SAN `phytocontroller.local`,
       `phytocontroller` et `10.42.0.1`
-- [ ] Comparer et consigner l'empreinte SHA-256 de `phyto-root-ca.crt` avant toute distribution
-- [ ] Installer sur le Pi uniquement `server.crt`, `server.key` et le certificat public de la racine,
+- [x] Comparer et consigner l'empreinte SHA-256 de `phyto-root-ca.crt` avant toute distribution
+- [x] Installer sur le Pi uniquement `server.crt`, `server.key` et le certificat public de la racine,
       avec les propriétaires et modes documentés ; confirmer que la clé privée est lisible par
       `progradius` mais pas par les autres utilisateurs
 - [ ] Installer le drop-in `deploy/phyto.service.d/pwa-tls.conf`, exécuter `daemon-reload`, puis
       planifier le redémarrage comme une opération de production avec vérification des états GPIO sûrs
-- [ ] Vérifier que `:8123` et `:443` écoutent simultanément, que `/health/ready` répond sur HTTP et que
+- [x] Vérifier que `:8123` et `:443` écoutent simultanément, que `/health/ready` répond sur HTTP et que
       `/health/live` répond en HTTPS avec validation complète de la chaîne et du nom d'hôte
-- [ ] Vérifier dans `/api/v1/state` que `web.https.configured=true`, `ready=true` et `port=443`, sans
+- [x] Vérifier dans `/api/v1/state` que `web.https.configured=true`, `ready=true` et `port=443`, sans
       exposition des chemins de clé ou de certificat
 - [ ] Simuler un échec TLS contrôlé pendant une fenêtre prévue et confirmer que HTTP `:8123`, la
       régulation, `control_healthy()` et le watchdog restent sains, avec `web.https.ready=false`
@@ -465,3 +480,63 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 - [ ] La clé `phyto-root-ca.key` est absente du Pi, d'Android, de Git et des sauvegardes applicatives
 - [ ] Les risques `R-WEB-05` et `R-WEB-06` de `docs/risk-register.md` sont réévalués avec les preuves de
       qualification avant de déclarer la PWA déployée et vérifiée
+
+---
+
+# TODO — Jalon 3 « Configuration guidée » (plan `qol_operator_experience_plan.md`)
+
+**Arbitrages opérateur du 28 août 2026**
+
+- Profil thermique du mode Simple : **aligné sur la configuration déployée**, pas sur la proposition
+  du plan — hystérésis 2 °C, zone morte 1 °C, palier 1 °C, relâchement 0,5 °C, maintien 120 s,
+  plancher 5 °C, repli capteur 0, marge hiver 2 °C, budgets renouvellement 5 min/h et humidité
+  15 min/h, vitesse minimale 0, vitesse hiver par défaut 1. Passer en mode Simple ne modifie donc
+  aucun réglage fin tant que l'opérateur ne touche pas aux champs exposés.
+- Intensité douce / normale / forte : **mapping du plan conservé** (2/2, 3/3, 4/4 pour
+  `max_speed` / `winter_refresh_speed`). Rappel consigné : les vitesses moteur 1 et 3 sont hors
+  service côté puissance, « normale » commande donc une vitesse morte tant que la panne dure.
+- Livraison en **trois commits** déployables et retirables séparément.
+
+## Commit 1 — 3a formulaire sans perte + 3b registre central des champs
+
+- [x] Étendre `SECTION_FIELDS` en registre : chaque entrée porte sa cible de configuration **et**
+      son libellé humain ; supprimer les listes de noms dupliquées
+- [x] Construire l'index inverse `payload → champ de formulaire` à partir du même registre
+      (horaires compris : `*_hour` / `*_minute` → `start_time` / `stop_time`)
+- [x] Humaniser les messages Pydantic (table type → phrase française, bornes injectées depuis `ctx`)
+- [x] Rattacher les contraintes croisées aux deux champs concernés (min/max jour, min/max nuit,
+      vitesse min/max) au lieu d'une erreur globale
+- [x] Re-rendre la saisie du POST sur 422 (multidict), secrets jamais réémis, portée par formulaire
+      (`sensor-quality` porté par sa clé capteur)
+- [x] Afficher l'erreur sous le champ (`aria-describedby`, `aria-invalid`), bandeau global réservé
+      aux erreurs non rattachables
+- [x] Focus sur le premier champ refusé ; un champ numérique refusé se re-rend en texte pour que la
+      valeur rejetée reste visible et corrigeable
+- [x] Factoriser les quatre réponses 422/500 de `_configuration_post` en un seul point
+- [x] Tests : saisie conservée, secret absent du HTML, contrainte croisée rattachée, message humanisé
+
+## Commit 2 — 3c prévisualisation serveur
+
+- [ ] `POST /api/v1/config/preview` : mêmes parseurs, candidat Pydantic complet, aucune écriture
+- [ ] Garde d'in-flight (un preview à la fois) + intervalle minimum, corps jamais journalisé,
+      aucun champ sensible en réponse, jeton en en-tête `X-CSRF-Token`
+- [ ] Réponse portant le **seuil de ventilation effectif** reconstruit par `settings_from_config`
+      (jour et nuit), l'indicateur « seuil relevé » et les écarts détectés
+- [ ] IHM : encart de prévisualisation par section, aucune formule thermique dupliquée en JavaScript
+
+## Commit 3 — 3d mode Simple, dirty-check et flash
+
+- [ ] Sélecteur Simple / Avancé, simple par défaut, choix mémorisé en `localStorage`
+- [ ] Section Simple : planning jour/nuit, min/max jour et nuit, humidité max, intensité, saison,
+      chauffage, plannings ; profil et mapping ci-dessus
+- [ ] Un `motor_mode` manuel existant exige un choix explicite avant toute écriture
+- [ ] Le mode Simple ne s'affiche que si la prévisualisation répond
+- [ ] Dirty-check sur écarts réels, bouton d'annulation, `beforeunload`
+- [ ] Flash opaque côté serveur après succès : champs modifiés, heure, mode d'application
+
+## Vérification (identique pour les trois commits)
+
+- [ ] `python -m pyflakes` sur tout l'arbre — 0 « undefined name » (leçon du 26 août 2026)
+- [ ] `python3 -m pytest` vert, sortie conservée dans un fichier temporaire
+- [ ] Aucun secret dans le HTML rendu ni dans les journaux
+- [ ] `diff -u CLAUDE.md AGENTS.md` vide si l'un des deux change

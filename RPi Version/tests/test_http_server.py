@@ -470,3 +470,99 @@ async def test_erreurs_html_texte_redirection_et_allow(web_context):
     method = await client.get("/actions/system/reboot", headers={"Accept": "text/html"})
     assert method.status == 405
     assert "Allow" in method.headers
+
+
+async def test_saisie_refusee_est_reaffichee_sans_secret(web_context):
+    """Un refus ne doit pas obliger à ressaisir la section (jalon 3, 3a)."""
+    client, *_ = web_context
+    response = await client.post(
+        "/conf/influx",
+        data={
+            "csrf_token": CSRF_TOKEN,
+            "host_machine_state": "online",
+            "host_machine_address": "10.0.0.9",
+            "influx_db_port": "pas-un-port",
+            "influx_db_name": "serre",
+            "influx_db_user": "operateur",
+            "influx_db_password": "secret-refuse",
+        },
+    )
+    assert response.status == 422
+    body = await response.text()
+    # La saisie ordinaire revient…
+    assert 'value="10.0.0.9"' in body
+    assert 'value="serre"' in body
+    assert 'value="pas-un-port"' in body
+    # …mais jamais un secret, refusé ou non.
+    assert "secret-refuse" not in body
+    assert "operateur" not in body
+
+
+async def test_contrainte_croisee_est_rattachee_aux_deux_champs(web_context):
+    client, *_ = web_context
+    response = await client.post(
+        "/conf/temperature",
+        data={
+            "csrf_token": CSRF_TOKEN,
+            "target_temp_min_day": "30",
+            "target_temp_max_day": "10",
+            "vent_step": "3.5",
+        },
+    )
+    assert response.status == 422
+    body = await response.text()
+    assert 'aria-describedby="target_temp_min_day-error"' in body
+    assert 'aria-describedby="target_temp_max_day-error"' in body
+    assert "Le minimum de jour doit rester sous le maximum de jour." in body
+    # Le reste de la section conserve sa saisie.
+    assert 'value="3.5"' in body
+
+
+async def test_message_pydantic_est_humanise_et_localise(web_context):
+    client, *_ = web_context
+    response = await client.post(
+        "/conf/daily-timer-1",
+        data={"csrf_token": CSRF_TOKEN, "start_time": "25:00"},
+    )
+    assert response.status == 422
+    body = await response.text()
+    assert 'id="daily-1-start-error"' in body
+    assert "Saisir une valeur inférieure ou égale à 23." in body
+    assert "Input should be less than or equal to" not in body
+
+
+async def test_valeur_non_numerique_reste_visible_et_expliquee(web_context):
+    client, *_ = web_context
+    response = await client.post(
+        "/conf/temperature",
+        data={"csrf_token": CSRF_TOKEN, "hysteresis_offset": "abc"},
+    )
+    assert response.status == 422
+    body = await response.text()
+    assert 'value="abc"' in body
+    assert "Saisir un nombre (séparateur décimal : le point)." in body
+
+
+async def test_champ_inattendu_ne_perd_pas_la_saisie_valide(web_context):
+    client, *_ = web_context
+    response = await client.post(
+        "/conf/life",
+        data={"csrf_token": CSRF_TOKEN, "stage": "floraison", "inconnu": "1"},
+    )
+    assert response.status == 422
+    body = await response.text()
+    assert 'value="floraison"' in body
+
+
+async def test_registre_de_champs_couvre_chaque_section(web_context):
+    """`SECTION_FIELDS` reste l'unique source des cibles et des libellés."""
+    for section, fields in server_module.SECTION_FIELDS.items():
+        for name, spec in fields.items():
+            assert spec.label, f"{section}.{name} sans libellé"
+            assert isinstance(spec.target, tuple) or spec.target in (
+                server_module.TIME_TARGETS | {"equipment_metadata"}
+            )
+    index = server_module.PAYLOAD_INDEX
+    assert index["daily-timer-2"]["DailyTimer2_Settings.start_hour"] == "start_time"
+    assert index["day-night"]["Day_Night_Settings.stop_minute"] == "stop_time"
+    assert index["motor"]["Motor_Settings.max_speed"] == "max_speed"
