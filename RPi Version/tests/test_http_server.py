@@ -566,3 +566,103 @@ async def test_registre_de_champs_couvre_chaque_section(web_context):
     assert index["daily-timer-2"]["DailyTimer2_Settings.start_hour"] == "start_time"
     assert index["day-night"]["Day_Night_Settings.stop_minute"] == "stop_time"
     assert index["motor"]["Motor_Settings.max_speed"] == "max_speed"
+
+
+async def test_previsualisation_montre_le_seuil_de_ventilation_effectif(web_context):
+    """Le seuil relevé par la zone morte doit être visible avant la sauvegarde."""
+    client, _server, store, *_ = web_context
+    before = store.path.read_bytes()
+    response = await client.post(
+        "/api/v1/config/preview",
+        json={
+            "section": "temperature",
+            "fields": {"target_temp_max_day": "21", "hysteresis_offset": "2", "vent_deadband": "1"},
+        },
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    assert response.status == 200
+    payload = await response.json()
+    assert payload["valid"] is True
+    assert payload["climate_relevant"] is True
+    day = payload["climate"]["phases"]["day"]
+    # 20 (min) + 2 (hystérésis) + 1 (zone morte) = 23 : au-dessus du maximum saisi.
+    assert day["vent_threshold"] == 23.0
+    assert day["vent_threshold_raised"] is True
+    assert day["temp_max"] == 21.0
+    assert [rung["starts_at"] for rung in day["vent_ladder"]] == [23.0, 24.0, 25.0, 26.0]
+    # Aucune écriture.
+    assert store.path.read_bytes() == before
+
+
+async def test_previsualisation_liste_les_ecarts_et_refuse_sans_ecrire(web_context):
+    client, server, store, *_ = web_context
+    before = store.path.read_bytes()
+    response = await client.post(
+        "/api/v1/config/preview",
+        json={"section": "temperature", "fields": {"hysteresis_offset": "3.5"}},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    payload = await response.json()
+    assert payload["changes"] == [
+        {"field": "hysteresis_offset", "label": "Hystérésis chauffage",
+         "secret": False, "from": 1.0, "to": 3.5}
+    ]
+
+    server._preview_last_at = 0.0
+    response = await client.post(
+        "/api/v1/config/preview",
+        json={"section": "temperature", "fields": {"target_temp_min_day": "30",
+                                                   "target_temp_max_day": "10"}},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    payload = await response.json()
+    assert payload["valid"] is False
+    assert payload["climate"] is None
+    assert "target_temp_min_day" in payload["errors"]
+    assert store.path.read_bytes() == before
+
+
+async def test_previsualisation_ne_renvoie_jamais_un_secret(web_context):
+    client, *_ = web_context
+    response = await client.post(
+        "/api/v1/config/preview",
+        json={"section": "wifi", "fields": {"wifi_ssid": "serre", "wifi_password": "motdepasse"}},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    assert response.status == 200
+    body = await response.text()
+    assert "motdepasse" not in body
+    payload = await response.json()
+    assert payload["climate_relevant"] is False
+    secrets = [item for item in payload["changes"] if item["secret"]]
+    assert secrets and all("to" not in item for item in secrets)
+
+
+async def test_previsualisation_est_protegee_et_bornee(web_context):
+    client, server, *_ = web_context
+    # Sans jeton : refusée comme toute mutation.
+    response = await client.post(
+        "/api/v1/config/preview", json={"section": "logs", "fields": {}}
+    )
+    assert response.status == 403
+
+    # Section non projetable sur un candidat complet.
+    response = await client.post(
+        "/api/v1/config/preview",
+        json={"section": "equipment", "fields": {}},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    assert response.status == 400
+
+    # Intervalle minimum : la deuxième requête immédiate est repoussée.
+    server._preview_last_at = 0.0
+    first = await client.post(
+        "/api/v1/config/preview", json={"section": "logs", "fields": {}},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    assert first.status == 200
+    second = await client.post(
+        "/api/v1/config/preview", json={"section": "logs", "fields": {}},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    assert second.status == 429

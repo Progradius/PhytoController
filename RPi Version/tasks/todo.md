@@ -517,12 +517,12 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 
 ## Commit 2 — 3c prévisualisation serveur
 
-- [ ] `POST /api/v1/config/preview` : mêmes parseurs, candidat Pydantic complet, aucune écriture
-- [ ] Garde d'in-flight (un preview à la fois) + intervalle minimum, corps jamais journalisé,
+- [x] `POST /api/v1/config/preview` : mêmes parseurs, candidat Pydantic complet, aucune écriture
+- [x] Garde d'in-flight (un preview à la fois) + intervalle minimum, corps jamais journalisé,
       aucun champ sensible en réponse, jeton en en-tête `X-CSRF-Token`
-- [ ] Réponse portant le **seuil de ventilation effectif** reconstruit par `settings_from_config`
+- [x] Réponse portant le **seuil de ventilation effectif** reconstruit par `settings_from_config`
       (jour et nuit), l'indicateur « seuil relevé » et les écarts détectés
-- [ ] IHM : encart de prévisualisation par section, aucune formule thermique dupliquée en JavaScript
+- [x] IHM : encart de prévisualisation par section, aucune formule thermique dupliquée en JavaScript
 
 ## Commit 3 — 3d mode Simple, dirty-check et flash
 

@@ -65,7 +65,7 @@
    d'une interface sans authentification. #}
 <div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
   <label for="{{ control_id }}">{{ label }}</label>
-  <div class="secret-input"><input id="{{ control_id }}" name="{{ name }}" type="password" value="" autocomplete="new-password"{{ err_attrs(scope, name, control_id) }}><button type="button" class="reveal-button" data-reveal="{{ control_id }}" aria-label="Afficher la nouvelle valeur">Afficher</button></div>
+  <div class="secret-input"><input id="{{ control_id }}" name="{{ name }}" type="password" value="" autocomplete="new-password" data-secret{{ err_attrs(scope, name, control_id) }}><button type="button" class="reveal-button" data-reveal="{{ control_id }}" aria-label="Afficher la nouvelle valeur">Afficher</button></div>
   {{ err_note(scope, name, control_id) }}
   <p class="field-help">{{ 'Une valeur est enregistrée.' if is_set else 'Aucune valeur enregistrée.' }} {{ help_suffix }}</p>
 </div>
@@ -316,7 +316,7 @@
         {{ number('influx', 'influx_db_port', 'Port', config.network.influx_db_port, '', 1, 65535, required=True) }}
         {{ text('influx', 'influx_db_name', 'Base de données', config.network.influx_db_name, required=True) }}
       </div>
-      <div class="field"><label for="influx_db_user">Nouvel utilisateur</label><input id="influx_db_user" name="influx_db_user" type="text" value="" autocomplete="off"{{ err_attrs('influx', 'influx_db_user', 'influx_db_user') }}>{{ err_note('influx', 'influx_db_user', 'influx_db_user') }}<p class="field-help">{{ 'Une valeur est enregistrée.' if influx_user_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
+      <div class="field"><label for="influx_db_user">Nouvel utilisateur</label><input id="influx_db_user" name="influx_db_user" type="text" value="" autocomplete="off" data-secret{{ err_attrs('influx', 'influx_db_user', 'influx_db_user') }}>{{ err_note('influx', 'influx_db_user', 'influx_db_user') }}<p class="field-help">{{ 'Une valeur est enregistrée.' if influx_user_set else 'Aucune valeur enregistrée.' }} Laisser vide pour la conserver.</p></div>
       {{ secret('influx', 'influx_db_password', 'Nouveau mot de passe', influx_password_set) }}
       {{ save_button() }}
     </form>

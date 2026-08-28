@@ -19,6 +19,7 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | GET | `/api/v1/alarms` | Occurrences filtrées, actives ou résolues | JSON 200 |
 | GET | `/api/v1/alarms/active` | Snapshot léger des occurrences actives en mémoire, sans SQLite ni lecture matérielle | JSON 200 |
 | GET | `/api/v1/history?hours=24\|48\|72` | Tendances locales agrégées | JSON 200 ou 503 |
+| POST | `/api/v1/config/preview` | Projette une saisie sur un candidat complet **sans rien écrire** | JSON 200 ; 400, 403 ou 429 |
 | GET | `/status` | Ancien format d'état, conservé pour les scripts existants | JSON 200 |
 | GET | `/health/live` | Le processus HTTP répond et annonce le commit chargé | JSON 200, `live=true`, `version` |
 | GET | `/health/ready` | Superviseur sain | JSON 200 ou **503** |
@@ -94,10 +95,47 @@ Web Push : Chrome peut suspendre la page, donc aucune notification n'est garanti
 6. `303 See Other` vers `/conf?success={section}#{section}`.
 
 Un rejet à n'importe quelle étape laisse `param.json` **et** la configuration en mémoire
-intacts. Les sections connues sont : `life`, `daily-timer-1`, `daily-timer-2`, `cyclic-1`,
-`cyclic-2`, `temperature`, `heater`, `motor`, `sensors`, `wifi`, `influx`, `logs`.
+intacts. Les sections connues sont : `life`, `daily-timer-1`, `daily-timer-2`, `day-night`,
+`cyclic-1`, `cyclic-2`, `temperature`, `heater`, `motor`, `sensors`, `sensor-quality`,
+`equipment`, `wifi`, `influx`, `logs`.
 
 `GPIO_Settings` n'est **pas** exposé en écriture : la page l'affiche en lecture seule.
+
+### Refus sans perte de saisie
+
+Un 422 re-rend la **saisie postée**, pas la configuration enregistrée : corriger un champ
+n'oblige jamais à ressaisir le reste de la section. Le message est placé sous le champ concerné
+(`aria-invalid`, `aria-describedby`), traduit depuis les types d'erreur Pydantic avec la borne
+refusée, et une contrainte croisée — minimum/maximum de jour, de nuit, vitesse minimale/maximale —
+est rattachée à ses **deux** champs plutôt qu'au bandeau global. Un champ numérique refusé se
+re-rend en `type="text"` : `type="number"` vide silencieusement une saisie non numérique, et la
+valeur rejetée resterait invisible.
+
+Un secret n'est **jamais** réémis, refusé ou non : il repartirait dans le HTML d'une interface
+sans authentification. Le champ revient vide, avec la mention « laisser vide pour conserver ».
+
+Le registre `SECTION_FIELDS` de `network/web/server.py` est la source unique des cibles et des
+libellés ; l'index inverse « clé JSON → champ de formulaire » en est **dérivé**, ce qui permet de
+reposer un refus Pydantic sur le champ réellement saisi, horaires compris.
+
+### Prévisualisation
+
+`POST /api/v1/config/preview` projette une saisie sur un candidat `AppConfig` complet **sans
+écrire quoi que ce soit**. Corps JSON `{"section": "...", "fields": {...}}`, jeton en en-tête
+`X-CSRF-Token` (le middleware CSRF consomme `request.post()`, qui laisse intact un corps JSON).
+La réponse porte les écarts détectés, les refus humanisés et l'arbitrage thermique effectif :
+seuil de coupure du chauffage, **seuil de ventilation reconstruit** avec son indicateur
+« relevé », et l'échelle des paliers avec la vitesse réellement commandée après `clamp_speed`.
+
+C'est le seul moyen de voir avant enregistrement que `vent_threshold` peut dépasser la consigne
+haute saisie de l'hystérésis plus la zone morte — un écart que le formulaire seul tairait. Les
+formules ne sont pas rejouées en JavaScript : `components/climate_policy.preview_thresholds()`
+réutilise `settings_from_config`, `vent_threshold` et `clamp_speed`, ceux-là mêmes que `decide()`
+utilisera.
+
+Garde-fous : une prévisualisation à la fois par processus, intervalle minimum de 0,4 s (429
+sinon), corps jamais journalisé, aucun champ sensible dans la réponse, et `sensor-quality` comme
+`equipment` refusées (400) car elles ne passent pas par le même parseur.
 
 ### Application à chaud
 

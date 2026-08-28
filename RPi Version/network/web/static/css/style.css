@@ -116,6 +116,13 @@ input:invalid { border-color: var(--red); }
 input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--red); }
 .field-invalid > label, .field-invalid legend { color: var(--red); }
 .field-error { margin: .38rem 0 0; color: var(--red); font-size: .84rem; font-weight: 650; }
+.preview-panel { margin: 1rem 0; padding: .85rem 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--soft); font-size: .86rem; }
+.preview-panel p { margin: .25rem 0; color: var(--muted); }
+.preview-panel .preview-title { color: var(--text); font-weight: 650; }
+.preview-panel .preview-warning { color: var(--amber); font-weight: 650; }
+.preview-panel .preview-detail { font-size: .8rem; }
+.preview-panel ul { margin: .3rem 0 .5rem; padding-left: 1.2rem; }
+.preview-panel li { margin-block: .15rem; }
 .input-with-unit, .secret-input { display: flex; align-items: stretch; }
 .input-with-unit input, .secret-input input { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 .input-with-unit span { min-width: 3rem; display: inline-flex; align-items: center; justify-content: center; padding-inline: .65rem; border: 1px solid var(--border-strong); border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; color: var(--muted); background: var(--soft); white-space: nowrap; }

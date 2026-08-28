@@ -622,3 +622,53 @@ def settings_from_config(config, is_day: bool) -> ClimateSettings:
         winter_humidity_threshold=motor.winter_humidity_threshold,
         winter_humidity_minutes_per_hour=float(motor.winter_humidity_minutes_per_hour),
     )
+
+
+def preview_thresholds(config) -> dict:
+    """
+    Seuils **effectifs** de l'arbitre pour une configuration donnée.
+
+    Projection de lecture, destinée à la prévisualisation de l'IHM. Elle
+    n'invente aucune formule : elle rejoue `settings_from_config`,
+    `vent_threshold` et `clamp_speed`, exactement ce que `decide()` utilisera.
+    Rejouer ces règles en JavaScript serait une seconde vérité, et c'est le
+    seuil de ventilation qui en souffrirait le premier : `vent_threshold` peut
+    dépasser la consigne haute saisie de l'hystérésis plus la zone morte, un
+    écart de deux degrés qu'un formulaire tairait en silence.
+    """
+    phases = {}
+    for name, is_day in (("day", True), ("night", False)):
+        settings = settings_from_config(config, is_day)
+        phases[name] = {
+            "temp_min": settings.temp_min,
+            "temp_max": settings.temp_max,
+            "heater_on_at_or_below": settings.temp_min,
+            "heater_off_above": round(settings.heater_off_threshold, 2),
+            "vent_threshold": round(settings.vent_threshold, 2),
+            "vent_threshold_raised": settings.vent_threshold_raised,
+            "vent_ladder": [
+                {
+                    "step": step,
+                    "starts_at": round(
+                        settings.vent_threshold + (step - 1) * settings.vent_step, 2
+                    ),
+                    "releases_below": round(
+                        settings.vent_threshold
+                        + (step - 1) * settings.vent_step
+                        - settings.vent_release,
+                        2,
+                    ),
+                    "effective_speed": clamp_speed(settings, step),
+                }
+                for step in range(1, 5)
+            ],
+            "absolute_floor_temp": settings.absolute_floor_temp,
+            "min_dwell_seconds": settings.min_dwell_seconds,
+        }
+    return {
+        "heater_enabled": config.heater_settings.enabled,
+        "motor_mode": config.motor.motor_mode,
+        "min_speed": config.motor.min_speed,
+        "max_speed": config.motor.max_speed,
+        "phases": phases,
+    }

@@ -9,15 +9,18 @@ import json
 import os
 import socket
 import ssl
+import time
 import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
 from aiohttp import web
+from multidict import MultiDict
 from pydantic import ValidationError
 
 from components.climate_control import get_climate_alarm, get_climate_snapshot
+from components.climate_policy import preview_thresholds
 from controllers.sensor_catalog import SENSOR_CATALOG, SENSORS_BY_KEY
 from network.web import influx_handler
 from network.web.pages import (
@@ -275,6 +278,15 @@ PYDANTIC_MESSAGES: dict[str, str] = {
     "extra_forbidden": "Ce champ n’est pas accepté ici.",
 }
 
+# Sections dont la saisie passe par `_apply_section_to_payload` : les seules que
+# la prévisualisation sache projeter sur un candidat `AppConfig` complet.
+PREVIEWABLE_SECTIONS = frozenset(SECTION_FIELDS) - {"sensor-quality", "equipment"}
+
+# Intervalle minimal entre deux prévisualisations d'un même processus. Une
+# validation Pydantic complète n'est pas gratuite sur un Pi, et l'IHM n'a besoin
+# que d'un retour à la frappe, pas d'un par caractère.
+PREVIEW_MIN_INTERVAL_SECONDS = 0.4
+
 # Contraintes croisées : un validateur de modèle refuse la *section* entière,
 # donc Pydantic ne désigne aucun champ. Sans cette table, l'opérateur reçoit une
 # erreur globale et doit deviner lequel des deux champs corriger.
@@ -366,6 +378,11 @@ class Server:
         self.csrf_token = load_or_create_token()
         self._runner: web.AppRunner | None = None
         self._history_query_running = False
+        # Une prévisualisation valide tout le modèle Pydantic : sur un Pi, une
+        # frappe au clavier par validation complète est un coût réel, et rien
+        # n'oblige un client du LAN à se limiter tout seul.
+        self._preview_running = False
+        self._preview_last_at = 0.0
         self._allowed_names = self._build_allowed_names()
         self._https_port, self._https_config_error = self._load_https_port()
         self._tls_cert_file = os.getenv("PHYTO_TLS_CERT_FILE", "").strip()
@@ -420,6 +437,7 @@ class Server:
             web.get("/api/v1/alarms", self._api_alarms),
             web.get("/api/v1/alarms/active", self._api_active_alarms),
             web.get("/api/v1/history", self._api_history),
+            web.post("/api/v1/config/preview", self._config_preview),
             web.post("/actions/alarms/ack", self._acknowledge_alarm),
             web.post("/actions/stats/reset", self._reset_stats),
             web.post("/actions/sensors/reset-quality", self._reset_sensor_quality),
@@ -729,6 +747,97 @@ class Server:
         else:
             info(f"Configuration « {section} » enregistrée sans écart", name=LOGGER_NAME)
         raise web.HTTPSeeOther(location=f"/conf?success={section}#{section}")
+
+    async def _config_preview(self, request: web.Request) -> web.Response:
+        """Projette une saisie sur un candidat complet, **sans rien écrire**.
+
+        Même registre, mêmes parseurs et mêmes formules que l'enregistrement :
+        rejouer l'arbitrage thermique en JavaScript créerait une seconde vérité,
+        et c'est le seuil de ventilation qui en souffrirait — il peut dépasser la
+        consigne haute saisie de l'hystérésis plus la zone morte sans que le
+        formulaire le dise.
+
+        Le corps n'est jamais journalisé et la réponse ne porte aucun secret.
+        """
+        if self._preview_running:
+            raise web.HTTPTooManyRequests(
+                text="Une prévisualisation est déjà en cours", headers={"Retry-After": "1"},
+            )
+        elapsed = time.monotonic() - self._preview_last_at
+        if elapsed < PREVIEW_MIN_INTERVAL_SECONDS:
+            raise web.HTTPTooManyRequests(
+                text="Prévisualisation trop fréquente", headers={"Retry-After": "1"},
+            )
+        self._preview_running = True
+        try:
+            try:
+                body = await request.json()
+            except (ValueError, json.JSONDecodeError):
+                raise web.HTTPBadRequest(text="Corps JSON attendu")
+            if not isinstance(body, dict):
+                raise web.HTTPBadRequest(text="Corps JSON attendu")
+            section = str(body.get("section", ""))
+            if section not in PREVIEWABLE_SECTIONS:
+                raise web.HTTPBadRequest(text="Section non prévisualisable")
+            fields = body.get("fields")
+            if not isinstance(fields, dict):
+                raise web.HTTPBadRequest(text="« fields » doit être un objet")
+            form = MultiDict()
+            for name, value in fields.items():
+                if isinstance(value, (dict, list)):
+                    raise web.HTTPBadRequest(text="Valeur de champ invalide")
+                form.add(str(name), "" if value is None else str(value))
+            return web.json_response(self._preview_payload(section, form))
+        finally:
+            self._preview_running = False
+            self._preview_last_at = time.monotonic()
+
+    def _preview_payload(self, section: str, form) -> dict:
+        errors = self._validate_form_shape(section, form)
+        before = self.config.model_dump(by_alias=True)
+        payload = self.config.model_dump(by_alias=True)
+        changed: list[str] = []
+        candidate = None
+        if not errors:
+            try:
+                self._apply_section_to_payload(section, form, payload, changed)
+                candidate = self.config.__class__.model_validate(payload)
+            except (ValidationError, ValueError) as exc:
+                errors = self._format_validation_errors(exc, section)
+        return {
+            "section": section,
+            "valid": not errors,
+            "errors": errors,
+            "changes": self._preview_changes(section, changed, before, payload) if not errors else [],
+            "climate": preview_thresholds(candidate) if candidate is not None else None,
+            "current_climate": preview_thresholds(self.config),
+            # C'est le serveur qui dit si la section touche l'arbitre thermique :
+            # `RELOAD_JOBS` porte déjà cette vérité, la redire côté navigateur en
+            # ferait une seconde.
+            "climate_relevant": "climate_control" in RELOAD_JOBS.get(section, ()),
+        }
+
+    @staticmethod
+    def _preview_changes(section: str, changed: list[str], before: dict, after: dict) -> list[dict]:
+        changes = []
+        for name in changed:
+            spec = SECTION_FIELDS[section][name]
+            entry = {"field": name, "label": spec.label, "secret": name in SENSITIVE_FIELDS}
+            if not entry["secret"]:
+                if isinstance(spec.target, tuple):
+                    top, nested = spec.target
+                    entry["from"] = before[top].get(nested)
+                    entry["to"] = after[top].get(nested)
+                else:
+                    top, prefix = _time_target(section, spec.target)
+                    entry["from"] = "%02d:%02d" % (
+                        before[top][f"{prefix}_hour"], before[top][f"{prefix}_minute"],
+                    )
+                    entry["to"] = "%02d:%02d" % (
+                        after[top][f"{prefix}_hour"], after[top][f"{prefix}_minute"],
+                    )
+            changes.append(entry)
+        return changes
 
     def _validate_form_shape(self, section: str, form) -> dict[str, str]:
         allowed = set(SECTION_FIELDS[section]) | {"csrf_token"}
