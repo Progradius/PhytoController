@@ -26,3 +26,23 @@ qui ne peut pas tourner une seconde.
 3. Ne jamais faire porter à un remplacement de texte le soin de *déplacer* un import : ajouter la
    nouvelle ligne, puis supprimer l'ancienne, sont deux opérations dont la seconde ne doit être
    tentée que si la première a été vérifiée.
+
+## 2026-08-28 — Un octet nul introduit par une édition de fichier
+
+**Ce qui s'est passé.** Une modification de `network/web/static/js/config.js` a transformé
+`entries.join(" ")` en `entries.join("\0")`. Le fichier restait syntaxiquement valide pour un
+navigateur, `pytest` et `pyflakes` ne voient pas ce fichier, et rien n'a signalé la corruption.
+Elle a été découverte parce que `grep` a répondu « binary file matches » sur un fichier `.js`.
+
+**Pourquoi c'est grave ici.** Le montage `/mnt/c` (drvfs) est déjà connu pour corrompre les
+fichiers lors d'écritures non atomiques. Un octet nul dans un asset servi par la PWA est un
+fichier que le service worker met en cache et redistribue.
+
+**Règles.**
+1. Après toute écriture d'un fichier texte sous `/mnt/c`, vérifier qu'il ne contient **aucun octet
+   nul** avant de committer :
+   `python3 -c "import pathlib,sys; [print('NUL:',f) for f in sys.argv[1:] if b'\0' in pathlib.Path(f).read_bytes()]" $(git ls-files '*.py' '*.js' '*.css' '*.html' '*.md')`
+2. `grep` qui répond « binary file matches » sur un fichier censé être du texte est un **signal de
+   corruption**, jamais une curiosité à contourner avec `grep -a`.
+3. Les assets statiques ne sont couverts par aucun test : leur vérification est manuelle et doit
+   être explicite dans la liste de contrôle d'une livraison qui les touche.

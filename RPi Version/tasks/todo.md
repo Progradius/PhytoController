@@ -540,3 +540,37 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 - [ ] `python3 -m pytest` vert, sortie conservée dans un fichier temporaire
 - [ ] Aucun secret dans le HTML rendu ni dans les journaux
 - [ ] `diff -u CLAUDE.md AGENTS.md` vide si l'un des deux change
+
+## Revue — Jalon 3 livré le 28 août 2026
+
+Trois commits sur `feature/qol-operator-experience`, déployables et retirables séparément :
+
+| Commit | Contenu |
+|---|---|
+| `5c4256a` | 3a + 3b — registre de champs, saisie conservée sur 422, messages humanisés |
+| `ee42a78` | 3c — `POST /api/v1/config/preview` et seuil de ventilation effectif |
+| `f9e7273` | 3d — mode Simple, suivi des écarts, compte rendu opaque |
+| `054e173` | correctifs de revue — compte rendu équipements, octet nul dans `config.js` |
+
+**Critère du plan** — « aucune erreur ne force à ressaisir la section entière, aucun secret ne
+réapparaît et le mode simple a un effet déterministe prévisualisé (seuil effectif inclus) » :
+couvert et testé (`tests/test_http_server.py`, 141 tests verts).
+
+**Écart assumé par rapport au plan.** Le profil du mode Simple reprend les valeurs déployées et non
+celles proposées par le plan (hystérésis 2 °C au lieu de 1 °C, budgets hiver 5/15 au lieu de 8/6) —
+arbitrage opérateur, pour qu'un passage en mode Simple ne modifie aucune régulation par lui-même.
+Le mapping d'intensité du plan est conservé tel quel, malgré les vitesses moteur 1 et 3 hors
+service côté puissance.
+
+**Limite connue, à consigner.** La stickiness des sous-fiches « qualité capteur » conserve la
+saisie mais laisse le message d'erreur dans le bandeau global : ces formulaires ne passent pas par
+`SECTION_FIELDS`, donc aucune erreur n'y est rattachable à un champ. Le reste des sections place
+bien le message sous le champ.
+
+**Reste à faire avant de déclarer le jalon vérifié** (hors portée d'une session sans matériel) :
+
+- [ ] Déploiement via `scripts/deploy.sh`, puis vérification HTTP et états GPIO
+- [ ] Essai navigateur réel du sélecteur Simple / Avancé, du `beforeunload` et de l'annulation
+- [ ] Vérifier sur le Pi qu'aucun secret n'apparaît dans `logs/phyto.log` après un refus de la
+      section `wifi` et de la section `influx`
+- [ ] Critère de rollback écrit à l'avance et rollback exercé
