@@ -109,9 +109,14 @@ Un chantier n'est terminé que si :
 - [x] Définir le comportement sur capteur absent, hors plage ou figé — qualification complète, déploiement initial en `observe`, puis repli nommé `REPLI_CAPTEUR` après armement explicite
 - [x] Vérification en production : huit travaux sains, cohérence décision ↔ `pinctrl`, état persisté,
       rechargement à chaud sans coupure de sortie
-- [ ] Essai sur plages limites avec le matériel réel : la serre est en chauffage désactivé et moteur
-      manuel, donc ni les seuils de chauffe, ni les paliers de ventilation, ni les budgets hiver
-      n'ont encore été exercés en conditions réelles
+- [ ] **TODO à la prochaine activation de la régulation thermique automatique** — essai supervisé
+      avec le matériel réel : vérifier au moins un franchissement des seuils de chauffe et de
+      ventilation, l'hystérésis, le temps de maintien des paliers, la limite de chauffe continue et
+      son repos forcé, les budgets hiver/déshumidification et la concordance décision API ↔ GPIO.
+      Décision opérateur du 28 août 2026 : cette qualification est volontairement reportée jusqu'à
+      l'activation du chauffage et du mode automatique. L'observation continue alors réalisée en
+      chauffage désactivé et moteur manuel valide la stabilité du contrôle, des minuteries, des
+      capteurs et du suivi des sorties, mais pas ces règles thermiques dynamiques.
 
 ### Configuration
 

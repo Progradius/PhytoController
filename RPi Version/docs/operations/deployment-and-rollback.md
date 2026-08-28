@@ -26,6 +26,26 @@ La cible peut être une branche distante, un tag ou un commit. Le préfixe `remo
 
 `--config-git` remplace volontairement la configuration vivante par celle du dépôt. Cette option est sensible et ne doit être utilisée qu'après comparaison du schéma et sauvegarde explicite.
 
+### Amorçage du validateur de santé renforcé
+
+Le premier déploiement qui introduit le commit `21879ac` doit se faire en deux passes. Le script se
+recopie sous `/tmp` avant le fetch : un lancement depuis une version antérieure continue donc
+volontairement avec l'ancienne logique jusqu'à sa fin et ne peut pas utiliser le nouveau
+`utils/deployment_health.py` qu'il vient seulement de récupérer.
+
+Après avoir poussé la branche cible, exécuter sur le Pi :
+
+```bash
+./scripts/deploy.sh feature/qol-operator-experience --sans-restart
+./scripts/deploy.sh feature/qol-operator-experience
+```
+
+La première passe met à jour et compile le checkout sans toucher au processus en cours. La seconde
+part du nouveau script, redémarre le service et impose réellement le commit attendu,
+`control_healthy=true`, zéro alarme critique et 15 s de stabilité continue. Ne pas lancer directement
+une seule passe pour qualifier ce lot : le service pourrait être déployé correctement, mais la preuve
+du nouveau contrat de déploiement manquerait.
+
 ## Déroulement
 
 1. Copie du script sous `/tmp` afin qu'un pull ne modifie pas le programme en cours d'exécution.
@@ -115,7 +135,12 @@ santé ou une modification du watchdog invalide la fenêtre. Un capteur non `ok`
 fiable produit un avertissement à examiner, sans masquer l'état du contrôle. Aucun déploiement ne doit
 être lancé pendant cette fenêtre, puisqu'il changerait volontairement le PID et invaliderait la preuve.
 
-### Préparation du jalon 2 — alarmes et historique local
+**Clôture du 28 août 2026** : la fenêtre a produit `status=accepted` après 172 800 s et 2 868
+échantillons, sans échec ni avertissement. La preuve complète et sa limite thermique sont consignées
+dans le [relevé de clôture](jalon1-watchdog-observation-2026-08-28.md). Le prérequis de passage au
+jalon 2 est donc satisfait.
+
+### Observation du lot opérateur, PWA et qualité capteurs
 
 Le jalon 2 ajoute `param/operator_history.sqlite3`, un état propre à la machine, avec ses annexes
 SQLite `-wal` et `-shm`. Ces fichiers ainsi que `param/sensor_stats.json` sont ignorés par Git ; le
@@ -123,7 +148,12 @@ script de déploiement continue de sauvegarder les statistiques avant changement
 historique corrompue est conservée sous le suffixe `.corrupt.<horodatage>`, recréée vide et signalée
 par une alarme auxiliaire : elle ne doit ni empêcher le boot, ni arrêter les caresses watchdog.
 
-Après le futur déploiement du jalon 2, contrôler sans manipuler les GPIO :
+Le même lot ajoute la PWA auxiliaire et la qualification/calibration des capteurs. Le premier
+déploiement doit impérativement conserver `Sensor_Quality.mode=observe` : un diagnostic de figement ou
+de redondance y reste visible sans acquérir l'autorité de bloquer la régulation. L'armement
+`enforce` appartient à une intervention ultérieure et exige la confirmation explicite `ARMER`.
+
+Après le déploiement, contrôler sans manipuler les GPIO :
 
 ```bash
 curl -fsS http://127.0.0.1:8123/api/v1/state | jq '{health,alarms,history,network}'
@@ -131,12 +161,41 @@ curl -fsS 'http://127.0.0.1:8123/api/v1/history?hours=24' | jq '{hours,bucket_se
 curl -fsS 'http://127.0.0.1:8123/api/v1/alarms?status=active' | jq '{summary,alarms}'
 ```
 
-La fenêtre d'observation minimale est de 24 h pour confirmer l'échantillonnage à la minute, les trous
-non interpolés et l'absence de relance auxiliaire. Le rollback est déclenché par toute régression de
-régulation, toute modification inexpliquée des sorties ou tout `control_healthy=false` sans défaut de
-contrôle réel. Une indisponibilité de l'historique ou d'InfluxDB seule doit rester une alarme auxiliaire
-et ne constitue pas, à elle seule, un motif de reboot automatique. Ne pas déployer ce jalon tant que la
-fenêtre d'observation du jalon 1 ci-dessus n'est pas terminée et acceptée.
+Lancer ensuite l'observateur borné de 48 h, sur le même format que la preuve jalon 1 :
+
+```bash
+nohup bash ./scripts/observe-jalon2-operator-quality.sh \
+  > /tmp/phyto-jalon2-observation.log 2>&1 &
+echo $!
+```
+
+Suivre sans interrompre l'observateur :
+
+```bash
+tail -f /tmp/phyto-jalon2-observation.log
+cat ~/phyto-observations/latest-jalon2-operateur-qualite.txt
+```
+
+Le script fixe comme références le commit, le PID, le compteur `NRestarts`, le `boot_id` et le
+watchdog. Toutes les minutes, il contrôle le schéma API 2, la santé et les domaines du superviseur,
+les dix tâches attendues dont `operator_service`, les alarmes, la fraîcheur et le suivi des sorties,
+le contrat qualité détaillé de chaque capteur et le maintien du mode `observe`. Toutes les dix minutes,
+il qualifie également la croissance de l'historique 24 h et les routes manifeste, service worker et
+repli PWA. Il interroge aussi directement le measurement Influx `sensor_quality` sur les cinq dernières
+minutes, sans journaliser l'hôte ni aucun identifiant, afin de confirmer un point récent pour chaque
+capteur actif.
+
+Le répertoire de preuve contient `metadata.txt`, `samples.jsonl`, les derniers snapshots état/alarmes/
+historique et le `summary.json` final. La qualification automatique complète exige
+`summary.json.status=accepted`. `accepted_with_warnings` demande une analyse : une indisponibilité de
+l'historique, d'InfluxDB, du réseau ou du TLS reste auxiliaire et ne constitue pas à elle seule un motif
+de reboot ou de rollback, mais elle empêche de déclarer la fonctionnalité concernée qualifiée.
+
+Le rollback est déclenché par toute régression de régulation, toute modification inexpliquée des
+sorties, toute alarme critique, tout `control_healthy=false`, tout restart/stall ou un passage inattendu
+de la qualité capteurs hors du mode `observe`. La PWA sur Chrome Android, les coupures/reconnexions,
+les notifications, la calibration par instrument de référence et l'armement `enforce` restent des
+qualifications manuelles distinctes suivies dans `tasks/todo.md`.
 
 ## Rollback manuel d'urgence
 

@@ -3,18 +3,22 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 26 août 2026, après le déploiement de l'arbitre thermique.
+**Dernière vérification documentaire** : 28 août 2026, après acceptation de l'observation watchdog
+de 48 h sur `e91b021` et vérification pré-monitoring du lot opérateur/PWA/qualité capteurs déployé.
 
-**Écart entre le dépôt et la production, au 26 août 2026 :**
+**Écart entre le dépôt et la production, au 28 août 2026 :**
 
 | Chantier | Code | Déployé sur le Pi |
 |---|---|---|
 | Refonte web et acquisition capteurs | `ad39de2` | **Oui**, vérifié — [relevé](operations/web-baseline-2026-08-25.md) |
 | Arbitre thermique unifié (phase 2) | `a04abbd` | **Oui**, vérifié — [relevé](operations/climate-baseline-2026-08-26.md) |
-| Correctifs issus du relevé (zone morte sans chauffage, vocabulaire du seuil) | à venir | **Non** |
+| Correctifs thermiques et jalon 1 de l'expérience opérateur | `e91b021` | **Oui**, observation 48 h acceptée — [relevé](operations/jalon1-watchdog-observation-2026-08-28.md) |
+| Alarmes/historique, PWA, santé de déploiement et qualité capteurs | `f4d2e5a` à `bb9462e` | **Oui**, vérification pré-monitoring réussie en mode `observe` ; observateur 48 h à déployer |
 
-Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique. Deux correctifs mineurs
-identifiés par le relevé du 26 août attendent un déploiement ; ils sont décrits dans ce relevé.
+Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique ainsi que le lot opérateur,
+PWA et qualité capteurs en mode `observe`. La fenêtre watchdog du jalon 1 est terminée et acceptée.
+Le contrôle pré-monitoring du lot suivant est concluant, mais son observateur 48 h, ajouté dans le
+présent commit, doit encore être déployé avant le lancement de la fenêtre décrite dans la procédure.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -50,6 +54,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Baseline de production du 25 août 2026](operations/production-baseline-2026-08-25.md)
 - [Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md)
 - [Relevé de l'arbitre thermique du 26 août 2026](operations/climate-baseline-2026-08-26.md)
+- [Clôture de l'observation watchdog du 28 août 2026](operations/jalon1-watchdog-observation-2026-08-28.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
 - [PWA locale et autorité TLS privée](operations/pwa-local-tls.md)
 - [Monitoring](operations/monitoring.md)

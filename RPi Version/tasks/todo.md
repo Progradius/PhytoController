@@ -25,6 +25,8 @@ Références :
 
 ## 2. Observer une période représentative
 
+- [ ] Lancer `scripts/observe-jalon2-operator-quality.sh` pendant 48 h et conserver son répertoire de
+      preuve ; n'accepter automatiquement la fenêtre que si `summary.json.status=accepted`
 - [ ] Laisser fonctionner le système en mode `observe` pendant plusieurs cycles jour/nuit et une
       durée représentative des périodes naturellement stables de la serre
 - [ ] Relever pour chaque mesure les statuts, `unchanged_for_s`, échecs consécutifs, incohérences,
