@@ -123,6 +123,11 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--re
 .preview-panel .preview-detail { font-size: .8rem; }
 .preview-panel ul { margin: .3rem 0 .5rem; padding-left: 1.2rem; }
 .preview-panel li { margin-block: .15rem; }
+.mode-switch { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-bottom: 1.2rem; }
+.mode-switch > span { color: var(--muted); font-size: .84rem; letter-spacing: .12em; text-transform: uppercase; }
+.mode-switch .field-help { margin: 0; flex-basis: 100%; }
+.mode-button { min-height: 44px; padding: .55rem .9rem; border: 1px solid var(--border-strong); border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.mode-button[aria-pressed="true"] { border-color: var(--green); background: var(--soft); color: var(--text); font-weight: 650; }
 .input-with-unit, .secret-input { display: flex; align-items: stretch; }
 .input-with-unit input, .secret-input input { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 .input-with-unit span { min-width: 3rem; display: inline-flex; align-items: center; justify-content: center; padding-inline: .65rem; border: 1px solid var(--border-strong); border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; color: var(--muted); background: var(--soft); white-space: nowrap; }

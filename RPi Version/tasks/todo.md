@@ -526,13 +526,13 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 
 ## Commit 3 — 3d mode Simple, dirty-check et flash
 
-- [ ] Sélecteur Simple / Avancé, simple par défaut, choix mémorisé en `localStorage`
-- [ ] Section Simple : planning jour/nuit, min/max jour et nuit, humidité max, intensité, saison,
+- [x] Sélecteur Simple / Avancé, simple par défaut, choix mémorisé en `localStorage`
+- [x] Section Simple : planning jour/nuit, min/max jour et nuit, humidité max, intensité, saison,
       chauffage, plannings ; profil et mapping ci-dessus
-- [ ] Un `motor_mode` manuel existant exige un choix explicite avant toute écriture
-- [ ] Le mode Simple ne s'affiche que si la prévisualisation répond
-- [ ] Dirty-check sur écarts réels, bouton d'annulation, `beforeunload`
-- [ ] Flash opaque côté serveur après succès : champs modifiés, heure, mode d'application
+- [x] Un `motor_mode` manuel existant exige un choix explicite avant toute écriture
+- [x] Le mode Simple ne s'affiche que si la prévisualisation répond
+- [x] Dirty-check sur écarts réels, bouton d'annulation, `beforeunload`
+- [x] Flash opaque côté serveur après succès : champs modifiés, heure, mode d'application
 
 ## Vérification (identique pour les trois commits)
 

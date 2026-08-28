@@ -12,7 +12,7 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 |---|---|---|---|
 | GET | `/`, `/index.html` | Tableau de bord, rafraîchi toutes les 5 s par `/api/v1/state` | HTML 200 |
 | GET | `/conf` | Formulaire de configuration, une section dépliable par domaine | HTML 200 |
-| POST | `/conf/{section}` | Valide et enregistre **une seule** section | 303 vers `/conf?success=…` ; 422 si refus |
+| POST | `/conf/{section}` | Valide et enregistre **une seule** section | 303 vers `/conf?flash=…` ; 422 si refus |
 | GET | `/console` | Console de journalisation | HTML 200 |
 | GET | `/console/stream` | Historique puis logs live (SSE, keep-alive 15 s) | Flux 200 |
 | GET | `/api/v1/state` | État complet versionné | JSON 200 |
@@ -92,12 +92,16 @@ Web Push : Chrome peut suspendre la page, donc aucune notification n'est garanti
 4. écriture atomique du fichier ; en cas d'échec disque, la configuration active reste
    inchangée (500) ;
 5. remplacement de la configuration vivante, puis application à chaud ;
-6. `303 See Other` vers `/conf?success={section}#{section}`.
+6. `303 See Other` vers `/conf?flash={jeton}#{section}`.
 
 Un rejet à n'importe quelle étape laisse `param.json` **et** la configuration en mémoire
-intacts. Les sections connues sont : `life`, `daily-timer-1`, `daily-timer-2`, `day-night`,
-`cyclic-1`, `cyclic-2`, `temperature`, `heater`, `motor`, `sensors`, `sensor-quality`,
-`equipment`, `wifi`, `influx`, `logs`.
+intacts. Les sections connues sont : `simple`, `life`, `daily-timer-1`, `daily-timer-2`,
+`day-night`, `cyclic-1`, `cyclic-2`, `temperature`, `heater`, `motor`, `sensors`,
+`sensor-quality`, `equipment`, `wifi`, `influx`, `logs`.
+
+Le jeton de redirection est **opaque** : le compte rendu — champs modifiés, heure, mode
+d'application — reste côté serveur, à usage unique et périmé au bout de trois minutes, plutôt que
+recopié dans une URL rejouable ou partageable. L'ancien `?success={section}` reste accepté.
 
 `GPIO_Settings` n'est **pas** exposé en écriture : la page l'affiche en lecture seule.
 
@@ -136,6 +140,33 @@ utilisera.
 Garde-fous : une prévisualisation à la fois par processus, intervalle minimum de 0,4 s (429
 sinon), corps jamais journalisé, aucun champ sensible dans la réponse, et `sensor-quality` comme
 `equipment` refusées (400) car elles ne passent pas par le même parseur.
+
+### Mode Simple
+
+`POST /conf/simple` regroupe la conduite courante en **une seule sauvegarde atomique** : planning
+jour/nuit, les deux minuteries d'éclairage, consignes de jour et de nuit, humidité maximale,
+intensité de ventilation, saison et chauffage. Il impose en plus un profil de réglages fins
+(hystérésis, zone morte, palier, relâchement, maintien, plancher, repli capteur, marges et budgets
+hiver, vitesse minimale et vitesse hiver par défaut). Ces valeurs sont **celles de la configuration
+déployée**, décision opérateur du 28 août 2026 : passer en mode Simple ne change donc rien tant que
+l'opérateur ne touche pas aux champs exposés, et tout écart restant est listé dans le formulaire
+comme dans la prévisualisation avant l'enregistrement.
+
+L'intensité écrit `max_speed` et `winter_refresh_speed` — douce 2/2, normale 3/3, forte 4/4.
+Rappel matériel : les vitesses moteur 1 et 3 sont hors service côté puissance, « normale » commande
+donc une vitesse morte tant que la panne dure ; c'est l'annotation `out_of_service` des métadonnées
+d'équipement qui porte cette information.
+
+`intensity` et `season` sont **obligatoires** : leur absence est un refus, pas un « inchangé ».
+C'est ce qui force le choix explicite quand le moteur est en pilotage manuel — aucune saison n'est
+alors présélectionnée, et le mode Simple refuse par ailleurs de faire *entrer* en manuel.
+
+Côté interface, le sélecteur Simple / Avancé n'apparaît **que si la prévisualisation répond** : le
+mode Simple écrit de vrais paramètres thermiques, et il ne se livre pas sans le retour qui les rend
+visibles. Le choix est mémorisé en `localStorage`, mais une section refusée impose son propre mode,
+sans quoi le champ fautif serait masqué. Chaque formulaire suit ses écarts réels : un bouton
+d'annulation restaure la saisie initiale et un garde `beforeunload` retient la page tant qu'une
+modification n'est pas enregistrée.
 
 ### Application à chaud
 

@@ -560,7 +560,8 @@ async def test_registre_de_champs_couvre_chaque_section(web_context):
         for name, spec in fields.items():
             assert spec.label, f"{section}.{name} sans libellé"
             assert isinstance(spec.target, tuple) or spec.target in (
-                server_module.TIME_TARGETS | {"equipment_metadata"}
+                server_module.TIME_TARGETS
+                | {"equipment_metadata", "simple_intensity", "simple_season"}
             )
     index = server_module.PAYLOAD_INDEX
     assert index["daily-timer-2"]["DailyTimer2_Settings.start_hour"] == "start_time"
@@ -666,3 +667,109 @@ async def test_previsualisation_est_protegee_et_bornee(web_context):
         headers={"X-CSRF-Token": CSRF_TOKEN},
     )
     assert second.status == 429
+
+
+SIMPLE_FORM = {
+    "csrf_token": CSRF_TOKEN,
+    "source": "dailytimer1",
+    "start_time": "08:00",
+    "stop_time": "20:00",
+    "target_temp_min_day": "20",
+    "target_temp_max_day": "24",
+    "target_temp_min_night": "18",
+    "target_temp_max_night": "22",
+    "humidity_max": "65",
+    "intensity": "normale",
+    "season": "hiver",
+    "heater_enabled": "enabled",
+    "daily1_enabled": "enabled",
+    "daily1_start": "19:00",
+    "daily1_stop": "07:00",
+    "daily2_enabled": "disabled",
+    "daily2_start": "10:00",
+    "daily2_stop": "12:00",
+}
+
+
+async def test_mode_simple_ecrit_les_deux_minuteries_et_le_profil(web_context):
+    client, _server, store, _sensors, supervisor = web_context
+    response = await client.post("/conf/simple", data=SIMPLE_FORM, allow_redirects=False)
+    assert response.status == 303
+    config = store.current
+    assert (config.daily_timer1.start_hour, config.daily_timer1.stop_hour) == (19, 7)
+    assert (config.daily_timer2.start_hour, config.daily_timer2.stop_hour) == (10, 12)
+    assert config.daily_timer2.enabled is False
+    # Intensité « normale » → vitesse maximale et renouvellement à 3.
+    assert (config.motor.max_speed, config.motor.winter_refresh_speed) == (3, 3)
+    assert config.motor.motor_mode == "winter"
+    # Profil de conduite imposé, aligné sur la configuration déployée.
+    assert config.temperature.hysteresis_offset == 2.0
+    assert config.temperature.min_dwell_seconds == 120
+    assert config.motor.winter_refresh_minutes_per_hour == 5
+    assert config.motor.winter_humidity_minutes_per_hour == 15
+    assert "climate_control" in supervisor.reloads
+    assert "daily_timer_2" in supervisor.reloads
+
+
+async def test_mode_simple_exige_un_choix_explicite_de_saison(web_context):
+    """Un moteur en manuel ne doit pas en sortir par le seul fait d'enregistrer."""
+    client, _server, store, *_ = web_context
+    before = store.path.read_bytes()
+    incomplete = {key: value for key, value in SIMPLE_FORM.items() if key != "season"}
+    response = await client.post("/conf/simple", data=incomplete)
+    assert response.status == 422
+    body = await response.text()
+    assert "Choisir explicitement Été, Hiver, ou Manuel" in body
+    assert store.path.read_bytes() == before
+
+
+async def test_mode_simple_refuse_de_faire_entrer_en_manuel(web_context):
+    client, _server, store, *_ = web_context
+    payload = dict(SIMPLE_FORM, season="manuel")
+    response = await client.post("/conf/simple", data=payload)
+    assert response.status == 422
+    assert "Le pilotage manuel se règle dans le mode avancé." in await response.text()
+    assert store.current.motor.motor_mode != "manual"
+
+
+async def test_previsualisation_simple_annonce_les_reglages_fins(web_context):
+    client, *_ = web_context
+    fields = {key: value for key, value in SIMPLE_FORM.items() if key != "csrf_token"}
+    response = await client.post(
+        "/api/v1/config/preview",
+        json={"section": "simple", "fields": fields},
+        headers={"X-CSRF-Token": CSRF_TOKEN},
+    )
+    assert response.status == 200
+    payload = await response.json()
+    assert payload["valid"] is True
+    labels = {item["label"]: item for item in payload["profile_changes"]}
+    # La configuration de test porte une hystérésis de 1 °C : le profil la remonte.
+    assert labels["Hystérésis chauffage"]["from"] == 1.0
+    assert labels["Hystérésis chauffage"]["to"] == 2.0
+    assert payload["climate_relevant"] is True
+    assert "climate_control" in payload["apply_note"]
+
+
+async def test_compte_rendu_est_opaque_et_a_usage_unique(web_context):
+    client, *_ = web_context
+    response = await client.post(
+        "/conf/logs",
+        data={"csrf_token": CSRF_TOKEN, "level": "WARNING", "retention_days": "21"},
+        allow_redirects=False,
+    )
+    assert response.status == 303
+    location = response.headers["Location"]
+    assert location.startswith("/conf?flash=")
+    # Le jeton ne porte aucune donnée : ni section lisible, ni valeur.
+    token = location.split("flash=", 1)[1].split("#", 1)[0]
+    assert "logs" not in token and "WARNING" not in token
+
+    page = await client.get(f"/conf?flash={token}")
+    body = await page.text()
+    assert "Niveau" in body and "Rétention" in body
+    assert "Appliqué à chaud : niveau et rétention de journalisation." in body
+
+    # Usage unique : un rechargement ne rejoue pas le compte rendu.
+    again = await client.get(f"/conf?flash={token}")
+    assert "Appliqué à chaud : niveau et rétention" not in await again.text()

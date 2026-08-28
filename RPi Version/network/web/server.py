@@ -7,6 +7,7 @@ import hmac
 import ipaddress
 import json
 import os
+import secrets
 import socket
 import ssl
 import time
@@ -103,7 +104,12 @@ class FieldSpec(NamedTuple):
 
 # Parseurs dédiés : un `<input type="time">` alimente deux clés `*_hour` /
 # `*_minute`, donc la cible ne peut pas être une simple paire.
-TIME_TARGETS = frozenset({"daily_start", "daily_stop", "day_night_start", "day_night_stop"})
+TIME_TARGETS = frozenset({
+    "daily_start", "daily_stop", "day_night_start", "day_night_stop",
+    # Le mode Simple porte les deux minuteries dans un seul formulaire : la
+    # cible ne peut plus être déduite du nom de la section.
+    "daily1_start", "daily1_stop", "daily2_start", "daily2_stop",
+})
 
 _CYCLIC_LABELS = {
     "enabled": "Activation",
@@ -187,7 +193,74 @@ def _mapped_section(top: str, labels: dict[str, str]) -> dict[str, FieldSpec]:
     return {name: FieldSpec((top, name), label) for name, label in labels.items()}
 
 
+# ── Mode Simple ──────────────────────────────────────────────────────────────
+# Réglages fins que le mode Simple impose pour que les quelques champs qu'il
+# expose aient un effet déterministe. Les valeurs sont **celles de la
+# configuration déployée** (arbitrage opérateur du 28 août 2026) : passer en
+# mode Simple ne change donc rien tant qu'on ne touche pas aux champs exposés,
+# et la prévisualisation affiche tout écart avant l'enregistrement.
+SIMPLE_PROFILE: dict[tuple[str, str], tuple[object, str]] = {
+    ("Temperature_Settings", "hysteresis_offset"): (2.0, "Hystérésis chauffage"),
+    ("Temperature_Settings", "vent_deadband"): (1.0, "Zone morte"),
+    ("Temperature_Settings", "vent_step"): (1.0, "Largeur d’un palier"),
+    ("Temperature_Settings", "vent_release"): (0.5, "Relâchement de palier"),
+    ("Temperature_Settings", "min_dwell_seconds"): (120, "Maintien minimal"),
+    ("Temperature_Settings", "absolute_floor_temp"): (5.0, "Plancher absolu"),
+    ("Motor_Settings", "min_speed"): (0, "Vitesse minimale"),
+    ("Motor_Settings", "sensor_fallback_speed"): (0, "Vitesse de repli capteur"),
+    ("Motor_Settings", "winter_default_speed"): (1, "Vitesse hiver par défaut"),
+    ("Motor_Settings", "winter_temp_margin"): (2.0, "Marge basse hiver"),
+    ("Motor_Settings", "winter_refresh_minutes_per_hour"): (5, "Renouvellement par heure"),
+    ("Motor_Settings", "winter_humidity_minutes_per_hour"): (15, "Déshumidification par heure"),
+}
+
+# Intensité → (vitesse maximale, vitesse de renouvellement hiver).
+# Rappel matériel consigné : les vitesses moteur 1 et 3 sont hors service côté
+# puissance. « Normale » commande donc une vitesse morte tant que la panne dure —
+# mapping conservé sur décision opérateur, l'annotation `out_of_service` des
+# métadonnées reste le canal qui le signale.
+SIMPLE_INTENSITY = {"douce": (2, 2), "normale": (3, 3), "forte": (4, 4)}
+
+# Saison → mode moteur. `manuel` n'est proposé que si le moteur y est déjà :
+# le mode Simple ne doit pas faire sortir d'un pilotage manuel sans un choix
+# explicite, ni y faire entrer.
+SIMPLE_SEASONS = {"ete": "auto", "hiver": "winter", "manuel": "manual"}
+
+# Champs sans valeur par défaut sûre : leur absence est un refus, pas un
+# « inchangé ». C'est ce qui force le choix explicite quand le moteur est en
+# manuel — les boutons radio de saison sont alors rendus sans sélection.
+REQUIRED_FIELDS: dict[str, dict[str, str]] = {
+    "simple": {
+        "season": "Choisir explicitement Été, Hiver, ou Manuel pour conserver le pilotage manuel.",
+        "intensity": "Choisir une intensité de ventilation.",
+    },
+}
+
 SECTION_FIELDS: dict[str, dict[str, FieldSpec]] = {
+    "simple": {
+        "source": FieldSpec(("Day_Night_Settings", "source"), "Référence jour / nuit"),
+        "start_time": FieldSpec("day_night_start", "Début du jour"),
+        "stop_time": FieldSpec("day_night_stop", "Fin du jour"),
+        "target_temp_min_day": FieldSpec(
+            ("Temperature_Settings", "target_temp_min_day"), "Jour · minimum"),
+        "target_temp_max_day": FieldSpec(
+            ("Temperature_Settings", "target_temp_max_day"), "Jour · maximum"),
+        "target_temp_min_night": FieldSpec(
+            ("Temperature_Settings", "target_temp_min_night"), "Nuit · minimum"),
+        "target_temp_max_night": FieldSpec(
+            ("Temperature_Settings", "target_temp_max_night"), "Nuit · maximum"),
+        "humidity_max": FieldSpec(
+            ("Motor_Settings", "winter_humidity_threshold"), "Humidité maximale"),
+        "intensity": FieldSpec("simple_intensity", "Intensité de ventilation"),
+        "season": FieldSpec("simple_season", "Saison"),
+        "heater_enabled": FieldSpec(("Heater_Settings", "enabled"), "Chauffage"),
+        "daily1_enabled": FieldSpec(("DailyTimer1_Settings", "enabled"), "Éclairage 1"),
+        "daily1_start": FieldSpec("daily1_start", "Éclairage 1 · début"),
+        "daily1_stop": FieldSpec("daily1_stop", "Éclairage 1 · fin"),
+        "daily2_enabled": FieldSpec(("DailyTimer2_Settings", "enabled"), "Éclairage 2"),
+        "daily2_start": FieldSpec("daily2_start", "Éclairage 2 · début"),
+        "daily2_stop": FieldSpec("daily2_stop", "Éclairage 2 · fin"),
+    },
     "life": {"stage": FieldSpec(("Life_Period", "stage"), "Stade actuel")},
     "daily-timer-1": _timer_section(1),
     "daily-timer-2": _timer_section(2),
@@ -222,10 +295,15 @@ SECTION_FIELDS: dict[str, dict[str, FieldSpec]] = {
 
 def _time_target(section: str, target: str) -> tuple[str, str]:
     """Résout un parseur d'horaire vers `(section JSON, préfixe start|stop)`."""
+    prefix = "start" if target.endswith("start") else "stop"
     if target.startswith("day_night"):
-        return "Day_Night_Settings", "start" if target.endswith("start") else "stop"
+        return "Day_Night_Settings", prefix
+    if target.startswith("daily1_"):
+        return "DailyTimer1_Settings", prefix
+    if target.startswith("daily2_"):
+        return "DailyTimer2_Settings", prefix
     top = "DailyTimer1_Settings" if section.endswith("1") else "DailyTimer2_Settings"
-    return top, "start" if target == "daily_start" else "stop"
+    return top, prefix
 
 
 def _build_payload_index() -> dict[str, dict[str, str]]:
@@ -247,6 +325,11 @@ def _build_payload_index() -> dict[str, dict[str, str]]:
                 top, prefix = _time_target(section, target)
                 mapping[f"{top}.{prefix}_hour"] = field_name
                 mapping[f"{top}.{prefix}_minute"] = field_name
+            elif target == "simple_intensity":
+                mapping["Motor_Settings.max_speed"] = field_name
+                mapping["Motor_Settings.winter_refresh_speed"] = field_name
+            elif target == "simple_season":
+                mapping["Motor_Settings.motor_mode"] = field_name
         index[section] = mapping
     return index
 
@@ -287,6 +370,12 @@ PREVIEWABLE_SECTIONS = frozenset(SECTION_FIELDS) - {"sensor-quality", "equipment
 # que d'un retour à la frappe, pas d'un par caractère.
 PREVIEW_MIN_INTERVAL_SECONDS = 0.4
 
+# Compte rendu d'enregistrement. Le jeton de redirection est **opaque** : le
+# contenu reste côté serveur, à usage unique et périmé, plutôt que recopié dans
+# une URL que l'opérateur pourrait partager ou rejouer.
+FLASH_TTL_SECONDS = 180.0
+FLASH_MAX_ENTRIES = 8
+
 # Contraintes croisées : un validateur de modèle refuse la *section* entière,
 # donc Pydantic ne désigne aucun champ. Sans cette table, l'opérateur reçoit une
 # erreur globale et doit deviner lequel des deux champs corriger.
@@ -313,6 +402,10 @@ CROSS_CONSTRAINTS: dict[str, tuple[tuple[str, tuple[str, ...], str], ...]] = {
 }
 
 RELOAD_JOBS = {
+    "simple": (
+        "daily_timer_1", "daily_timer_2",
+        "cyclic_timer_1", "cyclic_timer_2", "climate_control",
+    ),
     "daily-timer-1": ("daily_timer_1",),
     "daily-timer-2": ("daily_timer_2",),
     "cyclic-1": ("cyclic_timer_1",),
@@ -383,6 +476,7 @@ class Server:
         # n'oblige un client du LAN à se limiter tout seul.
         self._preview_running = False
         self._preview_last_at = 0.0
+        self._flashes: dict[str, dict] = {}
         self._allowed_names = self._build_allowed_names()
         self._https_port, self._https_config_error = self._load_https_port()
         self._tls_cert_file = os.getenv("PHYTO_TLS_CERT_FILE", "").strip()
@@ -640,8 +734,82 @@ class Server:
     async def _monitor_redirect(self, request: web.Request) -> web.Response:
         raise web.HTTPSeeOther(location="/#surveillance")
 
+    def _simple_view(self) -> dict:
+        """Projection de la configuration sur les quelques choix du mode Simple.
+
+        Un moteur en pilotage manuel ne présélectionne **aucune** saison : le
+        mode Simple exige alors un choix explicite, faute de quoi le seul fait
+        d'enregistrer ferait sortir du manuel sans le dire.
+        """
+        motor = self.config.motor
+        current = self.config.model_dump(by_alias=True)
+        manual = motor.motor_mode == "manual"
+        seasons = [("ete", "Été"), ("hiver", "Hiver")]
+        if manual:
+            seasons.append(("manuel", "Conserver le pilotage manuel"))
+        return {
+            "intensity": next(
+                (name for name, speeds in SIMPLE_INTENSITY.items()
+                 if (motor.max_speed, motor.winter_refresh_speed) == speeds),
+                "",
+            ),
+            "season": "" if manual else {"auto": "ete", "winter": "hiver"}.get(motor.motor_mode, ""),
+            "seasons": seasons,
+            "manual": manual,
+            "manual_speed": motor.motor_user_speed,
+            "profile_pending": [
+                {"label": label, "from": current[top].get(nested), "to": value}
+                for (top, nested), (value, label) in SIMPLE_PROFILE.items()
+                if current[top].get(nested) != value
+            ],
+        }
+
+    def _apply_note(self, section: str) -> str:
+        if section == "wifi":
+            return "Pris en compte au prochain redémarrage : la connexion n'est pas recréée à chaud."
+        if section == "logs":
+            return "Appliqué à chaud : niveau et rétention de journalisation."
+        jobs = RELOAD_JOBS.get(section, ())
+        if jobs:
+            return "Appliqué à chaud, avec relance de : " + ", ".join(jobs) + "."
+        return "Appliqué à chaud."
+
+    def _store_flash(self, section: str, changed: list[str], profile: list[dict] | None = None) -> str:
+        """Range un compte rendu d'enregistrement et renvoie son jeton opaque."""
+        now = time.monotonic()
+        self._flashes = {
+            key: value for key, value in self._flashes.items()
+            if now - value["mono"] < FLASH_TTL_SECONDS
+        }
+        while len(self._flashes) >= FLASH_MAX_ENTRIES:
+            self._flashes.pop(next(iter(self._flashes)))
+        fields = SECTION_FIELDS.get(section, {})
+        token = secrets.token_urlsafe(12)
+        self._flashes[token] = {
+            "mono": now,
+            "section": section,
+            "at": datetime.now().strftime("%d/%m/%Y à %H:%M:%S"),
+            "apply": self._apply_note(section),
+            "changes": [
+                (fields[name].label if name in fields else name)
+                + (" (valeur masquée)" if name in SENSITIVE_FIELDS else "")
+                for name in changed
+            ],
+            "profile": [item["label"] for item in (profile or [])],
+        }
+        return token
+
+    def _pop_flash(self, token: str | None) -> dict | None:
+        if not token:
+            return None
+        entry = self._flashes.pop(token, None)
+        if entry is None or time.monotonic() - entry["mono"] >= FLASH_TTL_SECONDS:
+            return None
+        return entry
+
     async def _configuration(self, request: web.Request) -> web.Response:
-        success_section = request.query.get("success")
+        flash = self._pop_flash(request.query.get("flash"))
+        success_section = flash["section"] if flash else request.query.get("success")
         if success_section not in SECTION_FIELDS:
             success_section = None
         return self._html(conf_page(
@@ -650,6 +818,8 @@ class Server:
             alarm_summary=self._operator_snapshot()["alarms"],
             equipment=self.equipment_store.current,
             success=success_section,
+            flash=flash,
+            simple=self._simple_view(),
             active_section=success_section,
             sensor_snapshot=self.sensor_handler.snapshot(),
             discovered_ds18=getattr(self.sensor_handler, "discovered_ds18_ids", lambda: [])(),
@@ -683,6 +853,7 @@ class Server:
             errors=banner,
             field_errors={scope: field_errors} if field_errors else {},
             form_values={scope: values} if values else {},
+            simple=self._simple_view(),
             active_section=section,
             sensor_snapshot=self.sensor_handler.snapshot(),
             discovered_ds18=getattr(self.sensor_handler, "discovered_ds18_ids", lambda: [])(),
@@ -718,6 +889,7 @@ class Server:
         if section == "equipment":
             return await self._equipment_configuration_post(form, submitted)
 
+        before = self.config.model_dump(by_alias=True)
         payload = self.config.model_dump(by_alias=True)
         changed_fields: list[str] = []
         try:
@@ -727,6 +899,7 @@ class Server:
             return self._conf_refusal(
                 section, self._format_validation_errors(exc, section), values=submitted,
             )
+        profile_changes = self._profile_changes(before, payload) if section == "simple" else []
 
         try:
             # Le magasin revalide, sauvegarde l'ancien contenu en `.bak`, écrit
@@ -746,7 +919,8 @@ class Server:
             info(f"Configuration « {section} » sauvegardée : {', '.join(safe_names)}", name=LOGGER_NAME)
         else:
             info(f"Configuration « {section} » enregistrée sans écart", name=LOGGER_NAME)
-        raise web.HTTPSeeOther(location=f"/conf?success={section}#{section}")
+        token = self._store_flash(section, changed_fields, profile_changes)
+        raise web.HTTPSeeOther(location=f"/conf?flash={token}#{section}")
 
     async def _config_preview(self, request: web.Request) -> web.Response:
         """Projette une saisie sur un candidat complet, **sans rien écrire**.
@@ -809,6 +983,11 @@ class Server:
             "valid": not errors,
             "errors": errors,
             "changes": self._preview_changes(section, changed, before, payload) if not errors else [],
+            "profile_changes": (
+                self._profile_changes(before, payload)
+                if section == "simple" and not errors else []
+            ),
+            "apply_note": self._apply_note(section),
             "climate": preview_thresholds(candidate) if candidate is not None else None,
             "current_climate": preview_thresholds(self.config),
             # C'est le serveur qui dit si la section touche l'arbitre thermique :
@@ -847,6 +1026,9 @@ class Server:
                 errors[key] = "Champ inattendu."
             elif len(form.getall(key)) != 1:
                 errors[key] = "Le champ est présent plusieurs fois."
+        for name, message in REQUIRED_FIELDS.get(section, {}).items():
+            if name not in form:
+                errors.setdefault(name, message)
         return errors
 
     def _apply_section_to_payload(self, section: str, form, payload: dict, changed: list[str]) -> None:
@@ -857,6 +1039,31 @@ class Server:
             target = spec.target
             raw = str(form[field_name])
             if field_name in SENSITIVE_FIELDS and raw == "":
+                continue
+            if target == "simple_intensity":
+                speeds = SIMPLE_INTENSITY.get(raw)
+                if speeds is None:
+                    raise FormFieldError(field_name, "Choisir une des intensités proposées.")
+                for nested, value in zip(("max_speed", "winter_refresh_speed"), speeds):
+                    if payload["Motor_Settings"][nested] != value:
+                        changed.append(field_name)
+                        break
+                payload["Motor_Settings"]["max_speed"] = speeds[0]
+                payload["Motor_Settings"]["winter_refresh_speed"] = speeds[1]
+                continue
+            if target == "simple_season":
+                mode = SIMPLE_SEASONS.get(raw)
+                if mode is None:
+                    raise FormFieldError(field_name, "Choisir une des saisons proposées.")
+                # Le mode Simple ne fait pas *entrer* en pilotage manuel : cette
+                # option n'existe que pour conserver un manuel déjà en place.
+                if mode == "manual" and payload["Motor_Settings"]["motor_mode"] != "manual":
+                    raise FormFieldError(
+                        field_name, "Le pilotage manuel se règle dans le mode avancé.",
+                    )
+                if payload["Motor_Settings"]["motor_mode"] != mode:
+                    changed.append(field_name)
+                payload["Motor_Settings"]["motor_mode"] = mode
                 continue
             if target in TIME_TARGETS:
                 # `<input type="time">` renvoie « HH:MM », mais certains
@@ -895,6 +1102,25 @@ class Server:
                 changed.append(field_name)
             payload[top][nested] = value
 
+        if section == "simple":
+            # Le profil est appliqué **après** les champs saisis : il ne doit
+            # jamais écraser une consigne que l'opérateur vient de régler.
+            for (top, nested), (value, _label) in SIMPLE_PROFILE.items():
+                payload[top][nested] = value
+
+    @staticmethod
+    def _profile_changes(before: dict, after: dict) -> list[dict]:
+        """Écarts imputables au profil imposé, pas à la saisie.
+
+        Ils sont listés à part : ce sont de vrais paramètres thermiques, et
+        l'opérateur doit les voir avant d'enregistrer, pas les découvrir après.
+        """
+        return [
+            {"label": label, "from": before[top].get(nested), "to": after[top].get(nested)}
+            for (top, nested), (_value, label) in SIMPLE_PROFILE.items()
+            if before[top].get(nested) != after[top].get(nested)
+        ]
+
     async def _equipment_configuration_post(self, form, submitted: dict[str, str]) -> web.Response:
         candidate = {}
         equipment_id = ""
@@ -931,7 +1157,8 @@ class Server:
             }
             return self._conf_refusal("equipment", errors, values=submitted)
         info("Métadonnées des équipements sauvegardées", name=LOGGER_NAME)
-        raise web.HTTPSeeOther(location="/conf?success=equipment#equipment")
+        token = self._store_flash("equipment", sorted(submitted))
+        raise web.HTTPSeeOther(location=f"/conf?flash={token}#equipment")
 
     async def _sensor_quality_configuration_post(self, form) -> web.Response:
         payload = self.config.model_dump(by_alias=True, mode="json")
@@ -1041,7 +1268,8 @@ class Server:
         if self.supervisor is not None and action in {"__mode__", "BME280T", "BME280H"}:
             self.supervisor.request_reload("climate_control")
         info(f"Qualité capteur enregistrée : {action}", name=LOGGER_NAME)
-        raise web.HTTPSeeOther(location="/conf?success=sensor-quality#sensor-quality")
+        token = self._store_flash("sensor-quality", [action])
+        raise web.HTTPSeeOther(location=f"/conf?flash={token}#sensor-quality")
 
     @staticmethod
     def _humanize(item: dict) -> str:

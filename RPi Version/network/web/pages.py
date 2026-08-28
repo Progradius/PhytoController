@@ -100,6 +100,7 @@ def conf_page(
     csrf_token: str,
     *,
     success: str | None = None,
+    flash: dict | None = None,
     errors: dict[str, str] | None = None,
     field_errors: dict[str, dict[str, str]] | None = None,
     form_values: dict[str, dict[str, str]] | None = None,
@@ -108,6 +109,7 @@ def conf_page(
     alarm_summary=None,
     sensor_snapshot=None,
     discovered_ds18=None,
+    simple=None,
 ) -> str:
     # `form_values` et `field_errors` sont indexés par **portée** de formulaire —
     # l'identifiant de section, ou `sensor-quality:<clé capteur>` pour les
@@ -131,6 +133,7 @@ def conf_page(
         config=config,
         csrf_token=csrf_token,
         success=success,
+        flash=flash,
         errors=errors or {},
         form_value=form_value,
         field_error=field_error,
@@ -152,6 +155,7 @@ def conf_page(
         ],
         equipment=equipment or {},
         alarm_summary=alarm_summary,
+        simple=simple or {},
     )
 
 

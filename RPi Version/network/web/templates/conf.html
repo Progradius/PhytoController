@@ -89,7 +89,17 @@
   <div><p class="eyebrow">Paramètres validés</p><h1>Configuration</h1><p class="hero-copy">Chaque section est enregistrée et appliquée séparément.</p></div>
 </section>
 
-{% if success %}<div class="notice success" role="status">La section « {{ success }} » a été enregistrée.</div>{% endif %}
+{% if flash %}
+<div class="notice success" role="status">
+  <div>
+    <strong>Section « {{ flash.section }} » enregistrée le {{ flash.at }}.</strong>
+    <p>{{ flash.apply }}</p>
+    {% if flash.changes %}<p>Champs modifiés : {{ flash.changes|join(', ') }}.</p>
+    {% else %}<p>Aucun écart avec la configuration précédente.</p>{% endif %}
+    {% if flash.profile %}<p>Réglages fins ramenés au profil du mode Simple : {{ flash.profile|join(', ') }}.</p>{% endif %}
+  </div>
+</div>
+{% elif success %}<div class="notice success" role="status">La section « {{ success }} » a été enregistrée.</div>{% endif %}
 {% if error_count %}
 <div class="notice error" role="alert" tabindex="-1" id="form-errors">
   <strong>La configuration n’a pas été modifiée.</strong> Votre saisie est conservée ci-dessous.
@@ -99,12 +109,80 @@
 </div>
 {% endif %}
 
-<nav class="config-toc" aria-label="Sommaire de la configuration">
+{# Le sélecteur reste masqué tant que le script n'a pas confirmé que la
+   prévisualisation répond : le mode Simple écrit de vrais paramètres
+   thermiques, et il ne se livre pas sans le retour qui les rend visibles. #}
+<div class="mode-switch" data-mode-switch hidden>
+  <span id="config-mode-label">Affichage</span>
+  <div class="segmented-control" role="group" aria-labelledby="config-mode-label">
+    <button type="button" class="mode-button" data-set-mode="simple" aria-pressed="false">Simple</button>
+    <button type="button" class="mode-button" data-set-mode="advanced" aria-pressed="true">Avancé</button>
+  </div>
+  <p class="field-help" data-mode-note>Le mode Simple regroupe les réglages de conduite courante et impose un profil de réglages fins. Le mode Avancé expose chaque paramètre séparément.</p>
+</div>
+
+<nav class="config-toc" aria-label="Sommaire de la configuration" data-config-mode="advanced">
   <a href="#culture">Culture</a><a href="#equipements">Équipements</a><a href="#planification">Planification</a><a href="#climat">Climat</a><a href="#capteurs">Capteurs</a><a href="#reseau">Réseau</a><a href="#systeme">Système</a>
 </nav>
 
 <div class="config-layout">
-<section id="culture" class="config-group" aria-labelledby="culture-title">
+<section id="simple" class="config-group" data-config-mode="simple" aria-labelledby="simple-title" hidden>
+  <div class="section-heading"><div><p class="eyebrow">Conduite courante</p><h2 id="simple-title">Réglages essentiels</h2></div></div>
+  <details class="config-section" open>
+    <summary><span>Serre</span><span class="summary-value">Une seule sauvegarde</span></summary>
+    <form method="post" action="/conf/simple" data-config-form>{{ csrf() }}
+      <p class="field-help">Cette section enregistre en une fois le planning, les consignes et la ventilation. Les réglages fins sont ramenés au profil de conduite ; la prévisualisation ci-dessous montre exactement ce qui changera.</p>
+
+      <h3>Jour et nuit</h3>
+      {{ radios('simple', 'source', config.day_night.source, 'Référence jour / nuit', (('dailytimer1','Suivre l’éclairage 1'),('custom','Horaires personnalisés')), 'simple-source') }}
+      <div class="field-grid two">
+        {{ text('simple', 'start_time', 'Début du jour', '%02d:%02d'|format(config.day_night.start_hour, config.day_night.start_minute), type='time', required=True, id_prefix='simple-day-start') }}
+        {{ text('simple', 'stop_time', 'Fin du jour', '%02d:%02d'|format(config.day_night.stop_hour, config.day_night.stop_minute), type='time', required=True, id_prefix='simple-day-stop') }}
+      </div>
+
+      <h3>Éclairage</h3>
+      {% for num, timer in ((1, config.daily_timer1), (2, config.daily_timer2)) %}
+      <fieldset class="metadata-fieldset"><legend>Éclairage {{ num }}</legend>
+        {{ switch('simple', 'daily' ~ num ~ '_enabled', timer.enabled, 'Activation', 'simple-daily-' ~ num) }}
+        <div class="field-grid two">
+          {{ text('simple', 'daily' ~ num ~ '_start', 'Début', '%02d:%02d'|format(timer.start_hour, timer.start_minute), type='time', required=True, id_prefix='simple-daily-' ~ num ~ '-start') }}
+          {{ text('simple', 'daily' ~ num ~ '_stop', 'Fin', '%02d:%02d'|format(timer.stop_hour, timer.stop_minute), type='time', required=True, id_prefix='simple-daily-' ~ num ~ '-stop') }}
+        </div>
+      </fieldset>
+      {% endfor %}
+
+      <h3>Températures visées</h3>
+      <div class="field-grid two">
+        {{ number('simple', 'target_temp_min_day', 'Jour · minimum', config.temperature.target_temp_min_day, '°C', -20, 60, '0.1', '', 'simple-min-day') }}
+        {{ number('simple', 'target_temp_max_day', 'Jour · maximum', config.temperature.target_temp_max_day, '°C', -20, 60, '0.1', '', 'simple-max-day') }}
+        {{ number('simple', 'target_temp_min_night', 'Nuit · minimum', config.temperature.target_temp_min_night, '°C', -20, 60, '0.1', '', 'simple-min-night') }}
+        {{ number('simple', 'target_temp_max_night', 'Nuit · maximum', config.temperature.target_temp_max_night, '°C', -20, 60, '0.1', '', 'simple-max-night') }}
+      </div>
+
+      <h3>Ventilation et chauffage</h3>
+      <div class="field-grid two">
+        {{ number('simple', 'humidity_max', 'Humidité maximale', config.motor.winter_humidity_threshold, '%', 0, 100, '0.1', 'Au-delà, la ventilation déshumidifie dans la limite de son budget horaire.', 'simple-humidity') }}
+      </div>
+      {{ radios('simple', 'intensity', simple.intensity, 'Intensité de ventilation', (('douce','Douce'),('normale','Normale'),('forte','Forte')), 'simple-intensity') }}
+      {% if not simple.intensity %}<p class="field-help">La ventilation actuelle (maximum {{ config.motor.max_speed }}, renouvellement {{ config.motor.winter_refresh_speed }}) ne correspond à aucune des trois intensités : en choisir une explicitement.</p>{% endif %}
+      {{ radios('simple', 'season', simple.season, 'Saison', simple.seasons, 'simple-season') }}
+      {% if simple.manual %}
+      <div class="notice warning"><p>Le moteur est actuellement en pilotage <strong>manuel</strong>, vitesse {{ simple.manual_speed }}. Aucune saison n’est présélectionnée : choisir explicitement Été, Hiver, ou « Conserver le pilotage manuel ».</p></div>
+      {% endif %}
+      {{ switch('simple', 'heater_enabled', config.heater_settings.enabled, 'Chauffage', 'simple-heater') }}
+
+      {% if simple.profile_pending %}
+      <div class="notice warning">
+        <div><strong>Réglages fins ramenés au profil de conduite.</strong>
+        <ul>{% for item in simple.profile_pending %}<li>{{ item.label }} : {{ item.from }} → {{ item.to }}</li>{% endfor %}</ul></div>
+      </div>
+      {% endif %}
+      {{ save_button() }}
+    </form>
+  </details>
+</section>
+
+<section id="culture" class="config-group" data-config-mode="advanced" aria-labelledby="culture-title">
   <div class="section-heading"><div><p class="eyebrow">Métadonnée</p><h2 id="culture-title">Culture</h2></div></div>
   <details class="config-section" id="life"{% if active_section == 'life' %} open{% endif %}>
     <summary><span>Stade de culture</span><span class="summary-value">{{ config.life_period.stage }}</span></summary>
@@ -115,7 +193,7 @@
   </details>
 </section>
 
-<section id="equipements" class="config-group" aria-labelledby="equipment-title">
+<section id="equipements" class="config-group" data-config-mode="advanced" aria-labelledby="equipment-title">
   <div class="section-heading"><div><p class="eyebrow">Poste de conduite</p><h2 id="equipment-title">Équipements</h2></div></div>
   <details class="config-section" id="equipment"{% if active_section == 'equipment' %} open{% endif %}>
     <summary><span>Noms et annotations</span><span class="summary-value">Sans effet sur le contrôle</span></summary>
@@ -139,7 +217,7 @@
   </details>
 </section>
 
-<section id="planification" class="config-group" aria-labelledby="planning-title">
+<section id="planification" class="config-group" data-config-mode="advanced" aria-labelledby="planning-title">
   <div class="section-heading"><div><p class="eyebrow">Automatisation</p><h2 id="planning-title">Planification</h2></div></div>
   <details class="config-section" id="day-night"{% if active_section == 'day-night' %} open{% endif %}>
     <summary><span>Référence jour / nuit</span><span class="summary-value">{{ 'Minuterie 1' if config.day_night.source == 'dailytimer1' else 'Personnalisée' }}</span></summary>
@@ -198,7 +276,7 @@
   {% endfor %}
 </section>
 
-<section id="climat" class="config-group" aria-labelledby="climate-config-title">
+<section id="climat" class="config-group" data-config-mode="advanced" aria-labelledby="climate-config-title">
   <div class="section-heading"><div><p class="eyebrow">Régulation</p><h2 id="climate-config-title">Climat</h2></div></div>
   <details class="config-section" id="temperature"{% if active_section == 'temperature' %} open{% endif %}><summary><span>Consignes de température</span><span class="summary-value">Jour et nuit</span></summary>
     <form method="post" action="/conf/temperature" data-config-form>{{ csrf() }}<div class="field-grid two">
@@ -238,7 +316,7 @@
   </details>
 </section>
 
-<section id="capteurs" class="config-group" aria-labelledby="sensors-config-title">
+<section id="capteurs" class="config-group" data-config-mode="advanced" aria-labelledby="sensors-config-title">
   <div class="section-heading"><div><p class="eyebrow">Acquisition</p><h2 id="sensors-config-title">Capteurs</h2></div></div>
   <details class="config-section" id="sensors"{% if active_section == 'sensors' %} open{% endif %}><summary><span>Capteurs actifs</span><span class="summary-value">Reconfiguration à chaud</span></summary>
     <form method="post" action="/conf/sensors" data-config-form>{{ csrf() }}
@@ -300,7 +378,7 @@
   </details>
 </section>
 
-<section id="reseau" class="config-group" aria-labelledby="network-title">
+<section id="reseau" class="config-group" data-config-mode="advanced" aria-labelledby="network-title">
   <div class="section-heading"><div><p class="eyebrow">Connectivité</p><h2 id="network-title">Réseau et export</h2></div></div>
   <details class="config-section" id="wifi"{% if active_section == 'wifi' %} open{% endif %}><summary><span>Wi-Fi</span><span class="summary-value">Redémarrage requis</span></summary>
     <form method="post" action="/conf/wifi" data-config-form>{{ csrf() }}
@@ -323,7 +401,7 @@
   </details>
 </section>
 
-<section id="systeme" class="config-group" aria-labelledby="system-title">
+<section id="systeme" class="config-group" data-config-mode="advanced" aria-labelledby="system-title">
   <div class="section-heading"><div><p class="eyebrow">Avancé</p><h2 id="system-title">Système</h2></div></div>
   <details class="config-section" id="logs"{% if active_section == 'logs' %} open{% endif %}><summary><span>Journalisation</span><span class="summary-value">{{ config.logs.level }}</span></summary>
     <form method="post" action="/conf/logs" data-config-form>{{ csrf() }}<div class="field-grid two">
