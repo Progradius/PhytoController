@@ -104,6 +104,7 @@ Chauffage et ventilation sont décidés ensemble par `components/climate_policy.
 Ces protections ne couvrent pas :
 
 - un figement plus court que le seuil configuré, ou commun à plusieurs capteurs redondants soumis à la même cause ;
+- un capteur vivant mais faux : le figement teste la vivacité de l'acquisition, pas la justesse — c'est la redondance et la calibration qui couvrent ce cas ;
 - un relais mécaniquement collé ;
 - un processus tué sans handler ;
 - une défaillance du Pi, de l'alimentation ou de la carte SD ;

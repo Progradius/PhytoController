@@ -239,7 +239,8 @@
     state.stats.forEach((stat) => {
       const card = document.querySelector(`[data-stat="${CSS.escape(stat.key)}"]`);
       if (!card) return;
-      text(".stat-min", stat.min ?? "—", card); text(".stat-max", stat.max ?? "—", card);
+      const mesure = (v) => (v === null || v === undefined ? "—" : Number(v).toFixed(stat.decimals ?? 1));
+      text(".stat-min", mesure(stat.min), card); text(".stat-max", mesure(stat.max), card);
       text(".stat-min-at", stat.min_at ? `le ${stat.min_at}` : "", card);
       text(".stat-max-at", stat.max_at ? `le ${stat.max_at}` : "", card);
     });

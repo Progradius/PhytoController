@@ -22,6 +22,28 @@ env = Environment(
 )
 
 
+def _mesure(value, decimals=1) -> str:
+    """Arrondit une mesure pour l'affichage seulement.
+
+    L'acquisition et la politique qualité travaillent en précision complète :
+    c'est ici, et nulle part en amont, que la valeur est réduite au nombre de
+    décimales du catalogue. Le rendu doit rester identique à celui de
+    `dashboard.js` (`toFixed`), sinon la première peinture et le premier
+    rafraîchissement afficheraient deux valeurs différentes.
+    """
+    try:
+        places = int(decimals)
+    except (TypeError, ValueError):
+        places = 1
+    try:
+        return f"{float(value):.{places}f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+env.filters["mesure"] = _mesure
+
+
 def _asset_versions() -> dict[str, str]:
     assets = {
         "style": STATIC_DIR / "css" / "style.css",

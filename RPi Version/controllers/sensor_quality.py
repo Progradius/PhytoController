@@ -24,7 +24,9 @@ MISSING_AFTER_FAILURES = 5
 
 @dataclass(frozen=True)
 class QualityMemory:
-    last_raw_value: float | None = None
+    # Valeur de référence du dernier changement réel, **pas** le dernier
+    # échantillon lu : c'est l'ancre de la bande morte du détecteur de figement.
+    freeze_anchor_value: float | None = None
     last_sample_mono: float | None = None
     last_change_mono: float | None = None
     unchanged_seconds: float = 0.0
@@ -147,11 +149,22 @@ def evaluate_sample(
     unchanged_seconds = memory.unchanged_seconds
     unchanged_samples = memory.unchanged_samples
     last_change = memory.last_change_mono
+    anchor = memory.freeze_anchor_value
 
     if plausible:
         epsilon = float(profile.get("freeze_epsilon", 0.0))
-        changed = memory.last_raw_value is None or abs(raw - memory.last_raw_value) > epsilon
+        # `anchor` est la valeur du **dernier changement réel**, jamais
+        # l'échantillon précédent. Un figement est une valeur qui ne quitte pas
+        # une bande de ±epsilon pendant `freeze_after_seconds` ; comparer deux
+        # échantillons voisins mesurerait une *pente*, donc rendrait le verdict
+        # dépendant de la cadence de lecture. Vérifié en production le
+        # 30/08/2026 : à 10 s d'intervalle une température saine bouge de
+        # 0,01 °C, sous un epsilon de 0,02 °C, et une dérive réelle de 0,32 °C
+        # étalée sur 1 h 51 était déclarée figée. Ne pas réintroduire une
+        # comparaison à `memory.last_sample_mono` ni au dernier échantillon.
+        changed = anchor is None or abs(raw - anchor) > epsilon
         if changed:
+            anchor = raw
             last_change = now_mono
             unchanged_seconds = 0.0
             unchanged_samples = 1
@@ -162,9 +175,11 @@ def evaluate_sample(
             )
             unchanged_seconds += interval
             unchanged_samples += 1
-            # Une seule variation suivie de valeurs à nouveau identiques ne
-            # prouve pas que le capteur s'est réellement débloqué.
-            recovery = 0 if frozen else recovery
+            # Le réarmement compte des variations réelles, pas des variations
+            # *consécutives* : remettre `recovery` à zéro ici transformerait
+            # l'anti-rebond en cliquet, et un capteur sain resterait verrouillé
+            # (aucune des trois mesures n'a produit trois dépassements
+            # consécutifs en 7,5 min de relevé). Ne pas rétablir ce reset.
 
         freeze_after = profile.get("freeze_after_seconds")
         if freeze_after is not None and not frozen:
@@ -197,7 +212,7 @@ def evaluate_sample(
     )
     new_memory = replace(
         memory,
-        last_raw_value=raw,
+        freeze_anchor_value=anchor,
         last_sample_mono=now_mono,
         last_change_mono=last_change,
         unchanged_seconds=unchanged_seconds,

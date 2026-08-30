@@ -56,9 +56,9 @@
     <article class="card sensor-card status-{{ sensor.status }}" data-sensor="{{ sensor.key }}">
       <div class="card-kicker"><span>{{ sensor.key }}</span><span class="sensor-status">{% if sensor.status == 'degraded' %}dégradé{% elif sensor.status == 'inconsistent' %}incohérent{% else %}{{ sensor.status }}{% endif %}</span></div>
       <h3>{{ sensor.label }}</h3>
-      <p class="metric"><span class="sensor-value">{{ sensor.value if sensor.value is not none else '—' }}</span> <span class="metric-unit">{{ sensor.unit }}</span></p>
+      <p class="metric"><span class="sensor-value">{{ sensor.value|mesure(sensor.decimals) }}</span> <span class="metric-unit">{{ sensor.unit }}</span></p>
       <p class="card-meta sensor-age">{{ (sensor.age_s|string + ' s') if sensor.age_s is not none else 'Aucune mesure' }}</p>
-      <p class="card-meta sensor-quality">{{ sensor.reason_codes|join(', ') or 'Mesure qualifiée' }} · inchangée {{ sensor.unchanged_for_s }} s{% if sensor.value is none and sensor.observed_value is not none %} · valeur suspecte {{ sensor.observed_value }} {{ sensor.unit }}{% endif %}</p>
+      <p class="card-meta sensor-quality">{{ sensor.reason_codes|join(', ') or 'Mesure qualifiée' }} · inchangée {{ sensor.unchanged_for_s }} s{% if sensor.value is none and sensor.observed_value is not none %} · valeur suspecte {{ sensor.observed_value|mesure(sensor.decimals) }} {{ sensor.unit }}{% endif %}</p>
     </article>
     {% else %}
     <article class="card empty-state"><h3>Aucun capteur actif</h3><p>Activez les capteurs depuis la configuration.</p></article>
@@ -133,8 +133,8 @@
     <article class="card stat-card" data-stat="{{ stat.key }}">
       <h3>{{ stat.key }}</h3>
       <dl class="stat-list">
-        <div><dt>Minimum</dt><dd><span class="stat-min">{{ stat.min if stat.min is not none else '—' }}</span><small class="stat-min-at">{{ stat.min_at or '' }}</small></dd></div>
-        <div><dt>Maximum</dt><dd><span class="stat-max">{{ stat.max if stat.max is not none else '—' }}</span><small class="stat-max-at">{{ stat.max_at or '' }}</small></dd></div>
+        <div><dt>Minimum</dt><dd><span class="stat-min">{{ stat.min|mesure(stat.decimals) }}</span><small class="stat-min-at">{{ stat.min_at or '' }}</small></dd></div>
+        <div><dt>Maximum</dt><dd><span class="stat-max">{{ stat.max|mesure(stat.decimals) }}</span><small class="stat-max-at">{{ stat.max_at or '' }}</small></dd></div>
       </dl>
       <form method="post" action="/actions/stats/reset">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

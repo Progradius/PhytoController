@@ -163,8 +163,21 @@ to `PuppetMaster`.
   confirmation `ARMER`, and an already-confirmed BME280T inconsistency must enter `REPLI_CAPTEUR`
   immediately. Never restore DS18B20 discovery-order addressing: calibration is bound to stable 1-Wire
   IDs. Freeze/counter state is persisted, but monotonic timestamps are deliberately not restored.
+  **Freeze detection is an anchored dead band, never a per-sample delta.** `freeze_epsilon` is compared
+  against `freeze_anchor_value` — the value at the last *real* change — so the verdict is invariant under
+  the read cadence. Comparing against the previous sample measures a *slope*: at 10 s the same healthy
+  BME280 was declared frozen while at 60 s it was not, and a genuine 0.32 °C drift spread over 1 h 51
+  counted as frozen (production, 30/08/2026). An `epsilon` **above the sensor's noise floor** makes the
+  diagnostic blind — a calm night and a dead I²C register become the same observation, and no threshold
+  can separate two identical observations — hence `freeze_epsilon = 0.0` (strict identity, i.e. liveness
+  of the acquisition chain) for BME280 and DS18B20. Re-arming counts three *real* variations, not three
+  *consecutive* ones: resetting the counter on a calm sample turns the debounce into a ratchet that never
+  releases. Freeze answers "is acquisition alive?", never "is the value right?" — that one belongs to
+  `redundancy_groups` and calibration.
 - `sensor_handlers/` wrap the vendored drivers in `lib/sensors/`. A failed read returns `None` rather than
-  raising — every consumer must handle `None`.
+  raising — every consumer must handle `None`. **Drivers and handlers must not round**: full precision has
+  to reach the quality policy, whose freeze test lives on the acquisition noise. Rounding belongs to
+  presentation, which uses the catalog's `decimals` (`mesure` Jinja filter, `toFixed` in the JS).
 - `network/web/server.py` — aiohttp server with explicit routes and exact static-asset allow-list. It
   enforces a 64 KiB body limit, per-process CSRF token, same-origin POSTs, private/LAN `Host` validation,
   security headers and no-store on dynamic responses. `/conf/{section}` builds and validates a complete

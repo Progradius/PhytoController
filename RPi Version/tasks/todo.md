@@ -1,9 +1,13 @@
 # TODO — Déploiement et armement de la qualité des capteurs
 
-**État** : lot redéployé au commit `b26d2b1`, pré-monitoring validé et nouvelle observation 48 h en
-cours depuis le 28 août 2026 à 18:59:28 UTC. Première preuve invalidée proprement interrompue et
-archivée. Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à
-validation complète.
+**État** : lot redéployé au commit `b26d2b1`, pré-monitoring validé et observation 48 h menée du
+28 août 2026 à 18:59:28 UTC au 30 août à 18:59:28 UTC. Première preuve invalidée proprement
+interrompue et archivée. Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à
+conserver jusqu'à validation complète.
+
+**La fenêtre a révélé un défaut de la politique de figement** (voir « Correctif de la politique de
+figement » ci-dessous) : il est corrigé en local, **pas encore déployé**. Le déploiement attend la
+clôture de l'observation en cours, puis une nouvelle fenêtre de 172 800 s au commit corrigé.
 
 Références :
 
@@ -50,6 +54,48 @@ Références :
       dégradent ni `control_healthy()` ni le watchdog
 - [ ] Consigner les faux positifs et faux négatifs constatés, avec date et contexte, sans recopier
       la configuration sensible
+
+## 2 bis. Correctif de la politique de figement (30 août 2026)
+
+Résultat de l'observation : **0 échantillon en échec**, mais 546 avertissements sur 2 284, tous de
+la même cause. `BME280T` et `BME280H` — les deux mesures qui pilotent l'arbitre thermique — ont été
+déclarées `inconsistent` sur 17 % et 22 % de la fenêtre, `reason=frozen`, alors que les capteurs
+mesuraient normalement (amplitude réelle 6,45 °C et 14,95 % sur 38 h, aucune erreur d'acquisition).
+
+Cause : `evaluate_sample()` comparait chaque lecture à la **précédente**, donc mesurait une pente et
+non une valeur bloquée ; à la cadence réelle de 10 s une température saine bouge de 0,01 °C sous un
+epsilon de 0,02 °C. Preuve la plus nette : l'épisode du 30/08 02:40:30Z → 04:31:41Z, 6 671 s
+déclarées figées pendant lesquelles la température est passée de 25,92 à 26,24 °C. Le même signal
+donnait « figé » à 5 s et 10 s d'intervalle et « sain » à 60 s — un verdict fonction de la cadence.
+
+- [x] Ancrer la comparaison sur la valeur du dernier changement réel (`freeze_anchor_value`) au lieu
+      de l'échantillon précédent : le verdict devient invariant par cadence
+- [x] Passer `freeze_epsilon` à `0.0` pour `BME280T`, `BME280H` et `BME280P`, aligné sur les DS18B20.
+      Base de mesure : sur 38 h la plus longue plage de valeurs strictement identiques est de 361 s
+      (T), 181 s (H) et 181 s (P), contre des seuils de 1 800 s et 3 600 s
+- [x] Supprimer le double arrondi à 0,01 (`lib/sensors/BME280.py` et `BME280Handler._safe`) : la
+      précision complète doit atteindre la politique qualité. Arrondi déplacé à l'affichage (filtre
+      Jinja `mesure`, `toFixed` côté JS), `decimals` ajouté à la charge utile des min/max
+- [x] Supprimer le cliquet de réarmement : trois variations **réelles** suffisent, un échantillon
+      calme intercalé ne remet plus le compteur à zéro
+- [x] Documenter la séparation des rôles (figement = vivacité de l'acquisition ; redondance =
+      justesse) dans `docs/reference/configuration.md`, `safety-model.md`, `verification.md` et
+      `CLAUDE.md`/`AGENTS.md`
+- [x] Ajouter les tests de non-régression, dont le **test de propriété d'invariance par cadence**
+      (5 s / 10 s / 60 s) qui interdit la classe de bug — suite complète : 150 tests verts
+- [ ] Déployer après la clôture de la fenêtre en cours, puis relancer une observation de 172 800 s
+      au commit corrigé
+- [ ] Vérifier sur la nouvelle fenêtre que `BME280T`/`BME280H` ne produisent plus d'avertissement de
+      figement et que le statut reste `normal` sur les périodes calmes de nuit
+
+**Points laissés ouverts, à mesurer avant activation** (ne pas régler à l'aveugle) :
+
+- `MLX-AMB` et `MLX-OBJ` conservent `freeze_epsilon = 0.05`. La sémantique est désormais saine (bande
+  morte ancrée), mais la valeur n'est appuyée sur aucune mesure de bruit — à qualifier si ces
+  capteurs sont activés.
+- `DS18Handler` arrondit encore à 0,1 °C, une grille bien plus grossière que la résolution réelle des
+  sondes. Avec `freeze_epsilon = 0.0`, un plateau prolongé dans un bac d'eau stable pourrait produire
+  un faux positif. Sondes désactivées aujourd'hui ; à traiter avant de les activer.
 
 ## 3. Calibrer les profils
 

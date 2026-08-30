@@ -1483,8 +1483,12 @@ class Server:
         stats = []
         for key in self.stats.KEYS:
             item = self.stats.get_all().get(key, {})
+            definition = SENSORS_BY_KEY.get(key)
             stats.append({
                 "key": key,
+                # Les min/max sont mémorisés en précision complète ; le nombre
+                # de décimales voyage avec eux pour que l'affichage arrondisse.
+                "decimals": definition.decimals if definition else 1,
                 "min": item.get("min"),
                 "min_at": item.get("min_date"),
                 "max": item.get("max"),

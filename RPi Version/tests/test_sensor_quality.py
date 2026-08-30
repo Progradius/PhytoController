@@ -117,6 +117,128 @@ def test_changement_rearme_un_capteur_fige_apres_trois_reussites(valid_config):
     assert memory.frozen is False
 
 
+# Le détecteur de figement doit répondre à une question physique — « la mesure
+# est-elle bloquée ? » — et non à une question d'échantillonnage — « varie-t-elle
+# de plus d'epsilon d'une lecture à l'autre ? ». Les tests ci-dessous fixent
+# cette frontière ; ils rejouent des signaux réels relevés en production les
+# 28-30 août 2026, quand une dérive saine était déclarée figée.
+#
+# Note sur les cadences testées : `unchanged_seconds` n'accumule qu'au plus
+# `freshness_seconds` par échantillon, car une période non observée ne prouve
+# rien. Une cadence plus lente que la fraîcheur retarde donc volontairement la
+# *détection* ; les cas « doit figer » se testent à cadence ≤ fraîcheur, les cas
+# « ne doit pas figer » à toutes les cadences.
+
+PROFIL_PRODUCTION_AVANT_CORRECTIF = {
+    "freeze_epsilon": 0.02, "freeze_after_seconds": 1800.0,
+    "freeze_min_samples": 30, "freshness_seconds": 20.0,
+}
+
+
+def _rampe(pente_c_par_s):
+    """Dérive linéaire quantifiée au pas de 0,01 rendu par le BME280."""
+    return lambda t: round(20.0 + pente_c_par_s * t, 2)
+
+
+def _rejouer(definition, profile, signal, *, cadence, duree):
+    memory = QualityMemory()
+    decision = None
+    for index in range(int(duree / cadence) + 1):
+        mono = index * cadence
+        decision, memory = evaluate(
+            definition, profile, memory, raw=signal(mono), mono=mono,
+        )
+    return decision, memory
+
+
+@pytest.mark.parametrize("cadence", (5.0, 10.0, 60.0))
+def test_une_derive_lente_donne_le_meme_verdict_a_toute_cadence(valid_config, cadence):
+    """Invariance par cadence : c'est la propriété qui interdit la classe de bug.
+
+    À 1,8 °C/h, l'ancien critère comparait deux échantillons voisins : figé à 5 s
+    et 10 s d'intervalle, sain à 60 s. Le même air, le même capteur, deux
+    verdicts opposés selon la fréquence de lecture.
+    """
+    definition = SENSORS_BY_KEY["BME280T"]
+    profile = effective_quality_profile(valid_config, definition) | PROFIL_PRODUCTION_AVANT_CORRECTIF
+    decision, memory = _rejouer(
+        definition, profile, _rampe(0.0005), cadence=cadence, duree=3600.0,
+    )
+    assert memory.frozen is False
+    assert "frozen" not in decision.reasons
+    assert decision.status == STATUS_NORMAL
+
+
+def test_la_derive_reelle_du_30_aout_2026_n_est_pas_un_figement(valid_config):
+    """Régression exacte : +0,32 °C étalés sur 1 h 51, déclarés figés en production."""
+    definition = SENSORS_BY_KEY["BME280T"]
+    profile = effective_quality_profile(valid_config, definition) | PROFIL_PRODUCTION_AVANT_CORRECTIF
+    decision, memory = _rejouer(
+        definition, profile, _rampe(0.32 / 6671), cadence=10.0, duree=7200.0,
+    )
+    assert memory.frozen is False
+    assert decision.status == STATUS_NORMAL
+
+
+@pytest.mark.parametrize("cadence", (5.0, 10.0))
+def test_une_valeur_bit_identique_reste_un_figement(valid_config, cadence):
+    """Le vrai mode de panne doit rester détecté avec l'epsilon nul du catalogue."""
+    definition = SENSORS_BY_KEY["BME280T"]
+    profile = effective_quality_profile(valid_config, definition)
+    assert profile["freeze_epsilon"] == 0.0
+    decision, memory = _rejouer(
+        definition, profile, lambda _t: 21.37, cadence=cadence, duree=2000.0,
+    )
+    assert memory.frozen is True
+    assert decision.reasons == ("frozen",)
+    assert decision.status == STATUS_INCONSISTENT
+
+
+def test_un_echantillon_calme_ne_reinitialise_pas_le_rearmement(valid_config):
+    """Le réarmement compte des variations réelles, pas des variations consécutives.
+
+    L'ancien code remettait le compteur à zéro au moindre échantillon identique :
+    en production, aucune des trois mesures BME280 n'a produit trois dépassements
+    consécutifs en 7,5 min de relevé, donc le verrou ne tombait jamais.
+    """
+    definition = SENSORS_BY_KEY["BME280T"]
+    profile = effective_quality_profile(valid_config, definition) | {
+        "freeze_after_seconds": 20.0, "freeze_min_samples": 3,
+        "freshness_seconds": 20.0,
+    }
+    memory = QualityMemory()
+    mono = 0.0
+    for _ in range(3):
+        decision, memory = evaluate(definition, profile, memory, raw=15.0, mono=mono)
+        mono += 10.0
+    assert decision.status == STATUS_INCONSISTENT
+
+    for raw in (15.1, 15.1, 15.2, 15.2, 15.3):
+        decision, memory = evaluate(definition, profile, memory, raw=raw, mono=mono)
+        mono += 10.0
+    assert memory.frozen is False
+    assert decision.status == STATUS_NORMAL
+
+
+def test_l_ancre_ne_suit_pas_l_echantillon_precedent(valid_config):
+    """Un escalier dont chaque marche reste sous epsilon est une dérive, pas un figement.
+
+    Chaque marche vaut 0,015 °C, donc jamais « > epsilon » face à l'échantillon
+    précédent — l'ancien critère figeait au bout de 1 800 s — alors que 4,5 °C
+    sont parcourus. Face à l'ancre, deux marches suffisent à quitter la bande.
+    """
+    definition = SENSORS_BY_KEY["BME280T"]
+    profile = effective_quality_profile(valid_config, definition) | PROFIL_PRODUCTION_AVANT_CORRECTIF
+    memory = QualityMemory()
+    decision = None
+    for index in range(300):
+        decision, memory = evaluate(
+            definition, profile, memory, raw=20.0 + 0.015 * index, mono=index * 10.0,
+        )
+    assert memory.frozen is False
+    assert decision.status == STATUS_NORMAL
+
+
 def test_recuperation_redondante_reste_sans_effet_en_observation():
     decision = QualityDecision(
         status=STATUS_INCONSISTENT,

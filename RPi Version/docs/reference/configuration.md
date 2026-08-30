@@ -39,9 +39,40 @@ d'acquisition. Les valeurs hors plage et périmées ne sont jamais autorisées, 
 
 `profiles` est indexé par la clé canonique (`BME280T`, `DS18B#1`, etc.). Chaque profil peut
 surcharger l'offset additif, la date et la durée de validité de calibration, le seuil de fraîcheur,
-la plage plausible, l'epsilon de variation, la durée et le nombre minimal d'échantillons nécessaires
+la plage plausible, l'epsilon de figement, la durée et le nombre minimal d'échantillons nécessaires
 pour déclarer un figement. `freeze_after_seconds: "disabled"` désactive seulement ce diagnostic.
 Les plages configurées doivent rester incluses dans les limites matérielles du catalogue.
+
+### Ce que mesure exactement le figement
+
+`freeze_epsilon` est une **bande morte ancrée**, pas une tolérance de pente : la mesure est déclarée
+figée quand elle ne quitte pas `±epsilon` autour de **la valeur de son dernier changement réel**
+pendant `freeze_after_seconds`. La référence n'est jamais l'échantillon précédent — sinon le critère
+mesurerait une vitesse de variation, et le même capteur dans le même air rendrait un verdict
+différent selon la fréquence de lecture.
+
+Choisir `epsilon` **au-dessus du plancher de bruit du capteur rend le diagnostic aveugle** : une nuit
+calme et un registre I²C mort deviennent la même observation, et aucun seuil ne peut alors les
+séparer. Un `epsilon` nul teste l'identité stricte, donc la vivacité de la chaîne d'acquisition :
+c'est le réglage sûr, et celui du catalogue pour les BME280 et les DS18B20. Ne l'augmenter qu'avec
+une mesure du bruit réel à l'appui, et vérifier que la plus longue plage de valeurs identiques
+observée reste très inférieure à `freeze_after_seconds`.
+
+Le réarmement demande `RECOVERY_SAMPLES` (3) **variations réelles**, pas trois variations
+consécutives : un échantillon calme intercalé ne remet pas le compteur à zéro. L'exigence inverse
+transformerait l'anti-rebond en cliquet et laisserait un capteur sain verrouillé.
+
+Chaque diagnostic répond à une question distincte, et aucun ne remplace les autres :
+
+| Diagnostic | Question posée | Ce qu'il ne couvre pas |
+|---|---|---|
+| `freeze` | la chaîne d'acquisition est-elle vivante ? | une mesure vivante mais fausse |
+| plage plausible | la valeur est-elle physiquement possible ? | une erreur dans la plage |
+| fraîcheur | l'instantané est-il récent ? | la justesse de la valeur |
+| `redundancy_groups` | deux sondes comparables sont-elles d'accord ? | un défaut commun aux deux |
+
+Élargir `freeze_epsilon` pour « attraper une dérive » est donc une erreur de conception : la dérive
+d'un capteur vivant relève de la redondance et de la calibration, jamais du figement.
 
 `ds18b20_bindings` lie chaque nom métier DS18B à son identifiant 1-Wire stable au format
 `28-xxxxxxxxxxxx`. Une sonde activée mais non liée est déclarée absente : l'ordre de découverte

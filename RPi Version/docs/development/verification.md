@@ -35,7 +35,8 @@ installation explicite du faux de `tests/fakes/rpi_gpio.py`.
 - tâche silencieuse puis stall et relance ;
 - annulation dans `energized()` puis OFF ;
 - cinq températures invalides puis `REPLI_CAPTEUR` : chauffage OFF, moteur à `sensor_fallback_speed`, alarme persistante ;
-- figement confirmé en observation puis armement : exclusion immédiate sans nouvelle lecture ; trois variations plausibles pour le réarmement ;
+- figement confirmé en observation puis armement : exclusion immédiate sans nouvelle lecture ; trois variations plausibles, pas nécessairement consécutives, pour le réarmement ;
+- figement : verdict **invariant par cadence** de lecture, dérive lente sous l'epsilon non figée, valeur strictement identique figée ;
 - désaccord redondant à deux sondes sans choix arbitraire, majorité cohérente à trois sondes et récupération temporisée ;
 - migration SQLite v1 → v2 avec sauvegarde 0600 et agrégation des statuts qualité ;
 - retour du capteur après un repli : sortie du repli et reprise normale ;
