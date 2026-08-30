@@ -1,6 +1,8 @@
 # PWA locale et autorité TLS privée
 
-**Statut** : procédure d'installation à exercer avant qualification sur Android.
+**Statut** : HTTPS déployé et vérifié sur le Raspberry Pi de production le 28 août 2026 ;
+qualification PWA complète sur Android encore ouverte. Le relevé d'installation et ses limites sont
+conservés dans [Activation TLS du 28 août 2026](pwa-tls-activation-2026-08-28.md).
 
 **Origine canonique** : `https://phytocontroller.local/`.
 
@@ -124,3 +126,19 @@ openssl x509 -in /etc/phyto/tls/server.crt -checkend 2592000 -noout
 En rollback vers une version antérieure à la PWA, HTTP `:8123` reste disponible mais `:443` disparaît.
 La PWA peut continuer à montrer son dernier snapshot avec « hors ligne » ; la désinstaller ou effacer
 les données du site dans Chrome pour supprimer cette coque locale.
+
+## 6. État de la production
+
+Depuis le 28 août 2026, le service de production écoute simultanément sur HTTP `:8123` et HTTPS
+`:443`. Le certificat serveur couvre `phytocontroller.local`, `phytocontroller` et `10.42.0.1` et
+expire le 29 septembre 2027. Le certificat public de l'autorité doit être installé sur chaque client
+avant d'utiliser l'origine canonique sans avertissement.
+
+La présence de HTTPS ne change pas le périmètre de sécurité : l'interface reste sans authentification
+et ne doit être exposée qu'à un LAN de confiance. HTTP `:8123` reste volontairement actif comme voie
+de compatibilité et de récupération.
+
+Ne pas déduire de ce déploiement que toute la qualification PWA est terminée. Restent notamment à
+exercer et consigner : la panne TLS contrôlée, le fonctionnement hors ligne et la reconnexion sur
+Android, les notifications locales et le renouvellement du certificat. La clé racine conservée hors
+du Pi doit également recevoir une sauvegarde chiffrée ou amovible vérifiée.

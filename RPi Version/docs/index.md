@@ -3,22 +3,26 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 28 août 2026, après acceptation de l'observation watchdog
-de 48 h sur `e91b021` et vérification pré-monitoring du lot opérateur/PWA/qualité capteurs déployé.
+**Dernière vérification documentaire** : 30 août 2026, après clôture de l'observation 48 h du lot
+opérateur/PWA/qualité capteurs sur `b26d2b1`, qui a établi la continuité du contrôle et révélé un
+défaut de la politique de figement.
 
-**Écart entre le dépôt et la production, au 28 août 2026 :**
+**Écart entre le dépôt et la production, au 30 août 2026 :**
 
 | Chantier | Code | Déployé sur le Pi |
 |---|---|---|
 | Refonte web et acquisition capteurs | `ad39de2` | **Oui**, vérifié — [relevé](operations/web-baseline-2026-08-25.md) |
 | Arbitre thermique unifié (phase 2) | `a04abbd` | **Oui**, vérifié — [relevé](operations/climate-baseline-2026-08-26.md) |
 | Correctifs thermiques et jalon 1 de l'expérience opérateur | `e91b021` | **Oui**, observation 48 h acceptée — [relevé](operations/jalon1-watchdog-observation-2026-08-28.md) |
-| Alarmes/historique, PWA, santé de déploiement et qualité capteurs | `f4d2e5a` à `bb9462e` | **Oui**, vérification pré-monitoring réussie en mode `observe` ; observateur 48 h à déployer |
+| Alarmes/historique, PWA, santé de déploiement et qualité capteurs | `b26d2b1` | **Oui**, mode `observe` ; HTTPS `:443` actif, observation 48 h close — [relevé](operations/jalon2-observation-operateur-2026-08-30.md) |
+| Correctif de la politique de figement des capteurs | `837f778` | **Non** — à déployer, puis nouvelle fenêtre de 172 800 s |
 
 Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique ainsi que le lot opérateur,
 PWA et qualité capteurs en mode `observe`. La fenêtre watchdog du jalon 1 est terminée et acceptée.
-Le contrôle pré-monitoring du lot suivant est concluant, mais son observateur 48 h, ajouté dans le
-présent commit, doit encore être déployé avant le lancement de la fenêtre décrite dans la procédure.
+L'observation invalidée par les redémarrages TLS et applicatif a été interrompue puis archivée, et la
+fenêtre complète sur `b26d2b1` s'est close le 30 août à 18:59:28 UTC en `accepted_with_warnings` :
+172 800 s, 2 864 échantillons, **0 échec**, mais 835 avertissements dus à un unique défaut de la
+détection de figement, corrigé par `837f778` et **pas encore déployé**.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -55,8 +59,10 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md)
 - [Relevé de l'arbitre thermique du 26 août 2026](operations/climate-baseline-2026-08-26.md)
 - [Clôture de l'observation watchdog du 28 août 2026](operations/jalon1-watchdog-observation-2026-08-28.md)
+- [Clôture de l'observation opérateur du 30 août 2026](operations/jalon2-observation-operateur-2026-08-30.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
 - [PWA locale et autorité TLS privée](operations/pwa-local-tls.md)
+- [Activation TLS de production du 28 août 2026](operations/pwa-tls-activation-2026-08-28.md)
 - [Monitoring](operations/monitoring.md)
 - [Sauvegarde et restauration](operations/backup-and-restore.md)
 - [Registre vivant des risques](risk-register.md)

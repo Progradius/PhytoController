@@ -1,13 +1,14 @@
 # TODO — Déploiement et armement de la qualité des capteurs
 
-**État** : lot redéployé au commit `b26d2b1`, pré-monitoring validé et observation 48 h menée du
-28 août 2026 à 18:59:28 UTC au 30 août à 18:59:28 UTC. Première preuve invalidée proprement
-interrompue et archivée. Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à
-conserver jusqu'à validation complète.
+**État** : lot déployé au commit `b26d2b1`. Observation 48 h **close le 30 août 2026 à 18:59:28 UTC**
+en `accepted_with_warnings` — 172 800 s, 2 864 échantillons, 0 échec, 835 avertissements de cause
+unique. Première preuve invalidée proprement interrompue et archivée. Lot non qualifié électriquement
+et mode `Sensor_Quality.mode = observe` à conserver jusqu'à validation complète.
 
 **La fenêtre a révélé un défaut de la politique de figement** (voir « Correctif de la politique de
-figement » ci-dessous) : il est corrigé en local, **pas encore déployé**. Le déploiement attend la
-clôture de l'observation en cours, puis une nouvelle fenêtre de 172 800 s au commit corrigé.
+figement » ci-dessous) : corrigé par le commit `837f778`, **pas encore déployé**. Prochaine action :
+déployer ce commit, vérifier la disparition des deux alarmes `sensor_quality` latchées, puis relancer
+une fenêtre complète de 172 800 s.
 
 Références :
 
@@ -42,8 +43,13 @@ Références :
       `2026-08-28T18:59:28Z`, fin attendue `2026-08-30T18:59:28Z`, PID observateur initial `388349`,
       PID service de référence `387866`, commit `b26d2b1`, preuves sous
       `~/phyto-observations/jalon2-operateur-qualite-20260828T185928Z`
-- [ ] À la fin de cette nouvelle fenêtre, ne l'accepter que si `status=accepted`, durée réelle d'au
-      moins 172 800 s, zéro échantillon en échec et examen explicite de tout avertissement
+- [x] À la fin de cette nouvelle fenêtre, ne l'accepter que si `status=accepted`, durée réelle d'au
+      moins 172 800 s, zéro échantillon en échec et examen explicite de tout avertissement.
+      **Clôturée le 30 août 2026 à 18:59:28 UTC** : `status=accepted_with_warnings`, 172 800 s
+      réelles, 2 864 échantillons, **0 échec**, 835 avertissements tous dus au même défaut de la
+      politique de figement. Examen et décision dans le
+      [relevé de clôture](../docs/operations/jalon2-observation-operateur-2026-08-30.md) : fenêtre
+      acceptée comme preuve de continuité du contrôle, refusée comme qualification du figement
 - [ ] Laisser fonctionner le système en mode `observe` pendant plusieurs cycles jour/nuit et une
       durée représentative des périodes naturellement stables de la serre
 - [ ] Relever pour chaque mesure les statuts, `unchanged_for_s`, échecs consécutifs, incohérences,

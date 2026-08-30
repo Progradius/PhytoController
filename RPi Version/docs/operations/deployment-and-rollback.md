@@ -176,6 +176,49 @@ tail -f /tmp/phyto-jalon2-observation.log
 cat ~/phyto-observations/latest-jalon2-operateur-qualite.txt
 ```
 
+**Clôture du 30 août 2026** : la fenêtre sur `b26d2b1` a produit `status=accepted_with_warnings`
+après 172 800 s et 2 864 échantillons, **sans un seul échec**, mais avec 835 avertissements de cause
+unique. Elle qualifie la continuité du contrôle et invalide la politique de figement des capteurs. La
+preuve complète, l'analyse et la décision sont consignées dans le
+[relevé de clôture](jalon2-observation-operateur-2026-08-30.md). Le correctif `837f778` doit être
+déployé, puis une nouvelle fenêtre complète lancée.
+
+Un `status=accepted_with_warnings` n'est jamais une acceptation implicite : chaque type
+d'avertissement doit être expliqué et tranché par écrit avant de lancer la fenêtre suivante.
+
+### Redéployer pendant une observation jalon 2
+
+Un redéploiement ou un `systemctl restart phyto.service` change le PID de référence et invalide la
+continuité formelle de la fenêtre. Ne pas laisser l'ancien observateur tourner pendant le
+redéploiement et ne pas relancer la fenêtre avant que la nouvelle version soit entièrement validée.
+
+Procéder dans cet ordre :
+
+1. identifier l'unique processus avec `pgrep -af observe-jalon2-operator-quality.sh` et vérifier sa
+   ligne de commande ;
+2. lui envoyer `SIGTERM`, jamais `SIGKILL` en première intention : le gestionnaire du script termine
+   la boucle, écrit un `summary.json` avec `status=interrupted` et supprime son répertoire temporaire ;
+3. attendre sa disparition et conserver le répertoire de preuve interrompu jusqu'à lecture du résumé ;
+4. effectuer le redéploiement, puis vérifier le commit, `phyto.service`, `/health/ready`,
+   `control_healthy`, les alarmes critiques et les transports HTTP/HTTPS attendus ;
+5. archiver le répertoire interrompu sous un nom portant `.invalidated` ou supprimer uniquement ce
+   répertoire daté après avoir consigné la cause ; ne jamais viser récursivement
+   `/home/progradius/phyto-observations` ;
+6. lancer une nouvelle fenêtre de 172 800 s. Le nouveau processus relit alors le commit, le PID,
+   `NRestarts`, le `boot_id` et le watchdog de la version fraîchement déployée.
+
+Exemple d'arrêt contrôlé, à adapter au PID affiché et seulement après vérification de la commande :
+
+```bash
+pgrep -af observe-jalon2-operator-quality.sh
+kill -TERM <pid-observateur-vérifié>
+while kill -0 <pid-observateur-vérifié> 2>/dev/null; do sleep 1; done
+```
+
+Le fichier `latest-jalon2-operateur-qualite.txt` sera remplacé automatiquement par le prochain
+lancement. Le nettoyage ne doit toucher ni `param/operator_history.sqlite3`, ni les journaux du
+service, ni les preuves d'une fenêtre antérieure déjà acceptée.
+
 Le script fixe comme références le commit, le PID, le compteur `NRestarts`, le `boot_id` et le
 watchdog. Toutes les minutes, il contrôle le schéma API 2, la santé et les domaines du superviseur,
 les dix tâches attendues dont `operator_service`, les alarmes, la fraîcheur et le suivi des sorties,
