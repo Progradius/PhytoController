@@ -180,8 +180,15 @@ cat ~/phyto-observations/latest-jalon2-operateur-qualite.txt
 après 172 800 s et 2 864 échantillons, **sans un seul échec**, mais avec 835 avertissements de cause
 unique. Elle qualifie la continuité du contrôle et invalide la politique de figement des capteurs. La
 preuve complète, l'analyse et la décision sont consignées dans le
-[relevé de clôture](jalon2-observation-operateur-2026-08-30.md). Le correctif `837f778` doit être
-déployé, puis une nouvelle fenêtre complète lancée.
+[relevé de clôture](jalon2-observation-operateur-2026-08-30.md). Le correctif a été déployé le même
+soir au commit `985e42d`, avec des contrôles après déploiement tous conformes, et une nouvelle
+fenêtre de 172 800 s court jusqu'au 1er septembre 2026 à 19:09:11 UTC.
+
+Après un déploiement qui modifie un profil qualité, deux points méritent d'être vérifiés
+explicitement : les diagnostics latchés doivent disparaître d'eux-mêmes, parce que le changement de
+signature de profil réinitialise la mémoire qualité ; et l'absence d'alarme dans les minutes qui
+suivent ne prouve rien, la mémoire repartant de zéro. La preuve d'un correctif de figement est la
+période calme suivante, pas l'instantané d'après redémarrage.
 
 Un `status=accepted_with_warnings` n'est jamais une acceptation implicite : chaque type
 d'avertissement doit être expliqué et tranché par écrit avant de lancer la fenêtre suivante.

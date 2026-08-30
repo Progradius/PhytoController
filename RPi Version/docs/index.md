@@ -4,8 +4,8 @@
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
 **Dernière vérification documentaire** : 30 août 2026, après clôture de l'observation 48 h du lot
-opérateur/PWA/qualité capteurs sur `b26d2b1`, qui a établi la continuité du contrôle et révélé un
-défaut de la politique de figement.
+opérateur/PWA/qualité capteurs sur `b26d2b1`, déploiement du correctif de figement `985e42d` et
+lancement d'une nouvelle fenêtre de 172 800 s.
 
 **Écart entre le dépôt et la production, au 30 août 2026 :**
 
@@ -15,14 +15,17 @@ défaut de la politique de figement.
 | Arbitre thermique unifié (phase 2) | `a04abbd` | **Oui**, vérifié — [relevé](operations/climate-baseline-2026-08-26.md) |
 | Correctifs thermiques et jalon 1 de l'expérience opérateur | `e91b021` | **Oui**, observation 48 h acceptée — [relevé](operations/jalon1-watchdog-observation-2026-08-28.md) |
 | Alarmes/historique, PWA, santé de déploiement et qualité capteurs | `b26d2b1` | **Oui**, mode `observe` ; HTTPS `:443` actif, observation 48 h close — [relevé](operations/jalon2-observation-operateur-2026-08-30.md) |
-| Correctif de la politique de figement des capteurs | `837f778` | **Non** — à déployer, puis nouvelle fenêtre de 172 800 s |
+| Correctif de la politique de figement des capteurs | `985e42d` | **Oui**, déployé le 30 août à 19:07 UTC, contrôles conformes ; nouvelle observation 48 h en cours |
 
 Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique ainsi que le lot opérateur,
 PWA et qualité capteurs en mode `observe`. La fenêtre watchdog du jalon 1 est terminée et acceptée.
 L'observation invalidée par les redémarrages TLS et applicatif a été interrompue puis archivée, et la
 fenêtre complète sur `b26d2b1` s'est close le 30 août à 18:59:28 UTC en `accepted_with_warnings` :
 172 800 s, 2 864 échantillons, **0 échec**, mais 835 avertissements dus à un unique défaut de la
-détection de figement, corrigé par `837f778` et **pas encore déployé**.
+détection de figement. Le correctif `985e42d` a été déployé le soir même — alarmes latchées disparues,
+dix tâches saines, aucune entrée de journal en WARNING — et une nouvelle fenêtre de 172 800 s court
+jusqu'au **1er septembre 2026 à 19:09:11 UTC**. Tant qu'elle n'est pas close et lue, le correctif est
+déployé mais **pas encore qualifié** : une nuit calme complète est la preuve attendue.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 

@@ -108,6 +108,62 @@ Conditions de reprise, dans cet ordre :
    d'identités DS18B20, de redondance et de qualification matérielle listées dans
    [`tasks/todo.md`](../../tasks/todo.md).
 
+## Suite donnée le 30 août 2026
+
+Le correctif a été déployé le soir même. Service redémarré à 19:07:27 UTC, `MainPID=721771`,
+`NRestarts=0`, `boot_id` inchangé — seul le service a redémarré, pas la machine.
+
+Contrôles après déploiement, tous conformes :
+
+| Contrôle | Résultat |
+|---|---|
+| Commit déployé | `985e42d`, `phyto.deployRef=feature/qol-operator-experience` |
+| Service | `active/running`, `NRestarts=0`, watchdog armé à 600 s |
+| Santé | `healthy=true`, `control_healthy=true`, `/health/live` et `/health/ready` à 200 |
+| Tâches supervisées | 10 vivantes et saines, 0 restart, 0 stall, aucune erreur ; 7 domaines sains |
+| Journal depuis le démarrage | aucune entrée de niveau WARNING ou supérieur |
+| **Alarmes actives** | **0** — les deux alarmes `sensor_quality` latchées ont disparu |
+| Capteurs | `BME280T`, `BME280H`, `BME280P` en `normal`, sans `reason_codes`, `control_disposition=trusted` |
+| Compteurs qualité | `incoherences_since_calibration` remis à 0, `unchanged_for_s` reparti de 0 |
+| Actionneurs | six sorties en `tracking=ok`, aucune périmée, états restaurés après le redémarrage |
+| Transports | HTTP `:8123` et HTTPS `:443` à 200, `web.https.ready=true` |
+
+La réinitialisation de la mémoire qualité est bien venue du changement de signature de profil, et non
+d'un effacement manuel : `param/runtime_state.json` porte désormais le champ `freeze_anchor_value` et
+une signature contenant `freeze_epsilon: 0.0`.
+
+Seuils effectifs relus dans le code déployé, via `effective_quality_profile()` :
+
+| Mesure | `freeze_epsilon` | `freeze_after_seconds` | `freeze_min_samples` | fraîcheur |
+|---|---:|---:|---:|---:|
+| BME280T | 0.0 | 1 800 | 30 | 20 s |
+| BME280H | 0.0 | 1 800 | 30 | 20 s |
+| BME280P | 0.0 | 3 600 | 30 | 30 s |
+
+`Sensor_Quality.mode = observe`, aucun profil surchargé. La suppression du double arrondi est
+également visible : `raw_value` vaut désormais `28.523013138119133` là où il était limité à deux
+décimales.
+
+**Réserve de méthode** : une absence d'alarme juste après le déploiement ne prouve rien par
+elle-même. La mémoire qualité repart de zéro, donc aucune mesure ne *peut* être déclarée figée avant
+1 800 s. La preuve du correctif est la nuit qui suit, période calme où l'ancien critère se
+déclenchait systématiquement.
+
+### Nouvelle fenêtre d'observation
+
+| Référence | Valeur |
+|---|---|
+| Début | 30 août 2026 à 19:09:11 UTC |
+| Fin attendue | **1er septembre 2026 à 19:09:11 UTC** |
+| Durée demandée | 172 800 s |
+| Commit observé | `985e42d` |
+| PID observateur | `722191` |
+| PID service de référence | `721771` |
+| Preuves | `~/phyto-observations/jalon2-operateur-qualite-20260830T190911Z` |
+
+Les trois premiers échantillons sont `OK`, sans échec ni avertissement, les trois mesures en
+`normal`. La fenêtre ne sera qualifiée qu'après sa durée complète et la lecture de son `summary.json`.
+
 ## Qualifications manuelles encore dues
 
 Le résumé les rappelle explicitement : PWA Chrome Android avec coupure, reconnexion et notifications ;

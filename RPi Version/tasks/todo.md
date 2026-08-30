@@ -1,14 +1,18 @@
 # TODO — Déploiement et armement de la qualité des capteurs
 
-**État** : lot déployé au commit `b26d2b1`. Observation 48 h **close le 30 août 2026 à 18:59:28 UTC**
-en `accepted_with_warnings` — 172 800 s, 2 864 échantillons, 0 échec, 835 avertissements de cause
-unique. Première preuve invalidée proprement interrompue et archivée. Lot non qualifié électriquement
-et mode `Sensor_Quality.mode = observe` à conserver jusqu'à validation complète.
+**État** : correctif de figement **déployé au commit `985e42d`** le 30 août 2026 à 19:07 UTC,
+contrôles après déploiement tous conformes. Une **nouvelle observation de 172 800 s court jusqu'au
+1er septembre 2026 à 19:09:11 UTC** (observateur `722191`, service `721771`). Lot non qualifié
+électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à validation complète.
 
-**La fenêtre a révélé un défaut de la politique de figement** (voir « Correctif de la politique de
-figement » ci-dessous) : corrigé par le commit `837f778`, **pas encore déployé**. Prochaine action :
-déployer ce commit, vérifier la disparition des deux alarmes `sensor_quality` latchées, puis relancer
-une fenêtre complète de 172 800 s.
+La fenêtre précédente, close le 30 août à 18:59:28 UTC en `accepted_with_warnings` — 172 800 s,
+2 864 échantillons, 0 échec, 835 avertissements de cause unique — a établi la continuité du contrôle
+et révélé le défaut de la politique de figement corrigé par `837f778`. Voir le
+[relevé de clôture](../docs/operations/jalon2-observation-operateur-2026-08-30.md).
+
+**Le correctif est déployé mais pas encore qualifié** : la mémoire qualité repart de zéro, donc
+aucune mesure ne peut être déclarée figée avant 1 800 s. La preuve attendue est une nuit calme
+complète, période où l'ancien critère se déclenchait systématiquement.
 
 Références :
 
@@ -89,10 +93,26 @@ donnait « figé » à 5 s et 10 s d'intervalle et « sain » à 60 s — un ver
       `CLAUDE.md`/`AGENTS.md`
 - [x] Ajouter les tests de non-régression, dont le **test de propriété d'invariance par cadence**
       (5 s / 10 s / 60 s) qui interdit la classe de bug — suite complète : 150 tests verts
-- [ ] Déployer après la clôture de la fenêtre en cours, puis relancer une observation de 172 800 s
-      au commit corrigé
+- [x] Déployer après la clôture de la fenêtre en cours, puis relancer une observation de 172 800 s
+      au commit corrigé. **Fait le 30 août 2026** : déploiement de `985e42d` à 19:07:27 UTC
+      (`NRestarts=0`, `boot_id` inchangé), puis nouvelle fenêtre lancée à 19:09:11 UTC — fin attendue
+      le **1er septembre à 19:09:11 UTC**, observateur `722191`, service `721771`, preuves sous
+      `~/phyto-observations/jalon2-operateur-qualite-20260830T190911Z`
+- [x] Contrôler après déploiement : `healthy`/`control_healthy` à `true`, dix tâches saines sans
+      restart ni stall, sept domaines sains, **zéro alarme active** (les deux alarmes
+      `sensor_quality` latchées ont disparu), trois capteurs en `normal` sans `reason_codes`,
+      compteurs d'incohérences remis à zéro, HTTP et HTTPS à 200, aucune entrée de journal en
+      WARNING ou plus depuis le démarrage, six actionneurs en `tracking=ok`
+- [x] Confirmer les seuils effectifs dans le code déployé : `freeze_epsilon = 0.0` pour les trois
+      BME280, `freeze_after_seconds` à 1 800/1 800/3 600, `freeze_min_samples = 30`, mode `observe`,
+      aucun profil surchargé ; `runtime_state.json` porte bien `freeze_anchor_value`. Suppression du
+      double arrondi visible : `raw_value = 28.523013138119133` au lieu de deux décimales
 - [ ] Vérifier sur la nouvelle fenêtre que `BME280T`/`BME280H` ne produisent plus d'avertissement de
       figement et que le statut reste `normal` sur les périodes calmes de nuit
+- [ ] **Manque côté API** : `/api/v1/state` publie `freshness_threshold_s` et `plausible_range` mais
+      **pas** `freeze_epsilon`, `freeze_after_seconds` ni `freeze_min_samples`. L'exigence « vérifier
+      que les seuils effectifs publiés par l'API correspondent à la configuration » (section 3) n'est
+      donc pas satisfaisable sans lecture du code sur le Pi. À combler dans un lot ultérieur
 
 **Points laissés ouverts, à mesurer avant activation** (ne pas régler à l'aveugle) :
 
