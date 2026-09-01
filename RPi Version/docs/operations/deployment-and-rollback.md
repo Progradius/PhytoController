@@ -187,6 +187,11 @@ s'est close le 1er septembre 2026 à 19:09:11 UTC avec `status=accepted`, 172 80
 `observe` ; calibration, armement et repli matériel restent à qualifier. Voir le
 [relevé de clôture corrective](jalon2-correctif-figement-observation-2026-09-01.md).
 
+L'observabilité des seuils effectifs a été déployée séparément après cette clôture, le 1er septembre
+à 19:47 UTC au commit `2ecefb1`. Le contrôle post-déploiement a confirmé le mode `observe`, les trois
+seuils de figement pour chaque BME280, dix tâches saines, zéro alarme, les trois transports HTTP
+live/ready et HTTPS live à 200, et aucune entrée WARNING ou supérieure depuis le redémarrage.
+
 Après un déploiement qui modifie un profil qualité, deux points méritent d'être vérifiés
 explicitement : les diagnostics latchés doivent disparaître d'eux-mêmes, parce que le changement de
 signature de profil réinitialise la mémoire qualité ; et l'absence d'alarme dans les minutes qui

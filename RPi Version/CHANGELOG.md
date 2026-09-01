@@ -8,6 +8,9 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ### Observabilité des seuils capteurs
 
+**Déployée et vérifiée sur le Pi le 1er septembre 2026 au commit `2ecefb1` ; mode qualité resté
+`observe`.**
+
 - `/api/v1/state` publie désormais, pour chaque mesure active, `freeze_epsilon`,
   `freeze_after_seconds` et `freeze_min_samples` en plus de la fraîcheur et de la plage plausible.
   L'observateur jalon 2 vérifie leur présence, ce qui rend les profils effectifs auditables sans

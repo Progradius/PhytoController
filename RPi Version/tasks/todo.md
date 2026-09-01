@@ -120,8 +120,9 @@ donnait « figé » à 5 s et 10 s d'intervalle et « sain » à 60 s — un ver
       figement.
 - [x] Combler le manque côté API : `/api/v1/state` publie désormais `freeze_epsilon`,
       `freeze_after_seconds` et `freeze_min_samples` avec les autres seuils effectifs ; contrat
-      documenté, testé et exigé par l'observateur. **Implémenté localement le 1er septembre 2026,
-      non déployé afin de ne pas interrompre la fenêtre active.**
+      documenté, testé et exigé par l'observateur. **Déployé après clôture de la fenêtre le
+      1er septembre 2026 au commit `2ecefb1`** : mode `observe` conservé, seuils effectifs conformes
+      pour les trois BME280, dix tâches saines et zéro alarme.
 
 **Points laissés ouverts, à mesurer avant activation** (ne pas régler à l'aveugle) :
 

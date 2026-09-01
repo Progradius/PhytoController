@@ -3,10 +3,11 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 1er septembre 2026 à 19:44 UTC, clôture de la nouvelle
-observation du correctif de figement `985e42d` (172 800 s, 2 864 échantillons, zéro anomalie).
+**Dernière vérification documentaire** : 1er septembre 2026 à 19:49 UTC, clôture de la nouvelle
+observation du correctif de figement `985e42d` (172 800 s, 2 864 échantillons, zéro anomalie), puis
+déploiement contrôlé de l'observabilité des seuils effectifs au commit `2ecefb1`.
 
-**Écart entre le dépôt et la production, au 30 août 2026 :**
+**Écart entre le dépôt et la production, au 1er septembre 2026 :**
 
 | Chantier | Code | Déployé sur le Pi |
 |---|---|---|
@@ -15,6 +16,7 @@ observation du correctif de figement `985e42d` (172 800 s, 2 864 échantillons, 
 | Correctifs thermiques et jalon 1 de l'expérience opérateur | `e91b021` | **Oui**, observation 48 h acceptée — [relevé](operations/jalon1-watchdog-observation-2026-08-28.md) |
 | Alarmes/historique, PWA, santé de déploiement et qualité capteurs | `b26d2b1` | **Oui**, mode `observe` ; HTTPS `:443` actif, observation 48 h close — [relevé](operations/jalon2-observation-operateur-2026-08-30.md) |
 | Correctif de la politique de figement des capteurs | `985e42d` | **Oui**, déployé le 30 août à 19:07 UTC ; observation corrective 48 h acceptée — [relevé](operations/jalon2-correctif-figement-observation-2026-09-01.md) |
+| Observabilité des seuils effectifs de figement | `2ecefb1` (code `1e807b8`) | **Oui**, déployée le 1er septembre à 19:47 UTC ; mode `observe`, seuils vérifiés dans l'API, santé complète |
 
 Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique ainsi que le lot opérateur,
 PWA et qualité capteurs en mode `observe`. La fenêtre watchdog du jalon 1 est terminée et acceptée.
@@ -26,6 +28,8 @@ dix tâches saines, aucune entrée de journal en WARNING — puis qualifié par 
 172 800 s close le **1er septembre 2026 à 19:09:11 UTC** : 2 864 échantillons, zéro échec, zéro
 avertissement et les trois mesures BME280 `normal` sur toute la durée. Le mode reste `observe` : cette
 preuve qualifie le correctif de figement, pas la calibration, le repli matériel ni l'armement.
+L'observabilité des seuils a ensuite été déployée séparément au commit `2ecefb1` : HTTP/HTTPS à 200,
+dix tâches saines, aucune alarme et aucune entrée WARNING ou supérieure depuis le redémarrage.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 

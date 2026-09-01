@@ -78,3 +78,17 @@ moins 172 800 s, zéro échantillon en échec et aucun avertissement à explique
 Cette clôture qualifie uniquement la correction du faux positif de figement sur les BME280 actifs.
 Le mode `Sensor_Quality.mode=observe` doit rester inchangé ; calibration par instrument de référence,
 redondance, repli matériel et armement `enforce` restent hors du périmètre et ouverts dans la TODO.
+
+## Étape suivante exécutée après clôture
+
+À 19:47 UTC, après lecture et acceptation du résumé, le commit `2ecefb1` a été déployé pour rendre les
+seuils effectifs auditables dans `/api/v1/state`. Le redémarrage contrôlé a conservé le mode `observe`.
+La qualification post-déploiement a relevé dix tâches saines, `healthy=true`,
+`control_healthy=true`, zéro alarme, `NRestarts=0`, HTTP et HTTPS à 200 et aucune entrée de journal
+WARNING ou supérieure. Les valeurs publiées sont conformes aux profils déployés :
+
+| Mesure | `freeze_epsilon` | `freeze_after_seconds` | `freeze_min_samples` |
+|---|---:|---:|---:|
+| BME280T | 0,0 | 1 800 | 30 |
+| BME280H | 0,0 | 1 800 | 30 |
+| BME280P | 0,0 | 3 600 | 30 |

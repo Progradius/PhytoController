@@ -236,9 +236,9 @@ le risque physique résiduel.)*
 
 1. [x] **Clôturer la fenêtre qualité** : `summary.json` accepté, 172 800 s, 2 864 échantillons, zéro
    échec et zéro avertissement ; correctif de figement qualifié en mode `observe`.
-2. **Déployer séparément l'observabilité des seuils effectifs** : vérifier dans
-   `/api/v1/state` `freeze_epsilon`, `freeze_after_seconds` et `freeze_min_samples`, sans armer le
-   mode `enforce`.
+2. [x] **Déployer séparément l'observabilité des seuils effectifs** : commit `2ecefb1` chargé le
+   1er septembre à 19:47 UTC ; `freeze_epsilon`, `freeze_after_seconds` et `freeze_min_samples`
+   vérifiés dans `/api/v1/state`, mode `observe` conservé, santé complète et zéro alarme.
 3. **Ouvrir le lot 3** : schéma électrique relu hors tension, puis `PinRegistry`, migration des broches
    moteur et génération de la configuration de boot. Seul chantier restant qui touche la sûreté
    électrique, et il débloque la contrainte d'unicité GPIO laissée désactivée au lot 4.
