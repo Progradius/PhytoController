@@ -144,6 +144,8 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--re
 .gpio-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 0 1rem; }
 .console-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
 .connection-state { color: var(--muted); } .connection-state.is-online { color: var(--green); } .connection-state.is-offline { color: var(--amber); }
+.system-state { margin-bottom: .6rem; font-size: 1.05rem; }
+.system-failure { padding: .7rem .9rem; border: 1px solid var(--red); border-radius: var(--radius); background: rgb(255 107 107 / 10%); }
 .console-controls { display: flex; flex-wrap: wrap; align-items: end; gap: .7rem; margin-bottom: .7rem; }
 .console-control { display: flex; flex-direction: column; gap: .2rem; }
 .console-control-wide { flex: 1 1 14rem; }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass
@@ -1028,3 +1029,96 @@ async def test_liens_d_alarme_preselectionnent_la_console():
     from controllers.OperatorService import DEFINITIONS
     assert DEFINITIONS["influx"].link == "/console?component=phyto.influx&level=WARNING"
     assert DEFINITIONS["time"].link.startswith("/console?component=phyto.time")
+
+
+# ─────────────────────────────────────────────────────────────
+#  Reboot / extinction (jalon 4)
+# ─────────────────────────────────────────────────────────────
+@pytest.fixture
+def system_commands(web_context, monkeypatch):
+    """Interpose le lancement : aucun test ne démarre un vrai `reboot`."""
+    _client, server, *_ = web_context
+    lancées = []
+
+    async def _faux(command, label):
+        lancées.append((command, label))
+
+    server._spawn_system_command = _faux
+    monkeypatch.setattr(server_module, "SYSTEM_COMMAND_DELAY_SECONDS", 0.0)
+    return server, lancées
+
+
+async def test_action_systeme_repond_avant_de_lancer_la_commande(
+    web_context, system_commands, monkeypatch
+):
+    client, *_ = web_context
+    server, lancées = system_commands
+    # Délai réel : c'est bien la réponse qui part la première, pas la commande.
+    monkeypatch.setattr(server_module, "SYSTEM_COMMAND_DELAY_SECONDS", 30.0)
+
+    response = await client.post(
+        "/actions/system/reboot", data={"csrf_token": CSRF_TOKEN},
+        allow_redirects=False,
+    )
+    # L'ancien `await process.wait()` ne revenait jamais sur un vrai reboot.
+    assert response.status == 202
+    page = await response.text()
+    assert 'data-system-action="reboot"' in page
+    assert "/static/js/system.js" in page
+    assert lancées == []
+
+    for task in list(server._system_tasks):
+        task.cancel()
+
+
+async def test_action_systeme_lance_bien_la_commande_ensuite(web_context, system_commands):
+    client, *_ = web_context
+    server, lancées = system_commands
+
+    await client.post(
+        "/actions/system/reboot", data={"csrf_token": CSRF_TOKEN},
+        allow_redirects=False,
+    )
+    await asyncio.gather(*list(server._system_tasks))
+    assert lancées == [(("sudo", "reboot"), "Redémarrage")]
+
+
+async def test_extinction_emprunte_le_meme_chemin(web_context, system_commands):
+    client, *_ = web_context
+    server, lancées = system_commands
+
+    response = await client.post(
+        "/actions/system/poweroff", data={"csrf_token": CSRF_TOKEN},
+        allow_redirects=False,
+    )
+    assert response.status == 202
+    assert 'data-system-action="poweroff"' in (await response.text())
+    await asyncio.gather(*list(server._system_tasks))
+    assert lancées == [(("/sbin/shutdown", "-h", "now"), "Extinction")]
+
+
+async def test_monitor_legacy_emprunte_le_meme_chemin(web_context, system_commands):
+    client, *_ = web_context
+    server, lancées = system_commands
+
+    response = await client.post(
+        "/monitor", data={"csrf_token": CSRF_TOKEN, "reboot": "1"},
+        allow_redirects=False,
+    )
+    assert response.status == 202
+    assert 'data-system-action="reboot"' in (await response.text())
+    await asyncio.gather(*list(server._system_tasks))
+    assert lancées == [(("sudo", "reboot"), "Redémarrage")]
+
+
+async def test_page_systeme_laisse_une_url_inerte_et_detecte_l_echec(web_context):
+    client, *_ = web_context
+    script = await (await client.get("/static/js/system.js")).text()
+
+    # Jamais une URL portant un paramètre d'action qu'un rechargement rejouerait.
+    assert 'window.history.replaceState(null, "", "/")' in script
+    # Le 202 supprime la détection d'échec par code retour : elle vit ici.
+    assert "FAILURE_AFTER_MS = 30000" in script
+    # Un retour ne s'annonce qu'après disparition puis deux réponses de suite.
+    assert "REQUIRED_ALIVE = 2" in script
+    assert "disappeared" in script

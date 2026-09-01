@@ -33,6 +33,7 @@ from network.web.pages import (
     error_page,
     main_page,
     offline_page,
+    system_action_page,
 )
 from param.config_store import shared_config
 from param.equipment_metadata import (
@@ -58,6 +59,8 @@ LOGGER_NAME = "http"
 WEB_DIR = Path(__file__).parent
 STATIC_DIR = WEB_DIR / "static"
 MAX_BODY_SIZE = 64 * 1024
+# Délai laissé à la réponse 202 pour partir avant que la commande ne coupe tout.
+SYSTEM_COMMAND_DELAY_SECONDS = 1.0
 
 HTTP_ERROR_TITLES = {
     400: "Requête invalide",
@@ -483,6 +486,9 @@ class Server:
         self._preview_running = False
         self._preview_last_at = 0.0
         self._flashes: dict[str, dict] = {}
+        # Les commandes système partent après la réponse : sans référence forte,
+        # la tâche peut être ramassée avant d'avoir lancé quoi que ce soit.
+        self._system_tasks: set = set()
         self._allowed_names = self._build_allowed_names()
         self._https_port, self._https_config_error = self._load_https_port()
         self._tls_cert_file = os.getenv("PHYTO_TLS_CERT_FILE", "").strip()
@@ -558,6 +564,7 @@ class Server:
             web.get("/static/js/dashboard.js", self._dashboard_js),
             web.get("/static/js/config.js", self._config_js),
             web.get("/static/js/console.js", self._console_js),
+            web.get("/static/js/system.js", self._system_js),
             web.get("/static/js/alarms.js", self._alarms_js),
             web.get("/static/js/history.js", self._history_js),
             web.get("/static/fonts/visitor1.ttf", self._font),
@@ -1767,21 +1774,49 @@ class Server:
         return await self._system_command(("/sbin/shutdown", "-h", "now"), "Extinction")
 
     async def _system_command(self, command: tuple[str, ...], label: str) -> web.Response:
+        """
+        Répond **avant** de lancer la commande. L'ancien `await process.wait()`
+        ne revenait jamais sur un vrai redémarrage : le navigateur restait sur
+        une requête morte, sans rien apprendre du succès, de l'échec, ni du
+        retour de la machine.
+
+        Le code retour reste journalisé par la tâche différée : passer au 202
+        supprimerait sinon la seule détection d'échec existante. La page rendue
+        prend le relais côté navigateur en observant `/health/live`.
+        """
+        action = "reboot" if "reboot" in command else "poweroff"
         warning(f"{label} demandé via l'interface web", name=LOGGER_NAME)
         if self.operator_service is not None:
-            await self.operator_service.record_system_action(
-                "reboot" if "reboot" in command else "poweroff"
-            )
+            await self.operator_service.record_system_action(action)
+
+        async def _run_later() -> None:
+            await asyncio.sleep(SYSTEM_COMMAND_DELAY_SECONDS)
+            await self._spawn_system_command(command, label)
+
+        # Référence gardée : une tâche sans référence forte peut être ramassée
+        # avant d'avoir lancé la commande.
+        task = asyncio.get_running_loop().create_task(_run_later())
+        self._system_tasks.add(task)
+        task.add_done_callback(self._system_tasks.discard)
+
+        return self._html(system_action_page(action, self.csrf_token), status=202)
+
+    @staticmethod
+    async def _spawn_system_command(command: tuple[str, ...], label: str) -> None:
+        """
+        Lancement effectif, isolé pour être remplaçable : la suite de tests ne
+        doit jamais démarrer un vrai `reboot`. Le code retour est journalisé —
+        c'est ce qui subsiste de la détection d'échec côté serveur une fois la
+        réponse partie en 202.
+        """
         try:
             process = await asyncio.create_subprocess_exec(*command)
             returncode = await process.wait()
         except OSError as exc:
             error(f"{label} impossible : {exc.__class__.__name__}", name=LOGGER_NAME)
-            raise web.HTTPInternalServerError(text=f"{label} impossible")
+            return
         if returncode != 0:
             error(f"{label} échoué (code {returncode})", name=LOGGER_NAME)
-            raise web.HTTPInternalServerError(text=f"{label} échoué")
-        return web.Response(status=202, text=f"{label} demandé")
 
     async def _legacy_status(self, request: web.Request) -> web.Response:
         cs = self.controller_status
@@ -1895,6 +1930,7 @@ class Server:
     async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
     async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")
     async def _console_js(self, request): return await self._asset("js/console.js", "application/javascript")
+    async def _system_js(self, request): return await self._asset("js/system.js", "application/javascript")
     async def _alarms_js(self, request): return await self._asset("js/alarms.js", "application/javascript")
     async def _history_js(self, request): return await self._asset("js/history.js", "application/javascript")
     async def _font(self, request): return await self._asset("fonts/visitor1.ttf", "font/ttf")

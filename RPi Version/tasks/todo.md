@@ -704,6 +704,20 @@ effectif pendant qu'un forçage empêche de ventiler.
 
 ## Commit 3 — Reboot / extinction
 
-- [ ] Réponse 202 immédiate, commande différée, code retour toujours journalisé
-- [ ] Page de suivi + `system.js` : indisponibilité puis deux `/health/live`, échec probable à 30 s
-- [ ] `POST /monitor` legacy sur le même chemin, URL finale inerte
+- [x] Réponse 202 immédiate, commande différée, code retour toujours journalisé
+- [x] Page de suivi + `system.js` : indisponibilité puis deux `/health/live`, échec probable à 30 s
+- [x] `POST /monitor` legacy sur le même chemin, URL finale inerte
+- [x] `_spawn_system_command` isolé : la suite de tests ne démarre jamais un vrai `reboot`
+- [x] Tests : 202 avant lancement, argv correct, `/monitor` legacy, garde-fous du script
+
+## Vérification du jalon 4
+
+- [x] `pyflakes` sur tout l'arbre — 0 « undefined name »
+- [x] `pytest` — 200 tests verts (`/tmp/pytest-j4j.txt`)
+- [x] Aucun octet nul dans les fichiers texte (leçon du 28 août 2026)
+- [x] `diff -u CLAUDE.md AGENTS.md` vide
+- [ ] Déploiement `scripts/deploy.sh`, vérification HTTP et états GPIO sur le Pi
+- [ ] Banc GPIO hors serre : génériques OFF = HIGH, moteur OFF = quatre broches LOW,
+      coupure effective à l'expiration, à l'annulation et sur faute
+- [ ] Essai réel d'un redémarrage : disparition observée puis retour annoncé
+- [ ] Console : stabilité à 2 000 lignes en observation longue

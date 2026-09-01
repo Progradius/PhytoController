@@ -51,6 +51,7 @@ def _asset_versions() -> dict[str, str]:
         "dashboard": STATIC_DIR / "js" / "dashboard.js",
         "config": STATIC_DIR / "js" / "config.js",
         "console": STATIC_DIR / "js" / "console.js",
+        "system": STATIC_DIR / "js" / "system.js",
         "alarms": STATIC_DIR / "js" / "alarms.js",
         "history": STATIC_DIR / "js" / "history.js",
         "pwa": STATIC_DIR / "js" / "pwa.js",
@@ -193,6 +194,29 @@ def conf_page(
         equipment=equipment or {},
         alarm_summary=alarm_summary,
         simple=simple or {},
+    )
+
+
+SYSTEM_ACTIONS = {
+    "reboot": ("Redémarrage en cours", "Redémarrage"),
+    "poweroff": ("Extinction en cours", "Extinction"),
+}
+
+
+def system_action_page(action: str, csrf_token: str) -> str:
+    """
+    Page de suivi rendue **avant** que la commande ne parte. Le navigateur y
+    observe `/health/live` : c'est la seule détection d'échec qui reste une fois
+    la réponse partie en 202.
+    """
+    title, label = SYSTEM_ACTIONS.get(action, SYSTEM_ACTIONS["reboot"])
+    return render_template(
+        "system_action.html",
+        page_title=title,
+        current_page="dashboard",
+        action=action,
+        action_label=label,
+        csrf_token=csrf_token,
     )
 
 

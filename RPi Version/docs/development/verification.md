@@ -55,7 +55,10 @@ installation explicite du faux de `tests/fakes/rpi_gpio.py`.
 - `POST /conf/{section}` invalide : 422, `param.json` et configuration vivante inchangés ;
 - `POST /conf/{section}` valide : fichier réécrit, configuration vivante à jour, travaux concernés relancés ;
 - secret laissé vide dans `/conf` : valeur enregistrée conservée, et aucun secret présent dans le HTML servi ;
-- `/api/v1/state` et `/status` cohérents avec le superviseur ; `/health/ready` en 503 quand un travail est en défaut.
+- `/api/v1/state` et `/status` cohérents avec le superviseur ; `/health/ready` en 503 quand un travail est en défaut ;
+- forçage « arrêt » échu au **premier** des deux horloges, dans les deux sens de saut NTP ; verrouillage moteur primant sur `REPLI_CAPTEUR`, `SECURITE_HAUTE` et le mode manuel ; `heater_forced_off` sans effet sur `vent_threshold` ; alarmes de repli et de durée de chauffe toujours émises sous forçage ; `motor_lockout_overheat` ouverte quand la serre dépasse le seuil malgré le verrou ;
+- création de forçage refusée sans heure fiable, hors liste blanche d'équipements, hors plafond (4 h chauffage et moteur), ou si l'écriture de `runtime_state.json` échoue ; annulation appliquée même si sa trace échoue ; reprise au démarrage rebornée et marquée « à confirmer » avant heure fiable ;
+- reboot et extinction répondant 202 **avant** de lancer la commande, `POST /monitor` emprunant le même chemin, et aucun sous-processus démarré par la suite de tests.
 
 La politique thermique est une **fonction pure** (`components/climate_policy.decide()`) : ses scénarios se rejouent sans matériel, sans horloge et sans disque. C'est le seul endroit du dépôt où une régulation peut être vérifiée de façon déterministe — 35 scénarios y ont été rejoués lors de la phase 2. Toute évolution de la politique doit être accompagnée des siens.
 
