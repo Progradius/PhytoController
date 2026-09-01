@@ -40,6 +40,7 @@ from components.climate_policy import (
 from utils.log_dedup import StateLogger
 from utils.pretty_console import critical, debug, error, info, warning
 from param.config_store import shared_config
+from utils.overrides import shared_overrides
 from utils.state_store import shared_store
 from utils.supervisor import beat, sleep as hb_sleep
 from utils.operational_state import publish
@@ -299,9 +300,19 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
         memory = _sync_motor(motor_handler, memory)
 
         # 4) décision -----------------------------------------------------
+        # Forçages « arrêt » : une seule lecture du magasin en mémoire par tick,
+        # avec les horloges du tick. On transmet les **échéances**, pas un
+        # verdict : c'est `decide()` qui tranche l'expiration.
+        now_epoch = time()
+        overrides = shared_overrides()
+        heater_until, heater_deadline = overrides.deadlines(
+            "heater", now_epoch=now_epoch, now_mono=now_mono)
+        motor_until, motor_deadline = overrides.deadlines(
+            "motor", now_epoch=now_epoch, now_mono=now_mono)
+
         inputs = ClimateInputs(
             now_mono=now_mono,
-            now_epoch=time(),
+            now_epoch=now_epoch,
             temperature=temperature,
             humidity=humidity,
             is_day=is_day,
@@ -314,6 +325,10 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
                 ", ".join(temperature_reading.get("reason_codes", []))
                 if temperature_reading else None
             ),
+            heater_forced_off_until_epoch=heater_until,
+            heater_forced_off_deadline_mono=heater_deadline,
+            motor_forced_off_until_epoch=motor_until,
+            motor_forced_off_deadline_mono=motor_deadline,
         )
         decision, memory = decide(settings, inputs, memory)
 
@@ -395,6 +410,8 @@ def _publish(decision, memory: ClimateMemory, now_mono: float,
             if decision.heater_on and memory.heater_on_since is not None else 0.0
         ),
         "heater_limit_seconds": climate_policy.MAX_CONTINUOUS_ON_MINUTES * 60,
+        "heater_forced_off": decision.heater_forced_off,
+        "motor_forced_off": decision.motor_forced_off,
         "cooldown_remaining_seconds": (
             round(max(0.0, memory.heater_cooldown_until - now_mono), 1)
             if memory.heater_cooldown_until is not None else 0.0
@@ -405,7 +422,12 @@ def _publish(decision, memory: ClimateMemory, now_mono: float,
     publish(
         "heater", stale_after=2 * sampling_time,
         requested="on" if decision.heater_on else "off",
-        mode="automatique" if decision.state != climate_policy.STATE_DISABLED else "désactivé",
+        # Le temps restant du forçage n'est pas répété ici : `/api/v1/state`
+        # porte la clé `overrides`, seule source d'échéance, et l'IHM la joint
+        # sur l'identifiant d'équipement.
+        mode="forçage opérateur" if decision.heater_forced_off
+        else "automatique" if decision.state != climate_policy.STATE_DISABLED
+        else "désactivé",
         reason=decision.reason.split(" · ventilation :", 1)[0].replace("chauffage : ", ""),
         since_mono=heater_since,
         next_transition={
@@ -423,7 +445,7 @@ def _publish(decision, memory: ClimateMemory, now_mono: float,
         "motor", stale_after=2 * sampling_time,
         requested=decision.motor_speed_requested,
         applied=decision.motor_speed,
-        mode=decision.state,
+        mode="forçage opérateur" if decision.motor_forced_off else decision.state,
         reason=decision.reason.split("ventilation : ", 1)[-1],
         since_mono=memory.motor_speed_since,
         next_transition={"type": "condition"},

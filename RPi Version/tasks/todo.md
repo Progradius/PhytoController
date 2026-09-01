@@ -656,3 +656,53 @@ bien le message sous le champ.
 - [ ] Vérifier sur le Pi qu'aucun secret n'apparaît dans `logs/phyto.log` après un refus de la
       section `wifi` et de la section `influx`
 - [ ] Critère de rollback écrit à l'avance et rollback exercé
+
+# TODO — Jalon 4 « Overrides force-OFF, console et système » (plan `qol_operator_experience_plan.md`)
+
+## Arbitrages opérateur (28 août 2026)
+
+| Sujet | Décision |
+|---|---|
+| Force-OFF moteur vs protections thermiques | **Verrouillage absolu** — prime sur `REPLI_CAPTEUR` et `SECURITE_HAUTE` (écart assumé au plan v2) |
+| Durée maximale | 4 h chauffage **et moteur** (garde-fou dérivé), 24 h ailleurs ; défaut 60 min |
+| Coupure groupée | Oui — « Arrêt général (maintenance) » déplie les six cibles |
+| Visibilité | Bannière globale dédiée + événement `override` en historique ; pas d'alarme pour le forçage lui-même |
+
+Garde-fou compensatoire au verrouillage absolu : alarme `critical`
+`motor_lockout_overheat` dès que la température dépasse le seuil de ventilation
+effectif pendant qu'un forçage empêche de ventiler.
+
+## Commit 1 — Overrides force-OFF
+
+- [x] `utils/overrides.py` : `ForcedOff` (double horloge), `OverrideStore`, plafonds par cible,
+      reprise au boot rebornée et « à confirmer » avant heure fiable
+- [x] `utils/state_store.py` : `save(..., strict=True)` qui relance l'`OSError`, défaut inchangé
+- [x] `climate_policy` : quatre échéances dans `ClimateInputs`, `_forced_off()` pur,
+      `STATE_FORCED_OFF`, `ALARM_MOTOR_LOCKOUT`
+- [x] Moteur : première branche de `_decide_motor`, avant `manual` et `sensor_lost`, `immediate=True`
+- [x] Chauffage : post-filtre dans `decide()` — alarmes, compteur et cooldown préservés,
+      `vent_threshold` intouché
+- [x] `climate_control` : une lecture du magasin par tick, snapshot et modes publiés
+- [x] Minuteries journalière et cyclique : lecture en tête de boucle, tranche ≤ 30 s
+- [x] `main.py` : reprise avant l'initialisation des composants
+- [x] Routes `POST /actions/overrides/create` et `/cancel`, cible `all`, 500 si non persisté,
+      `request_reload` des minuteries seulement
+- [x] `/api/v1/state` : clé `overrides` additive, avec plafonds
+- [x] IHM : section « Interventions », dialogues, bannière globale (`render_template`), CSS
+- [x] `OperatorService` : `record_override_event`, définition `motor_lockout_overheat`
+- [x] Tests : `tests/test_overrides.py` (16), matrice pure (13), routes HTTP (10)
+- [x] `pyflakes` 0 « undefined name », `pytest` 190 verts, aucun octet nul, `diff CLAUDE.md AGENTS.md` vide
+
+## Commit 2 — Console
+
+- [ ] Flux SSE structuré JSON, tampon serveur 2 000 lignes
+- [ ] Barre d'outils : pause, autoscroll, filtres niveau/composant, recherche, compteurs,
+      copie, téléchargement, effacement de la vue
+- [ ] Tampon client borné à 2 000, `textContent` uniquement
+- [ ] Paramètres d'URL `level` / `component` / `q`, liens d'alarme enrichis
+
+## Commit 3 — Reboot / extinction
+
+- [ ] Réponse 202 immédiate, commande différée, code retour toujours journalisé
+- [ ] Page de suivi + `system.js` : indisponibilité puis deux `/health/live`, échec probable à 30 s
+- [ ] `POST /monitor` legacy sur le même chemin, URL finale inerte

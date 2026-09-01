@@ -39,6 +39,13 @@
       <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
     </nav>
   </header>
+  {% if override_summary and override_summary.active_count %}
+  <aside id="override-banner" class="global-alarm severity-override" aria-live="polite">
+    <strong>{{ override_summary.active_count }} forçage(s) « arrêt » actif(s)</strong>
+    <span>Équipement(s) coupé(s) volontairement — la conduite normale est suspendue</span>
+    <a href="/#interventions">Examiner</a>
+  </aside>
+  {% endif %}
   {% if alarm_summary and alarm_summary.active_count %}
   <aside id="global-alarm" class="global-alarm severity-{{ alarm_summary.highest_severity }}" aria-live="polite">
     <strong>{{ alarm_summary.active_count }} alarme(s) active(s)</strong>

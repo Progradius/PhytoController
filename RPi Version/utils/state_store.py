@@ -84,22 +84,30 @@ class StateStore:
             value = self._data.get(section)
             return dict(value) if isinstance(value, dict) else {}
 
-    def save(self, section: str, payload: dict, *, force: bool = False) -> None:
+    def save(self, section: str, payload: dict, *, force: bool = False,
+             strict: bool = False) -> None:
         """
         Met la section à jour et écrit le fichier si l'intervalle minimal est
         écoulé (ou si `force`). Un échec d'écriture ne remonte jamais : perdre
         un budget est infiniment moins grave que tuer la régulation.
+
+        `strict=True` renverse ce défaut et **relance** l'`OSError`. Réservé aux
+        états dont la perte est intenable — un forçage « arrêt » accepté par
+        l'IHM mais absent du disque disparaîtrait au premier redémarrage sans
+        que personne ne l'ait levé. Le défaut avalant reste celui des budgets
+        d'hiver et de la phase séquentielle. `strict` implique une écriture
+        immédiate : un état critique n'attend pas la fenêtre de throttle.
         """
         with self._lock:
-            if self._data.get(section) == payload and not force:
+            if self._data.get(section) == payload and not force and not strict:
                 return
             self._data[section] = dict(payload)
             self._dirty = True
             now = monotonic()
-            if (not force and self._last_write is not None
+            if (not force and not strict and self._last_write is not None
                     and now - self._last_write < MIN_WRITE_INTERVAL_SECONDS):
                 return
-            self._flush(now)
+            self._flush(now, strict=strict)
 
     def flush(self) -> None:
         """Écriture immédiate si quelque chose est en attente."""
@@ -108,7 +116,7 @@ class StateStore:
                 self._flush(monotonic())
 
     # ──────────────────────────────────────────────────────────
-    def _flush(self, now: float) -> None:
+    def _flush(self, now: float, *, strict: bool = False) -> None:
         try:
             write_text_atomic(
                 self._path,
@@ -117,6 +125,8 @@ class StateStore:
             )
         except OSError as exc:
             _write_state.fail(f"{exc.__class__.__name__} : {exc}")
+            if strict:
+                raise
             return
         _write_state.ok()
         self._last_write = now

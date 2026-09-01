@@ -31,6 +31,7 @@ from model.SensorStats import SensorStats
 
 from param.config_store import shared_config
 from utils.time_reliability import time_reliability
+from utils.overrides import shared_overrides
 from utils.alarm_manager import AlarmManager
 from utils.operator_history import OperatorHistory
 
@@ -217,6 +218,15 @@ except Exception:
 # (6) Vérification de la reachabilité de l'hôte
 if is_host_connected() == "offline":
     warning("Machine hôte hors-ligne → mode dégradé", name=LOGGER_NAME)
+
+# (6 bis) Forçages « arrêt » encore valides. Repris **avant** les composants :
+# les boucles doivent trouver le magasin peuplé dès leur première itération,
+# sinon un forçage laisserait passer un cycle complet après un redémarrage.
+try:
+    shared_overrides().restore()
+except Exception:
+    exception("Reprise des forçages impossible → aucun forçage actif",
+              name=LOGGER_NAME)
 
 # (7) Initialisation des composants physiques
 light1       = Component(pin=config.gpio.dailytimer1_pin)

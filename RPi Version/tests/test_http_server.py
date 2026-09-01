@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from unittest.mock import AsyncMock
 
@@ -9,8 +10,12 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from controllers.sensor_catalog import SENSOR_CATALOG
 from param.config_store import ConfigStore
-from param.equipment_metadata import default_catalog
+from param.equipment_metadata import EQUIPMENT_IDS, default_catalog
+from network.web import pages as pages_module
 from network.web import server as server_module
+from utils import overrides as overrides_module
+from utils.overrides import OverrideStore
+from utils.state_store import StateStore
 
 
 CSRF_TOKEN = "T" * 43
@@ -822,3 +827,149 @@ async def test_previsualisation_publie_les_deux_hysteresis(web_context):
     assert day["vent_release"] == 0.5
     first = day["vent_ladder"][0]
     assert (first["starts_at"], first["releases_below"]) == (24.0, 23.5)
+
+
+# ─────────────────────────────────────────────────────────────
+#  Forçages « arrêt » (jalon 4)
+# ─────────────────────────────────────────────────────────────
+@pytest.fixture
+def override_store(tmp_path, monkeypatch):
+    """Magasin isolé : aucun test n'écrit dans le `runtime_state.json` vivant."""
+    monkeypatch.setattr(overrides_module, "time_reliability",
+                        lambda: _FakeReliability("synchronized"))
+    magasin = OverrideStore(StateStore(tmp_path / "runtime_state.json"))
+    monkeypatch.setattr(server_module, "shared_overrides", lambda: magasin)
+    monkeypatch.setattr(pages_module, "shared_overrides", lambda: magasin)
+    return magasin
+
+
+class _FakeReliability:
+    def __init__(self, state):
+        self.state = state
+
+
+async def test_forcage_cree_coupe_et_relance_la_minuterie(web_context, override_store):
+    client, _server, _store, _sensors, supervisor = web_context
+    response = await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "daily_1",
+              "duration_minutes": "30", "reason": "changement de lampe"},
+        allow_redirects=False,
+    )
+    assert response.status == 303
+    assert override_store.is_forced_off("daily_1") is True
+    # Sans relance, un cyclique en attente longue ignorerait l'ordre.
+    assert supervisor.reloads == ["daily_timer_1"]
+
+    state = await (await client.get("/api/v1/state")).json()
+    assert state["overrides"]["active_count"] == 1
+    assert state["overrides"]["items"][0]["target"] == "daily_1"
+    assert state["overrides"]["items"][0]["reason"] == "changement de lampe"
+
+
+async def test_forcage_climat_ne_relance_pas_la_regulation(web_context, override_store):
+    client, _server, _store, _sensors, supervisor = web_context
+    await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "heater", "duration_minutes": "30"},
+        allow_redirects=False,
+    )
+    # Relancer le climat lui ferait relire ses budgets d'hiver pour rien.
+    assert supervisor.reloads == []
+    assert override_store.is_forced_off("heater") is True
+
+
+async def test_arret_general_applique_le_plafond_de_chaque_cible(web_context, override_store):
+    client, *_ = web_context
+    await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "all", "duration_minutes": "1440"},
+        allow_redirects=False,
+    )
+    actifs = override_store.active()
+    assert set(actifs) == set(EQUIPMENT_IDS)
+    assert actifs["heater"].remaining_seconds(time.time(), time.monotonic()) <= 4 * 3600
+    assert actifs["motor"].remaining_seconds(time.time(), time.monotonic()) <= 4 * 3600
+    assert actifs["daily_1"].remaining_seconds(time.time(), time.monotonic()) > 4 * 3600
+
+
+async def test_annulation_groupee_leve_tout(web_context, override_store):
+    client, *_ = web_context
+    await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "all", "duration_minutes": "10"},
+        allow_redirects=False,
+    )
+    response = await client.post(
+        "/actions/overrides/cancel",
+        data={"csrf_token": CSRF_TOKEN, "target": "all"},
+        allow_redirects=False,
+    )
+    assert response.status == 303
+    assert override_store.active() == {}
+
+
+async def test_cible_libre_ou_broche_refusee(web_context, override_store):
+    client, *_ = web_context
+    for cible in ("gpio_17", "17", "", "../heater"):
+        response = await client.post(
+            "/actions/overrides/create",
+            data={"csrf_token": CSRF_TOKEN, "target": cible, "duration_minutes": "10"},
+        )
+        assert response.status == 400
+    assert override_store.active() == {}
+
+
+async def test_duree_hors_bornes_refusee_en_http(web_context, override_store):
+    client, *_ = web_context
+    response = await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "heater", "duration_minutes": "0"},
+    )
+    assert response.status == 400
+    assert override_store.active() == {}
+
+
+async def test_heure_non_fiable_refuse_la_creation(web_context, override_store, monkeypatch):
+    client, *_ = web_context
+    monkeypatch.setattr(overrides_module, "time_reliability",
+                        lambda: _FakeReliability("unknown"))
+    response = await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "motor", "duration_minutes": "10"},
+    )
+    assert response.status == 400
+    assert override_store.active() == {}
+
+
+async def test_forcage_non_persiste_est_refuse(web_context, override_store, monkeypatch):
+    client, *_ = web_context
+
+    def _echec(*_args, **_kwargs):
+        raise OSError("disque plein")
+
+    monkeypatch.setattr("utils.state_store.write_text_atomic", _echec)
+    response = await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "motor", "duration_minutes": "10"},
+    )
+    assert response.status == 500
+    assert override_store.active() == {}
+
+
+async def test_forcages_exigent_le_jeton_csrf(web_context, override_store):
+    client, *_ = web_context
+    for route in ("/actions/overrides/create", "/actions/overrides/cancel"):
+        response = await client.post(route, data={"target": "motor"})
+        assert response.status == 403
+    assert override_store.active() == {}
+
+
+async def test_banniere_de_forcage_est_globale(web_context, override_store):
+    client, *_ = web_context
+    override_store.create("motor", 600, "")
+    # La bannière n'est pas propre au tableau de bord : elle est calculée par
+    # `render_template`, donc présente sur toutes les pages rendues.
+    for chemin in ("/", "/console", "/conf"):
+        page = await (await client.get(chemin)).text()
+        assert 'id="override-banner"' in page

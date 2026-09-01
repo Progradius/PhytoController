@@ -44,6 +44,12 @@ from utils.deployment_info import DEPLOYED_VERSION
 from utils.log_stream import console_stream
 from utils.pretty_console import debug, error, info, success, warning
 from utils.operational_state import snapshot as operational_snapshot
+from utils.overrides import (
+    DEFAULT_SECONDS,
+    OverrideError,
+    max_seconds,
+    shared_overrides,
+)
 from utils.schedule import day_night_times
 from utils.time_reliability import time_reliability
 
@@ -533,6 +539,8 @@ class Server:
             web.get("/api/v1/history", self._api_history),
             web.post("/api/v1/config/preview", self._config_preview),
             web.post("/actions/alarms/ack", self._acknowledge_alarm),
+            web.post("/actions/overrides/create", self._override_create),
+            web.post("/actions/overrides/cancel", self._override_cancel),
             web.post("/actions/stats/reset", self._reset_stats),
             web.post("/actions/sensors/reset-quality", self._reset_sensor_quality),
             web.post("/actions/system/reboot", self._reboot),
@@ -1422,6 +1430,92 @@ class Server:
             return web.json_response(payload)
         raise web.HTTPSeeOther(location="/alarms")
 
+    # ── forçages « arrêt » ────────────────────────────────────
+    @staticmethod
+    def _override_targets(raw) -> tuple[str, ...]:
+        """
+        Liste blanche stricte : un identifiant d'équipement, jamais un numéro de
+        broche ni un nom libre. `all` est le geste « arrêt général
+        (maintenance) », il se déplie ici, côté serveur.
+        """
+        target = str(raw or "").strip()
+        if target == "all":
+            return tuple(EQUIPMENT_IDS)
+        if target not in EQUIPMENT_IDS:
+            raise web.HTTPBadRequest(text="Cible de forçage invalide")
+        return (target,)
+
+    def _reload_override_jobs(self, targets) -> None:
+        """
+        Une minuterie peut dormir jusqu'à dix jours : sans relance, l'ordre
+        n'arriverait pas. Le climat, lui, tique en continu — le relancer lui
+        ferait relire ses budgets d'hiver sur disque pour rien.
+        """
+        if self.supervisor is None:
+            return
+        jobs = {
+            "daily_1": "daily_timer_1", "daily_2": "daily_timer_2",
+            "cyclic_1": "cyclic_timer_1", "cyclic_2": "cyclic_timer_2",
+        }
+        for target in targets:
+            job = jobs.get(target)
+            if job is not None:
+                self.supervisor.request_reload(job)
+
+    async def _override_response(self, request: web.Request) -> web.Response:
+        if "application/json" in request.headers.get("Accept", ""):
+            return web.json_response(shared_overrides().payload())
+        raise web.HTTPSeeOther(location="/#interventions")
+
+    async def _override_create(self, request: web.Request) -> web.Response:
+        form = request["form_data"]
+        targets = self._override_targets(form.get("target"))
+        raw_minutes = str(form.get("duration_minutes", "")).strip()
+        try:
+            minutes = float(raw_minutes) if raw_minutes else DEFAULT_SECONDS / 60
+        except ValueError:
+            raise web.HTTPBadRequest(text="Durée invalide")
+        reason = form.get("reason", "")
+
+        store = shared_overrides()
+        for target in targets:
+            # Le plafond est propre à la cible : un « arrêt général » ne peut pas
+            # étirer le chauffage ou le moteur au-delà de leurs 4 h.
+            seconds = min(minutes * 60, max_seconds(target))
+            try:
+                store.create(target, seconds, reason)
+            except OverrideError as exc:
+                raise web.HTTPBadRequest(text=str(exc))
+            except OSError:
+                # Un forçage accepté mais non persisté disparaîtrait au premier
+                # redémarrage sans que personne ne l'ait levé.
+                error("Forçage non persisté → refusé", name=LOGGER_NAME)
+                raise web.HTTPInternalServerError(
+                    text="Forçage impossible : état non persisté"
+                )
+            if self.operator_service is not None:
+                await self.operator_service.record_override_event(
+                    "created", target, seconds
+                )
+        self._reload_override_jobs(targets)
+        return await self._override_response(request)
+
+    async def _override_cancel(self, request: web.Request) -> web.Response:
+        form = request["form_data"]
+        targets = self._override_targets(form.get("target"))
+        store = shared_overrides()
+        for target in targets:
+            try:
+                cancelled = store.cancel(target)
+            except OverrideError as exc:
+                raise web.HTTPBadRequest(text=str(exc))
+            if cancelled and self.operator_service is not None:
+                await self.operator_service.record_override_event(
+                    "cancelled", target, 0
+                )
+        self._reload_override_jobs(targets)
+        return await self._override_response(request)
+
     async def _api_history(self, request: web.Request) -> web.Response:
         if self.operator_service is None or not self.operator_service.history.available:
             raise web.HTTPServiceUnavailable(text="Historique local indisponible")
@@ -1569,6 +1663,7 @@ class Server:
             "network": operator["network"],
             "equipment": equipment,
             "actuators": actuator_entries,
+            "overrides": shared_overrides().payload(),
             "day_night": {
                 "source": self.config.day_night.source,
                 "start": f"{start_h:02d}:{start_m:02d}",

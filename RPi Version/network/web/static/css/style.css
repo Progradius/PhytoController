@@ -148,6 +148,16 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--re
 .nav-count { min-width: 1.35rem; padding: .05rem .35rem; border-radius: 999px; background: var(--red); color: #240303; text-align: center; font-size: .75rem; }
 .global-alarm { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: .65rem clamp(1rem, 4vw, 3rem); border-bottom: 1px solid var(--amber); background: rgb(255 200 87 / 10%); }
 .global-alarm.severity-critical { border-color: var(--red); background: rgb(255 107 107 / 12%); }.global-alarm a { color: var(--text); }
+.global-alarm.severity-override { border-color: var(--accent, var(--amber)); background: rgb(120 200 255 / 10%); }
+.override-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--gap); margin-bottom: 1.2rem; }
+.override-card.is-forced { border-color: var(--amber); }
+.override-card h3 { margin-bottom: .4rem; font-size: 1rem; }
+.override-state { margin-bottom: .6rem; color: var(--muted); }
+.override-reason { margin-bottom: .6rem; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.badge-warning { padding: .05rem .4rem; border-radius: 999px; background: rgb(255 200 87 / 18%); color: var(--amber); font-size: .75rem; }
+.section-note { max-width: 44ch; margin-bottom: 0; color: var(--muted); font-size: .88rem; }
+.dialog-confirm-form label { display: block; margin-bottom: .25rem; color: var(--muted); font-size: .85rem; }
+.dialog-confirm-form input { width: 100%; margin-bottom: .8rem; padding: .5rem .6rem; border: 1px solid var(--border); border-radius: calc(var(--radius) / 2); background: var(--surface); color: var(--text); }
 .pwa-connection-banner { position: sticky; z-index: 120; top: 0; display: flex; align-items: center; justify-content: center; gap: .75rem; padding: .8rem clamp(1rem, 4vw, 3rem); border-bottom: 2px solid #fff; background: #9f1717; color: #fff; box-shadow: 0 .6rem 2rem rgb(0 0 0 / 45%); }
 .pwa-connection-banner strong { font-family: Visitor, ui-monospace, monospace; letter-spacing: .1em; }
 .pwa-security-notice { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: .65rem clamp(1rem, 4vw, 3rem); border-bottom: 1px solid var(--amber); background: rgb(245 189 79 / 12%); color: var(--amber); }

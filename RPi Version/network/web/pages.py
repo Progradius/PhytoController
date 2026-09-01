@@ -10,6 +10,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from controllers.sensor_catalog import SENSOR_CATALOG, effective_quality_profile
+from utils.overrides import shared_overrides
 
 
 WEB_DIR = Path(__file__).parent
@@ -98,9 +99,23 @@ def _pwa_https_configured() -> bool:
     )
 
 
+def _override_summary() -> dict | None:
+    """
+    Résumé des forçages pour la bannière globale. Lecture en mémoire, sans I/O,
+    et jamais fatale : une bannière absente vaut mieux qu'une page qui ne rend
+    pas. Elle est calculée ici et non passée par chaque appelant pour être
+    réellement globale — console et alarmes comprises.
+    """
+    try:
+        return shared_overrides().payload()
+    except Exception:
+        return None
+
+
 def render_template(template_name: str, **context) -> str:
     template = env.get_template(template_name)
     context.setdefault("alarm_summary", None)
+    context.setdefault("override_summary", _override_summary())
     context.setdefault("pwa_url", _pwa_url())
     context.setdefault("pwa_https_configured", _pwa_https_configured())
     return template.render(asset_versions=ASSET_VERSIONS, **context)

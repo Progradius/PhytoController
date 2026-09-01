@@ -140,6 +140,39 @@
     return "—";
   };
 
+  // Bannière de forçage : même patron create-if-absent / update / remove que
+  // `#global-alarm`. Le rechargement de la page reste la seule façon de voir
+  // apparaître ou disparaître les cartes d'intervention elles-mêmes ; ici on
+  // ne rafraîchit que la bannière et les temps restants, sans jamais toucher
+  // à `innerHTML`.
+  const updateOverrides = (overrides) => {
+    const count = overrides?.active_count || 0;
+    let banner = document.getElementById("override-banner");
+    if (count === 0) {
+      banner?.remove();
+    } else {
+      if (!banner) {
+        banner = document.createElement("aside");
+        banner.id = "override-banner";
+        banner.className = "global-alarm severity-override";
+        banner.setAttribute("aria-live", "polite");
+        const title = document.createElement("strong");
+        const detail = document.createElement("span");
+        const link = document.createElement("a");
+        link.href = "/#interventions";
+        link.textContent = "Examiner";
+        banner.append(title, detail, link);
+        document.querySelector(".site-header")?.after(banner);
+      }
+      text("strong", `${count} forçage(s) « arrêt » actif(s)`, banner);
+      text("span", "Équipement(s) coupé(s) volontairement — la conduite normale est suspendue", banner);
+    }
+    (overrides?.items || []).forEach((item) => {
+      const node = document.querySelector(`.override-remaining[data-target="${CSS.escape(item.target)}"]`);
+      if (node) node.textContent = `${Math.floor((item.remaining_seconds || 0) / 60)} min`;
+    });
+  };
+
   const updateActuators = (actuators) => {
     Object.entries(actuators || {}).forEach(([key, actuator]) => {
       const card = document.querySelector(`[data-actuator="${CSS.escape(key)}"]`);
@@ -222,6 +255,7 @@
       text("strong", `${state.alarms.active_count} alarme(s) active(s)`, globalAlarm);
       text("span", `${state.alarms.control_count} contrôle · ${state.alarms.auxiliary_count} auxiliaire`, globalAlarm);
     }
+    updateOverrides(state.overrides);
     const timeAlert = state.time.alarm || state.time.daily_timers_suspended;
     const timeBanner = document.getElementById("time-banner");
     if (timeBanner) timeBanner.className = `time-banner ${timeAlert ? "is-alert" : "is-ok"}`;

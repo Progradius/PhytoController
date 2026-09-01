@@ -3,9 +3,10 @@
 # License : AGPL-3.0
 
 from datetime import datetime, timedelta, time
-from time import time as epoch_now
+from time import monotonic, time as epoch_now
 
 from utils.pretty_console import box, debug, info, error, warning
+from utils.overrides import shared_overrides
 from utils.state_store import shared_store
 from utils.supervisor import beat, sleep as hb_sleep
 from utils.operational_state import publish
@@ -137,6 +138,27 @@ async def timer_cyclic(cyclic_timer) -> None:
             disabled_reported = False
         # ------------------------------
 
+        # Forçage « arrêt » opérateur, lu en tête de boucle. Une création ou une
+        # levée déclenche `supervisor.request_reload()` côté HTTP : sans cela un
+        # cyclique en attente longue ignorerait l'ordre jusqu'à dix jours, et
+        # `energized()` garantit la coupure si l'annulation tombe en pleine
+        # impulsion.
+        overrides = shared_overrides()
+        if overrides.is_forced_off(equipment_id):
+            record = overrides.active().get(equipment_id)
+            comp.set_state(0)
+            publish(equipment_id, stale_after=70, requested="off",
+                    mode="forçage opérateur", reason="forçage opérateur : arrêt",
+                    since_mono=None,
+                    next_transition={
+                        "type": "safety_deadline",
+                        "in_seconds": round(
+                            record.remaining_seconds(epoch_now(), monotonic()), 1
+                        ) if record is not None else None,
+                    })
+            await hb_sleep(30)
+            continue
+
         # si activé → on réinjecte la conf dans l'instance existante
         cyclic_timer._config = cfg
         cyclic_timer._load_from_config_block()
@@ -173,7 +195,6 @@ async def timer_cyclic(cyclic_timer) -> None:
             await hb_sleep(delay)
             if datetime.now() < trigger:
                 continue
-            from time import monotonic
             started = monotonic()
             publish(equipment_id, stale_after=max(70, 2 * action_duration), requested="on",
                     mode="journalier", reason="impulsion planifiée", since_mono=started,
@@ -235,7 +256,6 @@ async def timer_cyclic(cyclic_timer) -> None:
             # ON → attente → OFF garanti (audit E5)
             box(f"[S][{phase}] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
             _save_phase(store, state_section, "on", on_remaining)
-            from time import monotonic
             publish(equipment_id, stale_after=max(70, 2 * on_remaining), requested="on",
                     mode="séquentiel", reason=f"phase ON ({phase.lower()})",
                     since_mono=monotonic(),

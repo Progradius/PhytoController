@@ -15,6 +15,7 @@ from components.climate_control import (
 )
 from components.climate_policy import (
     ALARM_CONTINUOUS_LIMIT,
+    ALARM_MOTOR_LOCKOUT,
     ALARM_SENSOR_FALLBACK,
     settings_from_config,
 )
@@ -52,6 +53,13 @@ DEFINITIONS = {
         consequence="Le chauffage est forcé au repos pendant le cooldown de sécurité.",
         advice="Vérifier le capteur, la puissance de chauffe et les pertes thermiques.",
         link="/#surveillance",
+    ),
+    "motor_lockout_overheat": AlarmDefinition(
+        code="motor_lockout_overheat", title="Ventilation verrouillée alors que la serre monte",
+        severity="critical", category="control", affects_control=True,
+        consequence="Un forçage « arrêt » empêche toute ventilation au-dessus du seuil.",
+        advice="Lever le forçage moteur, ou aérer manuellement si l'intervention doit continuer.",
+        link="/#interventions",
     ),
     "influx": AlarmDefinition(
         code="influx_unavailable", title="Export InfluxDB indisponible",
@@ -210,6 +218,22 @@ class OperatorService:
         """Tente de vider l'événement avant que l'action coupe le processus."""
         self.enqueue_system_action(action)
         await self._flush_pending()
+
+    async def record_override_event(self, action: str, target: str,
+                                    seconds: float) -> None:
+        """
+        Trace un forçage « arrêt ». Best-effort et jamais bloquant : une panne
+        de l'historique ne doit pas empêcher de couper un équipement. La raison
+        saisie par l'opérateur n'est **pas** enregistrée ici — elle vit dans
+        `runtime_state.json` et dans l'IHM, jamais dans un chemin qui finit en
+        journal.
+        """
+        if action not in {"created", "cancelled"}:
+            return
+        self._enqueue_event({
+            "ts": time.time(), "kind": "override", "subject": target,
+            "payload": {"action": action, "seconds": round(float(seconds), 1)},
+        })
 
     # ── boucle auxiliaire ──────────────────────────────────────
     async def run(self) -> None:
@@ -416,7 +440,7 @@ class OperatorService:
     def _evaluate_alarms(self) -> None:
         current_dynamic: set[str] = set()
         climate = get_climate_alarm_status()
-        for code in (ALARM_SENSOR_FALLBACK, ALARM_CONTINUOUS_LIMIT):
+        for code in (ALARM_SENSOR_FALLBACK, ALARM_CONTINUOUS_LIMIT, ALARM_MOTOR_LOCKOUT):
             key = f"climate:{code}"
             self._condition(key, DEFINITIONS[code], climate.get("code") == code,
                             detail=climate.get("message") or "")

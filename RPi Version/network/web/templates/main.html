@@ -145,6 +145,73 @@
   </div>
 </section>
 
+<section id="interventions" aria-labelledby="interventions-title">
+  <div class="section-heading">
+    <div><p class="eyebrow">Intervention</p><h2 id="interventions-title">Forçages « arrêt »</h2></div>
+    <p class="section-note">Une coupure temporaire et bornée. Elle ne modifie aucune configuration
+      et se lève d’elle-même à l’échéance. Un forçage ne peut jamais allumer un équipement.</p>
+  </div>
+  <div class="override-grid">
+    {% for eid, meta in state.equipment.items() %}
+    {% set forced = state.overrides['items'] | selectattr('target', 'equalto', eid) | first %}
+    {% set limit = state.overrides['limits_minutes'].get(eid, 1440) %}
+    <article class="card override-card{% if forced %} is-forced{% endif %}">
+      <h3>{{ meta.display_name or eid }}</h3>
+      {% if forced %}
+      <p class="override-state">Coupé — reste
+        <span class="override-remaining" data-target="{{ eid }}">{{ (forced.remaining_seconds // 60)|int }} min</span>
+        {% if not forced.confirmed %}<span class="badge badge-warning">à confirmer</span>{% endif %}
+      </p>
+      {% if forced.reason %}<p class="override-reason">{{ forced.reason }}</p>{% endif %}
+      <form method="post" action="/actions/overrides/cancel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="target" value="{{ eid }}">
+        <button class="button button-secondary" type="submit">Reprendre</button>
+      </form>
+      {% else %}
+      <p class="override-state">Conduite normale</p>
+      <button class="button button-danger-outline" type="button"
+              data-open-dialog="override-{{ eid }}-dialog">Couper</button>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  <div class="danger-actions">
+    <button class="button button-danger-outline" type="button"
+            data-open-dialog="override-all-dialog">Arrêt général (maintenance)</button>
+    <form method="post" action="/actions/overrides/cancel">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="target" value="all">
+      <button class="button button-secondary" type="submit">Tout reprendre</button>
+    </form>
+  </div>
+</section>
+
+{% for eid in (state.equipment.keys() | list) + ['all'] %}
+{% set limit = state.overrides['limits_minutes'].get(eid, 240) %}
+{% set label = state.equipment[eid].display_name if eid != 'all' else 'tous les équipements' %}
+<dialog id="override-{{ eid }}-dialog" class="confirm-dialog">
+  <form method="dialog" class="dialog-panel">
+    <p class="eyebrow">Confirmation requise</p>
+    <h2>Couper {{ label }} ?</h2>
+    <p>La coupure est temporaire et se lève seule à l’échéance.
+      {% if eid == 'all' %}Chaque cible applique son propre plafond.{% else %}Plafond : {{ limit }} min.{% endif %}
+      Le verrouillage du moteur prime sur la sécurité haute : la serre ne ventilera plus.</p>
+    <div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button></div>
+  </form>
+  <form method="post" action="/actions/overrides/create" class="dialog-confirm-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="target" value="{{ eid }}">
+    <label for="override-{{ eid }}-minutes">Durée (minutes)</label>
+    <input id="override-{{ eid }}-minutes" name="duration_minutes" type="number" min="1"
+           max="{{ limit }}" step="1" value="{{ state.overrides['default_minutes'] }}" required>
+    <label for="override-{{ eid }}-reason">Raison (facultative)</label>
+    <input id="override-{{ eid }}-reason" name="reason" type="text" maxlength="200">
+    <button class="button button-danger" type="submit">Couper</button>
+  </form>
+</dialog>
+{% endfor %}
+
 <section class="danger-zone" aria-labelledby="system-actions-title">
   <div><p class="eyebrow">Zone sensible</p><h2 id="system-actions-title">Actions système</h2><p>Ces actions interrompent temporairement ou complètement le contrôle.</p></div>
   <div class="danger-actions">

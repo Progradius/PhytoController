@@ -1,7 +1,9 @@
 # components/dailytimer_handler.py
 from datetime import datetime, timedelta
+from time import monotonic, time
 
 from utils import pretty_console as ui
+from utils.overrides import shared_overrides
 from utils.supervisor import beat, sleep as hb_sleep
 from utils.operational_state import publish
 from utils.schedule import clock_in_range
@@ -56,6 +58,26 @@ async def timer_daily(dailytimer, sampling_time: int = 60):
             ui.info(f"DailyTimer #{tid} réactivé", name=LOGGER_NAME)
             disabled_reported = False
 
+        # Forçage « arrêt » opérateur : lu en tête de boucle, jamais persisté
+        # ici. La tranche de sommeil est courte pour que l'expiration reprenne
+        # la main sans mécanisme supplémentaire ; une création ou une levée
+        # passe en plus par `supervisor.request_reload()` côté HTTP.
+        overrides = shared_overrides()
+        if overrides.is_forced_off(equipment_id):
+            record = overrides.active().get(equipment_id)
+            dailytimer.component.set_state(0)
+            publish(equipment_id, stale_after=2 * sampling_time, requested="off",
+                    mode="forçage opérateur", reason="forçage opérateur : arrêt",
+                    since_mono=since_mono,
+                    next_transition={
+                        "type": "safety_deadline",
+                        "in_seconds": round(
+                            record.remaining_seconds(time(), monotonic()), 1
+                        ) if record is not None else None,
+                    })
+            await hb_sleep(min(sampling_time, 30))
+            continue
+
         reliability = time_reliability()
         if reliability.daily_suspended():
             dailytimer.component.set_state(0)
@@ -75,7 +97,6 @@ async def timer_daily(dailytimer, sampling_time: int = 60):
         changed = dailytimer.toggle_state_daily()
         after = bool(dailytimer.component.get_state())
         if before != after or since_mono is None:
-            from time import monotonic
             since_mono = monotonic()
         if changed:
             state_on = bool(dailytimer.component.get_state())

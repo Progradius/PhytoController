@@ -147,7 +147,22 @@ to `PuppetMaster`.
 - `utils/state_store.py` — `param/runtime_state.json` (atomic, throttled to one write per minute), the
   regulation state that must **not** restart from zero: winter budgets, and the cyclic timers' sequential
   phase. A missing, unreadable or expired record is ignored — a resume can only shorten a cycle, never
-  invent one.
+  invent one. `save(..., strict=True)` **re-raises** the `OSError` and writes immediately; the swallowing
+  default stays the one for budgets, which must never be able to kill regulation.
+- `utils/overrides.py` — operator **force-OFF** overrides. An override is a **policy input, never a GPIO
+  access**: nothing in this module can switch anything on, it only ever cuts. Targets are the
+  `EQUIPMENT_IDS` whitelist — never a pin number or a free-form name. Two clocks, expiry at the **first**
+  of the two: `expires_epoch` is the only displayable deadline and the only one that survives a reboot,
+  `deadline_mono` is never persisted so an NTP jump can shorten an override but never extend it. Caps are
+  deliberately asymmetric — 4 h for `heater` and `motor`, 24 h elsewhere — because the **motor force-OFF
+  is absolute**: it outranks `REPLI_CAPTEUR` *and* `SECURITE_HAUTE` (operator ruling, 28/08/2026), so the
+  only remaining protection against a cooking greenhouse is how short the cut is, plus the
+  `motor_lockout_overheat` alarm raised by the policy. `create()` persists with `strict=True` before
+  returning (an accepted-but-unwritten override would vanish at the next reboot with nobody having lifted
+  it, hence HTTP 500); `cancel()` applies in memory first and only then persists — never restore a cut the
+  operator just lifted. The operator's free-text reason is **never interpolated into a log line**: it
+  would travel into the `/console` SSE stream and its download. On boot an override resumed before the
+  clock is trustworthy has its deadline re-based on the cap and is flagged "à confirmer".
 - `model/` — thin GPIO/state wrappers: `Component` (one relay pin), `Motor` (4 pins = 4 speeds),
   `DailyTimer`/`CyclicTimer` (schedule logic), `SensorStats` (min/max, persisted to
   `param/sensor_stats.json`).
