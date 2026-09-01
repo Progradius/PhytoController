@@ -65,25 +65,29 @@ DEFINITIONS = {
         code="influx_unavailable", title="Export InfluxDB indisponible",
         severity="warning", category="telemetry", affects_control=False,
         consequence="Les mesures locales continuent, mais la référence analytique n'est plus alimentée.",
-        advice="Vérifier l'hôte InfluxDB et sa disponibilité réseau.", link="/console",
+        advice="Vérifier l'hôte InfluxDB et sa disponibilité réseau.",
+        link="/console?component=phyto.influx&level=WARNING",
     ),
     "time": AlarmDefinition(
         code="time_unreliable", title="Heure non synchronisée",
         severity="warning", category="time", affects_control=False,
         consequence="Les décisions horaires sont suspendues ou utilisent la reprise bornée.",
-        advice="Vérifier systemd-timesyncd, le réseau et l'heure du Raspberry Pi.", link="/console",
+        advice="Vérifier systemd-timesyncd, le réseau et l'heure du Raspberry Pi.",
+        link="/console?component=phyto.time&level=INFO",
     ),
     "network": AlarmDefinition(
         code="network_degraded", title="Accès réseau local dégradé",
         severity="warning", category="network", affects_control=False,
         consequence="L'interface locale ou les services distants peuvent être injoignables.",
-        advice="Vérifier l'interface, l'adresse IPv4 et la passerelle NetworkManager.", link="/console",
+        advice="Vérifier l'interface, l'adresse IPv4 et la passerelle NetworkManager.",
+        link="/console?component=phyto.network&level=INFO",
     ),
     "disk": AlarmDefinition(
         code="disk_space", title="Espace disque faible",
         severity="warning", category="storage", affects_control=False,
         consequence="Les logs, la configuration et l'historique peuvent ne plus s'écrire.",
-        advice="Libérer de l'espace sur la partition racine avant saturation.", link="/console",
+        advice="Libérer de l'espace sur la partition racine avant saturation.",
+        link="/console?q=disque&level=WARNING",
     ),
     "config_backup": AlarmDefinition(
         code="config_backup_restored", title="Configuration restaurée depuis la sauvegarde",
@@ -502,7 +506,7 @@ class OperatorService:
                 severity="critical", category="control", affects_control=True,
                 consequence="Une boucle qui pilote la serre ne progresse plus normalement.",
                 advice="Consulter la tâche et les logs; vérifier l'état physique des sorties.",
-                link="/console",
+                link=f"/console?q={name}&level=WARNING",
             )
             self._condition(
                 control_key, control_definition,
@@ -516,7 +520,7 @@ class OperatorService:
                 affects_control=bool(task.get("gates_watchdog")),
                 consequence="La tâche est instable malgré les relances du superviseur.",
                 advice="Identifier la première exception au lieu de laisser le back-off la masquer.",
-                link="/console",
+                link=f"/console?q={name}&level=WARNING",
             )
             self._condition(
                 restart_key, restart_definition, int(task.get("restarts_10m", 0)) >= 2,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass
 from unittest.mock import AsyncMock
@@ -14,6 +15,7 @@ from param.equipment_metadata import EQUIPMENT_IDS, default_catalog
 from network.web import pages as pages_module
 from network.web import server as server_module
 from utils import overrides as overrides_module
+from utils import pretty_console as ui
 from utils.overrides import OverrideStore
 from utils.state_store import StateStore
 
@@ -973,3 +975,56 @@ async def test_banniere_de_forcage_est_globale(web_context, override_store):
     for chemin in ("/", "/console", "/conf"):
         page = await (await client.get(chemin)).text()
         assert 'id="override-banner"' in page
+
+
+# ─────────────────────────────────────────────────────────────
+#  Console structurée (jalon 4)
+# ─────────────────────────────────────────────────────────────
+async def test_flux_console_est_du_json_structure(web_context):
+    client, *_ = web_context
+    stream = server_module.console_stream
+    stream.history.clear()
+    ui.warning("Poussée Influx échouée", name="influx")
+
+    charge = json.loads(stream.history[-1])
+    assert charge["level"] == "WARNING"
+    assert charge["logger"] == "phyto.influx"
+    assert charge["message"] == "Poussée Influx échouée"
+    assert isinstance(charge["ts"], float)
+
+
+async def test_message_multiligne_reste_un_seul_enregistrement(web_context):
+    client, *_ = web_context
+    stream = server_module.console_stream
+    stream.history.clear()
+    ui.warning("première ligne\nseconde ligne", name="motor")
+
+    assert len(stream.history) == 1
+    charge = json.loads(stream.history[-1])
+    assert charge["message"] == "première ligne\nseconde ligne"
+    # Une charge mono-ligne : un seul `data:` par événement SSE.
+    assert server_module.Server._sse(stream.history[-1]).count(b"data: ") == 1
+
+
+async def test_tampon_console_borne_a_deux_mille_lignes():
+    from utils.log_stream import HISTORY_SIZE, ConsoleStream
+    assert HISTORY_SIZE == 2000
+    assert ConsoleStream().history.maxlen == 2000
+
+
+async def test_console_ne_manipule_jamais_innerhtml(web_context):
+    client, *_ = web_context
+    script = await (await client.get("/static/js/console.js")).text()
+    # Le flux contient des messages arbitraires : le piège XSS classique.
+    # Les commentaires ont le droit de nommer le piège, pas le code.
+    code = "\n".join(
+        ligne for ligne in script.splitlines() if not ligne.strip().startswith("//")
+    )
+    assert "innerHTML" not in code
+    assert "MAX_RECORDS = 2000" in code
+
+
+async def test_liens_d_alarme_preselectionnent_la_console():
+    from controllers.OperatorService import DEFINITIONS
+    assert DEFINITIONS["influx"].link == "/console?component=phyto.influx&level=WARNING"
+    assert DEFINITIONS["time"].link.startswith("/console?component=phyto.time")

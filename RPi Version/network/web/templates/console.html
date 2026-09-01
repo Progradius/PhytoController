@@ -1,8 +1,38 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero compact"><div><p class="eyebrow">Diagnostic en direct</p><h1>Console</h1><p class="hero-copy">Journal du processus de contrôle actuellement actif.</p></div></section>
+<section class="hero compact"><div><p class="eyebrow">Diagnostic en direct</p><h1>Console</h1><p class="hero-copy">Journal du processus de contrôle actuellement actif. Les 2 000 dernières lignes, filtrables sans quitter la page.</p></div></section>
 <section aria-labelledby="console-title">
   <div class="console-toolbar"><h2 id="console-title">Flux système</h2><span id="connection-state" class="connection-state" role="status" aria-live="polite">Connexion…</span></div>
+
+  <div class="console-controls">
+    <div class="console-control">
+      <label for="console-level">Niveau minimal</label>
+      <select id="console-level">
+        <option value="DEBUG">Tout (debug)</option>
+        <option value="INFO" selected>Information</option>
+        <option value="WARNING">Avertissement</option>
+        <option value="ERROR">Erreur</option>
+        <option value="CRITICAL">Critique</option>
+      </select>
+    </div>
+    <div class="console-control">
+      <label for="console-component">Composant</label>
+      <select id="console-component"><option value="">Tous</option></select>
+    </div>
+    <div class="console-control console-control-wide">
+      <label for="console-search">Recherche</label>
+      <input id="console-search" type="search" placeholder="texte contenu dans le message" autocomplete="off">
+    </div>
+    <div class="console-actions">
+      <button id="console-pause" class="button button-secondary" type="button" aria-pressed="false">Pause</button>
+      <button id="console-follow" class="button button-secondary" type="button" aria-pressed="true">Suivi auto</button>
+      <button id="console-copy" class="button button-secondary" type="button">Copier</button>
+      <button id="console-download" class="button button-secondary" type="button">Télécharger</button>
+      <button id="console-clear" class="button button-secondary" type="button">Effacer la vue</button>
+    </div>
+  </div>
+
+  <p id="console-counters" class="console-counters" role="status" aria-live="polite"></p>
   <pre id="console-output" class="console-output" tabindex="0" aria-label="Journal système en direct"></pre>
 </section>
 {% endblock %}

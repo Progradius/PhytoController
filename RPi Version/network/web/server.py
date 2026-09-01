@@ -1565,6 +1565,8 @@ class Server:
 
     @staticmethod
     def _sse(line: str) -> bytes:
+        # La charge est du JSON mono-ligne : la découpe reste en filet de
+        # sécurité, elle ne doit jamais avoir à s'appliquer.
         chunks = "".join(f"data: {part}\n" for part in str(line).splitlines() or [""])
         return (chunks + "\n").encode("utf-8")
 

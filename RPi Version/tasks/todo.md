@@ -695,11 +695,12 @@ effectif pendant qu'un forçage empêche de ventiler.
 
 ## Commit 2 — Console
 
-- [ ] Flux SSE structuré JSON, tampon serveur 2 000 lignes
-- [ ] Barre d'outils : pause, autoscroll, filtres niveau/composant, recherche, compteurs,
+- [x] Flux SSE structuré JSON, tampon serveur 2 000 lignes
+- [x] Barre d'outils : pause, autoscroll, filtres niveau/composant, recherche, compteurs,
       copie, téléchargement, effacement de la vue
-- [ ] Tampon client borné à 2 000, `textContent` uniquement
-- [ ] Paramètres d'URL `level` / `component` / `q`, liens d'alarme enrichis
+- [x] Tampon client borné à 2 000, `textContent` uniquement
+- [x] Paramètres d'URL `level` / `component` / `q`, liens d'alarme enrichis
+- [x] Tests : JSON structuré, message multiligne, borne 2 000, absence d'`innerHTML`, liens
 
 ## Commit 3 — Reboot / extinction
 

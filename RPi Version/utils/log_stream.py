@@ -15,6 +15,7 @@ mêmes GPIO, double rotation du même fichier de log).
 """
 
 import asyncio
+import json
 import logging
 import re
 import threading
@@ -22,20 +23,26 @@ from collections import deque
 
 from utils.pretty_console import ROOT_LOGGER_NAME
 
-HISTORY_SIZE = 1000
+HISTORY_SIZE = 2000
 QUEUE_SIZE = 500
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 class ConsoleStream(logging.Handler):
-    """Handler mémoire : garde les dernières lignes et les pousse aux clients SSE."""
+    """
+    Handler mémoire : garde les dernières lignes et les pousse aux clients SSE.
+
+    La charge est du **JSON mono-ligne** et non du texte préformaté : le
+    `LogRecord` porte déjà le niveau (`levelname`), le composant (`name`, soit
+    `phyto.<composant>`) et l'horodatage (`created`). Les aplatir en une chaîne
+    obligeait la page à les ré-extraire par expression régulière pour filtrer.
+    Un message multi-ligne reste dans un seul enregistrement : `json.dumps`
+    échappe ses sauts de ligne, c'est le client qui redécoupe à l'affichage.
+    """
 
     def __init__(self, history_size: int = HISTORY_SIZE):
         super().__init__()
-        self.setFormatter(logging.Formatter(
-            "%(asctime)s [%(levelname)s] [%(name)s] %(message)s", "%H:%M:%S"
-        ))
         self.history: deque[str] = deque(maxlen=history_size)
         self._queues: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = []
         self._lock = threading.Lock()
@@ -65,7 +72,12 @@ class ConsoleStream(logging.Handler):
     # ── émission ──────────────────────────────────────────────
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            line = _ANSI_RE.sub("", self.format(record))
+            line = json.dumps({
+                "ts": record.created,
+                "level": record.levelname,
+                "logger": record.name,
+                "message": _ANSI_RE.sub("", record.getMessage()),
+            }, ensure_ascii=False)
         except Exception:  # jamais faire tomber l'appelant pour un log
             return
 
