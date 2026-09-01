@@ -6,6 +6,13 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Observabilité des seuils capteurs
+
+- `/api/v1/state` publie désormais, pour chaque mesure active, `freeze_epsilon`,
+  `freeze_after_seconds` et `freeze_min_samples` en plus de la fraîcheur et de la plage plausible.
+  L'observateur jalon 2 vérifie leur présence, ce qui rend les profils effectifs auditables sans
+  lecture directe de la configuration du Pi.
+
 ### Calibration et qualité des capteurs
 
 **Implémentée et vérifiée hors matériel ; mode initial `observe`, non encore qualifié ni armé sur le Pi.**

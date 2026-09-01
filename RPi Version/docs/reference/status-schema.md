@@ -127,6 +127,13 @@ attendre une nouvelle lecture. Une valeur hors plage, absente ou périmée est t
 `redundancy_mismatch`, `calibration_overdue`, etc.). `age_s` porte l'âge de la dernière valeur
 qualifiée, tandis que `attempt_age_s` porte l'âge de la dernière tentative.
 
+Les seuils effectifs utilisés pour la décision sont publiés avec chaque mesure :
+`freshness_threshold_s`, `plausible_range`, `freeze_epsilon`, `freeze_after_seconds` et
+`freeze_min_samples`. `freeze_after_seconds=null` signifie que le diagnostic de figement est
+désactivé pour cette mesure. Ces valeurs incluent les éventuelles surcharges de `Sensor_Quality` ;
+elles permettent donc de vérifier la configuration réellement appliquée sans lire le fichier de
+configuration sur le Pi.
+
 Aucune lecture matérielle n'est déclenchée par une requête HTTP : le job supervisé
 `sensor_snapshot` rafraîchit l'instantané toutes les 10 s, l'IHM et InfluxDB le consomment.
 

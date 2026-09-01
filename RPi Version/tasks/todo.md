@@ -1,9 +1,13 @@
 # TODO — Déploiement et armement de la qualité des capteurs
 
-**État** : correctif de figement **déployé au commit `985e42d`** le 30 août 2026 à 19:07 UTC,
-contrôles après déploiement tous conformes. Une **nouvelle observation de 172 800 s court jusqu'au
-1er septembre 2026 à 19:09:11 UTC** (observateur `722191`, service `721771`). Lot non qualifié
-électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à validation complète.
+**État au 1er septembre 2026 à 07:02:31 UTC** : correctif de figement **déployé au commit
+`985e42d`** le 30 août 2026 à 19:07 UTC, contrôles après déploiement tous conformes. La nouvelle
+observation de 172 800 s **n'est pas encore terminée** : 129 200 s couvertes, 2 142 échantillons,
+zéro échec et zéro avertissement ; fin contractuelle le 1er septembre à 19:09:11 UTC (observateur
+`722191`, service `721771`). Voir le
+[relevé intermédiaire](../docs/operations/jalon2-correctif-figement-observation-2026-09-01.md).
+Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à
+validation complète.
 
 La fenêtre précédente, close le 30 août à 18:59:28 UTC en `accepted_with_warnings` — 172 800 s,
 2 864 échantillons, 0 échec, 835 avertissements de cause unique — a établi la continuité du contrôle
@@ -67,10 +71,12 @@ Références :
 
 ## 2 bis. Correctif de la politique de figement (30 août 2026)
 
-Résultat de l'observation : **0 échantillon en échec**, mais 546 avertissements sur 2 284, tous de
-la même cause. `BME280T` et `BME280H` — les deux mesures qui pilotent l'arbitre thermique — ont été
-déclarées `inconsistent` sur 17 % et 22 % de la fenêtre, `reason=frozen`, alors que les capteurs
-mesuraient normalement (amplitude réelle 6,45 °C et 14,95 % sur 38 h, aucune erreur d'acquisition).
+Résultat final de l'observation précédente : **0 échantillon en échec**, mais 835 échantillons avec
+avertissement sur 2 864, tous de la même cause. L'analyse intermédiaire ayant conduit au correctif
+portait encore sur 2 284 échantillons et 546 avertissements. `BME280T` et `BME280H` — les deux
+mesures qui pilotent l'arbitre thermique — ont été déclarées `inconsistent` sur 23,8 % et 21,5 % de
+la fenêtre complète, `reason=frozen`, alors que les capteurs mesuraient normalement (amplitude réelle
+6,45 °C et 14,95 %, aucune erreur d'acquisition).
 
 Cause : `evaluate_sample()` comparait chaque lecture à la **précédente**, donc mesurait une pente et
 non une valeur bloquée ; à la cadence réelle de 10 s une température saine bouge de 0,01 °C sous un
@@ -109,10 +115,13 @@ donnait « figé » à 5 s et 10 s d'intervalle et « sain » à 60 s — un ver
       double arrondi visible : `raw_value = 28.523013138119133` au lieu de deux décimales
 - [ ] Vérifier sur la nouvelle fenêtre que `BME280T`/`BME280H` ne produisent plus d'avertissement de
       figement et que le statut reste `normal` sur les périodes calmes de nuit
-- [ ] **Manque côté API** : `/api/v1/state` publie `freshness_threshold_s` et `plausible_range` mais
-      **pas** `freeze_epsilon`, `freeze_after_seconds` ni `freeze_min_samples`. L'exigence « vérifier
-      que les seuils effectifs publiés par l'API correspondent à la configuration » (section 3) n'est
-      donc pas satisfaisable sans lecture du code sur le Pi. À combler dans un lot ultérieur
+      **Relevé intermédiaire à 07:02:31 UTC** : 2 142/2 142 échantillons `normal` pour les trois
+      BME280, zéro raison qualité et zéro avertissement, dont 1 193 échantillons entre 20:00 et
+      06:00 UTC. Attendre le `summary.json` final avant de cocher.
+- [x] Combler le manque côté API : `/api/v1/state` publie désormais `freeze_epsilon`,
+      `freeze_after_seconds` et `freeze_min_samples` avec les autres seuils effectifs ; contrat
+      documenté, testé et exigé par l'observateur. **Implémenté localement le 1er septembre 2026,
+      non déployé afin de ne pas interrompre la fenêtre active.**
 
 **Points laissés ouverts, à mesurer avant activation** (ne pas régler à l'aveugle) :
 

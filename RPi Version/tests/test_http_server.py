@@ -72,6 +72,9 @@ class FakeSensors:
                     "min": definition.plausible_min,
                     "max": definition.plausible_max,
                 },
+                "freeze_epsilon": definition.freeze_epsilon,
+                "freeze_after_seconds": definition.freeze_after_seconds,
+                "freeze_min_samples": definition.freeze_min_samples,
                 "calibration": {
                     "offset": 0.0, "calibrated_at": None,
                     "valid_days": None, "overdue": False,
@@ -209,6 +212,9 @@ async def test_sondes_publient_la_version_chargee(web_context):
     assert state["health"]["control_healthy"] is True
     assert state["alarms"]["critical_count"] == 0
     temperature = next(item for item in state["sensors"] if item["key"] == "BME280T")
+    assert temperature["freeze_epsilon"] == 0.0
+    assert temperature["freeze_after_seconds"] == 1800.0
+    assert temperature["freeze_min_samples"] == 30
     assert temperature["status"] == "normal"
     assert temperature["control_usable"] is True
     assert temperature["calibration"]["offset"] == 0.0

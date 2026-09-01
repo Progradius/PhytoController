@@ -347,7 +347,8 @@ else:
         "key", "status", "acquisition_status", "reason_codes", "raw_value",
         "observed_value", "value", "control_usable", "would_block_control",
         "control_disposition", "enforcement_mode", "unchanged_for_s",
-        "freshness_threshold_s", "plausible_range", "calibration", "failures",
+        "freshness_threshold_s", "plausible_range", "freeze_epsilon",
+        "freeze_after_seconds", "freeze_min_samples", "calibration", "failures",
         "redundancy",
     }
     if not sensors:

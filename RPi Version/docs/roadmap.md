@@ -2,7 +2,8 @@
 
 **Public** : pilotage et développement.
 **Référence initiale** : commit `61ad3df`, audit et plans au 25 août 2026.
-**Dernière mise à jour** : 26 août 2026, après le magasin de configuration unique (`f840a91`).
+**Dernière mise à jour** : 1er septembre 2026, pendant la qualification du correctif de figement
+des capteurs (`985e42d`).
 **Suivi de l'audit** : le tableau d'avancement par phase et le séquencement révisé vivent dans
 [`AUDIT-2026-08-25.md` § 8](../AUDIT-2026-08-25.md). Cette roadmap en est la vue par lot livrable ; les
 deux doivent rester cohérentes.
@@ -230,12 +231,15 @@ prérequis encore vivant est **lot 3 → contraintes GPIO du lot 4**.
 
 ## Prochaines actions immédiates
 
-*(Révisées le 26 août 2026. Les lots 4 « thermique » et 4 « configuration » sont clos côté code ; l'ordre
-ci-dessous suit le risque physique résiduel, cohérent avec le séquencement du § 8 de l'audit.)*
+*(Révisées le 1er septembre 2026. La fenêtre corrective reste prioritaire jusqu'à sa clôture sans
+interruption ; l'ordre suivant reprend ensuite le risque physique résiduel.)*
 
-1. **Déployer et vérifier le magasin de configuration** (`f840a91`) sur le Pi — c'est le seul chantier
-   terminé qui ne soit pas encore en production.
-2. **Ouvrir le lot 3** : schéma électrique relu hors tension, puis `PinRegistry`, migration des broches
+1. **Laisser finir et clôturer la fenêtre qualité** à 19:09:11 UTC : lire `summary.json`, examiner
+   tout avertissement et ne qualifier le correctif que si les 172 800 s sont couvertes sans échec.
+2. **Déployer séparément l'observabilité des seuils effectifs** après la fenêtre : vérifier dans
+   `/api/v1/state` `freeze_epsilon`, `freeze_after_seconds` et `freeze_min_samples`, sans armer le
+   mode `enforce`.
+3. **Ouvrir le lot 3** : schéma électrique relu hors tension, puis `PinRegistry`, migration des broches
    moteur et génération de la configuration de boot. Seul chantier restant qui touche la sûreté
    électrique, et il débloque la contrainte d'unicité GPIO laissée désactivée au lot 4.
 3. **Traiter le temps et le réseau** (RTC / `time_synced`, reconnexion Wi-Fi supervisée) — première classe

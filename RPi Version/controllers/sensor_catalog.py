@@ -89,6 +89,16 @@ def effective_quality_profile(config, definition: SensorDefinition) -> dict[str,
     return profile
 
 
+def serialized_quality_thresholds(profile: dict[str, Any]) -> dict[str, float | int | None]:
+    """Expose les seuils effectifs avec des types JSON stables."""
+    freeze_after = profile["freeze_after_seconds"]
+    return {
+        "freeze_epsilon": float(profile["freeze_epsilon"]),
+        "freeze_after_seconds": float(freeze_after) if freeze_after is not None else None,
+        "freeze_min_samples": int(profile["freeze_min_samples"]),
+    }
+
+
 def enabled_definitions(config) -> list[SensorDefinition]:
     """Retourne les mesures activées par ``Sensor_State`` dans l'ordre UI."""
     return [

@@ -2,9 +2,10 @@
 
 **Public** : pilotage, exploitation, développement et audit.
 **Référence initiale** : audit du 25 août 2026, recalé sur le commit `61ad3df`.
-**Dernière mise à jour** : 28 août 2026, après acceptation de l'observation watchdog du jalon 1,
-déploiement initial du lot opérateur/PWA/qualité capteurs en mode `observe` et préparation de sa
-surveillance de 48 h.
+**Dernière mise à jour** : 1er septembre 2026, pendant l'observation corrective de la qualité
+capteurs en mode `observe`. Le relevé intermédiaire couvre 129 200 s avec zéro échec, zéro
+avertissement et aucun faux figement sur les trois mesures BME280 ; la fenêtre de 48 h reste ouverte
+jusqu'à 19:09:11 UTC.
 
 Les réductions apportées par la refonte web sont **implémentées, déployées et vérifiées** sur le
 Pi le 25 août 2026 (commit `ad39de2`, service démarré à 23:36 CEST). Preuve :
@@ -48,7 +49,7 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | M-SAFE-01 | Deux instances pilotant les mêmes GPIO | Socket Unix abstrait avant tout GPIO | Toute nouvelle entrée de programme doit acquérir le même verrou |
 | M-SAFE-02 | `GPIO.cleanup()` défaisant l'état sûr | Suppression et état terminal idempotent | Vérification à chaque refonte d'arrêt |
 | M-SAFE-03 | Sortie cyclique laissée ON après annulation | `Component.energized()` | Interdire toute séquence manuelle équivalente |
-| M-SAFE-04 | Chauffage ON indéfiniment sur perte de capteur | Compteur d'échecs, durée max, cooldown, alarme ; plage/fraîcheur/figement/redondance ; repli nommé `REPLI_CAPTEUR` et écriture GPIO vérifiée | Défaut commun de sondes, seuil de figement non écoulé et relais collé restent ouverts |
+| M-SAFE-04 | Chauffage ON indéfiniment sur perte de capteur | Compteur d'échecs, durée max, cooldown, alarme ; plage/fraîcheur/figement/redondance ; repli nommé `REPLI_CAPTEUR` et écriture GPIO vérifiée. Correctif de figement `985e42d` sans faux positif sur 129 200 s intermédiaires, mode toujours `observe` | Attendre le résumé final de 172 800 s ; défaut commun de sondes, seuil non écoulé, repli matériel non qualifié et relais collé restent ouverts |
 | M-SAFE-07 | Chauffage et extraction simultanés (ancien R-SAFE-04) | Travail unique `climate_control` ; seuil de ventilation ≥ `min + hystérésis + zone morte` **par construction** ; 35 scénarios rejoués sur la fonction pure ; déployé et vérifié le 26/08 ([relevé](operations/climate-baseline-2026-08-26.md)) | **TODO différé par décision opérateur du 28/08/2026 jusqu'à l'activation du chauffage et du mode automatique** : exercer les seuils, l'hystérésis, les paliers et l'exclusion réelle chauffage/extraction sous supervision matérielle |
 | M-SAFE-08 | Mode hiver : humidité et vitesse minimale contournaient le quota (ancien R-SAFE-05) | Budgets renouvellement/déshumidification distincts et bornés, comptés en temps réel et persistés ; plancher thermique absolu ; `clamp_speed` ne remonte plus un arrêt | **Même TODO d'activation** : observer un vrai épisode froid/humide sur le Pi ; les budgets sont restés à 0 en mode manuel et n'ont pas encore été consommés en production |
 | M-CONF-01 | Fichier JSON tronqué pendant une écriture | Écriture atomique et mode préservé | Validation sémantique complète encore ouverte |

@@ -3,9 +3,9 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 30 août 2026, après clôture de l'observation 48 h du lot
-opérateur/PWA/qualité capteurs sur `b26d2b1`, déploiement du correctif de figement `985e42d` et
-lancement d'une nouvelle fenêtre de 172 800 s.
+**Dernière vérification documentaire** : 1er septembre 2026 à 07:02 UTC, relevé intermédiaire de la
+nouvelle observation du correctif de figement `985e42d` (129 200 s sur 172 800, fenêtre encore
+active).
 
 **Écart entre le dépôt et la production, au 30 août 2026 :**
 
@@ -63,6 +63,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Relevé de l'arbitre thermique du 26 août 2026](operations/climate-baseline-2026-08-26.md)
 - [Clôture de l'observation watchdog du 28 août 2026](operations/jalon1-watchdog-observation-2026-08-28.md)
 - [Clôture de l'observation opérateur du 30 août 2026](operations/jalon2-observation-operateur-2026-08-30.md)
+- [Relevé intermédiaire du correctif de figement du 1er septembre 2026](operations/jalon2-correctif-figement-observation-2026-09-01.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
 - [PWA locale et autorité TLS privée](operations/pwa-local-tls.md)
 - [Activation TLS de production du 28 août 2026](operations/pwa-tls-activation-2026-08-28.md)

@@ -35,6 +35,7 @@ LOGGER_NAME = "sensors"
 from param.config import AppConfig
 from controllers.sensor_catalog import (
     SENSOR_CATALOG, SENSORS_BY_KEY, effective_quality_profile, enabled_definitions,
+    serialized_quality_thresholds,
 )
 from controllers.sensor_quality import (
     RECOVERY_SAMPLES, QualityDecision, QualityMemory, STATUS_ABSENT,
@@ -542,6 +543,7 @@ class SensorController:
             "unchanged_for_s": round(memory.unchanged_seconds, 1),
             "freshness_threshold_s": float(profile["freshness_seconds"]),
             "plausible_range": {"min": profile["plausible_min"], "max": profile["plausible_max"]},
+            **serialized_quality_thresholds(profile),
             "calibration": {
                 "offset": profile.get("offset", 0.0),
                 "calibrated_at": profile.get("calibrated_at"),
@@ -576,6 +578,7 @@ class SensorController:
             "attempt_age_s": None, "age_s": None, "unchanged_for_s": 0.0,
             "freshness_threshold_s": float(profile["freshness_seconds"]),
             "plausible_range": {"min": profile["plausible_min"], "max": profile["plausible_max"]},
+            **serialized_quality_thresholds(profile),
             "calibration": {"offset": profile.get("offset", 0.0),
                             "calibrated_at": profile.get("calibrated_at"),
                             "valid_days": profile.get("calibration_valid_days"),

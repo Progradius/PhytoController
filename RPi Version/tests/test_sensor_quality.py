@@ -5,7 +5,11 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
-from controllers.sensor_catalog import SENSORS_BY_KEY, effective_quality_profile
+from controllers.sensor_catalog import (
+    SENSORS_BY_KEY,
+    effective_quality_profile,
+    serialized_quality_thresholds,
+)
 from controllers.sensor_quality import (
     ACQUISITION_OK,
     QualityDecision,
@@ -32,6 +36,19 @@ def evaluate(definition, profile, memory=QualityMemory(), *, raw=20.0, error=Non
         definition, profile, memory, raw_value=raw, error=error,
         now_mono=mono, now_iso=NOW_ISO, today=today, mode=mode,
     )
+
+
+def test_seuils_effectifs_de_figement_sont_serialisables(valid_config):
+    definition = SENSORS_BY_KEY["BME280T"]
+    profile = effective_quality_profile(valid_config, definition)
+    assert serialized_quality_thresholds(profile) == {
+        "freeze_epsilon": 0.0,
+        "freeze_after_seconds": 1800.0,
+        "freeze_min_samples": 30,
+    }
+
+    disabled = profile | {"freeze_after_seconds": None}
+    assert serialized_quality_thresholds(disabled)["freeze_after_seconds"] is None
 
 
 def test_offset_et_plage_s_appliquent_avant_publication(valid_config):
