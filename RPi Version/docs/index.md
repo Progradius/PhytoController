@@ -3,9 +3,8 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 1er septembre 2026 à 07:02 UTC, relevé intermédiaire de la
-nouvelle observation du correctif de figement `985e42d` (129 200 s sur 172 800, fenêtre encore
-active).
+**Dernière vérification documentaire** : 1er septembre 2026 à 19:44 UTC, clôture de la nouvelle
+observation du correctif de figement `985e42d` (172 800 s, 2 864 échantillons, zéro anomalie).
 
 **Écart entre le dépôt et la production, au 30 août 2026 :**
 
@@ -15,7 +14,7 @@ active).
 | Arbitre thermique unifié (phase 2) | `a04abbd` | **Oui**, vérifié — [relevé](operations/climate-baseline-2026-08-26.md) |
 | Correctifs thermiques et jalon 1 de l'expérience opérateur | `e91b021` | **Oui**, observation 48 h acceptée — [relevé](operations/jalon1-watchdog-observation-2026-08-28.md) |
 | Alarmes/historique, PWA, santé de déploiement et qualité capteurs | `b26d2b1` | **Oui**, mode `observe` ; HTTPS `:443` actif, observation 48 h close — [relevé](operations/jalon2-observation-operateur-2026-08-30.md) |
-| Correctif de la politique de figement des capteurs | `985e42d` | **Oui**, déployé le 30 août à 19:07 UTC, contrôles conformes ; nouvelle observation 48 h en cours |
+| Correctif de la politique de figement des capteurs | `985e42d` | **Oui**, déployé le 30 août à 19:07 UTC ; observation corrective 48 h acceptée — [relevé](operations/jalon2-correctif-figement-observation-2026-09-01.md) |
 
 Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique ainsi que le lot opérateur,
 PWA et qualité capteurs en mode `observe`. La fenêtre watchdog du jalon 1 est terminée et acceptée.
@@ -23,9 +22,10 @@ L'observation invalidée par les redémarrages TLS et applicatif a été interro
 fenêtre complète sur `b26d2b1` s'est close le 30 août à 18:59:28 UTC en `accepted_with_warnings` :
 172 800 s, 2 864 échantillons, **0 échec**, mais 835 avertissements dus à un unique défaut de la
 détection de figement. Le correctif `985e42d` a été déployé le soir même — alarmes latchées disparues,
-dix tâches saines, aucune entrée de journal en WARNING — et une nouvelle fenêtre de 172 800 s court
-jusqu'au **1er septembre 2026 à 19:09:11 UTC**. Tant qu'elle n'est pas close et lue, le correctif est
-déployé mais **pas encore qualifié** : une nuit calme complète est la preuve attendue.
+dix tâches saines, aucune entrée de journal en WARNING — puis qualifié par une nouvelle fenêtre de
+172 800 s close le **1er septembre 2026 à 19:09:11 UTC** : 2 864 échantillons, zéro échec, zéro
+avertissement et les trois mesures BME280 `normal` sur toute la durée. Le mode reste `observe` : cette
+preuve qualifie le correctif de figement, pas la calibration, le repli matériel ni l'armement.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -63,7 +63,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Relevé de l'arbitre thermique du 26 août 2026](operations/climate-baseline-2026-08-26.md)
 - [Clôture de l'observation watchdog du 28 août 2026](operations/jalon1-watchdog-observation-2026-08-28.md)
 - [Clôture de l'observation opérateur du 30 août 2026](operations/jalon2-observation-operateur-2026-08-30.md)
-- [Relevé intermédiaire du correctif de figement du 1er septembre 2026](operations/jalon2-correctif-figement-observation-2026-09-01.md)
+- [Clôture de l'observation corrective du figement du 1er septembre 2026](operations/jalon2-correctif-figement-observation-2026-09-01.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
 - [PWA locale et autorité TLS privée](operations/pwa-local-tls.md)
 - [Activation TLS de production du 28 août 2026](operations/pwa-tls-activation-2026-08-28.md)

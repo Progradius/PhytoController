@@ -1,11 +1,10 @@
 # TODO — Déploiement et armement de la qualité des capteurs
 
-**État au 1er septembre 2026 à 07:02:31 UTC** : correctif de figement **déployé au commit
-`985e42d`** le 30 août 2026 à 19:07 UTC, contrôles après déploiement tous conformes. La nouvelle
-observation de 172 800 s **n'est pas encore terminée** : 129 200 s couvertes, 2 142 échantillons,
-zéro échec et zéro avertissement ; fin contractuelle le 1er septembre à 19:09:11 UTC (observateur
-`722191`, service `721771`). Voir le
-[relevé intermédiaire](../docs/operations/jalon2-correctif-figement-observation-2026-09-01.md).
+**État au 1er septembre 2026 à 19:44 UTC** : correctif de figement **déployé au commit
+`985e42d`** le 30 août 2026 à 19:07 UTC puis qualifié par une observation continue de 172 800 s :
+2 864 échantillons, zéro échec, zéro avertissement et les trois mesures BME280 `normal` pendant
+toute la fenêtre. Voir le
+[relevé de clôture](../docs/operations/jalon2-correctif-figement-observation-2026-09-01.md).
 Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à
 validation complète.
 
@@ -113,11 +112,12 @@ donnait « figé » à 5 s et 10 s d'intervalle et « sain » à 60 s — un ver
       BME280, `freeze_after_seconds` à 1 800/1 800/3 600, `freeze_min_samples = 30`, mode `observe`,
       aucun profil surchargé ; `runtime_state.json` porte bien `freeze_anchor_value`. Suppression du
       double arrondi visible : `raw_value = 28.523013138119133` au lieu de deux décimales
-- [ ] Vérifier sur la nouvelle fenêtre que `BME280T`/`BME280H` ne produisent plus d'avertissement de
-      figement et que le statut reste `normal` sur les périodes calmes de nuit
-      **Relevé intermédiaire à 07:02:31 UTC** : 2 142/2 142 échantillons `normal` pour les trois
-      BME280, zéro raison qualité et zéro avertissement, dont 1 193 échantillons entre 20:00 et
-      06:00 UTC. Attendre le `summary.json` final avant de cocher.
+- [x] Vérifier sur la nouvelle fenêtre que `BME280T`/`BME280H` ne produisent plus d'avertissement de
+      figement et que le statut reste `normal` sur les périodes calmes de nuit. **Clôturée le
+      1er septembre 2026 à 19:09:11 UTC** : `status=accepted`, 172 800 s réelles, 2 864 échantillons,
+      zéro échec, zéro avertissement et 2 864/2 864 statuts `normal` pour chacune des trois mesures
+      BME280. Les deux tranches nocturnes du relevé intermédiaire étaient déjà exemptes de faux
+      figement.
 - [x] Combler le manque côté API : `/api/v1/state` publie désormais `freeze_epsilon`,
       `freeze_after_seconds` et `freeze_min_samples` avec les autres seuils effectifs ; contrat
       documenté, testé et exigé par l'observateur. **Implémenté localement le 1er septembre 2026,

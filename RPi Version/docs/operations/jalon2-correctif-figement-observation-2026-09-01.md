@@ -1,20 +1,36 @@
-# Observation du correctif de figement — relevé intermédiaire du 1er septembre 2026
+# Observation du correctif de figement — clôture du 1er septembre 2026
 
-**Objet** : examiner la nouvelle fenêtre de 172 800 s lancée après le déploiement du correctif de
-figement `985e42d`. **Statut de ce document** : relevé intermédiaire en lecture seule, pas clôture de
-la fenêtre. L'observateur reste actif et son `summary.json` ne sera produit qu'après le
-1er septembre 2026 à 19:09:11 UTC.
+**Objet** : clôturer la nouvelle fenêtre de 172 800 s lancée après le déploiement du correctif de
+figement `985e42d`. **Décision** : observation acceptée sans anomalie ; le correctif de figement est
+qualifié en mode `observe`.
 
-## Écart de calendrier constaté
+## Résumé final
+
+Le `summary.json` produit le 1er septembre 2026 à 19:09:11 UTC sous
+`~/phyto-observations/jalon2-operateur-qualite-20260830T190911Z/` porte `status=accepted` :
+
+| Preuve | Résultat final |
+|---|---:|
+| Durée demandée / réelle | 172 800 s / **172 800 s** |
+| Échantillons | **2 864** |
+| Échantillons en échec | **0** |
+| Échantillons avec avertissement | **0** |
+| Écart maximal entre deux sondes | 61 s |
+| Sondes auxiliaires historique / Influx | 287 / 287 |
+| BME280T / BME280H / BME280P `normal` | **2 864 / 2 864 chacune** |
+
+La sonde Influx finale est conforme pour les trois mesures et l'historique final couvre 720 buckets
+de 120 s, sans événement. Les listes `failure_types` et `warning_types` sont vides.
+
+## Relevé intermédiaire ayant précédé la clôture
 
 Au moment de la collecte, le Raspberry Pi était le 1er septembre 2026 à 07:02 UTC. La fenêtre avait
 donc parcouru 129 200 s sur les 172 800 s demandées, soit 35 h 53 min 20 s. Il restait 43 600 s
 (12 h 6 min 40 s). Les processus de référence étaient toujours présents : observateur `722191`,
 service `721771`, sans redémarrage systemd.
 
-La fenêtre ne doit pas être marquée `accepted` avant la présence et la lecture du `summary.json`.
-Interrompre l'observateur, redéployer ou modifier le service avant son terme invaliderait la preuve
-de continuité.
+Cette attente a été respectée : aucun redéploiement ni redémarrage du service n'a interrompu la
+fenêtre avant la production du résumé final.
 
 ## État intermédiaire
 
@@ -52,14 +68,13 @@ InfluxDB contient, au moment de la seconde sonde, 2 153 points `sensor_quality` 
 début de la fenêtre et aucun point dont `status != normal`. Cette interrogation n'a publié ni
 identifiant ni secret.
 
-## Conclusion provisoire
+## Conclusion
 
-Le défaut observé les 28–30 août n'est pas réapparu pendant deux tranches nocturnes : le correctif
-ancré et l'epsilon nul se comportent comme attendu sur une acquisition vivante. Ce relevé constitue
-une preuve intermédiaire forte contre le faux positif de figement, mais pas encore la qualification
-formelle de 48 h.
+Le défaut observé les 28–30 août n'est pas réapparu pendant la fenêtre complète, notamment pendant
+les deux tranches nocturnes examinées. Le correctif ancré et l'epsilon nul se comportent comme attendu
+sur une acquisition vivante. Les trois critères d'acceptation sont satisfaits : durée réelle d'au
+moins 172 800 s, zéro échantillon en échec et aucun avertissement à expliquer.
 
-La décision à la clôture reste binaire : accepter seulement si le résumé final couvre au moins
-172 800 s, contient zéro échantillon en échec et si tout avertissement éventuel est examiné. Le mode
-`Sensor_Quality.mode=observe` doit rester inchangé ; calibration par instrument de référence,
-redondance, repli matériel et armement `enforce` restent hors du périmètre de cette observation.
+Cette clôture qualifie uniquement la correction du faux positif de figement sur les BME280 actifs.
+Le mode `Sensor_Quality.mode=observe` doit rester inchangé ; calibration par instrument de référence,
+redondance, repli matériel et armement `enforce` restent hors du périmètre et ouverts dans la TODO.

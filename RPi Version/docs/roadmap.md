@@ -231,25 +231,25 @@ prérequis encore vivant est **lot 3 → contraintes GPIO du lot 4**.
 
 ## Prochaines actions immédiates
 
-*(Révisées le 1er septembre 2026. La fenêtre corrective reste prioritaire jusqu'à sa clôture sans
-interruption ; l'ordre suivant reprend ensuite le risque physique résiduel.)*
+*(Révisées le 1er septembre 2026 après acceptation de la fenêtre corrective ; l'ordre reprend ensuite
+le risque physique résiduel.)*
 
-1. **Laisser finir et clôturer la fenêtre qualité** à 19:09:11 UTC : lire `summary.json`, examiner
-   tout avertissement et ne qualifier le correctif que si les 172 800 s sont couvertes sans échec.
-2. **Déployer séparément l'observabilité des seuils effectifs** après la fenêtre : vérifier dans
+1. [x] **Clôturer la fenêtre qualité** : `summary.json` accepté, 172 800 s, 2 864 échantillons, zéro
+   échec et zéro avertissement ; correctif de figement qualifié en mode `observe`.
+2. **Déployer séparément l'observabilité des seuils effectifs** : vérifier dans
    `/api/v1/state` `freeze_epsilon`, `freeze_after_seconds` et `freeze_min_samples`, sans armer le
    mode `enforce`.
 3. **Ouvrir le lot 3** : schéma électrique relu hors tension, puis `PinRegistry`, migration des broches
    moteur et génération de la configuration de boot. Seul chantier restant qui touche la sûreté
    électrique, et il débloque la contrainte d'unicité GPIO laissée désactivée au lot 4.
-3. **Traiter le temps et le réseau** (RTC / `time_synced`, reconnexion Wi-Fi supervisée) — première classe
+4. **Traiter le temps et le réseau** (RTC / `time_synced`, reconnexion Wi-Fi supervisée) — première classe
    de panne non électrique : commutation 230 V à contretemps après une coupure secteur hors réseau.
-4. **Exercer le runbook** sur les quatre scénarios prévus. Le contrôle de déploiement qualifie désormais
+5. **Exercer le runbook** sur les quatre scénarios prévus. Le contrôle de déploiement qualifie désormais
    `/health/live`, `/health/ready`, la santé du contrôle, le commit et les alarmes sur une fenêtre stable.
-5. **Hygiène de build** : épinglage des dépendances, décision Docker, validations automatisées minimales.
-6. **Essai thermique sur plages limites** — dépend de la saison et de la remise en service du chauffage,
+6. **Hygiène de build** : épinglage des dépendances, décision Docker, validations automatisées minimales.
+7. **Essai thermique sur plages limites** — dépend de la saison et de la remise en service du chauffage,
    se planifie indépendamment.
-7. **Secrets (rotation et historique Git)** — reporté par décision de l'exploitant, à reprendre en un lot
+8. **Secrets (rotation et historique Git)** — reporté par décision de l'exploitant, à reprendre en un lot
    indivisible.
 
 ## Relation avec les anciens plans

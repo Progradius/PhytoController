@@ -181,8 +181,11 @@ après 172 800 s et 2 864 échantillons, **sans un seul échec**, mais avec 835 
 unique. Elle qualifie la continuité du contrôle et invalide la politique de figement des capteurs. La
 preuve complète, l'analyse et la décision sont consignées dans le
 [relevé de clôture](jalon2-observation-operateur-2026-08-30.md). Le correctif a été déployé le même
-soir au commit `985e42d`, avec des contrôles après déploiement tous conformes, et une nouvelle
-fenêtre de 172 800 s court jusqu'au 1er septembre 2026 à 19:09:11 UTC.
+soir au commit `985e42d`, avec des contrôles après déploiement tous conformes. La nouvelle fenêtre
+s'est close le 1er septembre 2026 à 19:09:11 UTC avec `status=accepted`, 172 800 s, 2 864
+échantillons, zéro échec et zéro avertissement. Elle qualifie le correctif de figement en mode
+`observe` ; calibration, armement et repli matériel restent à qualifier. Voir le
+[relevé de clôture corrective](jalon2-correctif-figement-observation-2026-09-01.md).
 
 Après un déploiement qui modifie un profil qualité, deux points méritent d'être vérifiés
 explicitement : les diagnostics latchés doivent disparaître d'eux-mêmes, parce que le changement de
