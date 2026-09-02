@@ -15,7 +15,7 @@ from typing import Callable
 from utils.alarm_manager import AlarmOccurrence, AlarmTransition
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 RETENTION_SECONDS = 72 * 3600
 ALARM_RETENTION_SECONDS = 30 * 24 * 3600
 MAX_ALARM_OCCURRENCES = 2000
@@ -100,8 +100,12 @@ class OperatorHistory:
             raise HistoryUnavailable(f"schéma SQLite futur : {version}")
         if version == 0:
             self._create_schema(connection)
-        elif version == 1:
-            self._migrate_v1_to_v2(connection)
+        else:
+            if version == 1:
+                self._migrate_v1_to_v2(connection)
+                version = 2
+            if version == 2:
+                self._migrate_v2_to_v3(connection)
         self._assert_owner()
         self.last_sample_ts = connection.execute("SELECT MAX(ts) FROM samples").fetchone()[0]
         os.chmod(self.path, 0o600)
@@ -125,6 +129,8 @@ class OperatorHistory:
             CREATE TABLE samples (
                 id INTEGER PRIMARY KEY,
                 ts REAL NOT NULL,
+                monotonic_ts REAL,
+                session_id TEXT,
                 time_state TEXT NOT NULL,
                 is_day INTEGER,
                 climate_state TEXT,
@@ -135,6 +141,7 @@ class OperatorHistory:
                 humidity_threshold REAL
             );
             CREATE INDEX idx_samples_ts ON samples(ts);
+            CREATE INDEX idx_samples_session_ts ON samples(session_id, ts);
 
             CREATE TABLE sensor_values (
                 sample_id INTEGER NOT NULL REFERENCES samples(id) ON DELETE CASCADE,
@@ -190,7 +197,7 @@ class OperatorHistory:
             CREATE UNIQUE INDEX idx_alarm_active_key
                 ON alarm_occurrences(alarm_key) WHERE resolved_ts IS NULL;
             CREATE INDEX idx_alarm_started ON alarm_occurrences(started_ts DESC);
-            PRAGMA user_version=2;
+            PRAGMA user_version=3;
             """
         )
         connection.commit()
@@ -216,6 +223,22 @@ class OperatorHistory:
                 "TEXT NOT NULL DEFAULT '[]'"
             )
             connection.execute("PRAGMA user_version=2")
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+
+    @staticmethod
+    def _migrate_v2_to_v3(connection: sqlite3.Connection) -> None:
+        """Associe les relectures au démarrage et à son horloge monotone."""
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("ALTER TABLE samples ADD COLUMN session_id TEXT")
+            connection.execute("ALTER TABLE samples ADD COLUMN monotonic_ts REAL")
+            connection.execute(
+                "CREATE INDEX idx_samples_session_ts ON samples(session_id, ts)"
+            )
+            connection.execute("PRAGMA user_version=3")
             connection.commit()
         except Exception:
             connection.rollback()
@@ -277,11 +300,12 @@ class OperatorHistory:
         try:
             cursor = connection.execute(
                 """INSERT INTO samples(
-                    ts,time_state,is_day,climate_state,temp_min,temp_max,
+                    ts,monotonic_ts,session_id,time_state,is_day,climate_state,temp_min,temp_max,
                     heater_off_threshold,vent_threshold,humidity_threshold
-                ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    sample["ts"], sample["time_state"], sample.get("is_day"),
+                    sample["ts"], sample.get("monotonic_ts"), sample.get("session_id"),
+                    sample["time_state"], sample.get("is_day"),
                     sample.get("climate_state"), sample.get("temp_min"),
                     sample.get("temp_max"), sample.get("heater_off_threshold"),
                     sample.get("vent_threshold"), sample.get("humidity_threshold"),
@@ -528,6 +552,10 @@ class OperatorHistory:
             row["payload"] = json.loads(row.pop("payload_json") or "{}")
             events.append(row)
 
+        actuator_history = self._actuator_history(
+            connection, start_ts, end_ts, equipment_metadata,
+        )
+
         ordered_bucket_keys = sorted(buckets)[-720:]
         return {
             "hours": hours,
@@ -539,7 +567,183 @@ class OperatorHistory:
             "equipment": equipment_metadata,
             "buckets": [buckets[key] for key in ordered_bucket_keys],
             "events": events,
+            "actuator_history": actuator_history,
         }
+
+    def _actuator_history(
+        self, connection: sqlite3.Connection, start_ts: float, end_ts: float,
+        equipment_metadata: dict[str, dict],
+    ) -> dict[str, dict]:
+        """
+        Reconstruit les plages à partir des transitions dont le GPIO a été
+        relu. Les bornes d'une session sont confirmées par ses échantillons :
+        un redémarrage ou un arrêt ne prolonge donc jamais artificiellement le
+        dernier état connu jusqu'à la session suivante.
+        """
+        bounds_cursor = connection.execute(
+            """SELECT s.session_id,v.equipment_id,MIN(s.ts) AS first_ts,
+                      MAX(s.ts) AS last_ts,MIN(s.monotonic_ts) AS first_mono,
+                      MAX(s.monotonic_ts) AS last_mono
+               FROM samples s JOIN actuator_values v ON v.sample_id=s.id
+               WHERE s.session_id IS NOT NULL AND s.monotonic_ts IS NOT NULL
+                     AND s.ts<=?
+               GROUP BY s.session_id,v.equipment_id
+               HAVING MAX(s.ts)>=?""",
+            (end_ts, start_ts),
+        )
+        bounds = {
+            (row["session_id"], row["equipment_id"]):
+            (
+                float(row["first_ts"]), float(row["last_ts"]),
+                float(row["first_mono"]), float(row["last_mono"]),
+            )
+            for row in self._dict_rows(bounds_cursor)
+        }
+        if not bounds:
+            return {}
+
+        event_cursor = connection.execute(
+            """SELECT ts,subject,payload_json FROM events
+               WHERE kind='output' AND ts<=? AND ts>=?
+               ORDER BY ts,id""",
+            (end_ts, start_ts - RETENTION_SECONDS),
+        )
+        points: dict[tuple[str, str], list[dict]] = {}
+        for row in self._dict_rows(event_cursor):
+            try:
+                payload = json.loads(row["payload_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+            session_id = payload.get("session_id")
+            monotonic_ts = payload.get("monotonic_ts")
+            status = payload.get("actual_status")
+            if (
+                not isinstance(session_id, str)
+                or isinstance(monotonic_ts, bool)
+                or not isinstance(monotonic_ts, (int, float))
+                or "actual" not in payload
+            ):
+                continue
+            actual = payload.get("actual")
+            if status == "ok":
+                if isinstance(actual, bool) or not isinstance(actual, (int, float)):
+                    status = "unreadable"
+                    actual = None
+                else:
+                    actual = float(actual)
+            else:
+                actual = None
+            key = (session_id, row["subject"])
+            if key not in bounds:
+                continue
+            points.setdefault(key, []).append({
+                "ts": float(row["ts"]),
+                "monotonic_ts": float(monotonic_ts),
+                "actual": actual,
+                "status": str(status or "unknown"),
+                "source": str(payload.get("source") or "transition"),
+            })
+
+        result: dict[str, dict] = {}
+        range_seconds = max(1.0, end_ts - start_ts)
+        for key, session_points in points.items():
+            _session_id, equipment_id = key
+            first_sample, last_sample, _first_sample_mono, last_sample_mono = bounds[key]
+            session_points.sort(key=lambda item: item["ts"])
+            window_start = max(start_ts, min(first_sample, session_points[0]["ts"]))
+            window_end = min(
+                end_ts, max(last_sample, session_points[-1]["ts"]),
+            )
+            if window_end <= window_start:
+                continue
+            prior = [point for point in session_points if point["ts"] <= window_start]
+            selected = ([prior[-1]] if prior else []) + [
+                point for point in session_points if window_start < point["ts"] <= window_end
+            ]
+            if not selected:
+                continue
+            equipment = result.setdefault(equipment_id, {
+                "intervals": [], "covered_seconds": 0.0,
+                "monitored_seconds": 0.0, "on_seconds": 0.0,
+                "transition_count": 0, "observed_boundary_count": 0,
+                "speed_seconds": {},
+            })
+            previous_valid = None
+            for index, point in enumerate(selected):
+                interval_start = max(window_start, point["ts"])
+                interval_end = min(
+                    window_end,
+                    selected[index + 1]["ts"] if index + 1 < len(selected) else window_end,
+                )
+                if interval_end <= interval_start:
+                    continue
+                next_point = selected[index + 1] if index + 1 < len(selected) else None
+                end_mono = (
+                    next_point["monotonic_ts"] if next_point is not None
+                    else last_sample_mono
+                )
+                # Les extrémités coupées par la fenêtre utilisent seulement
+                # l'heure civile pour la portion coupée. Entre deux relectures,
+                # la durée reste monotone et résiste aux corrections NTP.
+                start_mono = point["monotonic_ts"] + max(
+                    0.0, interval_start - point["ts"],
+                )
+                if next_point is not None and interval_end < next_point["ts"]:
+                    end_mono = point["monotonic_ts"] + max(
+                        0.0, interval_end - point["ts"],
+                    )
+                elif next_point is None and interval_end < last_sample:
+                    end_mono = point["monotonic_ts"] + max(
+                        0.0, interval_end - point["ts"],
+                    )
+                duration = max(0.0, end_mono - start_mono)
+                interval = {
+                    "start_ts": interval_start, "end_ts": interval_end,
+                    "duration_seconds": round(duration, 3),
+                    "actual": point["actual"], "status": point["status"],
+                    "source": point["source"],
+                    "boundary_precision": (
+                        "observed" if point["source"] == "periodic_observation"
+                        else "transition"
+                    ),
+                }
+                equipment["intervals"].append(interval)
+                equipment["monitored_seconds"] += duration
+                if point["source"] == "periodic_observation":
+                    equipment["observed_boundary_count"] += 1
+                if point["status"] != "ok" or point["actual"] is None:
+                    previous_valid = None
+                    continue
+                equipment["covered_seconds"] += duration
+                if point["actual"] > 0:
+                    equipment["on_seconds"] += duration
+                speed_key = str(int(point["actual"])) if equipment_id == "motor" else None
+                if speed_key is not None:
+                    equipment["speed_seconds"][speed_key] = (
+                        equipment["speed_seconds"].get(speed_key, 0.0) + duration
+                    )
+                if previous_valid is not None and previous_valid != point["actual"]:
+                    equipment["transition_count"] += 1
+                previous_valid = point["actual"]
+
+        for equipment_id, equipment in result.items():
+            equipment["intervals"].sort(key=lambda item: item["start_ts"])
+            for key in ("covered_seconds", "monitored_seconds", "on_seconds"):
+                equipment[key] = round(equipment[key], 3)
+            equipment["speed_seconds"] = {
+                key: round(value, 3)
+                for key, value in sorted(equipment["speed_seconds"].items())
+            }
+            equipment["coverage_ratio"] = round(
+                min(1.0, equipment["covered_seconds"] / range_seconds), 6,
+            )
+            equipment["duration_precision"] = (
+                "observed" if equipment["observed_boundary_count"] else "transition"
+            )
+            equipment["display_name"] = equipment_metadata.get(
+                equipment_id, {},
+            ).get("display_name", equipment_id)
+        return result
 
     @staticmethod
     def _dict_rows(cursor) -> list[dict]:

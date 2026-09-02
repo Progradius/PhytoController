@@ -53,7 +53,7 @@
     </article>
     <div id="additional-charts" class="additional-charts"></div>
   </div>
-  <p class="history-observation-note" id="history-observation-note">Les actionneurs montrent des états observés à la minute puis regroupés par intervalle : ils ne constituent pas une mesure exacte de la durée de marche. Les hachures signalent un intervalle mixte ou inconnu.</p>
+  <p class="history-observation-note" id="history-observation-note">Les durées reposent sur l’état GPIO relu à chaque transition. La couverture commence au premier événement enrichi de chaque démarrage ; les périodes antérieures restent non couvertes. Les hachures jaunes signalent une bascule seulement détectée par l’observation minute, les hachures grises une période inconnue.</p>
   <details class="history-data-details">
     <summary>Voir la synthèse sous forme de tableau</summary>
     <div class="history-table-scroll"><table class="history-data-table"><caption>Synthèse accessible de la période affichée</caption><thead><tr><th scope="col">Série</th><th scope="col">Type</th><th scope="col">Minimum</th><th scope="col">Moyenne</th><th scope="col">Maximum</th><th scope="col">Activité observée</th></tr></thead><tbody id="history-data-body"></tbody></table></div>

@@ -223,7 +223,9 @@ async def test_graphiques_exposent_legendes_et_alternative_accessible(web_contex
     assert 'tabindex="0"' in page
     assert "equipmentName(id)" in script
     assert "item.avg_value" in script
-    assert "intervalle mixte" in script
+    assert "GPIO relu" in script
+    assert "actuator_history" in script
+    assert "couverture" in script
     assert "Math.max(320" not in script
 
 

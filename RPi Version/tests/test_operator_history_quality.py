@@ -79,6 +79,89 @@ async def test_historique_enregistre_et_agrege_les_statuts_qualite(tmp_path):
     await history.close()
 
 
+@pytest.mark.asyncio
+async def test_historique_reconstruit_les_durees_depuis_les_gpio_relus(tmp_path):
+    history = OperatorHistory(tmp_path / "operator.sqlite3")
+    started = time.time() - 600
+    session_id = "session-a"
+
+    for timestamp, monotonic_ts in ((started, 1000), (started + 300, 1300)):
+        await history.record_sample({
+            "ts": timestamp, "monotonic_ts": monotonic_ts,
+            "session_id": session_id,
+            "time_state": "synchronized", "is_day": True,
+            "climate_state": "NEUTRE", "sensors": [],
+            "actuators": [{
+                "equipment_id": "cyclic_1", "requested": 0,
+                "actual": 0, "status": "ok",
+            }],
+        })
+    await history.record_events([
+        {"ts": started, "kind": "output", "subject": "cyclic_1", "payload": {
+            "actual": 0, "actual_status": "ok", "source": "baseline",
+            "session_id": session_id, "monotonic_ts": 1000,
+        }},
+        {"ts": started + 100, "kind": "output", "subject": "cyclic_1", "payload": {
+            "actual": 1, "actual_status": "ok", "source": "transition",
+            "session_id": session_id, "monotonic_ts": 1100,
+        }},
+        # L'heure civile a pris 30 s, l'horloge monotone conserve 120 s de ON.
+        {"ts": started + 250, "kind": "output", "subject": "cyclic_1", "payload": {
+            "actual": 0, "actual_status": "ok", "source": "transition",
+            "session_id": session_id, "monotonic_ts": 1220,
+        }},
+    ])
+
+    payload = await history.query_history(24, {}, {})
+    actuator = payload["actuator_history"]["cyclic_1"]
+
+    assert actuator["covered_seconds"] == pytest.approx(300)
+    assert actuator["on_seconds"] == pytest.approx(120)
+    assert actuator["transition_count"] == 2
+    assert actuator["duration_precision"] == "transition"
+    assert [interval["actual"] for interval in actuator["intervals"]] == [0, 1, 0]
+    assert all(
+        interval["boundary_precision"] == "transition"
+        for interval in actuator["intervals"]
+    )
+    await history.close()
+
+
+@pytest.mark.asyncio
+async def test_historique_ne_prolonge_pas_un_etat_entre_deux_demarrages(tmp_path):
+    history = OperatorHistory(tmp_path / "operator.sqlite3")
+    now = time.time()
+    sessions = (("ancienne", now - 600, 1), ("courante", now - 100, 0))
+    events = []
+    for session_id, started, actual in sessions:
+        for offset in (0, 100):
+            await history.record_sample({
+                "ts": started + offset, "monotonic_ts": 1000 + offset,
+                "session_id": session_id,
+                "time_state": "synchronized", "is_day": True,
+                "climate_state": "NEUTRE", "sensors": [],
+                "actuators": [{
+                    "equipment_id": "heater", "requested": actual,
+                    "actual": actual, "status": "ok",
+                }],
+            })
+        events.append({
+            "ts": started, "kind": "output", "subject": "heater",
+            "payload": {
+                "actual": actual, "actual_status": "ok", "source": "baseline",
+                "session_id": session_id, "monotonic_ts": 1000,
+            },
+        })
+    await history.record_events(events)
+
+    actuator = (await history.query_history(24, {}, {}))["actuator_history"]["heater"]
+
+    assert actuator["covered_seconds"] == pytest.approx(200)
+    assert actuator["on_seconds"] == pytest.approx(100)
+    assert len(actuator["intervals"]) == 2
+    await history.close()
+
+
 def test_migration_v1_conserve_une_sauvegarde_et_ajoute_la_qualite(tmp_path):
     path = tmp_path / "operator.sqlite3"
     _create_v1_database(path)
@@ -91,10 +174,15 @@ def test_migration_v1_conserve_une_sauvegarde_et_ajoute_la_qualite(tmp_path):
     assert backup.stat().st_mode & 0o777 == 0o600
     connection = sqlite3.connect(path)
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
         columns = {
             row[1] for row in connection.execute("PRAGMA table_info(sensor_values)")
+        }
+        sample_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(samples)")
         }
     finally:
         connection.close()
     assert {"raw_value", "acquisition_status", "reason_json"} <= columns
+    assert "session_id" in sample_columns
+    assert "monotonic_ts" in sample_columns

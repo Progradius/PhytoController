@@ -120,6 +120,8 @@ class OperatorService:
         self._events: deque[dict] = deque()
         self._alarm_transitions: deque[AlarmTransition] = deque()
         self._queue_overflow = False
+        self._session_id = uuid.uuid4().hex
+        self._last_actual_states: dict[str, tuple[str, int | float | None]] = {}
         self._history_recovery_pending = bool(history.recovered_corrupt_path)
         self._network = {
             "status": "unknown", "interface": None, "connection": None,
@@ -196,21 +198,94 @@ class OperatorService:
         }
 
     # ── événements non bloquants ───────────────────────────────
-    def _enqueue_event(self, event: dict) -> None:
+    def _enqueue_event(self, event: dict) -> bool:
         if len(self._events) >= EVENT_QUEUE_LIMIT:
+            if not self._queue_overflow:
+                # Une transition perdue interdit de prolonger honnêtement les
+                # durées de cette session. La suivante repartira d'une
+                # nouvelle base GPIO, sans raccorder artificiellement le trou.
+                self._session_id = uuid.uuid4().hex
+                self._last_actual_states.clear()
             self._queue_overflow = True
-            return
+            return False
         self._events.append(event)
+        return True
 
     def _on_output_transition(self, equipment_id: str, values: dict) -> None:
-        self._enqueue_event({
-            "ts": time.time(), "kind": "output", "subject": equipment_id,
+        actual, status, diagnostic = self._read_actual_state(equipment_id)
+        event_ts = time.time()
+        monotonic_ts = time.monotonic()
+        stored = self._enqueue_event({
+            "ts": event_ts, "kind": "output", "subject": equipment_id,
             "payload": {
                 "requested": values.get("requested"),
                 "applied": values.get("applied"),
                 "mode": str(values.get("mode", ""))[:64],
+                "actual": actual,
+                "actual_status": status,
+                "source": "transition",
+                "session_id": self._session_id,
+                "monotonic_ts": monotonic_ts,
+                **diagnostic,
             },
         })
+        if stored:
+            self._last_actual_states[equipment_id] = (status, actual)
+
+    def _read_actual_state(
+        self, equipment_id: str,
+    ) -> tuple[int | float | None, str, dict]:
+        """Relit uniquement la sortie qui vient de basculer."""
+        if equipment_id == "motor":
+            try:
+                diagnostic = self.motor.read_state()
+            except Exception:
+                return None, "unreadable", {}
+            status = str(diagnostic.get("status", "unreadable"))
+            actual = self._numeric_state(diagnostic.get("speed")) if status == "ok" else None
+            details = {}
+            if diagnostic.get("active_speeds"):
+                details["active_speeds"] = diagnostic["active_speeds"]
+            return actual, status, details
+        try:
+            return int(bool(self.components[equipment_id].get_state())), "ok", {}
+        except Exception:
+            return None, "unreadable", {}
+
+    def _observe_actual_transitions(
+        self, actuators: dict[str, dict], ts: float, monotonic_ts: float,
+    ) -> None:
+        """
+        Détecte avec la photographie déjà nécessaire à l'échantillon minute une
+        évolution matérielle qui n'aurait pas accompagné une publication métier.
+        Aucune lecture GPIO supplémentaire n'est effectuée ici.
+        """
+        for equipment_id, item in actuators.items():
+            status = str(item.get("actual_status", "unknown"))
+            actual = (
+                self._numeric_state(item.get("actual"))
+                if status == "ok" else None
+            )
+            previous = self._last_actual_states.get(equipment_id)
+            current = (status, actual)
+            if previous == current:
+                continue
+            source = "baseline" if previous is None else "periodic_observation"
+            stored = self._enqueue_event({
+                "ts": ts, "kind": "output", "subject": equipment_id,
+                "payload": {
+                    "requested": item.get("requested"),
+                    "applied": item.get("applied"),
+                    "mode": str(item.get("mode", ""))[:64],
+                    "actual": actual,
+                    "actual_status": status,
+                    "source": source,
+                    "session_id": self._session_id,
+                    "monotonic_ts": monotonic_ts,
+                },
+            })
+            if stored:
+                self._last_actual_states[equipment_id] = current
 
     def enqueue_system_action(self, action: str) -> None:
         if action in {"reboot", "poweroff"}:
@@ -365,8 +440,13 @@ class OperatorService:
         climate = get_climate_snapshot()
         sensors = self.sensor_handler.snapshot()
         actuators = self.actuator_snapshot()
+        sample_ts = time.time()
+        sample_mono = time.monotonic()
+        self._observe_actual_transitions(actuators, sample_ts, sample_mono)
         return {
-            "ts": time.time(), "time_state": reliability.state,
+            "ts": sample_ts, "monotonic_ts": sample_mono,
+            "session_id": self._session_id,
+            "time_state": reliability.state,
             "is_day": int(is_day), "climate_state": climate.get("state"),
             "temp_min": climate.get("temp_min", settings.temp_min),
             "temp_max": climate.get("temp_max", settings.temp_max),

@@ -20,6 +20,12 @@
   const equipmentName = (id) => current?.equipment?.[id]?.display_name || fallbackNames[id] || id;
   const formatNumber = (value, decimals = 1) => Number.isFinite(value) ? Number(value).toLocaleString("fr-FR", {minimumFractionDigits: decimals, maximumFractionDigits: decimals}) : "—";
   const formatDate = (timestamp, detailed = false) => new Date(timestamp * 1000).toLocaleString("fr-FR", {timeZone: "Europe/Paris", day: "2-digit", month: detailed ? "2-digit" : undefined, hour: "2-digit", minute: "2-digit"});
+  const formatDuration = (seconds) => {
+    if (!Number.isFinite(seconds)) return "—";
+    const minutes = Math.max(0, Math.round(seconds / 60));
+    const hours = Math.floor(minutes / 60); const remainder = minutes % 60;
+    return hours ? `${hours} h ${String(remainder).padStart(2, "0")} min` : `${remainder} min`;
+  };
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -191,7 +197,7 @@
   };
   const drawTimeline = (canvas, ids) => {
     if (!canvas) return;
-    const present = ids.filter((id) => current.buckets.some((bucket) => id in bucket.actuators));
+    const present = ids.filter((id) => current.actuator_history?.[id]?.intervals?.length || current.buckets.some((bucket) => id in bucket.actuators));
     const lanes = present.length ? present : ids;
     const graph = timelineFrame(canvas, lanes.length); graph.ctx.font = `${graph.width < 430 ? 10 : 11}px system-ui`;
     if (!lanes.length) {
@@ -204,6 +210,25 @@
       graph.ctx.fillStyle = "rgba(160,185,170,.06)"; graph.ctx.fillRect(graph.box.left, top, graph.box.right - graph.box.left, laneHeight);
       hatch(graph.ctx, graph.box.left, top, graph.box.right - graph.box.left, laneHeight, "rgba(160,185,170,.20)");
       graph.ctx.fillStyle = "#dbe9df"; graph.ctx.fillText(fitText(graph.ctx, equipmentName(id), graph.box.left - 12), 2, top + laneHeight / 2 + 4);
+      const exactIntervals = current.actuator_history?.[id]?.intervals || [];
+      if (exactIntervals.length) {
+        exactIntervals.forEach((interval) => {
+          const left = Math.max(graph.box.left, graph.x(interval.start_ts));
+          const right = Math.min(graph.box.right, graph.x(interval.end_ts)); const width = Math.max(1, right - left);
+          if (right <= graph.box.left || left >= graph.box.right) return;
+          if (interval.status !== "ok" || !Number.isFinite(interval.actual)) {
+            hatch(graph.ctx, left, top, width, laneHeight, "rgba(255,107,107,.48)"); return;
+          }
+          graph.ctx.fillStyle = "#0d1812"; graph.ctx.fillRect(left, top, width, laneHeight);
+          if (id === "motor") {
+            const speed = Math.max(0, Math.min(4, Math.round(interval.actual))); const speedColors = ["rgba(160,185,170,.05)", "#245c42", "#2f8b5a", "#3fbd73", "#50e38a"];
+            graph.ctx.fillStyle = speedColors[speed]; graph.ctx.fillRect(left, top, width, laneHeight);
+            if (width > 18 && speed > 0) { graph.ctx.fillStyle = speed >= 3 ? "#062b15" : "#edf7f0"; graph.ctx.fillText(`V${speed}`, left + 3, top + laneHeight / 2 + 4); }
+          } else if (interval.actual > 0) { graph.ctx.fillStyle = "#50e38a"; graph.ctx.fillRect(left, top, width, laneHeight); }
+          if (interval.boundary_precision === "observed") hatch(graph.ctx, left, top, Math.min(width, 7), laneHeight, "rgba(245,189,79,.78)");
+        });
+        return;
+      }
       current.buckets.forEach((bucket) => {
         const item = bucket.actuators[id]; const left = Math.max(graph.box.left, graph.x(bucket.bucket_start_ts));
         const right = Math.min(graph.box.right, graph.x(bucket.bucket_start_ts + current.bucket_seconds)); const width = Math.max(1, right - left + .5);
@@ -232,11 +257,25 @@
   const buildLegends = (temperature, humidity) => {
     document.getElementById("temperature-legend").replaceChildren(...temperature.map(legendButton), legendItem("plage min–max", "is-band", "series-color-0"), legendItem("zone cible", "is-band", "series-color-1"), legendItem("arrêt chauffage", "is-dashed", "series-color-2"), legendItem("départ ventilation", "is-long-dash", "series-color-3"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
     document.getElementById("humidity-legend").replaceChildren(...humidity.map(legendButton), legendItem("plage min–max", "is-band", "series-color-0"), legendItem("seuil humidité", "is-dashed", "series-color-2"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
-    document.getElementById("automation-legend").replaceChildren(legendItem("ON observé", "", "series-color-0"), legendItem("OFF observé", "is-off"), legendItem("intervalle mixte", "is-mixed"), legendItem("inconnu", "is-unknown"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
-    document.getElementById("climate-actuator-legend").replaceChildren(legendItem("chauffage ON", "", "series-color-0"), legendItem("arrêt", "is-off"), legendItem("ventilation V1 → V4", "is-band", "series-color-0"), legendItem("intervalle mixte", "is-mixed"), legendItem("inconnu", "is-unknown"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
+    document.getElementById("automation-legend").replaceChildren(legendItem("ON GPIO relu", "", "series-color-0"), legendItem("OFF GPIO relu", "is-off"), legendItem("bascule détectée à la minute", "is-mixed"), legendItem("non couvert", "is-unknown"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
+    document.getElementById("climate-actuator-legend").replaceChildren(legendItem("chauffage ON relu", "", "series-color-0"), legendItem("arrêt relu", "is-off"), legendItem("ventilation V1 → V4", "is-band", "series-color-0"), legendItem("bascule détectée à la minute", "is-mixed"), legendItem("non couvert", "is-unknown"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
   };
 
   const actuatorStats = (id) => {
+    const history = current.actuator_history?.[id];
+    if (history?.intervals?.length) {
+      const valid = history.intervals.filter((interval) => interval.status === "ok" && Number.isFinite(interval.actual));
+      const coverage = Number(history.coverage_ratio || 0) * 100;
+      const active = history.covered_seconds ? history.on_seconds / history.covered_seconds * 100 : 0;
+      const last = valid.at(-1);
+      const approximate = history.duration_precision === "observed";
+      if (id === "motor") {
+        const speeds = Object.entries(history.speed_seconds || {}).filter(([, duration]) => duration > 0).map(([speed]) => Number(speed));
+        const weighted = Object.entries(history.speed_seconds || {}).reduce((sum, [speed, duration]) => sum + Number(speed) * duration, 0);
+        return {exact: true, approximate, minimum: speeds.length ? Math.min(...speeds) : 0, average: history.covered_seconds ? weighted / history.covered_seconds : 0, maximum: speeds.length ? Math.max(...speeds) : 0, active, activeDuration: history.on_seconds, coverage, transitions: history.transition_count, currentState: last ? `V${last.actual}` : "inconnu"};
+      }
+      return {exact: true, approximate, active, activeDuration: history.on_seconds, coverage, transitions: history.transition_count, currentState: last ? (last.actual > 0 ? "ON" : "OFF") : "inconnu"};
+    }
     const points = current.buckets.map((bucket) => ({ts: bucket.bucket_start_ts, item: bucket.actuators[id]})).filter((point) => point.item?.valid_count);
     if (!points.length) return null;
     const items = points.map((point) => point.item);
@@ -255,8 +294,10 @@
     container.replaceChildren(...ids.map((id) => {
       const stats = actuatorStats(id); const item = element("button", "chart-summary-item"); item.type = "button"; item.dataset.actuatorKey = id; item.setAttribute("aria-pressed", String(!hiddenActuators.has(id)));
       const detail = !stats ? "Aucune observation"
-        : id === "motor" ? `Moy. V${formatNumber(stats.average)} · max V${formatNumber(stats.maximum, 0)} · active ${formatNumber(stats.active, 0)} %`
-          : `${formatNumber(stats.active, 0)} % ON · ${stats.transitions} bascule(s) · ${stats.currentState}`;
+        : stats.exact && id === "motor" ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} en marche · max V${formatNumber(stats.maximum, 0)} · couverture ${formatNumber(stats.coverage, 0)} %`
+          : stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} ON · ${stats.transitions} bascule(s) · couverture ${formatNumber(stats.coverage, 0)} %`
+            : id === "motor" ? `Moy. V${formatNumber(stats.average)} · max V${formatNumber(stats.maximum, 0)} · active ${formatNumber(stats.active, 0)} %`
+              : `${formatNumber(stats.active, 0)} % ON · ${stats.transitions} bascule(s) · ${stats.currentState}`;
       item.append(element("strong", "", equipmentName(id)), element("span", "", detail)); return item;
     }));
   };
@@ -282,7 +323,7 @@
     });
     Object.values(groups).flat().forEach((id) => {
       const stats = actuatorStats(id); if (!stats) return;
-      rows.push(id === "motor" ? [equipmentName(id), "Actionneur", `V${formatNumber(stats.minimum, 0)}`, `V${formatNumber(stats.average)}`, `V${formatNumber(stats.maximum, 0)}`, `${formatNumber(stats.active, 0)} %`] : [equipmentName(id), "Actionneur", "OFF", "—", "ON", `${formatNumber(stats.active, 0)} % ON · ${stats.transitions} bascule(s)`]);
+      rows.push(id === "motor" ? [equipmentName(id), "Actionneur", `V${formatNumber(stats.minimum, 0)}`, `V${formatNumber(stats.average)}`, `V${formatNumber(stats.maximum, 0)}`, stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} · couverture ${formatNumber(stats.coverage, 0)} %` : `${formatNumber(stats.active, 0)} %`] : [equipmentName(id), "Actionneur", "OFF", "—", "ON", stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} ON · ${stats.transitions} bascule(s) · couverture ${formatNumber(stats.coverage, 0)} %` : `${formatNumber(stats.active, 0)} % ON · ${stats.transitions} bascule(s)`]);
     });
     document.getElementById("history-data-body").replaceChildren(...rows.map((values) => {
       const row = document.createElement("tr"); values.forEach((value, index) => { const cell = document.createElement(index ? "td" : "th"); if (!index) cell.scope = "row"; cell.textContent = value; row.append(cell); }); return row;
@@ -304,7 +345,8 @@
     document.getElementById("temperature-summary").textContent = sensorSummary(temperature, "°C"); document.getElementById("humidity-summary").textContent = sensorSummary(humidity, "%");
     renderGroupSummary(document.getElementById("automation-summary"), groups.automation); renderGroupSummary(document.getElementById("climate-actuator-summary"), groups["climate-actuator"]);
     buildTable(); drawAll();
-    message.textContent = `${data.buckets.length} intervalle(s) de ${Math.round(data.bucket_seconds / 60)} min · courbes : moyenne et plage min–max · pistes : états observés. Les lacunes ne sont pas interpolées.`;
+    const exactCount = Object.values(data.actuator_history || {}).filter((item) => item.intervals?.length).length;
+    message.textContent = `${data.buckets.length} intervalle(s) de ${Math.round(data.bucket_seconds / 60)} min · courbes : moyenne et plage min–max · ${exactCount} actionneur(s) avec transitions GPIO relues. Les lacunes ne sont pas interpolées.`;
   };
 
   const nearestBucketIndex = (timestamp) => {
@@ -318,7 +360,10 @@
     current.series.forEach((meta) => { const item = bucket.sensors[meta.key]; entries.push([meta.label, item?.valid_count ? `${formatNumber(item.avg, meta.decimals)} ${meta.unit}` : "inconnue"]); });
     Object.values(groups).flat().forEach((id) => {
       const item = bucket.actuators[id]; let value = "inconnu";
-      if (item?.valid_count && Number.isFinite(item.avg_value)) {
+      const interval = (current.actuator_history?.[id]?.intervals || []).find((entry) => entry.start_ts <= bucket.bucket_start_ts && entry.end_ts > bucket.bucket_start_ts);
+      if (interval?.status === "ok" && Number.isFinite(interval.actual)) {
+        value = id === "motor" ? `V${formatNumber(interval.actual, 0)} (GPIO relu)` : `${interval.actual > 0 ? "ON" : "OFF"} (GPIO relu)`;
+      } else if (item?.valid_count && Number.isFinite(item.avg_value)) {
         if (id === "motor") value = item.min_value === item.max_value ? `V${formatNumber(item.avg_value, 0)}` : `V${formatNumber(item.min_value, 0)} à V${formatNumber(item.max_value, 0)}`;
         else value = item.on_rate === 1 ? "ON" : item.on_rate === 0 ? "OFF" : "mixte dans l’intervalle";
       }

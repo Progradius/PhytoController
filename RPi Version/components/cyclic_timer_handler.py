@@ -196,13 +196,22 @@ async def timer_cyclic(cyclic_timer) -> None:
             if datetime.now() < trigger:
                 continue
             started = monotonic()
-            publish(equipment_id, stale_after=max(70, 2 * action_duration), requested="on",
-                    mode="journalier", reason="impulsion planifiée", since_mono=started,
-                    next_transition={"type": "clock", "in_seconds": action_duration})
             box(f"[J] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
-            with comp.energized():
-                await hb_sleep(action_duration)
-            box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
+            try:
+                with comp.energized():
+                    # Publier après l'écriture permet à l'historique de relire
+                    # le GPIO réellement activé, et non l'ancien état OFF.
+                    publish(equipment_id, stale_after=max(70, 2 * action_duration), requested="on",
+                            mode="journalier", reason="impulsion planifiée", since_mono=started,
+                            next_transition={"type": "clock", "in_seconds": action_duration})
+                    await hb_sleep(action_duration)
+            finally:
+                # `energized()` a déjà garanti et vérifié la coupure lorsque
+                # cette publication déclenche la relecture matérielle.
+                publish(equipment_id, stale_after=70, requested="off",
+                        mode="journalier", reason="impulsion terminée ou interrompue",
+                        since_mono=None, next_transition={"type": "none"})
+                box(f"[J] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
 
         elif mode == "séquentiel":
             # Avant une preuve NTP, le séquentiel continue avec ses paramètres
@@ -256,19 +265,31 @@ async def timer_cyclic(cyclic_timer) -> None:
             # ON → attente → OFF garanti (audit E5)
             box(f"[S][{phase}] #{tid} ON  @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_ACT, name=LOGGER_NAME)
             _save_phase(store, state_section, "on", on_remaining)
-            publish(equipment_id, stale_after=max(70, 2 * on_remaining), requested="on",
-                    mode="séquentiel", reason=f"phase ON ({phase.lower()})",
-                    since_mono=monotonic(),
-                    next_transition={"type": "clock", "in_seconds": round(on_remaining, 1)})
-            with comp.energized():
-                await hb_sleep(on_remaining)
+            phase_completed = False
+            try:
+                with comp.energized():
+                    publish(equipment_id, stale_after=max(70, 2 * on_remaining), requested="on",
+                            mode="séquentiel", reason=f"phase ON ({phase.lower()})",
+                            since_mono=monotonic(),
+                            next_transition={"type": "clock", "in_seconds": round(on_remaining, 1)})
+                    await hb_sleep(on_remaining)
+                    phase_completed = True
+            finally:
+                publish(
+                    equipment_id,
+                    stale_after=max(70, 2 * off_remaining) if phase_completed else 70,
+                    requested="off", mode="séquentiel",
+                    reason=(f"phase OFF ({phase.lower()})" if phase_completed
+                            else "phase ON interrompue : arrêt sécurisé"),
+                    since_mono=monotonic() if phase_completed else None,
+                    next_transition=(
+                        {"type": "clock", "in_seconds": round(off_remaining, 1)}
+                        if phase_completed else {"type": "none"}
+                    ),
+                )
 
             box(f"[S][{phase}] #{tid} OFF @ {datetime.now():%H:%M:%S}", color=aSYNC_COL_OFF, name=LOGGER_NAME)
             _save_phase(store, state_section, "off", off_remaining)
-            publish(equipment_id, stale_after=max(70, 2 * off_remaining), requested="off",
-                    mode="séquentiel", reason=f"phase OFF ({phase.lower()})",
-                    since_mono=monotonic(),
-                    next_transition={"type": "clock", "in_seconds": round(off_remaining, 1)})
             await hb_sleep(off_remaining)
 
         else:
