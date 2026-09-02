@@ -101,14 +101,23 @@ Santé complète, 0 alarme, `tracking: ok` de bout en bout.
 
 - Observation longue de la console à 2 000 lignes (elle demande des heures, pas une vérification
   ponctuelle).
-- **Coupure sur faute** : provoquer une exception ou un blocage dans une boucle de contrôle n'a
-  aucun interrupteur — il faudrait faire tourner du code volontairement cassé sur la serre, et si le
-  garde-fou testé est justement celui qui manque, le mode de panne est un relais resté fermé sur une
-  charge réelle. Le comportement logiciel est déjà prouvé par la suite
-  (`test_energized_coupe_sur_sortie_normale_et_exception`,
-  `test_energized_coupe_sur_annulation`, `test_crash_applique_etat_sur_avant_relance`,
-  `test_tache_bloquee_est_annulee_mise_en_securite_et_relancee`) ; ce qui manque est la moitié
-  **électrique**, qui relève de `docs/development/hardware-validation.md`.
+
+## Hors périmètre de ce jalon : la coupure sur faute
+
+Elle **ne fait pas partie du reste-à-faire du jalon 4** (arbitrage opérateur du 2 septembre 2026).
+Provoquer une exception ou un blocage dans une boucle de contrôle n'a aucun interrupteur : il
+faudrait faire tourner du code volontairement cassé sur la serre, et le mode de panne d'un tel essai
+est justement un relais resté fermé sur une charge réelle.
+
+La moitié logicielle est déjà prouvée par la suite, avec un faux GPIO :
+`test_energized_coupe_sur_sortie_normale_et_exception`, `test_energized_coupe_sur_annulation`,
+`test_crash_applique_etat_sur_avant_relance` et
+`test_tache_bloquee_est_annulee_mise_en_securite_et_relancee`. La moitié électrique était déjà
+inscrite dans [`../development/hardware-validation.md`](../development/hardware-validation.md), où
+elle reste : « Relais actifs-BAS » étapes 4 et 5, et « Supervision et arrêt » étape 1.
+
+Le jalon 4 n'y touche pas : le chemin `energized()` est inchangé, les forçages ne font que
+l'emprunter — et cet emprunt a été qualifié en marche le 2 septembre (section ci-dessus).
 
 ## Note d'exploitation
 

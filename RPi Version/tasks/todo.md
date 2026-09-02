@@ -727,7 +727,9 @@ effectif pendant qu'un forçage empêche de ventiler.
 - [x] Coupure en pleine impulsion qualifiée sur la serre : forçage créé pendant une phase ON
       séquentielle de `cyclic_2`, `energized()` coupe le relais à la seconde sur annulation de la
       tâche, et la phase reprend depuis l'état persisté à l'expiration
-- [ ] Coupure **sur faute** (exception ou blocage d'une boucle) : demande du code volontairement
-      cassé, donc un banc hors serre. Le comportement logiciel est déjà couvert par la suite ;
-      ce qui manque est la moitié électrique (`docs/development/hardware-validation.md`)
 - [ ] Console : stabilité à 2 000 lignes en observation longue
+
+La **coupure sur faute** est sortie du périmètre du jalon 4 (arbitrage du 2 septembre 2026) : le
+jalon ne touche pas au chemin `energized()`, sa moitié logicielle est couverte par la suite de
+tests, et sa moitié électrique appartient à `docs/development/hardware-validation.md`, où elle
+était déjà inscrite (« Relais actifs-BAS » étapes 4-5, « Supervision et arrêt » étape 1).
