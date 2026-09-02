@@ -203,10 +203,28 @@ async def test_graphiques_conservent_une_hauteur_logique_immuable(web_context):
     page = await (await client.get("/")).text()
     script = await (await client.get("/static/js/history.js")).text()
 
-    assert page.count('data-chart-height="240"') == 2
-    assert page.count('data-chart-height="220"') == 1
+    assert page.count('data-chart-height="260"') == 2
+    assert page.count('data-chart-height="270"') == 1
+    assert page.count('data-chart-height="190"') == 1
     assert "canvas.dataset.chartHeight" in script
     assert 'canvas.getAttribute("height")' not in script
+
+
+async def test_graphiques_exposent_legendes_et_alternative_accessible(web_context):
+    client, *_ = web_context
+    page = await (await client.get("/")).text()
+    script = await (await client.get("/static/js/history.js")).text()
+
+    assert 'id="temperature-legend"' in page
+    assert 'id="automation-chart"' in page
+    assert 'id="climate-actuator-chart"' in page
+    assert 'id="history-data-body"' in page
+    assert 'id="actuator-chart"' not in page
+    assert 'tabindex="0"' in page
+    assert "equipmentName(id)" in script
+    assert "item.avg_value" in script
+    assert "intervalle mixte" in script
+    assert "Math.max(320" not in script
 
 
 async def test_sondes_publient_la_version_chargee(web_context):

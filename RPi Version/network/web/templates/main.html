@@ -24,14 +24,42 @@
 </section>
 
 <section id="tendances" class="history-section" aria-labelledby="history-title" data-history-available="{{ 'true' if state.history.available else 'false' }}">
-  <div class="section-heading"><div><p class="eyebrow">72 heures explicables</p><h2 id="history-title">Tendances locales</h2></div><div class="history-range" role="group" aria-label="Période"><button class="button button-secondary is-selected" data-hours="24">24 h</button><button class="button button-secondary" data-hours="48">48 h</button><button class="button button-secondary" data-hours="72">72 h</button></div></div>
+  <div class="section-heading"><div><p class="eyebrow">72 heures explicables</p><h2 id="history-title">Tendances locales</h2></div><div class="history-range" role="group" aria-label="Période"><button class="button button-secondary is-selected" type="button" data-hours="24" aria-pressed="true">24 h</button><button class="button button-secondary" type="button" data-hours="48" aria-pressed="false">48 h</button><button class="button button-secondary" type="button" data-hours="72" aria-pressed="false">72 h</button></div></div>
   <p id="history-message" class="card-meta" role="status">Chargement de l’historique…</p>
   <div class="history-grid">
-    <article class="card chart-card"><h3>Températures et consignes</h3><canvas id="temperature-chart" data-chart-height="240" height="240" aria-label="Tendances de température"></canvas></article>
-    <article class="card chart-card"><h3>Humidité</h3><canvas id="humidity-chart" data-chart-height="240" height="240" aria-label="Tendances d’humidité"></canvas></article>
-    <article class="card chart-card chart-wide"><h3>Taux de marche des actionneurs</h3><canvas id="actuator-chart" data-chart-height="220" height="220" aria-label="Taux de marche des actionneurs"></canvas></article>
+    <article class="card chart-card">
+      <h3>Températures et consignes</h3>
+      <div class="chart-legend" id="temperature-legend" role="group" aria-label="Légende des températures"></div>
+      <p class="chart-summary" id="temperature-summary">Calcul de la synthèse…</p>
+      <canvas id="temperature-chart" data-history-chart="temperature" data-chart-height="260" height="260" tabindex="0" role="img" aria-label="Tendances de température. Utilisez les flèches gauche et droite pour explorer les valeurs." aria-describedby="temperature-summary"></canvas>
+    </article>
+    <article class="card chart-card">
+      <h3>Humidité</h3>
+      <div class="chart-legend" id="humidity-legend" role="group" aria-label="Légende de l’humidité"></div>
+      <p class="chart-summary" id="humidity-summary">Calcul de la synthèse…</p>
+      <canvas id="humidity-chart" data-history-chart="humidity" data-chart-height="260" height="260" tabindex="0" role="img" aria-label="Tendances d’humidité. Utilisez les flèches gauche et droite pour explorer les valeurs." aria-describedby="humidity-summary"></canvas>
+    </article>
+    <article class="card chart-card chart-wide">
+      <h3>Automatisations</h3>
+      <div class="chart-legend chart-state-legend" id="automation-legend" role="group" aria-label="Légende des états d’automatisation"></div>
+      <p class="chart-summary actuator-chart-summary" id="automation-summary">Calcul de la synthèse…</p>
+      <canvas id="automation-chart" data-history-chart="automation" data-chart-height="270" height="270" tabindex="0" role="img" aria-label="Chronologie des éclairages et sorties cycliques. Utilisez les flèches gauche et droite pour explorer les états." aria-describedby="automation-summary history-observation-note"></canvas>
+    </article>
+    <article class="card chart-card chart-wide">
+      <h3>Régulation climatique</h3>
+      <div class="chart-legend chart-state-legend" id="climate-actuator-legend" role="group" aria-label="Légende des états climatiques"></div>
+      <p class="chart-summary actuator-chart-summary" id="climate-actuator-summary">Calcul de la synthèse…</p>
+      <canvas id="climate-actuator-chart" data-history-chart="climate-actuator" data-chart-height="190" height="190" tabindex="0" role="img" aria-label="Chronologie du chauffage et des vitesses de ventilation. Utilisez les flèches gauche et droite pour explorer les états." aria-describedby="climate-actuator-summary history-observation-note"></canvas>
+    </article>
     <div id="additional-charts" class="additional-charts"></div>
   </div>
+  <p class="history-observation-note" id="history-observation-note">Les actionneurs montrent des états observés à la minute puis regroupés par intervalle : ils ne constituent pas une mesure exacte de la durée de marche. Les hachures signalent un intervalle mixte ou inconnu.</p>
+  <details class="history-data-details">
+    <summary>Voir la synthèse sous forme de tableau</summary>
+    <div class="history-table-scroll"><table class="history-data-table"><caption>Synthèse accessible de la période affichée</caption><thead><tr><th scope="col">Série</th><th scope="col">Type</th><th scope="col">Minimum</th><th scope="col">Moyenne</th><th scope="col">Maximum</th><th scope="col">Activité observée</th></tr></thead><tbody id="history-data-body"></tbody></table></div>
+  </details>
+  <output id="history-selection-output" class="visually-hidden" aria-live="polite"></output>
+  <div id="history-tooltip" class="history-tooltip" role="tooltip" hidden></div>
 </section>
 
 <section class="time-banner {{ 'is-alert' if state.time.alarm or state.time.daily_timers_suspended else 'is-ok' }}" id="time-banner" aria-live="polite">

@@ -665,4 +665,12 @@ class OperatorService:
             }
             for definition in SENSOR_CATALOG
         }
-        return await self.history.query_history(hours, metadata)
+        equipment = {
+            key: {
+                "display_name": item.get("display_name", key),
+                "usage_type": item.get("usage_type", "équipement"),
+                "zone": item.get("zone", ""),
+            }
+            for key, item in self.equipment_store.payload().items()
+        }
+        return await self.history.query_history(hours, metadata, equipment)

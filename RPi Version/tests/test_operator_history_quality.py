@@ -66,13 +66,16 @@ async def test_historique_enregistre_et_agrege_les_statuts_qualite(tmp_path):
         }],
         "actuators": [],
     })
-    payload = await history.query_history(24, {
-        "BME280T": {"key": "BME280T", "label": "Température", "unit": "°C"}
-    })
+    payload = await history.query_history(
+        24,
+        {"BME280T": {"key": "BME280T", "label": "Température", "unit": "°C"}},
+        {"cyclic_1": {"display_name": "Brumisation"}},
+    )
 
     bucket = payload["buckets"][-1]
     assert bucket["sensors"]["BME280T"]["valid_count"] == 0
     assert bucket["sensor_quality"]["BME280T"] == {"inconsistent": 1}
+    assert payload["equipment"]["cyclic_1"]["display_name"] == "Brumisation"
     await history.close()
 
 

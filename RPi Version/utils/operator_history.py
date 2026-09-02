@@ -427,10 +427,18 @@ class OperatorHistory:
         )
         return [dict(row) for row in self._dict_rows(cursor)]
 
-    async def query_history(self, hours: int, series_metadata: dict[str, dict]) -> dict:
-        return await self._call(self._query_history, hours, series_metadata)
+    async def query_history(
+        self, hours: int, series_metadata: dict[str, dict],
+        equipment_metadata: dict[str, dict] | None = None,
+    ) -> dict:
+        return await self._call(
+            self._query_history, hours, series_metadata, equipment_metadata or {},
+        )
 
-    def _query_history(self, hours: int, series_metadata: dict[str, dict]) -> dict:
+    def _query_history(
+        self, hours: int, series_metadata: dict[str, dict],
+        equipment_metadata: dict[str, dict],
+    ) -> dict:
         connection = self._conn()
         end_ts = datetime.now(timezone.utc).timestamp()
         start_ts = end_ts - hours * 3600
@@ -528,6 +536,7 @@ class OperatorHistory:
             "range_start_ts": start_ts,
             "range_end_ts": end_ts,
             "series": [series_metadata[key] for key in sorted(seen_series) if key in series_metadata],
+            "equipment": equipment_metadata,
             "buckets": [buckets[key] for key in ordered_bucket_keys],
             "events": events,
         }
