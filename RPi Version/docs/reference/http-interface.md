@@ -11,6 +11,7 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | Méthode | Route | Effet | Réponse principale |
 |---|---|---|---|
 | GET | `/`, `/index.html` | Tableau de bord, rafraîchi toutes les 5 s par `/api/v1/state` | HTML 200 |
+| GET | `/history` | Historique détaillé sur 24, 48 ou 72 h, alimenté par `/api/v1/history` | HTML 200 |
 | GET | `/conf` | Formulaire de configuration, une section dépliable par domaine | HTML 200 |
 | POST | `/conf/{section}` | Valide et enregistre **une seule** section | 303 vers `/conf?flash=…` ; 422 si refus |
 | GET | `/console` | Console de journalisation | HTML 200 |
@@ -23,7 +24,8 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | GET | `/status` | Ancien format d'état, conservé pour les scripts existants | JSON 200 |
 | GET | `/health/live` | Le processus HTTP répond et annonce le commit chargé | JSON 200, `live=true`, `version` |
 | GET | `/health/ready` | Superviseur sain | JSON 200 ou **503** |
-| POST | `/actions/stats/reset` | Efface un min/max (`key=`) | 303 vers `/#statistiques` |
+| POST | `/actions/stats/reset` | Efface un min/max (`key=`) | JSON si demandé, sinon 303 vers la carte du capteur |
+| POST | `/actions/overrides/create`, `/actions/overrides/cancel` | Pose ou lève une coupure opérateur temporaire | JSON si demandé, sinon 303 vers l'actionneur ou la maintenance |
 | POST | `/actions/system/reboot` | `sudo reboot` | 202 |
 | POST | `/actions/system/poweroff` | `/sbin/shutdown -h now` | 202 |
 | GET | `/monitor` | **Redirection** vers `/#surveillance` | 303 |
@@ -66,13 +68,13 @@ qui ont installé l'autorité locale, mais n'authentifie pas l'opérateur. Ne ja
 ## Cache PWA et fraîcheur
 
 Le service worker n'est enregistré que depuis une origine sécurisée. Il précache les assets hachés,
-garde la dernière réponse HTML 200 de `/` et `/alarms`, et fournit `/offline` aux autres navigations
+garde la dernière réponse HTML 200 de `/`, `/history` et `/alarms`, et fournit `/offline` aux autres navigations
 injoignables. Ses règles sont volontairement asymétriques :
 
 - `/api/v1/**`, `/health/**`, `/status` et le SSE restent **réseau uniquement** ;
 - toute méthode mutante reste réseau uniquement, sans Background Sync ni rejeu ;
 - `/conf` et `/console` ne sont jamais conservés comme vues hors ligne ;
-- les derniers snapshots d'état, d'alarmes et d'historique sont conservés séparément dans IndexedDB,
+- les derniers snapshots d'état, d'alarmes et de chaque période d'historique sont conservés séparément dans IndexedDB,
   puis lus uniquement après l'échec d'une requête réseau ;
 - une réponse IndexedDB ne retire jamais la bannière « HORS LIGNE » et ne déclenche jamais de
   notification ; seule une nouvelle réponse HTTP du contrôleur le peut.
@@ -202,7 +204,10 @@ normalement.
 ## Actions système
 
 - `POST /actions/stats/reset` avec `key=` parmi les clés suivies (`BME280T`, `BME280H`,
-  `DS18B#3`) ; toute autre clé renvoie 400 ;
+  `DS18B#3`) ; toute autre clé renvoie 400. L'amélioration JavaScript demande du JSON et met la
+  carte à jour seulement après la réponse ; le formulaire HTML reste le repli complet ;
+- `POST /actions/overrides/create` et `/actions/overrides/cancel` utilisent la même amélioration
+  progressive. Aucun ordre n'est optimiste, mémorisé hors ligne ou rejoué ;
 - `POST /actions/system/reboot` et `/actions/system/poweroff` : jeton CSRF **et** confirmation
   explicite dans une boîte de dialogue du navigateur ; réponse 202, ou 500 si la commande
   échoue ;

@@ -33,6 +33,9 @@ nosetests.xml
 coverage.xml
 *,cover
 .hypothesis/
+node_modules/
+playwright-report/
+test-results/
 
 # Virtual environments
 venv/

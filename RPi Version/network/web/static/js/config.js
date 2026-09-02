@@ -251,6 +251,11 @@
   // chaque valeur est saisie explicitement.
   const MODE_KEY = "phyto.conf.mode";
   const switcher = document.querySelector("[data-mode-switch]");
+  const hashTarget = (() => {
+    if (!window.location.hash) return null;
+    try { return document.getElementById(decodeURIComponent(window.location.hash.slice(1))); }
+    catch (_error) { return null; }
+  })();
   const applyMode = (mode) => {
     document.querySelectorAll("[data-config-mode]").forEach((node) => {
       node.hidden = node.dataset.configMode !== mode;
@@ -263,6 +268,7 @@
   // profit d'une préférence enregistrée rendrait l'erreur introuvable.
   const refused = document.querySelector('[aria-invalid="true"]');
   let initialMode = refused ? (refused.closest("[data-config-mode]")?.dataset.configMode || "advanced") : "";
+  if (!initialMode && hashTarget) initialMode = hashTarget.closest("[data-config-mode]")?.dataset.configMode || "advanced";
   if (!initialMode) {
     initialMode = "simple";
     try { if (localStorage.getItem(MODE_KEY) === "advanced") initialMode = "advanced"; } catch (_error) { /* stockage indisponible */ }
@@ -288,7 +294,25 @@
       }
       switcher.hidden = false;
       applyMode(initialMode);
+      if (hashTarget) {
+        let parent = hashTarget;
+        while (parent) {
+          if (parent.matches?.("details")) parent.open = true;
+          parent = parent.parentElement;
+        }
+        window.requestAnimationFrame(() => hashTarget.scrollIntoView({block: "start"}));
+      }
     })();
+  }
+
+  // Sans prévisualisation, le mode Avancé est déjà visible : le lien profond
+  // doit tout de même ouvrir sa fiche au lieu de pointer vers un résumé fermé.
+  if (hashTarget) {
+    let parent = hashTarget;
+    while (parent) {
+      if (parent.matches?.("details")) parent.open = true;
+      parent = parent.parentElement;
+    }
   }
 
   // Le premier champ refusé, pas le bandeau : c'est là que la correction se

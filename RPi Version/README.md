@@ -73,13 +73,14 @@ https://phytocontroller.local/
 ```
 
 Elle ajoute l'installation sur l'écran d'accueil, une fenêtre autonome, les raccourcis Tableau de
-bord/Alarmes, la dernière vue connue explicitement marquée hors ligne et des notifications locales
+bord/Historique/Alarmes, la dernière vue connue explicitement marquée hors ligne et des notifications locales
 tant qu'elle reste active. HTTP `:8123` demeure la voie de compatibilité et de récupération. Voir
 [PWA locale et TLS](docs/operations/pwa-local-tls.md).
 
 Routes principales :
 
-- `/` : tableau de bord, rafraîchi toutes les 5 secondes ;
+- `/` : tableau de bord orienté action, rafraîchi toutes les 5 secondes ;
+- `/history` : graphiques détaillés sur 24, 48 ou 72 heures ;
 - `/conf` : configuration, une section validée et enregistrée à la fois ;
 - `/console` : flux des logs du processus courant ;
 - `/api/v1/state` : état complet versionné en JSON ;

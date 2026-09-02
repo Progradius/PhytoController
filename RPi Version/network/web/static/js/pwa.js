@@ -79,7 +79,7 @@
   };
 
   const setControlsDisabled = (disabled) => {
-    document.querySelectorAll("form input, form select, form textarea, form button").forEach((control) => {
+    document.querySelectorAll("form input, form select, form textarea, form button, button[data-requires-online]").forEach((control) => {
       if (disabled && !control.disabled) {
         control.disabled = true;
         control.dataset.pwaDisabled = "true";

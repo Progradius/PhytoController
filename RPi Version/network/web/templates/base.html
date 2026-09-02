@@ -35,6 +35,7 @@
     <nav class="navbar" aria-label="Navigation principale">
       <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau de bord</a>
       <a href="/alarms"{% if current_page == 'alarms' %} aria-current="page"{% endif %}>Alarmes{% if alarm_summary and alarm_summary.active_count %} <span class="nav-count">{{ alarm_summary.active_count }}</span>{% endif %}</a>
+      <a href="/history"{% if current_page == 'history' %} aria-current="page"{% endif %}>Historique</a>
       <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
       <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
     </nav>
@@ -43,7 +44,7 @@
   <aside id="override-banner" class="global-alarm severity-override" aria-live="polite">
     <strong>{{ override_summary.active_count }} forçage(s) « arrêt » actif(s)</strong>
     <span>Équipement(s) coupé(s) volontairement — la conduite normale est suspendue</span>
-    <a href="/#interventions">Examiner</a>
+    <a href="/#actionneurs">Examiner</a>
   </aside>
   {% endif %}
   {% if alarm_summary and alarm_summary.active_count %}

@@ -336,7 +336,7 @@
 
     <h3>Profils par mesure</h3>
     {% for definition in sensor_catalog %}{% set profile = sensor_quality_profiles[definition.key] %}{% set live = sensor_snapshot.get(definition.key, {}) %}{% set scope = 'sensor-quality:' ~ definition.key %}
-    <details class="metadata-fieldset"><summary><span>{{ definition.key }} · {{ definition.label }}</span><span class="summary-value">{% if live.get('status') == 'degraded' %}dégradé{% elif live.get('status') == 'inconsistent' %}incohérent{% else %}{{ live.get('status', 'absent') }}{% endif %}</span></summary>
+    <details class="metadata-fieldset" id="sensor-quality-{{ definition.slug }}"><summary><span>{{ definition.key }} · {{ definition.label }}</span><span class="summary-value">{% if live.get('status') == 'degraded' %}dégradé{% elif live.get('status') == 'inconsistent' %}incohérent{% else %}{{ live.get('status', 'absent') }}{% endif %}</span></summary>
       <form method="post" action="/conf/sensor-quality" data-config-form>
         {{ csrf() }}<input type="hidden" name="sensor_key" value="{{ definition.key }}">
         <div class="field-grid two">

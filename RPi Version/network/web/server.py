@@ -31,6 +31,7 @@ from network.web.pages import (
     conf_page,
     console_page,
     error_page,
+    history_page,
     main_page,
     offline_page,
     system_action_page,
@@ -539,6 +540,7 @@ class Server:
             web.get("/console", self._console),
             web.get("/console/stream", self._console_stream),
             web.get("/alarms", self._alarms),
+            web.get("/history", self._history),
             web.get("/api/v1/state", self._api_state),
             web.get("/api/v1/alarms", self._api_alarms),
             web.get("/api/v1/alarms/active", self._api_active_alarms),
@@ -734,6 +736,9 @@ class Server:
 
     async def _dashboard(self, request: web.Request) -> web.Response:
         return self._html(main_page(self._state_payload(), self.csrf_token))
+
+    async def _history(self, request: web.Request) -> web.Response:
+        return self._html(history_page(self._state_payload()))
 
     def _operator_snapshot(self) -> dict:
         if self.operator_service is None:
@@ -1469,10 +1474,16 @@ class Server:
             if job is not None:
                 self.supervisor.request_reload(job)
 
-    async def _override_response(self, request: web.Request) -> web.Response:
+    async def _override_response(
+        self, request: web.Request, targets: tuple[str, ...],
+    ) -> web.Response:
         if "application/json" in request.headers.get("Accept", ""):
             return web.json_response(shared_overrides().payload())
-        raise web.HTTPSeeOther(location="/#interventions")
+        location = (
+            f"/#equipment-{targets[0]}" if len(targets) == 1
+            else "/#maintenance"
+        )
+        raise web.HTTPSeeOther(location=location)
 
     async def _override_create(self, request: web.Request) -> web.Response:
         form = request["form_data"]
@@ -1505,7 +1516,7 @@ class Server:
                     "created", target, seconds
                 )
         self._reload_override_jobs(targets)
-        return await self._override_response(request)
+        return await self._override_response(request, targets)
 
     async def _override_cancel(self, request: web.Request) -> web.Response:
         form = request["form_data"]
@@ -1521,7 +1532,7 @@ class Server:
                     "cancelled", target, 0
                 )
         self._reload_override_jobs(targets)
-        return await self._override_response(request)
+        return await self._override_response(request, targets)
 
     async def _api_history(self, request: web.Request) -> web.Response:
         if self.operator_service is None or not self.operator_service.history.available:
@@ -1582,21 +1593,18 @@ class Server:
 
     def _state_payload(self) -> dict:
         sensor_snapshot = self.sensor_handler.snapshot()
-        sensors = [sensor_snapshot[d.key] for d in SENSOR_CATALOG if sensor_snapshot[d.key]["enabled"]]
-        stats = []
-        for key in self.stats.KEYS:
-            item = self.stats.get_all().get(key, {})
-            definition = SENSORS_BY_KEY.get(key)
-            stats.append({
-                "key": key,
-                # Les min/max sont mémorisés en précision complète ; le nombre
-                # de décimales voyage avec eux pour que l'affichage arrondisse.
-                "decimals": definition.decimals if definition else 1,
-                "min": item.get("min"),
-                "min_at": item.get("min_date"),
-                "max": item.get("max"),
-                "max_at": item.get("max_date"),
-            })
+        sensors = []
+        for definition in SENSOR_CATALOG:
+            sensor = sensor_snapshot[definition.key]
+            if not sensor["enabled"]:
+                continue
+            # Les contrôleurs récents publient déjà le slug. Le complément ici
+            # garde l'API et les ancres stables avec un adaptateur de capteur
+            # plus ancien ou un double de test.
+            item = dict(sensor)
+            item.setdefault("slug", definition.slug)
+            sensors.append(item)
+        stats = self._stats_payload()
         equipment = self.equipment_store.payload()
         actuator_entries = (
             self.operator_service.actuator_snapshot()
@@ -1648,6 +1656,19 @@ class Server:
             )
         start_h, start_m, stop_h, stop_m = day_night_times(self.config)
         operator = self._operator_snapshot()
+        health = {
+            "healthy": self.supervisor.is_healthy() if self.supervisor else True,
+            "control_healthy": self.supervisor.control_healthy() if self.supervisor else True,
+            "heater_alarm": get_climate_alarm(),
+            "tasks": self.supervisor.snapshot() if self.supervisor else {},
+            "domains": self.supervisor.health_domains() if self.supervisor else {},
+        }
+        time_state = time_reliability().snapshot()
+        overrides = shared_overrides().payload()
+        overview = self._overview_payload(
+            health, time_state, operator["alarms"], operator["history"],
+            operator["network"], overrides,
+        )
         return {
             "schema_version": 2,
             "version": DEPLOYED_VERSION,
@@ -1659,20 +1680,15 @@ class Server:
                     "port": self._https_port or None,
                 },
             },
-            "health": {
-                "healthy": self.supervisor.is_healthy() if self.supervisor else True,
-                "control_healthy": self.supervisor.control_healthy() if self.supervisor else True,
-                "heater_alarm": get_climate_alarm(),
-                "tasks": self.supervisor.snapshot() if self.supervisor else {},
-                "domains": self.supervisor.health_domains() if self.supervisor else {},
-            },
-            "time": time_reliability().snapshot(),
+            "overview": overview,
+            "health": health,
+            "time": time_state,
             "alarms": operator["alarms"],
             "history": operator["history"],
             "network": operator["network"],
             "equipment": equipment,
             "actuators": actuator_entries,
-            "overrides": shared_overrides().payload(),
+            "overrides": overrides,
             "day_night": {
                 "source": self.config.day_night.source,
                 "start": f"{start_h:02d}:{start_m:02d}",
@@ -1693,6 +1709,70 @@ class Server:
             "stats": stats,
         }
 
+    def _stats_payload(self) -> list[dict]:
+        stats = []
+        for key in self.stats.KEYS:
+            item = self.stats.get_all().get(key, {})
+            definition = SENSORS_BY_KEY.get(key)
+            stats.append({
+                "key": key,
+                # Les min/max sont mémorisés en précision complète ; le nombre
+                # de décimales voyage avec eux pour que l'affichage arrondisse.
+                "decimals": definition.decimals if definition else 1,
+                "min": item.get("min"),
+                "min_at": item.get("min_date"),
+                "max": item.get("max"),
+                "max_at": item.get("max_date"),
+            })
+        return stats
+
+    @staticmethod
+    def _overview_payload(health, time_state, alarms, history, network, overrides) -> dict:
+        if (
+            not health.get("control_healthy", health.get("healthy", False))
+            or health.get("heater_alarm")
+            or time_state.get("daily_timers_suspended")
+            or time_state.get("alarm")
+            or alarms.get("control_count", 0) > 0
+        ):
+            detail = (
+                health.get("heater_alarm")
+                or time_state.get("alarm")
+                or ("Horloge non fiable : minuteries quotidiennes suspendues."
+                    if time_state.get("daily_timers_suspended") else None)
+                or (f"{alarms.get('control_count', 0)} alarme(s) de contrôle active(s)."
+                    if alarms.get("control_count", 0) else None)
+                or "Une tâche de contrôle ne répond plus."
+            )
+            return {"status": "attention", "title": "Attention requise", "detail": detail}
+        if overrides.get("active_count", 0):
+            count = overrides["active_count"]
+            return {
+                "status": "override",
+                "title": "Conduite partiellement suspendue",
+                "detail": f"{count} équipement(s) coupé(s) volontairement.",
+            }
+        degraded = []
+        if not health.get("healthy", False):
+            degraded.append("diagnostic auxiliaire")
+        if alarms.get("active_count", 0):
+            degraded.append(f"{alarms['active_count']} alarme(s)")
+        if network.get("status") != "online":
+            degraded.append("réseau non nominal")
+        if not history.get("available", False):
+            degraded.append("historique indisponible")
+        if degraded:
+            return {
+                "status": "degraded",
+                "title": "Contrôle opérationnel · diagnostic à vérifier",
+                "detail": " · ".join(degraded) + ".",
+            }
+        return {
+            "status": "operational",
+            "title": "Serre opérationnelle",
+            "detail": "Toutes les tâches de contrôle répondent.",
+        }
+
     @staticmethod
     def _logical_state(component) -> str:
         try:
@@ -1707,7 +1787,8 @@ class Server:
             (2, self.config.daily_timer2, "daily_timer_2"),
         ):
             timers.append({
-                "id": f"daily-{number}", "kind": "daily", "enabled": cfg.enabled,
+                "id": f"daily-{number}", "equipment_id": f"daily_{number}",
+                "kind": "daily", "enabled": cfg.enabled,
                 "output": output,
                 "schedule": {
                     "start": f"{cfg.start_hour:02d}:{cfg.start_minute:02d}",
@@ -1732,7 +1813,8 @@ class Server:
                     "on_time_night": cfg.on_time_night, "off_time_night": cfg.off_time_night,
                 })
             timers.append({
-                "id": f"cyclic-{number}", "kind": "cyclic", "enabled": cfg.enabled,
+                "id": f"cyclic-{number}", "equipment_id": f"cyclic_{number}",
+                "kind": "cyclic", "enabled": cfg.enabled,
                 "output": output, "schedule": schedule,
             })
         return timers
@@ -1747,7 +1829,11 @@ class Server:
         if value is not None:
             self.stats.update(key, float(value))
         info(f"Stat {key} réinitialisée", name=LOGGER_NAME)
-        raise web.HTTPSeeOther(location="/#statistiques")
+        stat = next(item for item in self._stats_payload() if item["key"] == key)
+        if "application/json" in request.headers.get("Accept", ""):
+            return web.json_response(stat)
+        slug = SENSORS_BY_KEY[key].slug
+        raise web.HTTPSeeOther(location=f"/#sensor-{slug}")
 
     async def _reset_sensor_quality(self, request: web.Request) -> web.Response:
         key = str(request["form_data"].get("key", ""))
@@ -1876,6 +1962,7 @@ class Server:
             ],
             "shortcuts": [
                 {"name": "Tableau de bord", "short_name": "Tableau", "url": "/", "icons": [{"src": icon_192, "sizes": "192x192", "type": "image/png"}]},
+                {"name": "Historique", "short_name": "Historique", "url": "/history", "icons": [{"src": icon_192, "sizes": "192x192", "type": "image/png"}]},
                 {"name": "Alarmes", "short_name": "Alarmes", "url": "/alarms", "icons": [{"src": icon_192, "sizes": "192x192", "type": "image/png"}]},
             ],
         }

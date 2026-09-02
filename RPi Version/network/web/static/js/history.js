@@ -1,6 +1,83 @@
 (() => {
   "use strict";
+  const preview = document.querySelector("[data-history-preview]");
   const section = document.getElementById("tendances");
+  if (!section && !preview) return;
+
+  const initPreview = () => {
+    const message = document.getElementById("history-preview-message");
+    const canvas = document.getElementById("history-preview-chart");
+    let visible = false; let loaded = false; let refreshTimer = null;
+    const format = (value, decimals = 1) => Number.isFinite(value) ? Number(value).toLocaleString("fr-FR", {minimumFractionDigits: decimals, maximumFractionDigits: decimals}) : "—";
+    const duration = (seconds) => {
+      if (!Number.isFinite(seconds)) return "—";
+      const minutes = Math.max(0, Math.round(seconds / 60)); const hours = Math.floor(minutes / 60);
+      return hours ? `${hours} h ${String(minutes % 60).padStart(2, "0")} min` : `${minutes} min`;
+    };
+    const sensorValues = (data, key) => data.buckets.flatMap((bucket) => {
+      const item = bucket.sensors[key]; return item?.valid_count ? [item.min, item.avg, item.max].filter(Number.isFinite) : [];
+    });
+    const summary = (data, key, unit) => {
+      const values = sensorValues(data, key); const averages = data.buckets.map((bucket) => bucket.sensors[key]?.avg).filter(Number.isFinite);
+      return values.length && averages.length ? `${format(Math.min(...values))} / ${format(averages.reduce((sum, value) => sum + value, 0) / averages.length)} / ${format(Math.max(...values))} ${unit}` : "Aucune donnée";
+    };
+    const activity = (data, id) => {
+      const exact = data.actuator_history?.[id];
+      if (exact?.intervals?.length) {
+        const coverage = Number(exact.coverage_ratio || 0) * 100; const approximate = exact.duration_precision === "observed" ? "≈ " : "";
+        if (id === "motor") {
+          const speeds = Object.entries(exact.speed_seconds || {}).filter(([, seconds]) => seconds > 0).map(([speed]) => Number(speed));
+          return `${approximate}${duration(exact.on_seconds)} · max V${speeds.length ? Math.max(...speeds) : 0} · couverture ${format(coverage, 0)} %`;
+        }
+        return `${approximate}${duration(exact.on_seconds)} ON · couverture ${format(coverage, 0)} %`;
+      }
+      const items = data.buckets.map((bucket) => bucket.actuators[id]).filter((item) => item?.valid_count && Number.isFinite(item.on_rate));
+      if (!items.length) return "Aucune observation";
+      const rate = items.reduce((sum, item) => sum + item.on_rate, 0) / items.length * 100;
+      if (id === "motor") return `${format(rate, 0)} % d’observations actives · agrégé`;
+      return `${format(rate, 0)} % d’observations ON · agrégé`;
+    };
+    const draw = (data, key) => {
+      if (!canvas) return;
+      const ratio = window.devicePixelRatio || 1; const width = Math.max(1, Math.floor(canvas.clientWidth || 280)); const height = Number(canvas.dataset.chartHeight) || 180;
+      canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); const ctx = canvas.getContext("2d"); ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
+      const points = data.buckets.map((bucket) => ({ts: bucket.bucket_start_ts, value: bucket.sensors[key]?.avg, min: bucket.setpoints?.temp_min, max: bucket.setpoints?.temp_max}));
+      const values = points.flatMap((point) => [point.value, point.min, point.max]).filter(Number.isFinite);
+      if (!values.length) { ctx.fillStyle = "#a0b9aa"; ctx.font = "13px system-ui"; ctx.fillText("Aucune température valide", 16, 36); return; }
+      const box = {left: 42, right: width - 8, top: 10, bottom: height - 25}; const low = Math.min(...values) - 1; const high = Math.max(...values) + 1;
+      const x = (ts) => box.left + (ts - data.range_start_ts) / Math.max(1, data.range_end_ts - data.range_start_ts) * (box.right - box.left); const y = (value) => box.bottom - (value - low) / Math.max(.1, high - low) * (box.bottom - box.top);
+      ctx.font = "10px system-ui"; ctx.fillStyle = "#a0b9aa"; ctx.strokeStyle = "rgba(176,205,186,.16)";
+      for (let index = 0; index <= 3; index += 1) { const yy = box.top + index / 3 * (box.bottom - box.top); ctx.beginPath(); ctx.moveTo(box.left, yy); ctx.lineTo(box.right, yy); ctx.stroke(); ctx.fillText(`${(high - index / 3 * (high - low)).toFixed(1)}°`, 2, yy + 3); }
+      const target = points.filter((point) => Number.isFinite(point.min) && Number.isFinite(point.max));
+      if (target.length) { ctx.fillStyle = "rgba(117,186,255,.12)"; ctx.beginPath(); target.forEach((point, index) => ctx[index ? "lineTo" : "moveTo"](x(point.ts), y(point.max))); [...target].reverse().forEach((point) => ctx.lineTo(x(point.ts), y(point.min))); ctx.closePath(); ctx.fill(); }
+      let drawing = false; ctx.strokeStyle = "#50e38a"; ctx.lineWidth = 2; ctx.beginPath();
+      points.forEach((point) => { if (!Number.isFinite(point.value)) { if (drawing) ctx.stroke(); ctx.beginPath(); drawing = false; return; } ctx[drawing ? "lineTo" : "moveTo"](x(point.ts), y(point.value)); drawing = true; }); if (drawing) ctx.stroke();
+    };
+    const render = (data, storedAge = null) => {
+      const temperature = data.series.find((item) => item.control_role === "climate_temperature") || data.series.find((item) => item.unit?.includes("°C"));
+      const humidity = data.series.find((item) => item.control_role === "climate_humidity") || data.series.find((item) => item.unit?.includes("%"));
+      if (temperature) draw(data, temperature.key);
+      document.getElementById("preview-temperature").textContent = temperature ? summary(data, temperature.key, temperature.unit) : "Aucune donnée";
+      document.getElementById("preview-humidity").textContent = humidity ? summary(data, humidity.key, humidity.unit) : "Aucune donnée";
+      document.getElementById("preview-heater").textContent = activity(data, "heater"); document.getElementById("preview-motor").textContent = activity(data, "motor");
+      message.textContent = storedAge === null ? "Min / moyenne / max · durées issues des transitions GPIO relues." : `Vue enregistrée il y a ${storedAge} min · données non actualisées.`;
+    };
+    const request = async (retry = true) => {
+      const response = await fetch("/api/v1/history?hours=24", {headers: {Accept: "application/json"}, cache: "no-store"});
+      if (response.status === 429 && retry) { const seconds = Math.max(1, Number(response.headers.get("Retry-After")) || 2); await new Promise((resolve) => window.setTimeout(resolve, seconds * 1000)); return request(false); }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();
+    };
+    const load = async () => {
+      if (!visible && loaded) return; preview.setAttribute("aria-busy", "true");
+      try { const data = await request(); await window.PhytoPwa?.markServerContact(); await window.PhytoPwa?.storeSnapshot("history:24", data, Date.now()); render(data); loaded = true; }
+      catch (error) { if (error instanceof TypeError) window.PhytoPwa?.markServerFailure(); const stored = await window.PhytoPwa?.loadSnapshot("history:24") || await window.PhytoPwa?.loadSnapshot("history"); if (stored?.data) render(stored.data, Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000))); else message.textContent = `Historique local indisponible (${error.message}).`; }
+      finally { preview.setAttribute("aria-busy", "false"); }
+    };
+    const observer = new IntersectionObserver((entries) => { visible = entries.some((entry) => entry.isIntersecting); if (visible && !loaded) load(); clearInterval(refreshTimer); if (visible) refreshTimer = window.setInterval(() => { if (!document.hidden) load(); }, 300000); }, {rootMargin: "300px"});
+    if (preview.dataset.historyAvailable === "true") observer.observe(preview); else message.textContent = "Historique local indisponible. Le contrôle reste actif.";
+    window.addEventListener("resize", () => { if (loaded && visible) load(); });
+  };
+  if (preview) initPreview();
   if (!section) return;
   const message = document.getElementById("history-message");
   const tooltip = document.getElementById("history-tooltip");
@@ -415,13 +492,24 @@
     showSelection(current.buckets[index].bucket_start_ts, {x: rect.left + rect.width / 2, y: rect.top + 30}, true);
   });
 
+  const fetchHistory = async (hours, retry = true) => {
+    const response = await fetch(`/api/v1/history?hours=${hours}`, {headers: {Accept: "application/json"}, cache: "no-store"});
+    if (response.status === 429 && retry) {
+      const retryAfter = Math.min(5, Math.max(1, Number(response.headers.get("Retry-After")) || 1));
+      await new Promise((resolve) => window.setTimeout(resolve, retryAfter * 1000));
+      return fetchHistory(hours, false);
+    }
+    return response;
+  };
+
   const load = async (hours) => {
     message.textContent = "Chargement de l’historique…"; tooltip.hidden = true; section.setAttribute("aria-busy", "true");
     try {
-      const response = await fetch(`/api/v1/history?hours=${hours}`, {headers: {Accept: "application/json"}, cache: "no-store"}); await window.PhytoPwa?.markServerContact();
-      if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); await window.PhytoPwa?.storeSnapshot("history", data, Date.now()); render(data);
+      const response = await fetchHistory(hours); await window.PhytoPwa?.markServerContact();
+      if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); await window.PhytoPwa?.storeSnapshot(`history:${hours}`, data, Date.now()); render(data);
     } catch (error) {
-      if (error instanceof TypeError) window.PhytoPwa?.markServerFailure(); const stored = await window.PhytoPwa?.loadSnapshot("history");
+      if (error instanceof TypeError) window.PhytoPwa?.markServerFailure();
+      const stored = await window.PhytoPwa?.loadSnapshot(`history:${hours}`) || await window.PhytoPwa?.loadSnapshot("history");
       if (stored?.data) {
         render(stored.data); const storedHours = Number(stored.data.hours || hours); document.querySelectorAll("[data-hours]").forEach((item) => { const selected = Number(item.dataset.hours) === storedHours; item.classList.toggle("is-selected", selected); item.setAttribute("aria-pressed", String(selected)); });
         const age = Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000)); message.textContent = `Historique enregistré il y a ${age} min · données non actualisées, lacunes conservées.`;

@@ -26,10 +26,12 @@ python3 initial_setup_tool.py        # interactive TUI to generate/edit param.js
 pip install -r requirements.txt
 pip install -r requirements-dev.txt  # dépendances runtime + validation hors matériel
 python3 -m pytest                    # suite reproductible sans GPIO réel
+npm ci && npm run test:ui           # tests responsive en lecture seule ; PHYTO_UI_BASE_URL surcharge la cible
 docker build -t phyto . && docker run --privileged -p 8123:8123 phyto
 ```
 
-Web UI: `http://<pi>:8123` — `/` dashboard with 5 s live refresh, `/conf` section-based config form,
+Web UI: `http://<pi>:8123` — `/` action-oriented dashboard with 5 s live refresh, `/history` for
+the detailed 24/48/72 h charts, `/conf` section-based config form,
 `/console` (SSE log stream), `/api/v1/state` (versioned JSON), `/health/live`, `/health/ready` and the
 legacy `/status`. `/monitor` redirects to the dashboard; reset/reboot/poweroff remain **POST-only**.
 
@@ -219,7 +221,7 @@ to `PuppetMaster`.
   alarmes idempotentes, puis confie tous les accès SQLite à un unique thread dédié. La base locale
   conserve 72 h d'échantillons d'une minute et 30 jours d'occurrences résolues ; une panne ou une
   corruption de cet historique alarme mais ne dégrade jamais `control_healthy()` ni le watchdog.
-  `/alarms`, `/api/v1/alarms` et `/api/v1/history?hours=24|48|72` exposent ce diagnostic. Ne faites
+  `/alarms`, `/history`, `/api/v1/alarms` et `/api/v1/history?hours=24|48|72` exposent ce diagnostic. Ne faites
   aucune lecture matérielle supplémentaire pour l'historique et ne déplacez jamais SQLite dans une
   boucle de contrôle ou dans l'event loop.
 

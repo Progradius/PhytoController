@@ -520,7 +520,8 @@ class SensorController:
             if memory.last_trusted_mono is not None else None
         )
         return {
-            "key": definition.key, "family": definition.family,
+            "key": definition.key, "slug": definition.slug,
+            "family": definition.family,
             "hardware_id": self._hardware_id(definition),
             "label": definition.label, "unit": definition.unit,
             "decimals": definition.decimals, "enabled": True,
@@ -565,7 +566,8 @@ class SensorController:
 
     def _empty_reading(self, definition, profile, status, *, enabled) -> dict:
         return {
-            "key": definition.key, "family": definition.family,
+            "key": definition.key, "slug": definition.slug,
+            "family": definition.family,
             "hardware_id": self._hardware_id(definition), "label": definition.label,
             "unit": definition.unit, "decimals": definition.decimals,
             "enabled": enabled, "status": status,

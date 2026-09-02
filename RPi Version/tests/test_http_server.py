@@ -40,6 +40,12 @@ class FakeStats:
     def clear_key(self, key):
         self.cleared.append(key)
 
+    def update(self, key, value):
+        self.data[key].update({
+            "min": value, "min_date": "2026-09-02T20:00:00",
+            "max": value, "max_date": "2026-09-02T20:00:00",
+        })
+
 
 class FakeSensors:
     def __init__(self, config):
@@ -186,7 +192,7 @@ async def web_context(config_path, monkeypatch):
 
 async def test_pages_dynamiques_et_secrets_absents(web_context):
     client, _server, store, _sensors, _supervisor = web_context
-    for path in ("/", "/conf", "/api/v1/state", "/health/live", "/health/ready"):
+    for path in ("/", "/history", "/conf", "/api/v1/state", "/health/live", "/health/ready"):
         response = await client.get(path)
         assert response.status == 200
         assert response.headers["Cache-Control"] == "no-store"
@@ -200,9 +206,11 @@ async def test_pages_dynamiques_et_secrets_absents(web_context):
 
 async def test_graphiques_conservent_une_hauteur_logique_immuable(web_context):
     client, *_ = web_context
-    page = await (await client.get("/")).text()
+    dashboard = await (await client.get("/")).text()
+    page = await (await client.get("/history")).text()
     script = await (await client.get("/static/js/history.js")).text()
 
+    assert dashboard.count('data-chart-height="180"') == 1
     assert page.count('data-chart-height="260"') == 2
     assert page.count('data-chart-height="270"') == 1
     assert page.count('data-chart-height="190"') == 1
@@ -212,7 +220,7 @@ async def test_graphiques_conservent_une_hauteur_logique_immuable(web_context):
 
 async def test_graphiques_exposent_legendes_et_alternative_accessible(web_context):
     client, *_ = web_context
-    page = await (await client.get("/")).text()
+    page = await (await client.get("/history")).text()
     script = await (await client.get("/static/js/history.js")).text()
 
     assert 'id="temperature-legend"' in page
@@ -227,6 +235,25 @@ async def test_graphiques_exposent_legendes_et_alternative_accessible(web_contex
     assert "actuator_history" in script
     assert "couverture" in script
     assert "Math.max(320" not in script
+
+
+async def test_tableau_de_bord_regroupe_conduite_actions_et_statistiques(web_context):
+    client, *_ = web_context
+    page = await (await client.get("/")).text()
+    state = await (await client.get("/api/v1/state")).json()
+
+    assert 'id="control-overview"' in page
+    assert 'id="actionneurs"' in page
+    assert page.count('data-actuator="') == len(EQUIPMENT_IDS)
+    assert 'id="maintenance"' in page
+    assert 'id="resume-all-form"' in page
+    assert 'data-history-preview' in page
+    assert "Plannings" not in page
+    assert "Forçages opérateur" not in page
+    assert "Minimums et maximums" not in page
+    assert state["overview"]["status"] in {"operational", "degraded", "override", "attention"}
+    assert all(timer["equipment_id"] in EQUIPMENT_IDS for timer in state["timers"])
+    assert all(sensor["slug"] for sensor in state["sensors"])
 
 
 async def test_sondes_publient_la_version_chargee(web_context):
@@ -310,6 +337,28 @@ async def test_reset_diagnostic_qualite_est_protege_par_csrf(web_context):
     )
     assert accepted.status == 303
     assert sensors.quality_resets == ["BME280T"]
+
+
+async def test_reset_statistique_repond_en_json_ou_sur_la_carte(web_context):
+    client, _server, _store, sensors, _supervisor = web_context
+    response = await client.post(
+        "/actions/stats/reset",
+        data={"csrf_token": CSRF_TOKEN, "key": "BME280T"},
+        headers={"Accept": "application/json"},
+    )
+    payload = await response.json()
+    assert response.status == 200
+    assert payload["key"] == "BME280T"
+    assert payload["min"] == 21.5 == payload["max"]
+
+    fallback = await client.post(
+        "/actions/stats/reset",
+        data={"csrf_token": CSRF_TOKEN, "key": "BME280T"},
+        allow_redirects=False,
+    )
+    assert fallback.status == 303
+    assert fallback.headers["Location"] == "/#sensor-bme280t"
+    assert sensors.stats.cleared[-2:] == ["BME280T", "BME280T"]
 
 
 @pytest.mark.parametrize("host", ["evil.example.com", "public.example.net", "mal formé"])
@@ -888,6 +937,19 @@ async def test_forcage_cree_coupe_et_relance_la_minuterie(web_context, override_
     assert state["overrides"]["active_count"] == 1
     assert state["overrides"]["items"][0]["target"] == "daily_1"
     assert state["overrides"]["items"][0]["reason"] == "changement de lampe"
+
+
+async def test_forcage_ameliore_repond_en_json(web_context, override_store):
+    client, *_ = web_context
+    response = await client.post(
+        "/actions/overrides/create",
+        data={"csrf_token": CSRF_TOKEN, "target": "heater", "duration_minutes": "10"},
+        headers={"Accept": "application/json"},
+    )
+    payload = await response.json()
+    assert response.status == 200
+    assert payload["active_count"] == 1
+    assert payload["items"][0]["target"] == "heater"
 
 
 async def test_forcage_climat_ne_relance_pas_la_regulation(web_context, override_store):

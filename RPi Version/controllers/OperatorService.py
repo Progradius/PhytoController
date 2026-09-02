@@ -742,6 +742,7 @@ class OperatorService:
                 "key": definition.key, "label": definition.label,
                 "unit": definition.unit, "decimals": definition.decimals,
                 "family": definition.family,
+                "control_role": definition.control_role,
             }
             for definition in SENSOR_CATALOG
         }

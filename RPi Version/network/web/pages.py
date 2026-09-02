@@ -133,6 +133,17 @@ def main_page(state: dict, csrf_token: str) -> str:
     )
 
 
+def history_page(state: dict) -> str:
+    return render_template(
+        "history.html",
+        page_title="Historique",
+        current_page="history",
+        state=state,
+        alarm_summary=state.get("alarms"),
+        csrf_token=None,
+    )
+
+
 def conf_page(
     config,
     csrf_token: str,

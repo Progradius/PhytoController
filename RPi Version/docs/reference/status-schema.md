@@ -13,6 +13,8 @@ Exemple abrégé, sans valeurs de production :
   "version": "0123456789abcdef0123456789abcdef01234567",
   "generated_at": "2026-08-25T21:14:03.512Z",
   "web": {"https": {"configured": true, "ready": true, "port": 443}},
+  "overview": {"status": "operational", "title": "Serre opérationnelle",
+               "detail": "Toutes les tâches de contrôle répondent."},
   "health": {
     "healthy": true,
     "control_healthy": true,
@@ -53,14 +55,14 @@ Exemple abrégé, sans valeurs de production :
     "updated_at": "2026-08-25T21:14:00"
   },
   "timers": [
-    {"id": "daily-1", "kind": "daily", "enabled": true, "output": "daily_timer_1",
+    {"id": "daily-1", "equipment_id": "daily_1", "kind": "daily", "enabled": true, "output": "daily_timer_1",
      "schedule": {"start": "19:00", "stop": "07:00"}},
-    {"id": "cyclic-1", "kind": "cyclic", "enabled": false, "output": "cyclic_1",
+    {"id": "cyclic-1", "equipment_id": "cyclic_1", "kind": "cyclic", "enabled": false, "output": "cyclic_1",
      "schedule": {"mode": "journalier", "period_days": 1, "triggers_per_day": 2,
                   "first_trigger_hour": 8, "action_duration_seconds": 30}}
   ],
   "sensors": [
-    {"key": "BME280T", "family": "BME280", "label": "Température de l’air",
+    {"key": "BME280T", "slug": "bme280t", "family": "BME280", "label": "Température de l’air",
      "unit": "°C", "decimals": 1, "enabled": true, "status": "normal",
      "acquisition_status": "ok", "value": 21.4, "observed_value": 21.4,
      "raw_value": 21.2, "control_usable": true, "would_block_control": false,
@@ -87,6 +89,7 @@ Exemple abrégé, sans valeurs de production :
 | `version` | Commit Git figé au chargement du processus, ou valeur explicite de `PHYTO_VERSION` hors checkout |
 | `generated_at` | Instant de génération, UTC ISO 8601 suffixé `Z` |
 | `web.https` | Configuration, disponibilité réelle et port du second point d'écoute HTTPS ; aucun chemin de clé ou de certificat n'est publié |
+| `overview` | Synthèse de conduite pour l'IHM : `operational`, `degraded`, `override` ou `attention`, avec titre et motif déjà arbitrés côté serveur |
 | `health.healthy` | Santé agrégée du superviseur |
 | `health.control_healthy` | Santé des seuls timers, climat et acquisition qui gouvernent le watchdog |
 | `health.domains` | Santé regroupée par domaine, contrôle et auxiliaires distingués |
@@ -104,8 +107,8 @@ Exemple abrégé, sans valeurs de production :
 | `climate.heater_off_threshold` | Seuil d'extinction du chauffage |
 | `climate.*_minutes_used` / `_quota` | Budgets hiver consommés et alloués sur la fenêtre d'une heure en cours |
 | `climate.updated_at` | Horodatage local du dernier tick de régulation ; `null` avant le premier |
-| `timers` | Planification effective, telle que la lira la boucle |
-| `sensors` | Uniquement les mesures **activées**, dans l'ordre du catalogue |
+| `timers` | Planification effective, telle que la lira la boucle ; `equipment_id` la rattache à sa carte d'actionneur |
+| `sensors` | Uniquement les mesures **activées**, dans l'ordre du catalogue ; `slug` est l'ancre URL stable de la mesure |
 | `stats` | Min/max suivis et leurs horodatages locaux |
 
 Pour un capteur, `status` vaut :

@@ -1,267 +1,79 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero" aria-labelledby="dashboard-title">
-  <div>
-    <p class="eyebrow">Supervision de la serre</p>
-    <h1 id="dashboard-title">Tableau de bord</h1>
-    <p class="hero-copy">État du contrôle local, mesures actives et alarmes opérationnelles.</p>
-  </div>
-  <div class="hero-actions">
-    <div class="freshness" id="freshness" data-generated-at="{{ state.generated_at }}" aria-live="polite">
-      Mise à jour en cours…
-    </div>
-    <button class="button button-secondary" id="pwa-install-button" type="button" hidden>Installer l’application</button>
-  </div>
+{% set config_links = {
+  'daily_1': '/conf#daily-timer-1', 'daily_2': '/conf#daily-timer-2',
+  'cyclic_1': '/conf#cyclic-1', 'cyclic_2': '/conf#cyclic-2',
+  'motor': '/conf#motor', 'heater': '/conf#heater'
+} %}
+
+<section class="hero dashboard-hero" aria-labelledby="dashboard-title">
+  <div><p class="eyebrow">Poste de conduite</p><h1 id="dashboard-title">Tableau de bord</h1><p class="hero-copy">État réel, prochaines actions et interventions de la serre.</p></div>
+  <div class="hero-actions"><div class="freshness" id="freshness" data-generated-at="{{ state.generated_at }}" aria-live="polite">Mise à jour en cours…</div><button class="button button-secondary" id="pwa-install-button" type="button" hidden>Installer l’application</button></div>
 </section>
 
-<section class="operator-summary" aria-labelledby="operator-title">
-  <div class="section-heading"><div><p class="eyebrow">Diagnostic</p><h2 id="operator-title">Vue opérateur</h2></div><a class="button button-secondary" href="/alarms">Voir les alarmes</a></div>
-  <div class="card-grid operator-summary-grid">
-    <article class="card"><span class="card-kicker">ALARMES</span><p class="metric"><span id="alarm-count">{{ state.alarms.active_count }}</span></p><p class="card-meta"><span id="control-alarm-count">{{ state.alarms.control_count }}</span> contrôle · <span id="aux-alarm-count">{{ state.alarms.auxiliary_count }}</span> auxiliaire</p></article>
-    <article class="card"><span class="card-kicker">HISTORIQUE LOCAL</span><p class="metric compact-metric" id="history-state">{{ 'Disponible' if state.history.available else 'Indisponible' }}</p><p class="card-meta">Rétention glissante de 72 h, indépendante d’InfluxDB.</p></article>
-    <article class="card"><span class="card-kicker">RÉSEAU</span><p class="metric compact-metric" id="network-state">{{ state.network.status }}</p><p class="card-meta" id="network-detail">{{ state.network.interface or 'Interface inconnue' }} · {{ state.network.ipv4 or 'sans IPv4' }}</p></article>
-  </div>
-</section>
-
-<section id="tendances" class="history-section" aria-labelledby="history-title" data-history-available="{{ 'true' if state.history.available else 'false' }}">
-  <div class="section-heading"><div><p class="eyebrow">72 heures explicables</p><h2 id="history-title">Tendances locales</h2></div><div class="history-range" role="group" aria-label="Période"><button class="button button-secondary is-selected" type="button" data-hours="24" aria-pressed="true">24 h</button><button class="button button-secondary" type="button" data-hours="48" aria-pressed="false">48 h</button><button class="button button-secondary" type="button" data-hours="72" aria-pressed="false">72 h</button></div></div>
-  <p id="history-message" class="card-meta" role="status">Chargement de l’historique…</p>
-  <div class="history-grid">
-    <article class="card chart-card">
-      <h3>Températures et consignes</h3>
-      <div class="chart-legend" id="temperature-legend" role="group" aria-label="Légende des températures"></div>
-      <p class="chart-summary" id="temperature-summary">Calcul de la synthèse…</p>
-      <canvas id="temperature-chart" data-history-chart="temperature" data-chart-height="260" height="260" tabindex="0" role="img" aria-label="Tendances de température. Utilisez les flèches gauche et droite pour explorer les valeurs." aria-describedby="temperature-summary"></canvas>
-    </article>
-    <article class="card chart-card">
-      <h3>Humidité</h3>
-      <div class="chart-legend" id="humidity-legend" role="group" aria-label="Légende de l’humidité"></div>
-      <p class="chart-summary" id="humidity-summary">Calcul de la synthèse…</p>
-      <canvas id="humidity-chart" data-history-chart="humidity" data-chart-height="260" height="260" tabindex="0" role="img" aria-label="Tendances d’humidité. Utilisez les flèches gauche et droite pour explorer les valeurs." aria-describedby="humidity-summary"></canvas>
-    </article>
-    <article class="card chart-card chart-wide">
-      <h3>Automatisations</h3>
-      <div class="chart-legend chart-state-legend" id="automation-legend" role="group" aria-label="Légende des états d’automatisation"></div>
-      <p class="chart-summary actuator-chart-summary" id="automation-summary">Calcul de la synthèse…</p>
-      <canvas id="automation-chart" data-history-chart="automation" data-chart-height="270" height="270" tabindex="0" role="img" aria-label="Chronologie des éclairages et sorties cycliques. Utilisez les flèches gauche et droite pour explorer les états." aria-describedby="automation-summary history-observation-note"></canvas>
-    </article>
-    <article class="card chart-card chart-wide">
-      <h3>Régulation climatique</h3>
-      <div class="chart-legend chart-state-legend" id="climate-actuator-legend" role="group" aria-label="Légende des états climatiques"></div>
-      <p class="chart-summary actuator-chart-summary" id="climate-actuator-summary">Calcul de la synthèse…</p>
-      <canvas id="climate-actuator-chart" data-history-chart="climate-actuator" data-chart-height="190" height="190" tabindex="0" role="img" aria-label="Chronologie du chauffage et des vitesses de ventilation. Utilisez les flèches gauche et droite pour explorer les états." aria-describedby="climate-actuator-summary history-observation-note"></canvas>
-    </article>
-    <div id="additional-charts" class="additional-charts"></div>
-  </div>
-  <p class="history-observation-note" id="history-observation-note">Les durées reposent sur l’état GPIO relu à chaque transition. La couverture commence au premier événement enrichi de chaque démarrage ; les périodes antérieures restent non couvertes. Les hachures jaunes signalent une bascule seulement détectée par l’observation minute, les hachures grises une période inconnue.</p>
-  <details class="history-data-details">
-    <summary>Voir la synthèse sous forme de tableau</summary>
-    <div class="history-table-scroll"><table class="history-data-table"><caption>Synthèse accessible de la période affichée</caption><thead><tr><th scope="col">Série</th><th scope="col">Type</th><th scope="col">Minimum</th><th scope="col">Moyenne</th><th scope="col">Maximum</th><th scope="col">Activité observée</th></tr></thead><tbody id="history-data-body"></tbody></table></div>
-  </details>
-  <output id="history-selection-output" class="visually-hidden" aria-live="polite"></output>
-  <div id="history-tooltip" class="history-tooltip" role="tooltip" hidden></div>
-</section>
-
-<section class="time-banner {{ 'is-alert' if state.time.alarm or state.time.daily_timers_suspended else 'is-ok' }}" id="time-banner" aria-live="polite">
-  <div><strong id="time-title">Heure : {{ state.time.state }}</strong><p id="time-detail">{% if state.time.daily_timers_suspended %}Minuteries journalières suspendues, reprise de sécurité au plus tard dans 15 minutes.{% elif state.time.alarm %}{{ state.time.alarm }}{% else %}Horloge exploitable par les ordonnanceurs.{% endif %}</p></div>
-</section>
-
-<section id="health-banner" class="health-banner {{ 'is-ok' if state.health.healthy and not state.health.heater_alarm else 'is-alert' }}" aria-live="polite">
+<section id="control-overview" class="control-overview overview-{{ state.overview.status }}" aria-labelledby="overview-title" aria-live="polite">
   <span class="status-dot" aria-hidden="true"></span>
-  <div>
-    <strong id="health-title">{{ 'Système opérationnel' if state.health.healthy and not state.health.heater_alarm else 'Attention requise' }}</strong>
-    <p id="health-detail">{{ state.health.heater_alarm or ('Toutes les tâches supervisées répondent.' if state.health.healthy else 'Une tâche supervisée est en défaut.') }}</p>
+  <div class="overview-copy"><h2 id="overview-title">{{ state.overview.title }}</h2><p id="overview-detail">{{ state.overview.detail }}</p>
+    <div class="overview-facts" aria-label="État des services"><a href="/alarms"><span id="alarm-count">{{ state.alarms.active_count }}</span> alarme(s)</a><span id="time-state">Heure {{ state.time.state }}</span><span id="network-state">Réseau {{ state.network.status }}</span><a href="/history" id="history-state">Historique {{ 'disponible' if state.history.available else 'indisponible' }}</a></div>
   </div>
 </section>
 
-<section id="surveillance" aria-labelledby="climate-title">
-  <div class="section-heading">
-    <div><p class="eyebrow">Mesures</p><h2 id="climate-title">Capteurs actifs</h2></div>
-    <span class="section-count">{{ state.sensors|length }} mesure(s)</span>
-  </div>
-  <div class="card-grid sensor-grid" id="sensor-grid">
-    {% for sensor in state.sensors %}
-    <article class="card sensor-card status-{{ sensor.status }}" data-sensor="{{ sensor.key }}">
-      <div class="card-kicker"><span>{{ sensor.key }}</span><span class="sensor-status">{% if sensor.status == 'degraded' %}dégradé{% elif sensor.status == 'inconsistent' %}incohérent{% else %}{{ sensor.status }}{% endif %}</span></div>
-      <h3>{{ sensor.label }}</h3>
-      <p class="metric"><span class="sensor-value">{{ sensor.value|mesure(sensor.decimals) }}</span> <span class="metric-unit">{{ sensor.unit }}</span></p>
-      <p class="card-meta sensor-age">{{ (sensor.age_s|string + ' s') if sensor.age_s is not none else 'Aucune mesure' }}</p>
-      <p class="card-meta sensor-quality">{{ sensor.reason_codes|join(', ') or 'Mesure qualifiée' }} · inchangée {{ sensor.unchanged_for_s }} s{% if sensor.value is none and sensor.observed_value is not none %} · valeur suspecte {{ sensor.observed_value|mesure(sensor.decimals) }} {{ sensor.unit }}{% endif %}</p>
-    </article>
-    {% else %}
-    <article class="card empty-state"><h3>Aucun capteur actif</h3><p>Activez les capteurs depuis la configuration.</p></article>
-    {% endfor %}
-  </div>
-</section>
-
-<section aria-labelledby="outputs-title">
-  <div class="section-heading"><div><p class="eyebrow">Actionneurs</p><h2 id="outputs-title">Sorties et ventilation</h2></div></div>
-  <div class="card-grid actuator-grid" id="actuator-grid">
+<section id="actionneurs" class="dashboard-section" aria-labelledby="outputs-title">
+  <div class="section-heading"><div><p class="eyebrow">Pilotage</p><h2 id="outputs-title">Actionneurs</h2></div><span class="section-note">État, automatisation et intervention réunis par équipement.</span></div>
+  <div class="actuator-grid" id="actuator-grid">
     {% for key in ('daily_1','daily_2','cyclic_1','cyclic_2','motor','heater') %}
-    {% set meta = state.equipment[key] %}{% set actuator = state.actuators.get(key, {}) %}
-    {% if meta.dashboard_visible %}
-    <article class="card actuator-card tracking-{{ actuator.tracking or 'unknown' }}" data-actuator="{{ key }}">
-      <div class="card-kicker"><span>{{ meta.usage_type }}</span><span class="state-badge actuator-actual">{{ actuator.actual if actuator.actual is defined else 'unknown' }}</span></div>
-      <div class="actuator-heading">
-        <svg class="equipment-icon" aria-hidden="true" focusable="false"><use href="/static/equipment-icons.svg?v={{ asset_versions.equipment_icons }}#{{ meta.icon }}"></use></svg>
-        <h3 class="actuator-name">{{ meta.display_name }}</h3>
-      </div>
-      <dl class="operator-state">
-        <div><dt>Demandé</dt><dd class="actuator-requested">{{ actuator.requested if actuator.requested is defined else 'unknown' }}</dd></div>
-        <div><dt>Pourquoi</dt><dd class="actuator-reason">{{ actuator.reason or 'En attente de la boucle métier.' }}</dd></div>
-        <div><dt>Depuis</dt><dd class="actuator-since">{{ (actuator.since_seconds|string ~ ' s') if actuator.since_seconds is defined and actuator.since_seconds is not none else '—' }}</dd></div>
-        <div><dt>Ensuite</dt><dd class="actuator-next">—</dd></div>
-      </dl>
-      <p class="known-fault"{% if actuator.tracking != 'known_hardware_fault' %} hidden{% endif %}>Défaut matériel connu : {{ meta.wiring_note or 'écart demandé/relu documenté.' }}</p>
-      {% if key == 'motor' %}<progress class="motor-progress" max="4" value="{{ actuator.actual or 0 }}">{{ actuator.actual or 0 }}/4</progress><p class="card-meta actuator-details">Vitesse voulue {{ actuator.requested or '—' }} · appliquée {{ actuator.applied or '—' }} · dwell {{ actuator.dwell_remaining_seconds or 0 }} s</p>{% endif %}
-      {% if key == 'heater' %}<p class="card-meta actuator-details">Seuil d’arrêt {{ actuator.heater_off_threshold or '—' }} °C · durée ON {{ actuator.on_seconds or 0 }} s / {{ actuator.continuous_limit_seconds or '—' }} s</p>{% endif %}
-    </article>
-    {% endif %}
-    {% endfor %}
-    <article class="card climate-card">
-      <div class="card-kicker"><span>ARBITRE</span><span id="climate-state">{{ state.climate.state or '—' }}</span></div>
-      <h3>Régulation thermique</h3>
-      <p class="card-meta" id="climate-reason">{{ state.climate.reason or 'En attente du premier cycle de régulation.' }}</p>
-      <p class="card-meta" id="climate-thresholds">
-        {%- if state.climate.vent_threshold is not none -%}
-        Chauffage OFF &gt; {{ state.climate.heater_off_threshold }} °C · ventilation ≥ {{ state.climate.vent_threshold }} °C
-        {%- else -%}—{%- endif -%}
-      </p>
-      <p class="card-meta" id="climate-budgets">
-        Renouvellement {{ state.climate.renew_minutes_used }}/{{ state.climate.renew_minutes_quota }} min/h ·
-        déshumidification {{ state.climate.humidity_minutes_used }}/{{ state.climate.humidity_minutes_quota }} min/h
-      </p>
-    </article>
-  </div>
-</section>
+    {% set meta = state.equipment[key] %}{% set actuator = state.actuators.get(key, {}) %}{% set timer = state.timers | selectattr('equipment_id', 'equalto', key) | first %}{% set forced = state.overrides['items'] | selectattr('target', 'equalto', key) | first %}
+    <article id="equipment-{{ key }}" class="card actuator-card tracking-{{ actuator.tracking or 'unknown' }}{% if forced %} is-forced{% endif %}" data-actuator="{{ key }}" data-dashboard-visible="{{ 'true' if meta.dashboard_visible else 'false' }}"{% if not meta.dashboard_visible and not forced %} hidden{% endif %}>
+      <div class="card-kicker"><span class="actuator-usage">{{ meta.usage_type }}{% if meta.zone %} · {{ meta.zone }}{% endif %}</span><span class="state-badge actuator-actual">{% if key == 'motor' and actuator.actual is number %}V{{ actuator.actual }}{% elif actuator.actual == 'on' %}EN MARCHE{% elif actuator.actual == 'off' %}ARRÊTÉ{% else %}INCONNU{% endif %}</span></div>
+      <div class="actuator-heading"><svg class="equipment-icon" aria-hidden="true" focusable="false"><use href="/static/equipment-icons.svg?v={{ asset_versions.equipment_icons }}#{{ meta.icon }}"></use></svg><div><h3 class="actuator-name">{{ meta.display_name }}</h3><p class="card-meta actuator-reason">{{ actuator.reason or 'En attente de la boucle métier.' }}</p></div></div>
+      <p class="actuator-next">Prochaine transition en cours de calcul…</p>
+      <p class="automation-summary"{% if not timer %} hidden{% endif %}>{% if timer and timer.kind == 'daily' %}{{ 'Actif' if timer.enabled else 'Désactivé' }} · {{ timer.schedule.start }} → {{ timer.schedule.stop }}{% elif timer and timer.schedule.mode == 'journalier' %}{{ 'Actif' if timer.enabled else 'Désactivé' }} · {{ timer.schedule.triggers_per_day }} activation(s), tous les {{ timer.schedule.period_days }} jour(s){% elif timer %}{{ 'Actif' if timer.enabled else 'Désactivé' }} · cycle séquentiel jour/nuit{% endif %}</p>
 
-<section aria-labelledby="timers-title">
-  <div class="section-heading"><div><p class="eyebrow">Automatisation</p><h2 id="timers-title">Plannings</h2></div></div>
-  <div class="card-grid timer-grid" id="timer-grid">
-    {% for timer in state.timers %}
-    <article class="card timer-card" data-timer="{{ timer.id }}">
-      <div class="card-kicker"><span>{{ timer.kind }}</span><span>{{ 'Activé' if timer.enabled else 'Désactivé' }}</span></div>
-      <h3>{{ 'Minuterie quotidienne ' if timer.kind == 'daily' else 'Cycle ' }}{{ timer.id[-1] }}</h3>
-      {% if timer.kind == 'daily' %}
-      <p class="timer-description">{{ timer.schedule.start }} → {{ timer.schedule.stop }}</p>
-      {% elif timer.schedule.mode == 'journalier' %}
-      <p class="timer-description">{{ timer.schedule.triggers_per_day }} action(s), tous les {{ timer.schedule.period_days }} jour(s), dès {{ timer.schedule.first_trigger_hour }} h</p>
-      {% else %}
-      <p class="timer-description">Séquentiel · jour {{ timer.schedule.on_time_day }} s ON / {{ timer.schedule.off_time_day }} s OFF</p>
-      {% endif %}
+      <div class="override-inline" aria-live="polite"><p class="override-normal"{% if forced %} hidden{% endif %}>Conduite normale</p><div class="override-active"{% if not forced %} hidden{% endif %}><strong>Coupure opérateur</strong><span class="override-remaining" data-target="{{ key }}">{% if forced %}reste {{ (forced.remaining_seconds // 60)|int }} min{% endif %}</span><span class="badge badge-warning override-unconfirmed"{% if not forced or forced.confirmed %} hidden{% endif %}>à confirmer</span><p class="override-reason">{{ forced.reason if forced else '' }}</p></div></div>
+
+      <details class="equipment-details"><summary>Détails de conduite</summary>
+        <dl class="operator-state"><div><dt>Demandé</dt><dd class="actuator-requested">{{ actuator.requested if actuator.requested is defined else 'unknown' }}</dd></div><div><dt>Appliqué</dt><dd class="actuator-applied">{{ actuator.applied if actuator.applied is defined else '—' }}</dd></div><div><dt>Depuis</dt><dd class="actuator-since">{{ (actuator.since_seconds|string ~ ' s') if actuator.since_seconds is defined and actuator.since_seconds is not none else '—' }}</dd></div><div><dt>Ensuite</dt><dd class="actuator-next-detail">—</dd></div></dl>
+        <div class="schedule-detail"{% if not timer %} hidden{% endif %}>{% if timer and timer.kind == 'daily' %}<p>Planning quotidien : {{ timer.schedule.start }} → {{ timer.schedule.stop }}.</p>{% elif timer and timer.schedule.mode == 'journalier' %}<p>Mode journalier : {{ timer.schedule.triggers_per_day }} activation(s), tous les {{ timer.schedule.period_days }} jour(s), première à {{ timer.schedule.first_trigger_hour }} h, pendant {{ timer.schedule.action_duration_seconds }} s.</p>{% elif timer %}<p>Mode séquentiel : jour {{ timer.schedule.on_time_day }} s ON / {{ timer.schedule.off_time_day }} s OFF · nuit {{ timer.schedule.on_time_night }} s ON / {{ timer.schedule.off_time_night }} s OFF.</p>{% endif %}</div>
+        <p class="climate-detail"{% if key not in ('motor', 'heater') %} hidden{% endif %}>{% if key == 'motor' %}Seuil de ventilation {{ state.climate.vent_threshold or '—' }} °C · renouvellement {{ state.climate.renew_minutes_used }}/{{ state.climate.renew_minutes_quota }} min/h · déshumidification {{ state.climate.humidity_minutes_used }}/{{ state.climate.humidity_minutes_quota }} min/h.{% elif key == 'heater' %}Arrêt au-dessus de {{ actuator.heater_off_threshold or state.climate.heater_off_threshold or '—' }} °C · durée ON {{ actuator.on_seconds or 0 }} s / {{ actuator.continuous_limit_seconds or '—' }} s.{% endif %}</p>
+        <p class="known-fault"{% if actuator.tracking != 'known_hardware_fault' %} hidden{% endif %}>Défaut matériel connu : {{ meta.wiring_note or 'écart demandé/relu documenté.' }}</p>
+      </details>
+      <div class="equipment-actions"><a class="button button-secondary" href="{{ config_links[key] }}">Configurer</a><button class="button button-danger-outline override-cut" type="button" data-open-dialog="override-{{ key }}-dialog" data-requires-online{% if forced %} hidden{% endif %}>Couper</button><form method="post" action="/actions/overrides/cancel" class="override-resume" data-override-form{% if not forced %} hidden{% endif %}><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target" value="{{ key }}"><button class="button" type="submit" data-requires-online>Reprendre</button><p class="form-error" role="alert" hidden></p></form></div>
+      <p class="card-meta normally-hidden"{% if meta.dashboard_visible %} hidden{% endif %}>Équipement masqué habituellement, affiché pendant la coupure.</p>
     </article>
     {% endfor %}
   </div>
 </section>
 
-<section id="statistiques" aria-labelledby="stats-title">
-  <div class="section-heading"><div><p class="eyebrow">Historique</p><h2 id="stats-title">Minimums et maximums</h2></div></div>
-  <div class="card-grid stats-grid">
-    {% for stat in state.stats %}
-    <article class="card stat-card" data-stat="{{ stat.key }}">
-      <h3>{{ stat.key }}</h3>
-      <dl class="stat-list">
-        <div><dt>Minimum</dt><dd><span class="stat-min">{{ stat.min|mesure(stat.decimals) }}</span><small class="stat-min-at">{{ stat.min_at or '' }}</small></dd></div>
-        <div><dt>Maximum</dt><dd><span class="stat-max">{{ stat.max|mesure(stat.decimals) }}</span><small class="stat-max-at">{{ stat.max_at or '' }}</small></dd></div>
-      </dl>
-      <form method="post" action="/actions/stats/reset">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button class="button button-secondary" name="key" value="{{ stat.key }}">Réinitialiser</button>
-      </form>
+<section id="surveillance" class="dashboard-section" aria-labelledby="sensors-title">
+  <div class="section-heading"><div><p class="eyebrow">Mesures</p><h2 id="sensors-title">Capteurs actifs</h2></div><span class="section-count">{{ state.sensors|length }} mesure(s)</span></div>
+  <div class="card-grid sensor-grid" id="sensor-grid">
+    {% for sensor in state.sensors %}{% set slug = sensor.slug|default(sensor.key|lower, true) %}{% set stat = state.stats | selectattr('key', 'equalto', sensor.key) | first %}
+    <article id="sensor-{{ slug }}" class="card sensor-card status-{{ sensor.status }}" data-sensor="{{ sensor.key }}" data-sensor-slug="{{ slug }}">
+      <div class="card-kicker"><span>{{ sensor.key }}</span><span class="sensor-status">{% if sensor.status == 'degraded' %}dégradé{% elif sensor.status == 'inconsistent' %}incohérent{% else %}{{ sensor.status }}{% endif %}</span></div><h3>{{ sensor.label }}</h3><p class="metric"><span class="sensor-value">{{ sensor.value|mesure(sensor.decimals) }}</span> <span class="metric-unit">{{ sensor.unit }}</span></p><p class="card-meta sensor-age">{{ (sensor.age_s|string + ' s') if sensor.age_s is not none else 'Aucune mesure' }}</p>
+      {% if stat %}<p class="sensor-extremes">Min <span class="stat-min">{{ stat.min|mesure(stat.decimals) }}</span> · max <span class="stat-max">{{ stat.max|mesure(stat.decimals) }}</span> {{ sensor.unit }}</p>{% endif %}
+      <details class="sensor-details"><summary>Qualité et statistiques</summary><dl class="operator-state sensor-values"><div><dt>Brute</dt><dd class="sensor-raw">{{ sensor.raw_value|mesure(sensor.decimals) }} {{ sensor.unit }}</dd></div><div><dt>Observée</dt><dd class="sensor-observed">{{ sensor.observed_value|mesure(sensor.decimals) }} {{ sensor.unit }}</dd></div><div><dt>Qualifiée</dt><dd class="sensor-trusted">{{ sensor.value|mesure(sensor.decimals) }} {{ sensor.unit }}</dd></div><div><dt>Inchangée</dt><dd class="sensor-unchanged">{{ sensor.unchanged_for_s }} s</dd></div></dl><p class="card-meta sensor-quality">{{ sensor.reason_codes|join(', ') or 'Mesure qualifiée' }}</p>
+        {% if stat %}<dl class="stat-list"><div><dt>Minimum</dt><dd><span class="stat-min">{{ stat.min|mesure(stat.decimals) }}</span><small class="stat-min-at">{{ stat.min_at or '' }}</small></dd></div><div><dt>Maximum</dt><dd><span class="stat-max">{{ stat.max|mesure(stat.decimals) }}</span><small class="stat-max-at">{{ stat.max_at or '' }}</small></dd></div></dl><form method="post" action="/actions/stats/reset" data-stat-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-secondary" name="key" value="{{ stat.key }}" data-requires-online>Réinitialiser les extrêmes</button><p class="form-error" role="alert" hidden></p></form>{% endif %}
+        <a class="button button-secondary" href="/conf#sensor-quality-{{ slug }}">Configurer la mesure</a>
+      </details>
     </article>
-    {% endfor %}
+    {% else %}<article class="card empty-state"><h3>Aucun capteur actif</h3><p>Activez les capteurs depuis la configuration.</p></article>{% endfor %}
   </div>
 </section>
 
-<section id="interventions" aria-labelledby="interventions-title">
-  <div class="section-heading">
-    <div><p class="eyebrow">Intervention</p><h2 id="interventions-title">Forçages « arrêt »</h2></div>
-    <p class="section-note">Une coupure temporaire et bornée. Elle ne modifie aucune configuration
-      et se lève d’elle-même à l’échéance. Un forçage ne peut jamais allumer un équipement.</p>
-  </div>
-  <div class="override-grid">
-    {% for eid, meta in state.equipment.items() %}
-    {% set forced = state.overrides['items'] | selectattr('target', 'equalto', eid) | first %}
-    {% set limit = state.overrides['limits_minutes'].get(eid, 1440) %}
-    <article class="card override-card{% if forced %} is-forced{% endif %}">
-      <h3>{{ meta.display_name or eid }}</h3>
-      {% if forced %}
-      <p class="override-state">Coupé — reste
-        <span class="override-remaining" data-target="{{ eid }}">{{ (forced.remaining_seconds // 60)|int }} min</span>
-        {% if not forced.confirmed %}<span class="badge badge-warning">à confirmer</span>{% endif %}
-      </p>
-      {% if forced.reason %}<p class="override-reason">{{ forced.reason }}</p>{% endif %}
-      <form method="post" action="/actions/overrides/cancel">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="target" value="{{ eid }}">
-        <button class="button button-secondary" type="submit">Reprendre</button>
-      </form>
-      {% else %}
-      <p class="override-state">Conduite normale</p>
-      <button class="button button-danger-outline" type="button"
-              data-open-dialog="override-{{ eid }}-dialog">Couper</button>
-      {% endif %}
-    </article>
-    {% endfor %}
-  </div>
-  <div class="danger-actions">
-    <button class="button button-danger-outline" type="button"
-            data-open-dialog="override-all-dialog">Arrêt général (maintenance)</button>
-    <form method="post" action="/actions/overrides/cancel">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="target" value="all">
-      <button class="button button-secondary" type="submit">Tout reprendre</button>
-    </form>
-  </div>
+<section id="history-preview" class="dashboard-section history-preview" aria-labelledby="history-preview-title" data-history-preview data-history-available="{{ 'true' if state.history.available else 'false' }}">
+  <div class="section-heading"><div><p class="eyebrow">Dernières 24 heures</p><h2 id="history-preview-title">Aperçu climatique</h2></div><a class="button button-secondary" href="/history">Voir l’historique détaillé</a></div>
+  <article class="card preview-chart-card"><p id="history-preview-message" class="card-meta" role="status">Chargement à l’approche de cette section…</p><canvas id="history-preview-chart" data-chart-height="180" height="180" role="img" aria-label="Température de contrôle et zone cible sur les dernières 24 heures." aria-describedby="history-preview-message"></canvas><div class="preview-kpis"><div><span>Température</span><strong id="preview-temperature">—</strong></div><div><span>Humidité</span><strong id="preview-humidity">—</strong></div><div><span>Chauffage</span><strong id="preview-heater">—</strong></div><div><span>Ventilation</span><strong id="preview-motor">—</strong></div></div></article>
 </section>
 
-{% for eid in (state.equipment.keys() | list) + ['all'] %}
-{% set limit = state.overrides['limits_minutes'].get(eid, 240) %}
-{% set label = state.equipment[eid].display_name if eid != 'all' else 'tous les équipements' %}
-<dialog id="override-{{ eid }}-dialog" class="confirm-dialog">
-  <form method="dialog" class="dialog-panel">
-    <p class="eyebrow">Confirmation requise</p>
-    <h2>Couper {{ label }} ?</h2>
-    <p>La coupure est temporaire et se lève seule à l’échéance.
-      {% if eid == 'all' %}Chaque cible applique son propre plafond.{% else %}Plafond : {{ limit }} min.{% endif %}
-      Le verrouillage du moteur prime sur la sécurité haute : la serre ne ventilera plus.</p>
-    <div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button></div>
-  </form>
-  <form method="post" action="/actions/overrides/create" class="dialog-confirm-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="target" value="{{ eid }}">
-    <label for="override-{{ eid }}-minutes">Durée (minutes)</label>
-    <input id="override-{{ eid }}-minutes" name="duration_minutes" type="number" min="1"
-           max="{{ limit }}" step="1" value="{{ state.overrides['default_minutes'] }}" required>
-    <label for="override-{{ eid }}-reason">Raison (facultative)</label>
-    <input id="override-{{ eid }}-reason" name="reason" type="text" maxlength="200">
-    <button class="button button-danger" type="submit">Couper</button>
-  </form>
-</dialog>
+<section id="maintenance" class="dashboard-section maintenance-panel" aria-labelledby="maintenance-title"><div><p class="eyebrow">Intervention temporaire</p><h2 id="maintenance-title">Maintenance de la serre</h2><p>La coupure générale n’allume jamais un équipement et se lève automatiquement à l’échéance. Elle coupe aussi la ventilation de sécurité.</p></div><div class="maintenance-actions"><button class="button button-danger-outline" type="button" data-open-dialog="override-all-dialog" data-requires-online>Arrêt général — maintenance</button><form method="post" action="/actions/overrides/cancel" id="resume-all-form" data-override-form{% if not state.overrides.active_count %} hidden{% endif %}><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target" value="all"><button class="button" type="submit" data-requires-online>Tout reprendre</button><p class="form-error" role="alert" hidden></p></form></div></section>
+
+{% for eid in (state.equipment.keys() | list) + ['all'] %}{% set limit = state.overrides['limits_minutes'].get(eid, 240) %}{% set label = state.equipment[eid].display_name if eid != 'all' else 'tous les équipements' %}
+<dialog id="override-{{ eid }}-dialog" class="confirm-dialog"><form method="dialog" class="dialog-panel"><p class="eyebrow">Confirmation requise</p><h2>Couper {{ label }} ?</h2><p>La coupure est temporaire et se lève seule à l’échéance. {% if eid == 'all' %}Chaque cible applique son propre plafond.{% else %}Plafond : {{ limit }} min.{% endif %}{% if eid in ('motor', 'all') %} Le verrouillage du moteur prime sur la sécurité haute : la serre ne ventilera plus.{% endif %}</p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button></div></form><form method="post" action="/actions/overrides/create" class="dialog-confirm-form" data-override-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target" value="{{ eid }}"><label for="override-{{ eid }}-minutes">Durée (minutes)</label><input id="override-{{ eid }}-minutes" name="duration_minutes" type="number" min="1" max="{{ limit }}" step="1" value="{{ state.overrides['default_minutes'] }}" required><label for="override-{{ eid }}-reason">Raison (facultative)</label><input id="override-{{ eid }}-reason" name="reason" type="text" maxlength="200"><button class="button button-danger" type="submit" data-requires-online>Couper</button><p class="form-error" role="alert" hidden></p></form></dialog>
 {% endfor %}
 
-<section class="danger-zone" aria-labelledby="system-actions-title">
-  <div><p class="eyebrow">Zone sensible</p><h2 id="system-actions-title">Actions système</h2><p>Ces actions interrompent temporairement ou complètement le contrôle.</p></div>
-  <div class="danger-actions">
-    <button class="button button-danger-outline" type="button" data-open-dialog="reboot-dialog">Redémarrer</button>
-    <button class="button button-danger" type="button" data-open-dialog="poweroff-dialog">Éteindre</button>
-  </div>
-</section>
+<section class="dashboard-section administration-section" aria-labelledby="administration-title"><details class="administration-panel"><summary><span><span class="eyebrow">Zone sensible</span><strong id="administration-title">Administration du contrôleur</strong></span><span>Redémarrage et extinction</span></summary><div class="administration-actions"><article><h3>Redémarrer</h3><p>La régulation sera interrompue pendant le redémarrage, puis la page suivra le retour du contrôleur.</p><button class="button button-danger-outline" type="button" data-open-dialog="reboot-dialog" data-requires-online>Redémarrer…</button></article><article><h3>Éteindre</h3><p>La régulation restera arrêtée jusqu’à une remise sous tension manuelle.</p><button class="button button-danger" type="button" data-open-dialog="poweroff-dialog" data-requires-online>Éteindre…</button></article></div></details></section>
 
-{% for action, label, endpoint, message in (
-  ('reboot', 'Redémarrer le Raspberry Pi', '/actions/system/reboot', 'La régulation sera interrompue pendant le redémarrage.'),
-  ('poweroff', 'Éteindre le Raspberry Pi', '/actions/system/poweroff', 'La régulation restera arrêtée jusqu’à une remise sous tension manuelle.')
-) %}
-<dialog id="{{ action }}-dialog" class="confirm-dialog">
-  <form method="dialog" class="dialog-panel">
-    <p class="eyebrow">Confirmation requise</p><h2>{{ label }} ?</h2><p>{{ message }}</p>
-    <div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button></div>
-  </form>
-  <form method="post" action="{{ endpoint }}" class="dialog-confirm-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button class="button button-danger" type="submit">Confirmer</button>
-  </form>
-</dialog>
-{% endfor %}
+{% for action, label, endpoint, message in (('reboot', 'Redémarrer le Raspberry Pi', '/actions/system/reboot', 'La régulation sera interrompue pendant le redémarrage.'),('poweroff', 'Éteindre le Raspberry Pi', '/actions/system/poweroff', 'La régulation restera arrêtée jusqu’à une remise sous tension manuelle.')) %}<dialog id="{{ action }}-dialog" class="confirm-dialog"><form method="dialog" class="dialog-panel"><p class="eyebrow">Confirmation requise</p><h2>{{ label }} ?</h2><p>{{ message }}</p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Annuler</button></div></form><form method="post" action="{{ endpoint }}" class="dialog-confirm-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-danger" type="submit" data-requires-online>Confirmer</button></form></dialog>{% endfor %}
+<output id="dashboard-action-status" class="visually-hidden" aria-live="polite"></output>
 {% endblock %}
 {% block page_scripts %}<script src="/static/js/dashboard.js?v={{ asset_versions.dashboard }}" defer></script><script src="/static/js/history.js?v={{ asset_versions.history }}" defer></script>{% endblock %}

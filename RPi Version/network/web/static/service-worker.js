@@ -7,7 +7,7 @@ const PRECACHE_URLS = __PHYTO_PRECACHE_URLS__;
 
 const warmReadablePages = async () => {
   const pages = await caches.open(PAGE_CACHE);
-  for (const path of ["/", "/alarms"]) {
+  for (const path of ["/", "/history", "/alarms"]) {
     try {
       const response = await fetch(path, {cache: "no-store"});
       if (response.ok) await pages.put(new URL(path, self.location.origin).href, response);
@@ -87,7 +87,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     const cacheable = (
       url.search === "" &&
-      ["/", "/index.html", "/alarms"].includes(url.pathname)
+      ["/", "/index.html", "/history", "/alarms"].includes(url.pathname)
     );
     event.respondWith(navigationFallback(request, cacheable));
     return;
