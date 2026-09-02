@@ -716,8 +716,14 @@ effectif pendant qu'un forçage empêche de ventiler.
 - [x] `pytest` — 200 tests verts (`/tmp/pytest-j4j.txt`)
 - [x] Aucun octet nul dans les fichiers texte (leçon du 28 août 2026)
 - [x] `diff -u CLAUDE.md AGENTS.md` vide
-- [ ] Déploiement `scripts/deploy.sh`, vérification HTTP et états GPIO sur le Pi
-- [ ] Banc GPIO hors serre : génériques OFF = HIGH, moteur OFF = quatre broches LOW,
-      coupure effective à l'expiration, à l'annulation et sur faute
-- [ ] Essai réel d'un redémarrage : disparition observée puis retour annoncé
+- [x] Déploiement `scripts/deploy.sh` commit par commit, vérification HTTP et états GPIO sur le Pi
+      (2 septembre 2026 — voir `docs/operations/jalon4-deploiement-2026-09-02.md`)
+- [x] Verrou moteur absolu qualifié sur matériel : mode manuel vitesse 2 → quatre broches LOW,
+      puis retour à la vitesse 2 à la levée
+- [x] Expiration automatique et reprise après redémarrage qualifiées sur le Pi
+- [x] Raison d'un forçage absente de `phyto.log` et de `journalctl`
+- [x] Essai réel d'un redémarrage : 202 avant coupure, disparition, `boot_id` changé,
+      deux `/health/live` puis retour annoncé, GPIO identiques à la référence
+- [ ] Banc GPIO **hors serre** : coupure sur faute et annulation en pleine impulsion
+      (la qualification du 2 septembre s'est faite sur la serre en marche, sans provoquer de défaut)
 - [ ] Console : stabilité à 2 000 lignes en observation longue
