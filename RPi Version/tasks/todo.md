@@ -724,6 +724,10 @@ effectif pendant qu'un forçage empêche de ventiler.
 - [x] Raison d'un forçage absente de `phyto.log` et de `journalctl`
 - [x] Essai réel d'un redémarrage : 202 avant coupure, disparition, `boot_id` changé,
       deux `/health/live` puis retour annoncé, GPIO identiques à la référence
-- [ ] Banc GPIO **hors serre** : coupure sur faute et annulation en pleine impulsion
-      (la qualification du 2 septembre s'est faite sur la serre en marche, sans provoquer de défaut)
+- [x] Coupure en pleine impulsion qualifiée sur la serre : forçage créé pendant une phase ON
+      séquentielle de `cyclic_2`, `energized()` coupe le relais à la seconde sur annulation de la
+      tâche, et la phase reprend depuis l'état persisté à l'expiration
+- [ ] Coupure **sur faute** (exception ou blocage d'une boucle) : demande du code volontairement
+      cassé, donc un banc hors serre. Le comportement logiciel est déjà couvert par la suite ;
+      ce qui manque est la moitié électrique (`docs/development/hardware-validation.md`)
 - [ ] Console : stabilité à 2 000 lignes en observation longue

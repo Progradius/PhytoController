@@ -82,12 +82,33 @@ jalon 2 fait exactement son travail. Retour à 0 alarme à 10:34:20.
 onze routes et assets en 200, cycle création/annulation de forçage rejoué après redémarrage,
 `runtime_state.json` propre, GPIO conformes.
 
+## Coupure en pleine impulsion — qualifiée sur la serre en marche (10:40)
+
+Cible choisie : `cyclic_2` « Ventilation croissance », un ventilateur, et non `cyclic_1` « Pompes ».
+La tâche était à l'intérieur de `with comp.energized(): await hb_sleep(...)`, phase ON séquentielle.
+
+- GPIO 22 à LOW (ON), actionneur `mode: séquentiel`, `reason: phase ON (jour)` ;
+- création du forçage → `Tâche « cyclic_timer_2 » rechargée volontairement`, et **dans la même
+  seconde** `GPIO 22 ← OFF (HIGH - inactif)` : c'est le `finally` d'`energized()` qui a coupé sur
+  annulation de la tâche, pas la boucle au tour suivant ;
+- à l'expiration : `Cyclic #2 : reprise de la phase ON (7890 s restantes)` puis
+  `GPIO 22 ← ON (LOW - actif)`. La phase reprend depuis `runtime_state.json`, elle n'est pas relancée
+  du début.
+
+Santé complète, 0 alarme, `tracking: ok` de bout en bout.
+
 ## Reste ouvert
 
 - Observation longue de la console à 2 000 lignes (elle demande des heures, pas une vérification
   ponctuelle).
-- Banc GPIO hors serre pour les coupures sur faute et annulation en pleine impulsion : la
-  qualification faite ici l'a été **sur la serre en marche**, donc sans provoquer de défaut.
+- **Coupure sur faute** : provoquer une exception ou un blocage dans une boucle de contrôle n'a
+  aucun interrupteur — il faudrait faire tourner du code volontairement cassé sur la serre, et si le
+  garde-fou testé est justement celui qui manque, le mode de panne est un relais resté fermé sur une
+  charge réelle. Le comportement logiciel est déjà prouvé par la suite
+  (`test_energized_coupe_sur_sortie_normale_et_exception`,
+  `test_energized_coupe_sur_annulation`, `test_crash_applique_etat_sur_avant_relance`,
+  `test_tache_bloquee_est_annulee_mise_en_securite_et_relancee`) ; ce qui manque est la moitié
+  **électrique**, qui relève de `docs/development/hardware-validation.md`.
 
 ## Note d'exploitation
 
