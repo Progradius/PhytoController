@@ -5,10 +5,13 @@
 | Fichier | Contenu | Sensibilité |
 |---|---|---|
 | `param/param.json` | Configuration, Wi-Fi, InfluxDB, GPIO | Critique : secrets et sécurité physique |
+| `param/equipment_metadata.json` | Noms et annotations des équipements | Faible à moyenne |
 | `param/sensor_stats.json` | Minimums et maximums de capteurs | Faible à moyenne |
 | `logs/phyto.log*` | Diagnostic applicatif | Peut contenir topologie et événements |
 
-Le script de déploiement sauvegarde les deux fichiers `param/` avant toute mise à jour. Ce mécanisme n'est pas une sauvegarde hors machine : une panne de carte SD peut détruire le dépôt et `~/phyto-backups` simultanément.
+Le script de déploiement sauvegarde les trois fichiers `param/` avant toute mise à jour. Ils sont tous
+ignorés par Git et ne sont ni retirés ni restaurés pendant une bascule de code. Ce mécanisme n'est pas
+une sauvegarde hors machine : une panne de carte SD peut détruire le dépôt et `~/phyto-backups` simultanément.
 
 ## Contrôle des sauvegardes de déploiement
 

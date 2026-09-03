@@ -27,7 +27,8 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt  # dépendances runtime + validation hors matériel
 python3 -m pytest                    # suite reproductible sans GPIO réel
 npm ci && npm run test:ui           # tests responsive en lecture seule ; PHYTO_UI_BASE_URL surcharge la cible
-docker build -t phyto . && docker run --privileged -p 8123:8123 phyto
+docker build -t phyto . && docker run --privileged -p 8123:8123 \
+  -v "$(pwd)/param/param.json:/app/param/param.json:rw" phyto
 ```
 
 Web UI: `http://<pi>:8123` — `/` action-oriented dashboard with 5 s live refresh, `/history` for
@@ -80,6 +81,11 @@ to `PuppetMaster`.
   * At boot an unusable `param.json` falls back to `param.json.bak` and **restores** it. There is nothing
     safe to synthesize beyond that: without `GPIO_Settings` no pin is known, so no output can be put in a
     safe state — refusing to start is the only honest answer, and `main.py` has touched no pin yet.
+  * `param/param.json` is a **machine-local, gitignored file**. Only the inert
+    `param/param.example.json` schema is versioned. `scripts/deploy.sh` rejects any target commit that
+    tracks the live configuration, and an exclusive `flock` prevents concurrent deployments. Never
+    reintroduce `param.json` into Git or a checkout/stash path: even a temporary replacement is observed
+    immediately by the running control loops.
 - `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
   one supervised job per concern (2 daily timers, 2 cyclic timers, the `climate_control` thermal arbiter,
   shared sensor snapshot, Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
@@ -267,8 +273,9 @@ is **enabled by default**, with `PHYTO_HW_WATCHDOG=0` as the explicit opt-out.
 
 - `initial_setup_tool.py` is a straight carry-over from the ESP32 version: it reads/writes `param.json`
   relative to the current directory, not `param/param.json`. Run it from `param/` or copy the result.
-- `param/param.json` holds Wi-Fi and InfluxDB credentials in clear text and **is tracked in git**. Never
-  paste its values into logs, issues, or commits.
+- `param/param.json` holds Wi-Fi and InfluxDB credentials in clear text and is deliberately **ignored by
+  Git**. Never force-add it or paste its values into logs, issues or commits. The historically versioned
+  credentials must still be considered compromised until rotated.
 - The HTTP server has **no authentication** — a deliberate choice, 8123 is LAN-only. Destructive actions
   are dedicated POST routes protected by CSRF/origin checks and an explicit browser confirmation. Never
   move one behind GET: a prefetch or an `<img src>` on any LAN page could fire it. Hostnames outside the

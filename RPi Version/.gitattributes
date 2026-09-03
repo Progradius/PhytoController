@@ -1,0 +1,3 @@
+# L'ancien param.json a contenu des identifiants réels. Même lors de sa
+# suppression de l'index, aucun outil de revue ne doit en reproduire les lignes.
+param/param.json -diff

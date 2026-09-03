@@ -1,5 +1,94 @@
 (() => {
   "use strict";
+  // Le sélecteur natif `time` occupe presque tout l'écran sur certains
+  // navigateurs mobiles et ses actions peuvent sortir de la zone visible.
+  // Deux champs numériques intégrés à la page gardent la saisie compacte. Le
+  // champ natif reste la source soumise au serveur et le repli sans JavaScript.
+  const padTimePart = (value) => String(value).padStart(2, "0");
+  document.querySelectorAll("input[data-compact-time]").forEach((input) => {
+    const field = input.closest(".field");
+    const fieldLabel = field?.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+    if (!field || !fieldLabel) return;
+    const required = input.required;
+
+    // `type=time` vide sa propriété `value` lorsque le serveur réaffiche une
+    // saisie refusée (par exemple 25:00). L'attribut conserve, lui, le texte
+    // original que l'opérateur doit pouvoir corriger.
+    const parts = (input.getAttribute("value") || input.value).split(":", 2);
+    const control = document.createElement("div");
+    control.className = "compact-time-control";
+    control.setAttribute("role", "group");
+    fieldLabel.id = `${input.id}-label`;
+    control.setAttribute("aria-labelledby", fieldLabel.id);
+
+    const makePart = (kind, label, value, maximum) => {
+      const wrapper = document.createElement("label");
+      wrapper.className = "compact-time-part";
+      const caption = document.createElement("span");
+      caption.textContent = label;
+      const part = document.createElement("input");
+      part.type = "text";
+      part.inputMode = "numeric";
+      part.autocomplete = "off";
+      part.maxLength = 2;
+      part.pattern = "[0-9]{1,2}";
+      part.value = value;
+      part.dataset.timePart = kind;
+      part.setAttribute("aria-label", `${fieldLabel.textContent.trim()} : ${label.toLowerCase()}`);
+      part.setAttribute("enterkeyhint", kind === "hour" ? "next" : "done");
+      wrapper.append(caption, part);
+      const validate = () => {
+        const numeric = /^\d{1,2}$/.test(part.value) ? Number(part.value) : -1;
+        part.setCustomValidity(numeric >= 0 && numeric <= maximum ? "" : `${label} : valeur attendue entre 0 et ${maximum}.`);
+      };
+      part.addEventListener("input", validate);
+      validate();
+      return { wrapper, part, validate };
+    };
+
+    const hour = makePart("hour", "Heures", parts[0] || "", 23);
+    const minute = makePart("minute", "Minutes", parts[1] || "", 59);
+    const separator = document.createElement("span");
+    separator.className = "compact-time-separator";
+    separator.textContent = ":";
+    separator.setAttribute("aria-hidden", "true");
+    control.append(hour.wrapper, separator, minute.wrapper);
+
+    const sync = (normalize = false) => {
+      hour.validate();
+      minute.validate();
+      const valid = hour.part.validity.valid && minute.part.validity.valid;
+      if (normalize && valid) {
+        hour.part.value = padTimePart(hour.part.value);
+        minute.part.value = padTimePart(minute.part.value);
+      }
+      input.value = valid
+        ? `${padTimePart(hour.part.value)}:${padTimePart(minute.part.value)}`
+        : `${hour.part.value}:${minute.part.value}`;
+    };
+    [hour.part, minute.part].forEach((part) => {
+      part.addEventListener("input", () => sync());
+      part.addEventListener("change", () => sync(true));
+      part.addEventListener("blur", () => sync(true));
+      part.addEventListener("focus", () => part.select());
+    });
+
+    input.type = "hidden";
+    input.removeAttribute("required");
+    input.removeAttribute("aria-invalid");
+    input.removeAttribute("aria-describedby");
+    hour.part.required = required;
+    minute.part.required = required;
+    if (field.classList.contains("field-invalid")) {
+      control.setAttribute("aria-invalid", "true");
+      const error = field.querySelector(".field-error");
+      if (error?.id) control.setAttribute("aria-describedby", error.id);
+    }
+    fieldLabel.removeAttribute("for");
+    input.after(control);
+    sync(true);
+  });
+
   const setConditionalState = (container, visible) => {
     container.hidden = !visible;
     container.querySelectorAll("input, select, textarea, button").forEach((control) => { control.disabled = !visible; });

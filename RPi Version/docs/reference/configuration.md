@@ -2,11 +2,15 @@
 
 **Source de vérité** : `param/config.py`.
 **Format actuel** : JSON avec sections PascalCase et booléens legacy `enabled`/`disabled`.
-**Sécurité** : ne jamais publier le fichier réel, qui contient des secrets.
+**Sécurité** : le fichier réel est local, ignoré par Git et par le contexte Docker ; ne jamais le
+publier ni le forcer dans l’index. `param/param.example.json` est le seul exemple versionné.
 
 ## Chargement et sauvegarde
 
-`AppConfig.load()` lit `param/param.json` et valide avec Pydantic v2. `save()` sérialise par alias, reconvertit les booléens legacy et écrit atomiquement. Les boucles ne consomment pas encore toutes la configuration de la même façon ; la colonne « application » décrit l'état actuel, pas une garantie idéale.
+`AppConfig.load()` lit `param/param.json` et valide avec Pydantic v2. `ConfigStore.save()` sérialise
+par alias, reconvertit les booléens legacy et écrit atomiquement. Le magasin partagé relit le fichier
+seulement lorsque son empreinte `(mtime_ns, taille)` change et publie la nouvelle configuration dans
+l’instance unique détenue par les composants.
 
 Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `populate_by_name=True`) : une affectation invalide lève au lieu de corrompre silencieusement la configuration vivante. `AppConfig.replace_from(candidat)` remplace champ par champ la configuration partagée par une candidate déjà validée — c'est ainsi que `POST /conf/{section}` publie un changement sans réinstancier les objets que détiennent le serveur, le moteur et le chauffage.
 

@@ -6,6 +6,19 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Protection de la configuration pendant les déploiements
+
+- `param/param.json` et `param/equipment_metadata.json` deviennent des fichiers strictement locaux,
+  ignorés par Git ; un exemple neutre et sans identifiants réels documente désormais le schéma.
+- `scripts/deploy.sh` prend un verrou exclusif avant toute sauvegarde et refuse un second lancement,
+  fige la cible par SHA et rejette toute révision qui versionne encore un fichier vivant.
+- Le déploiement ne remet plus jamais `param/` à l’état Git, même momentanément ; l’option dangereuse
+  `--config-git` est supprimée et explicitement refusée.
+- Les contextes Docker excluent les secrets et états locaux ; une configuration doit être montée
+  explicitement au lancement du conteneur.
+- Régressions couvertes : concurrence, option interdite, absence de checkout sur la configuration et
+  validation d’un exemple dont toutes les sorties sont neutralisées.
+
 ### Observabilité des seuils capteurs
 
 **Déployée et vérifiée sur le Pi le 1er septembre 2026 au commit `2ecefb1` ; mode qualité resté

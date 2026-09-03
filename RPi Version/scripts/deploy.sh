@@ -6,7 +6,6 @@
 #   ./scripts/deploy.sh master               # deploie origin/master
 #   ./scripts/deploy.sh feature/ma-branche   # deploie origin/feature/ma-branche
 #   ./scripts/deploy.sh v1.2.0               # deploie un tag, ou un SHA
-#   ./scripts/deploy.sh --config-git         # prend aussi le param.json du depot
 #   ./scripts/deploy.sh --sans-restart       # met a jour le code sans toucher au service
 #
 # Le Pi est un checkout de LECTURE : HEAD est toujours detache sur la cible
@@ -17,8 +16,9 @@
 # quelle quand deploy.sh est relance sans argument.
 #
 # Garanties :
-#   - la config vivante (param.json, metadonnees, sensor_stats.json) est sauvegardee
-#     puis restauree : un deploiement ne perd jamais les reglages de la serre ;
+#   - un verrou exclusif interdit deux deploiements concurrents ;
+#   - les fichiers vivants sont ignores par Git : aucun checkout ne peut les
+#     remplacer, meme momentanement, et ils sont sauvegardes avant la bascule ;
 #   - le code est verifie (compileall) AVANT de couper le service ;
 #   - si la santé complète ne reste pas stable après redémarrage, rollback
 #     automatique sur le commit précédent et qualification identique.
@@ -53,11 +53,15 @@ FICHIERS_CONFIG=(
     "param/equipment_metadata.json"
     "param/sensor_stats.json"
 )
+FICHIERS_CONFIG_REPO=(
+    "RPi Version/param/param.json"
+    "RPi Version/param/equipment_metadata.json"
+    "RPi Version/param/sensor_stats.json"
+)
 DELAI_SANTE=45                                     # délai total après le redémarrage
 STABILITE_SANTE=15                                 # secondes saines sans interruption
 
 CIBLE=""
-CONFIG_DEPUIS_GIT=0
 AVEC_RESTART=1
 
 # --- Sortie console ----------------------------------------------------------
@@ -70,11 +74,12 @@ echec()   { printf "${C_R}!!!${C_0} %s\n" "$*" >&2; }
 mourir()  { echec "$*"; exit 1; }
 
 trap 'echec "Echec ligne $LINENO — deploiement interrompu."' ERR
+trap 'echec "Deploiement interrompu par un signal."; exit 130' HUP INT TERM
 
 # --- Arguments ---------------------------------------------------------------
 for arg in "$@"; do
     case "$arg" in
-        --config-git)    CONFIG_DEPUIS_GIT=1 ;;
+        --config-git)    mourir "--config-git a ete supprime : la configuration locale ne peut plus etre remplacee par un deploiement." ;;
         --sans-restart)  AVEC_RESTART=0 ;;
         -h|--help)       sed -n '2,24p' "$0"; exit 0 ;;
         -*)              mourir "Option inconnue : $arg" ;;
@@ -88,10 +93,38 @@ done
 CIBLE="${CIBLE#remotes/}"
 CIBLE="${CIBLE#origin/}"
 
+# Le verrou est pris avant toute lecture ou sauvegarde de la configuration.
+# Le descripteur reste ouvert pendant toute la vie du script et est libere par
+# le noyau sur toute sortie, y compris un signal non rattrapable.
+VERROU_DEPLOIEMENT="$HOME/.phyto-deploy.lock"
+umask 077
+command -v flock >/dev/null 2>&1 \
+    || mourir "La commande flock est requise pour garantir un deploiement exclusif."
+exec 9>"$VERROU_DEPLOIEMENT"
+chmod 600 "$VERROU_DEPLOIEMENT"
+if ! flock -n 9; then
+    mourir "Un autre deploiement est deja en cours (verrou : $VERROU_DEPLOIEMENT)."
+fi
+
 # --- Verifications prealables ------------------------------------------------
 [[ $EUID -ne 0 ]] || mourir "Ne pas lancer en root : le service tourne sous $(id -un 1000 2>/dev/null || echo progradius)."
 [[ -x "$VENV_PY" ]] || mourir "venv introuvable : $VENV_PY"
 sudo -n true 2>/dev/null || mourir "sudo sans mot de passe requis (systemctl restart $SERVICE)."
+[[ -f "$APP_DIR/param/param.json" ]] \
+    || mourir "Configuration vivante absente : $APP_DIR/param/param.json"
+
+# Refuser avant le fetch et avant tout changement de code une configuration
+# locale qui ne redemarrerait deja pas avec la version courante. La sortie est
+# masquee : une ValidationError Pydantic ne doit jamais recopier une valeur
+# sensible de Network_Settings dans la console de deploiement.
+if ! (
+    cd "$APP_DIR"
+    "$VENV_PY" -c \
+        'import json; from pathlib import Path; from param.config import AppConfig; AppConfig.model_validate(json.loads(Path("param/param.json").read_text(encoding="utf-8")))'
+) >/dev/null 2>&1; then
+    mourir "param/param.json est illisible ou invalide : deploiement refuse avant toute mutation."
+fi
+ok "Configuration locale valide"
 
 cd "$REPO_DIR"
 
@@ -135,6 +168,7 @@ mkdir -p "$DOSSIER_SAUVEGARDE"
 for f in "${FICHIERS_CONFIG[@]}"; do
     if [[ -f "$APP_DIR/$f" ]]; then
         cp -p "$APP_DIR/$f" "$DOSSIER_SAUVEGARDE/$(basename "$f")"
+        chmod 600 "$DOSSIER_SAUVEGARDE/$(basename "$f")"
     fi
 done
 chmod 700 "$DOSSIER_SAUVEGARDE"
@@ -142,22 +176,7 @@ ok "Config sauvegardee dans $DOSSIER_SAUVEGARDE"
 # On ne garde que les 20 derniers deploiements.
 ls -1dt "$SAUVEGARDES"/*/ 2>/dev/null | tail -n +21 | xargs -r rm -rf
 
-# --- 2. Nettoyage de l'arbre de travail --------------------------------------
-# Les logs et la config sont des fichiers suivis modifies en permanence par
-# l'appli : on les remet a l'etat du depot pour que le pull passe.
-info "Remise a plat de l'arbre de travail"
-git checkout -- "RPi Version/logs" 2>/dev/null || true
-for f in "${FICHIERS_CONFIG[@]}"; do
-    git checkout -- "RPi Version/$f" 2>/dev/null || true
-done
-if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
-    attn "Modifications locales restantes, mises de cote (git stash) :"
-    git status --short --untracked-files=no | sed 's/^/     /'
-    git stash push -m "deploy-$HORODATAGE" >/dev/null
-    attn "Recuperables avec : git stash list / git stash pop"
-fi
-
-# --- 3. Recuperation du code -------------------------------------------------
+# --- 2. Recuperation de la cible, sans toucher au checkout -------------------
 info "git fetch origin"
 git fetch --prune --tags origin
 git remote set-head origin --auto >/dev/null 2>&1 || true
@@ -175,11 +194,44 @@ else
     mourir "Relancer avec le bon nom, p. ex. : $0 master"
 fi
 
+# On fige le SHA avant toute mutation de l'arbre. Une branche distante qui
+# bougerait ensuite ne peut donc pas changer silencieusement la cible qualifiee.
+SHA_CIBLE="$(git rev-parse "$CIBLE_REF^{commit}")"
+
+verifier_config_non_versionnee() {
+    local revision=$1 libelle=$2 fichier
+    for fichier in "${FICHIERS_CONFIG_REPO[@]}"; do
+        if git cat-file -e "$revision:$fichier" 2>/dev/null; then
+            mourir "$libelle versionne encore $fichier : deploiement refuse pour proteger la configuration locale."
+        fi
+    done
+}
+
+# `git checkout --force` est aussi utilise au rollback : les deux revisions
+# doivent donc respecter le contrat. Cette barriere interdit notamment un
+# rollback manuel vers une ancienne version qui suivait encore param.json.
+verifier_config_non_versionnee "$SHA_AVANT" "Le commit actuel"
+verifier_config_non_versionnee "$SHA_CIBLE" "La cible"
+
+# --- 3. Nettoyage des seules modifications de code suivies -------------------
+# Les fichiers vivants sont ignores par Git et n'apparaissent jamais ici. On ne
+# lance volontairement aucun `git checkout` sur param/ : le service continue a
+# lire exactement la meme configuration pendant toute la preparation.
+info "Mise de cote des modifications de code suivies"
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+    attn "Modifications locales restantes, mises de cote (git stash) :"
+    git status --short --untracked-files=no | sed 's/^/     /'
+    git stash push -m "deploy-$HORODATAGE" >/dev/null
+    attn "Recuperables avec : git stash list / git stash pop"
+fi
+
+# --- 4. Bascule atomique du code ---------------------------------------------
+
 # HEAD detache : on ne cree ni ne deplace aucune branche locale sur le Pi. Une
 # branche de test rebasee ou force-pushee se deploie donc sans divergence
 # possible, et le rollback (etape 8) ne peut pas reecrire un historique.
 info "Bascule sur $CIBLE_REF"
-git checkout --detach "$CIBLE_REF"
+git checkout --detach "$SHA_CIBLE"
 SHA_APRES="$(git rev-parse HEAD)"
 git config --local phyto.deployRef "$CIBLE"
 
@@ -190,24 +242,15 @@ else
     git log --oneline "$SHA_AVANT..$SHA_APRES" | sed 's/^/     /'
 fi
 
-# --- 4. Restauration de la config vivante ------------------------------------
-if [[ $CONFIG_DEPUIS_GIT -eq 1 ]]; then
-    attn "--config-git : la config du depot remplace celle du Pi."
-else
-    for f in "${FICHIERS_CONFIG[@]}"; do
-        [[ -f "$DOSSIER_SAUVEGARDE/$(basename "$f")" ]] || continue
-        cp -p "$DOSSIER_SAUVEGARDE/$(basename "$f")" "$APP_DIR/$f"
-    done
-    ok "Config du Pi restauree"
-    # Si le depot a fait evoluer param.json (nouveau champ, renommage), la config
-    # restauree peut etre incomplete : on previent sans afficher les valeurs
-    # (identifiants Wi-Fi / InfluxDB en clair dans ce fichier).
-    if [[ "$SHA_AVANT" != "$SHA_APRES" ]] \
-       && ! git diff --quiet "$SHA_AVANT" "$SHA_APRES" -- "RPi Version/param/param.json"; then
-        attn "param.json a change dans le depot : verifier les nouveaux champs"
-        attn "  git diff $SHA_AVANT $SHA_APRES -- 'RPi Version/param/param.json'"
+# La configuration n'a pas a etre restauree : elle n'a jamais quitte son
+# emplacement et Git ne la connait plus. Verifier sa presence ici transforme
+# toute regression future en echec avant l'arret du service.
+for f in "${FICHIERS_CONFIG[@]}"; do
+    if [[ "$f" == "param/param.json" && ! -f "$APP_DIR/$f" ]]; then
+        mourir "Configuration vivante absente apres la bascule : $APP_DIR/$f"
     fi
-fi
+done
+ok "Configuration locale preservee sans interruption"
 
 # --- 5. Dependances ----------------------------------------------------------
 if [[ "$SHA_AVANT" != "$SHA_APRES" ]] \
@@ -223,10 +266,6 @@ if ! "$VENV_PY" -m compileall -q -x '(venv|\.git|__pycache__|lib/sensors)' "$APP
     cat /tmp/phyto-compile.log >&2
     echec "Erreur de syntaxe : rollback sur $SHA_AVANT, le service n'a pas ete touche."
     git checkout --force --detach "$SHA_AVANT" >/dev/null 2>&1
-    for f in "${FICHIERS_CONFIG[@]}"; do
-        [[ -f "$DOSSIER_SAUVEGARDE/$(basename "$f")" ]] \
-            && cp -p "$DOSSIER_SAUVEGARDE/$(basename "$f")" "$APP_DIR/$f"
-    done
     exit 1
 fi
 ok "Code compilable"
@@ -333,10 +372,6 @@ if [[ "$SHA_AVANT" == "$SHA_APRES" ]]; then
 fi
 
 git checkout --force --detach "$SHA_AVANT" >/dev/null 2>&1
-for f in "${FICHIERS_CONFIG[@]}"; do
-    [[ -f "$DOSSIER_SAUVEGARDE/$(basename "$f")" ]] \
-        && cp -p "$DOSSIER_SAUVEGARDE/$(basename "$f")" "$APP_DIR/$f"
-done
 sudo systemctl restart "$SERVICE"
 
 if attendre_sante "$DELAI_SANTE" "$SHA_AVANT"; then

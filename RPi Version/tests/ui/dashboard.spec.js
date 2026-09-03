@@ -62,6 +62,30 @@ test("un lien de carte ouvre directement la bonne configuration", async ({page})
   await expect(target).toHaveAttribute("open", "");
 });
 
+test("la saisie des horaires reste intégrée à la page sur mobile", async ({page}) => {
+  await page.goto("/conf#daily-timer-1");
+  const section = page.locator("#daily-timer-1");
+  const source = section.locator('input[name="start_time"]');
+  const control = section.locator(".compact-time-control").first();
+  await expect(control).toBeVisible();
+  await expect(source).toHaveAttribute("type", "hidden");
+
+  const hours = control.getByRole("textbox", {name: /heures/});
+  const minutes = control.getByRole("textbox", {name: /minutes/});
+  await hours.fill("6");
+  await minutes.fill("5");
+  await minutes.blur();
+  await expect(hours).toHaveValue("06");
+  await expect(minutes).toHaveValue("05");
+  await expect(source).toHaveValue("06:05");
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  if (page.viewportSize().width <= 800) {
+    await expect(page.locator("#config-dirty-bar")).toBeVisible();
+  }
+});
+
 test("le thème plein jour est manuel et persistant", async ({page}) => {
   await page.goto("/");
   const mobile = page.viewportSize().width <= 800;

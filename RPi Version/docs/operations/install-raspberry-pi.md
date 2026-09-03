@@ -48,7 +48,11 @@ La production utilise l'utilisateur `progradius` et le chemin `/home/progradius/
 
 ## Configuration
 
-`param/param.json` est actuellement requis au boot. Il contient des secrets et ne doit pas être construit à partir d'un exemple avec des valeurs de production.
+`param/param.json` est requis au boot, contient des secrets et reste propre à la machine : il est ignoré
+par Git. `param/param.example.json` inventorie le schéma avec les sorties désactivées et des valeurs
+fictives. Pour une nouvelle installation, le copier vers `param/param.json`, renseigner les identifiants,
+vérifier chaque GPIO contre le câblage réel, puis valider le modèle avant de raccorder les charges. Ne
+jamais forcer le fichier vivant dans Git.
 
 Avant démarrage :
 

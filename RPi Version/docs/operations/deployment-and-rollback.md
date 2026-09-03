@@ -19,12 +19,22 @@
 ./scripts/deploy.sh feature/ma-branche   # déploie une branche de test
 ./scripts/deploy.sh v1.2.0               # déploie un tag, ou un SHA
 ./scripts/deploy.sh --sans-restart
-./scripts/deploy.sh --config-git
 ```
 
 La cible peut être une branche distante, un tag ou un commit. Le préfixe `remotes/` ou `origin/` d'un copier-coller de `git branch -a` est accepté. Le Pi garde **HEAD détaché** sur la cible : aucune branche locale n'est créée ni déplacée, une branche de test rebasée ou force-pushée se redéploie sans divergence, et le rollback ne réécrit aucun historique. La dernière cible est mémorisée dans `git config --local phyto.deployRef` et reprise quand `deploy.sh` est relancé sans argument — vérifier cette valeur avant de conclure qu'un déploiement « sans argument » est parti sur `master`.
 
-`--config-git` remplace volontairement la configuration vivante par celle du dépôt. Cette option est sensible et ne doit être utilisée qu'après comparaison du schéma et sauvegarde explicite.
+`--config-git` a été supprimée et est explicitement refusée. Une mise à jour de schéma se prépare à
+partir de `param/param.example.json`, puis s’applique à la configuration locale par l’interface ou par
+une migration dédiée et validée ; elle ne passe jamais par un checkout.
+
+Un verrou non bloquant sur `~/.phyto-deploy.lock` couvre toute l’exécution. Un second lancement échoue
+avant la sauvegarde, le fetch ou toute mutation Git. Le descripteur étant détenu par le processus, le
+noyau libère également le verrou après une interruption ou un arrêt brutal.
+
+`param/param.json`, `param/equipment_metadata.json` et `param/sensor_stats.json` sont ignorés par Git.
+Le script refuse le commit courant ou la cible si l’un de ces chemins y est encore versionné. Cette
+barrière s’applique aussi aux checkouts forcés de rollback : une ancienne révision dangereuse doit être
+migrée vers ce contrat avant de pouvoir être déployée.
 
 ### Amorçage du validateur de santé renforcé
 
@@ -49,16 +59,24 @@ du nouveau contrat de déploiement manquerait.
 ## Déroulement
 
 1. Copie du script sous `/tmp` afin qu'un pull ne modifie pas le programme en cours d'exécution.
-2. Sauvegarde de `param/param.json`, `param/equipment_metadata.json` et `param/sensor_stats.json` sous `~/phyto-backups/<horodatage>`.
-3. Conservation des vingt derniers répertoires de sauvegarde.
-4. Mise de côté des modifications suivies restantes.
-5. Fetch (branches et tags), résolution de la cible, puis `git checkout --detach` dessus.
-6. Restauration de la configuration vivante, sauf `--config-git`.
-7. Mise à jour des dépendances si nécessaire.
-8. `compileall` avant interruption du service.
-9. Redémarrage systemd.
-10. Attente jusqu'à 45 secondes de la qualification complète, maintenue 15 secondes sans interruption.
-11. Rollback sur le commit précédent si le contrôle échoue.
+2. Prise du verrou exclusif avant toute lecture de configuration.
+3. Sauvegarde de `param/param.json`, `param/equipment_metadata.json` et `param/sensor_stats.json` sous `~/phyto-backups/<horodatage>` avec un `umask` privé.
+4. Conservation des vingt derniers répertoires de sauvegarde.
+5. Fetch des branches et tags sans toucher au checkout, puis résolution de la cible en SHA immuable.
+6. Refus si le commit courant ou la cible versionne un fichier vivant.
+7. Mise de côté des seules modifications de code suivies, puis `git checkout --detach` du SHA.
+8. Vérification que `param/param.json` est toujours présent au même emplacement ; aucune restauration n’est normalement nécessaire puisqu’il n’a jamais bougé.
+9. Mise à jour des dépendances si nécessaire.
+10. `compileall` avant interruption du service.
+11. Redémarrage systemd.
+12. Attente jusqu'à 45 secondes de la qualification complète, maintenue 15 secondes sans interruption.
+13. Rollback sur le commit précédent si le contrôle échoue.
+
+Le premier déploiement du commit qui introduit cette séparation est une migration particulière :
+l’ancienne copie de `deploy.sh`, déjà recopiée sous `/tmp`, sauvegarde puis restaure encore le fichier
+pendant cette unique bascule. Avant de la lancer, vérifier qu’aucun autre déploiement n’est actif et
+conserver une copie hors dépôt de `param.json`. Une fois le commit installé, tous les déploiements
+suivants appliquent le nouveau contrat et ne touchent plus jamais à la configuration.
 
 ## Contrôle post-déploiement
 

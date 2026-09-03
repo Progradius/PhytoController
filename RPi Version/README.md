@@ -96,14 +96,24 @@ Détail complet : [interface HTTP](docs/reference/http-interface.md) et [schéma
 
 ## Configuration et données sensibles
 
-La configuration vivante est chargée depuis `param/param.json`. Ce fichier contient actuellement des identifiants Wi-Fi et InfluxDB en clair et reste suivi par Git :
+La configuration vivante est chargée depuis `param/param.json`. Ce fichier contient des identifiants
+Wi-Fi et InfluxDB en clair et reste strictement local à chaque Pi : il est ignoré par Git. Le fichier
+versionné `param/param.example.json` documente le schéma avec toutes les sorties désactivées ; ses GPIO
+et ses valeurs factices doivent être remplacés et validés avant toute première mise en service :
 
 - ne jamais copier son contenu dans un log, une issue, un rapport ou une demande d'assistance ;
 - ne jamais utiliser ses valeurs réelles dans un exemple documentaire ;
-- considérer les identifiants historiquement versionnés comme compromis ;
-- planifier leur sortie vers un fichier d'environnement protégé, puis leur rotation.
+- ne jamais le forcer dans Git ;
+- considérer les identifiants historiquement versionnés comme compromis et les faire tourner.
 
-Les statistiques sont persistées dans `param/sensor_stats.json`. Les deux fichiers sont sauvegardés puis restaurés par `scripts/deploy.sh` lors d'un déploiement normal.
+Une image Docker ne contient volontairement aucun `param.json`. Le fichier local doit être monté au
+lancement, par exemple avec
+`-v "$(pwd)/param/param.json:/app/param/param.json:rw"`. L’absence de ce montage fait échouer le boot
+avant tout accès GPIO, au lieu d’inventer une configuration matérielle.
+
+Les métadonnées d’équipements et les statistiques sont elles aussi locales. `scripts/deploy.sh`
+sauvegarde ces trois fichiers avant chaque bascule, mais ne les déplace et ne les restaure plus : Git
+ne les connaît pas et ne peut donc pas les écraser.
 
 ## Déploiement
 
@@ -113,8 +123,9 @@ Le script de déploiement est conçu pour être exécuté depuis le Raspberry Pi
 ./scripts/deploy.sh
 ```
 
-Il sauvegarde la configuration vivante, récupère le code, vérifie sa compilation avant de couper le
-service, puis redémarre. Le succès exige pendant 15 secondes continues : service actif,
+Il prend d’abord un verrou exclusif, sauvegarde la configuration vivante, récupère le code sans jamais
+toucher aux fichiers locaux, vérifie sa compilation avant de couper le service, puis redémarre. Une
+cible qui versionne encore un fichier vivant est refusée. Le succès exige pendant 15 secondes continues : service actif,
 `/health/live`, `/health/ready` en 200, `control_healthy=true`, commit chargé identique à la cible et
 aucune alarme critique. Tout échec déclenche le rollback automatique, qualifié avec les mêmes critères.
 

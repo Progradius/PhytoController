@@ -73,6 +73,11 @@ logs/
 # Paramètres locaux & secrets
 *.env
 param/.csrf_token
+# Configuration vivante de cette machine. Elle contient des secrets et des
+# consignes matérielles : un checkout ou un déploiement ne doit jamais pouvoir
+# la créer, la remplacer ou la supprimer. Utiliser param/param.example.json
+# uniquement comme inventaire de schéma lors d'une nouvelle installation.
+param/param.json
 # État de régulation reporté d'un démarrage à l'autre (budgets hiver, phase
 # séquentielle) : propre à la machine, jamais versionné.
 param/runtime_state.json
@@ -85,8 +90,11 @@ param/operator_history.sqlite3
 param/operator_history.sqlite3-wal
 param/operator_history.sqlite3-shm
 param/operator_history.sqlite3.corrupt.*
-# Statistiques réécrites à l'exécution, restaurées séparément par deploy.sh.
+# Statistiques réécrites à l'exécution et sauvegardées par deploy.sh.
 param/sensor_stats.json
+# Noms et annotations modifiables depuis l'interface, propres à la machine.
+# L'absence du fichier fait revenir le catalogue intégré sans bloquer le boot.
+param/equipment_metadata.json
 
 # MicroPython precompiled files (si présents)
 *.mpy

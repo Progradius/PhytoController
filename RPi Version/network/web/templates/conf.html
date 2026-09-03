@@ -54,7 +54,7 @@
 {% set shown = form_value(scope, name, value) if sticky else value %}
 <div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
   <label for="{{ control_id }}">{{ label }}</label>
-  <input id="{{ control_id }}" name="{{ name }}" type="{{ type }}" value="{{ shown }}"{% if maxlength != '' %} maxlength="{{ maxlength }}"{% endif %}{% if required %} required{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{{ err_attrs(scope, name, control_id) }}>
+  <input id="{{ control_id }}" name="{{ name }}" type="{{ type }}" value="{{ shown }}"{% if type == 'time' %} step="60" data-compact-time{% endif %}{% if maxlength != '' %} maxlength="{{ maxlength }}"{% endif %}{% if required %} required{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{{ err_attrs(scope, name, control_id) }}>
   {{ err_note(scope, name, control_id) }}
   {% if help %}<p class="field-help">{{ help }}</p>{% endif %}
 </div>

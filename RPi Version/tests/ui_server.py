@@ -65,7 +65,7 @@ def build_app():
     temporary = tempfile.TemporaryDirectory(prefix="phyto-ui-")
     config_path = Path(temporary.name) / "param.json"
     config_path.write_text(
-        AppConfig.load(Path("param/param.json")).to_json(), encoding="utf-8"
+        AppConfig.load(Path("param/param.example.json")).to_json(), encoding="utf-8"
     )
     store = ConfigStore(config_path)
     sensors = FakeSensors(store.current)
