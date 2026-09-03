@@ -14,6 +14,22 @@ test("le tableau de bord reste compact et navigable", async ({page}, testInfo) =
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
+
+  const firstCard = page.locator(".actuator-card").first();
+  const actions = firstCard.locator(".equipment-actions");
+  const configure = actions.getByRole("link", {name: "Configurer"});
+  const cut = actions.getByRole("button", {name: "Couper"});
+  await expect(configure).toBeVisible();
+  await expect(cut).toBeVisible();
+  expect(await configure.evaluate((button, container) => (
+    button.getBoundingClientRect().width < container.getBoundingClientRect().width / 2
+  ), await actions.elementHandle())).toBe(true);
+
+  const details = firstCard.locator(".equipment-details");
+  await expect(details.getByText("Afficher", {exact: true})).toBeVisible();
+  await details.locator("summary").click();
+  await expect(details).toHaveAttribute("open", "");
+  await expect(details.getByText("Masquer", {exact: true})).toBeVisible();
 });
 
 test("la page historique porte la vue détaillée", async ({page}) => {

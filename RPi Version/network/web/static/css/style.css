@@ -176,10 +176,21 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--re
 .actuator-next { margin: 1rem 0 .25rem; color: var(--text); font-weight: 650; }.automation-summary { min-height: 2.7em; margin-bottom: .8rem; color: var(--muted); font-size: .84rem; }
 .override-inline { min-height: 3.1rem; margin-top: auto; padding: .65rem .75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgb(255 255 255 / 1.5%); font-size: .8rem; }
 .override-inline p { margin: 0; }.override-normal { color: var(--muted); }.override-active { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .65rem; color: var(--amber); }.override-active .override-reason { flex-basis: 100%; margin: .15rem 0 0; }
-.equipment-details, .sensor-details { margin-top: .75rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.equipment-details > summary, .sensor-details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
+.equipment-details { margin-top: .75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgb(255 255 255 / 1.5%); overflow: clip; }
+.equipment-details[open] { border-color: var(--border-strong); }
+.equipment-details > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem .7rem; cursor: pointer; color: var(--text); font-size: .82rem; font-weight: 650; list-style: none; }
+.equipment-details > summary::-webkit-details-marker { display: none; }
+.equipment-details > summary:hover { background: var(--soft); }
+.equipment-details[open] > summary { border-bottom: 1px solid var(--border); background: rgb(255 255 255 / 2%); }
+.details-action { display: inline-flex; align-items: center; gap: .45rem; flex: 0 0 auto; color: var(--green); font-size: .75rem; font-weight: 700; }
+.details-action-close { display: none; }.equipment-details[open] .details-action-open { display: none; }.equipment-details[open] .details-action-close { display: inline; }
+.details-chevron { width: .55rem; height: .55rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-.12rem) rotate(45deg); transition: transform .16s ease; }
+.equipment-details[open] .details-chevron { transform: translateY(.12rem) rotate(225deg); }
+.equipment-details .operator-state, .equipment-details .schedule-detail, .equipment-details .climate-detail, .equipment-details .known-fault { margin-inline: .7rem; }
+.sensor-details { margin-top: .75rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.sensor-details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
 .schedule-detail, .climate-detail { margin: .85rem 0; color: var(--muted); font-size: .82rem; }.schedule-detail p { margin-bottom: 0; }
-.equipment-actions { display: flex; flex-wrap: wrap; gap: .6rem; padding-top: .85rem; }.equipment-actions .button, .equipment-actions form { flex: 1 1 8rem; }.equipment-actions form .button { width: 100%; }
+.equipment-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .45rem; padding-top: .7rem; }.equipment-actions .button { padding: .48rem .72rem; font-size: .8rem; }.equipment-actions form { max-width: 100%; }.equipment-actions form .button { width: auto; }
 .form-error { margin: .45rem 0 0; color: var(--red); font-size: .78rem; }.normally-hidden { margin-top: .65rem; color: var(--amber); }
 .sensor-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }.sensor-extremes { margin: .9rem 0 0; color: var(--muted); font-size: .82rem; }.sensor-details .button { width: 100%; margin-top: .6rem; }
 .preview-chart-card { padding: clamp(1rem, 2.5vw, 1.5rem); box-shadow: 0 12px 34px rgb(0 0 0 / 18%); }.preview-chart-card canvas { display: block; width: 100%; height: 180px; max-width: 100%; margin-top: .8rem; }.preview-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem; margin-top: 1rem; }.preview-kpis div { display: grid; gap: .15rem; padding: .75rem; border-left: 2px solid var(--green); background: var(--soft); }.preview-kpis span { color: var(--muted); font-size: .74rem; }.preview-kpis strong { overflow-wrap: anywhere; font-size: .92rem; }
@@ -262,7 +273,7 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--re
   .global-alarm, .pwa-connection-banner, .pwa-security-notice, .alarm-card-heading, .alarm-actions { align-items: stretch; flex-direction: column; }.operator-summary-grid, .history-grid, .alarm-filters { grid-template-columns: 1fr; }.chart-wide { grid-column: auto; }.history-range { width: 100%; }.history-range .button { flex: 1; }.alarm-ack-form { align-items: stretch; flex-direction: column; }.notification-actions { flex-direction: column; }
   .chart-legend { gap: .3rem .45rem; }.chart-legend-button { max-width: 100%; }.chart-summary { min-height: 0; }
   .section-heading, .maintenance-panel { align-items: stretch; flex-direction: column; }.section-heading .button { width: 100%; }.section-note { max-width: none; }
-  .actuator-grid, .preview-kpis, .administration-actions { grid-template-columns: 1fr; }.equipment-actions, .maintenance-actions { align-items: stretch; flex-direction: column; }.maintenance-actions form, .maintenance-actions .button { width: 100%; }.card-kicker { align-items: flex-start; }.state-badge { text-align: right; }
+  .actuator-grid, .preview-kpis, .administration-actions { grid-template-columns: 1fr; }.maintenance-actions { align-items: stretch; flex-direction: column; }.maintenance-actions form, .maintenance-actions .button { width: 100%; }.card-kicker { align-items: flex-start; }.state-badge { text-align: right; }
 }
 @media (min-width: 681px) and (max-width: 1050px) { .actuator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.preview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) {
