@@ -563,6 +563,7 @@ class Server:
             web.get("/offline", self._offline),
             web.get("/static/css/style.css", self._style),
             web.get("/static/js/pwa.js", self._pwa_js),
+            web.get("/static/js/theme.js", self._theme_js),
             web.get("/static/js/dashboard.js", self._dashboard_js),
             web.get("/static/js/config.js", self._config_js),
             web.get("/static/js/console.js", self._console_js),
@@ -1740,8 +1741,11 @@ class Server:
                 or time_state.get("alarm")
                 or ("Horloge non fiable : minuteries quotidiennes suspendues."
                     if time_state.get("daily_timers_suspended") else None)
-                or (f"{alarms.get('control_count', 0)} alarme(s) de contrôle active(s)."
-                    if alarms.get("control_count", 0) else None)
+                or (
+                    f"{alarms.get('control_count', 0)} "
+                    f"{'alarme de contrôle active' if alarms.get('control_count', 0) == 1 else 'alarmes de contrôle actives'}."
+                    if alarms.get("control_count", 0) else None
+                )
                 or "Une tâche de contrôle ne répond plus."
             )
             return {"status": "attention", "title": "Attention requise", "detail": detail}
@@ -1750,13 +1754,17 @@ class Server:
             return {
                 "status": "override",
                 "title": "Conduite partiellement suspendue",
-                "detail": f"{count} équipement(s) coupé(s) volontairement.",
+                "detail": (
+                    "1 équipement coupé volontairement."
+                    if count == 1 else f"{count} équipements coupés volontairement."
+                ),
             }
         degraded = []
         if not health.get("healthy", False):
             degraded.append("diagnostic auxiliaire")
         if alarms.get("active_count", 0):
-            degraded.append(f"{alarms['active_count']} alarme(s)")
+            count = alarms["active_count"]
+            degraded.append(f"{count} {'alarme' if count == 1 else 'alarmes'}")
         if network.get("status") != "online":
             degraded.append("réseau non nominal")
         if not history.get("available", False):
@@ -1981,6 +1989,7 @@ class Server:
             f"/app.webmanifest?v={PWA_CACHE_VERSION}",
             f"/static/css/style.css?v={ASSET_VERSIONS['style']}",
             f"/static/js/pwa.js?v={ASSET_VERSIONS['pwa']}",
+            f"/static/js/theme.js?v={ASSET_VERSIONS['theme']}",
             f"/static/js/dashboard.js?v={ASSET_VERSIONS['dashboard']}",
             f"/static/js/alarms.js?v={ASSET_VERSIONS['alarms']}",
             f"/static/js/history.js?v={ASSET_VERSIONS['history']}",
@@ -2014,6 +2023,7 @@ class Server:
 
     async def _style(self, request): return await self._asset("css/style.css", "text/css")
     async def _pwa_js(self, request): return await self._asset("js/pwa.js", "application/javascript")
+    async def _theme_js(self, request): return await self._asset("js/theme.js", "application/javascript")
     async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
     async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")
     async def _console_js(self, request): return await self._asset("js/console.js", "application/javascript")

@@ -22,6 +22,45 @@ from tests.test_http_server import (
 )
 
 
+class _FakeAlarmManager:
+    @staticmethod
+    def summary():
+        return {
+            "active_count": 0, "unacknowledged_count": 0, "critical_count": 0,
+            "control_count": 0, "auxiliary_count": 0, "highest_severity": None,
+        }
+
+    @staticmethod
+    def active_payloads():
+        return []
+
+
+class _FakeHistory:
+    available = False
+
+
+class _FakeOperatorService:
+    """Expose les vraies pages opérateur sans initialiser SQLite dans les tests UI."""
+
+    alarms = _FakeAlarmManager()
+    history = _FakeHistory()
+
+    def snapshot(self):
+        return {
+            "alarms": self.alarms.summary(),
+            "history": {"available": False},
+            "network": {"status": "unknown"},
+        }
+
+    @staticmethod
+    def actuator_snapshot():
+        return server_module.operational_snapshot()
+
+    @staticmethod
+    async def list_alarm_payloads(_filters):
+        return []
+
+
 def build_app():
     temporary = tempfile.TemporaryDirectory(prefix="phyto-ui-")
     config_path = Path(temporary.name) / "param.json"
@@ -37,6 +76,7 @@ def build_app():
         FakeStatus(), sensors, store.current,
         supervisor=FakeSupervisor(),
         equipment_store=FakeEquipmentStore(default_catalog()),
+        operator_service=_FakeOperatorService(),
     )
     app = server.create_app()
     # La référence garde le répertoire temporaire vivant pendant le serveur.

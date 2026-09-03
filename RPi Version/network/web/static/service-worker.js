@@ -2,7 +2,7 @@
 
 const CACHE_VERSION = "__PHYTO_CACHE_VERSION__";
 const ASSET_CACHE = `phyto-assets-${CACHE_VERSION}`;
-const PAGE_CACHE = "phyto-pages-v1";
+const PAGE_CACHE = `phyto-pages-${CACHE_VERSION}`;
 const PRECACHE_URLS = __PHYTO_PRECACHE_URLS__;
 
 const warmReadablePages = async () => {
@@ -32,7 +32,10 @@ self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
     await Promise.all(names
-      .filter((name) => name.startsWith("phyto-assets-") && name !== ASSET_CACHE)
+      .filter((name) => (
+        (name.startsWith("phyto-assets-") && name !== ASSET_CACHE) ||
+        (name.startsWith("phyto-pages-") && name !== PAGE_CACHE)
+      ))
       .map((name) => caches.delete(name)));
     await self.clients.claim();
   })());

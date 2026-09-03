@@ -18,6 +18,46 @@
   let alarmSeen = {};
   let alarmSeenInitialized = false;
 
+  const announce = (message, urgent = false) => {
+    const node = document.getElementById(urgent ? "global-live-alert" : "global-live-status");
+    if (!node || !message) return;
+    node.textContent = "";
+    window.requestAnimationFrame(() => { node.textContent = message; });
+  };
+
+  const createAdaptivePoller = (callback, {interval = 5000, maximum = 30000} = {}) => {
+    let timer = null;
+    let failures = 0;
+    let running = false;
+    let stopped = false;
+    const clear = () => { if (timer !== null) window.clearTimeout(timer); timer = null; };
+    const schedule = (delay = interval) => {
+      clear();
+      if (!stopped && document.visibilityState === "visible") timer = window.setTimeout(run, delay);
+    };
+    const run = async () => {
+      if (running || stopped || document.visibilityState !== "visible") return;
+      running = true;
+      try {
+        const success = await callback();
+        failures = success === false ? failures + 1 : 0;
+      } catch (_error) {
+        failures += 1;
+      } finally {
+        running = false;
+        const delay = failures ? Math.min(maximum, interval * (2 ** Math.min(failures - 1, 3))) : interval;
+        schedule(delay);
+      }
+    };
+    const resume = () => {
+      if (document.visibilityState !== "visible" || stopped) { clear(); return; }
+      clear(); run();
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return {start: resume, stop: () => { stopped = true; clear(); }};
+  };
+
   const openDatabase = () => {
     if (!databasePromise) {
       databasePromise = new Promise((resolve, reject) => {
@@ -113,6 +153,7 @@
     lastContactAt = receivedAt;
     await setPreference("lastContactAt", receivedAt);
     updateConnectionBanner();
+    if (wasOffline) announce("Connexion au contrôleur rétablie.");
     if (wasOffline && offlineAtBoot && !sessionStorage.getItem("phyto-pwa-reconnected")) {
       sessionStorage.setItem("phyto-pwa-reconnected", "1");
       window.location.reload();
@@ -120,9 +161,11 @@
   };
 
   const markServerFailure = () => {
+    const wasOnline = !connectionFailed;
     if (!contactedThisPage) offlineAtBoot = true;
     connectionFailed = true;
     updateConnectionBanner();
+    if (wasOnline) announce("Connexion au contrôleur interrompue. Les données affichées ne sont plus actualisées.");
   };
 
   const recordNetworkSuccess = async (key, data, receivedAt = Date.now()) => {
@@ -135,6 +178,8 @@
     markServerFailure,
     recordNetworkSuccess,
     storeSnapshot,
+    createAdaptivePoller,
+    announce,
   };
 
   const configureSecureNotice = () => {
@@ -201,11 +246,22 @@
   };
 
   const processAlarmFeed = async (feed, source) => {
+    const previousFeed = lastAlarmFeed;
     lastAlarmFeed = feed;
     document.dispatchEvent(new CustomEvent("phyto:alarm-feed", {detail: {feed, source}}));
     if (source !== "network") return;
 
     await storeSnapshot("active-alarms", feed, Date.now());
+    if (previousFeed) {
+      const previous = new Map((previousFeed.alarms || []).map((alarm) => [alarm.id, alarm]));
+      for (const alarm of feed.alarms || []) {
+        const old = previous.get(alarm.id);
+        const escalated = Boolean(old && SEVERITY_RANK[alarm.severity] > SEVERITY_RANK[old.severity]);
+        if (!old || escalated) {
+          announce(`${escalated ? "Alarme aggravée" : "Nouvelle alarme"} : ${alarm.title || "attention requise"}.`, alarm.severity === "critical");
+        }
+      }
+    }
     if (
       !notificationEnabled ||
       !("Notification" in window) ||
@@ -249,10 +305,12 @@
       await markServerContact();
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       await processAlarmFeed(await response.json(), "network");
+      return true;
     } catch (error) {
       if (error instanceof TypeError) markServerFailure();
       const stored = await loadSnapshot("active-alarms");
       if (stored?.data) await processAlarmFeed(stored.data, "stored");
+      return false;
     }
   };
 
@@ -340,13 +398,18 @@
 
     configureNotificationControls();
     updateNotificationControls();
-    await fetchAlarmFeed();
-    window.setInterval(fetchAlarmFeed, 5000);
-    window.setInterval(updateConnectionBanner, 1000);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") fetchAlarmFeed();
+    createAdaptivePoller(fetchAlarmFeed).start();
+    window.setInterval(() => { if (connectionFailed) updateConnectionBanner(); }, 60000);
+    const more = document.querySelector(".mobile-more");
+    document.addEventListener("click", (event) => {
+      if (more?.open && !more.contains(event.target)) more.open = false;
     });
-    window.addEventListener("online", fetchAlarmFeed);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && more?.open) {
+        more.open = false;
+        more.querySelector("summary")?.focus();
+      }
+    });
   };
 
   initialize();

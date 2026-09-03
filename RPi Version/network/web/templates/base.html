@@ -1,21 +1,24 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#020604">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#020604" data-theme-color data-dark="#020604" data-daylight="#f4f8f5">
   <meta name="phyto-secure-url" content="{{ pwa_url }}">
   {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
   <title>{{ page_title }} · PhytoController</title>
   <link rel="icon" href="/favicon.svg?v={{ asset_versions.favicon }}" type="image/svg+xml">
   <link rel="manifest" href="/app.webmanifest?v={{ asset_versions.icon_512 }}">
   <link rel="apple-touch-icon" href="/static/icons/pwa-192.png?v={{ asset_versions.icon_192 }}">
+  <script src="/static/js/theme.js?v={{ asset_versions.theme }}"></script>
   <link rel="stylesheet" href="/static/css/style.css?v={{ asset_versions.style }}">
   {% block head_extra %}{% endblock %}
 </head>
 <body data-page="{{ current_page or 'error' }}">
   <a class="skip-link" href="#contenu">Aller au contenu</a>
-  <aside id="pwa-connection-banner" class="pwa-connection-banner" role="alert" aria-live="assertive" hidden>
+  <output id="global-live-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></output>
+  <output id="global-live-alert" class="visually-hidden" role="alert" aria-atomic="true"></output>
+  <aside id="pwa-connection-banner" class="pwa-connection-banner" hidden>
     <strong id="pwa-connection-title">HORS LIGNE</strong>
     <span id="pwa-connection-detail">Données non actualisées · lecture seule</span>
   </aside>
@@ -28,28 +31,29 @@
     {% endif %}
   </aside>
   <header class="site-header">
-    <div class="brand" aria-label="PhytoController">
+    <a class="brand" href="/" aria-label="PhytoController · tableau de bord">
       <span class="brand-mark" aria-hidden="true">⌁</span>
       <span>PHYTO<span class="brand-dim">CONTROLLER</span></span>
-    </div>
+    </a>
     <nav class="navbar" aria-label="Navigation principale">
       <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau de bord</a>
       <a href="/alarms"{% if current_page == 'alarms' %} aria-current="page"{% endif %}>Alarmes{% if alarm_summary and alarm_summary.active_count %} <span class="nav-count">{{ alarm_summary.active_count }}</span>{% endif %}</a>
       <a href="/history"{% if current_page == 'history' %} aria-current="page"{% endif %}>Historique</a>
       <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
       <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Plein jour</button>
     </nav>
   </header>
   {% if override_summary and override_summary.active_count %}
-  <aside id="override-banner" class="global-alarm severity-override" aria-live="polite">
-    <strong>{{ override_summary.active_count }} forçage(s) « arrêt » actif(s)</strong>
-    <span>Équipement(s) coupé(s) volontairement — la conduite normale est suspendue</span>
+  <aside id="override-banner" class="global-alarm severity-override">
+    <strong>{{ override_summary.active_count }} forçage{{ 's' if override_summary.active_count != 1 else '' }} « arrêt » actif{{ 's' if override_summary.active_count != 1 else '' }}</strong>
+    <span>Équipements concernés coupés volontairement — la conduite normale est suspendue</span>
     <a href="/#actionneurs">Examiner</a>
   </aside>
   {% endif %}
   {% if alarm_summary and alarm_summary.active_count %}
-  <aside id="global-alarm" class="global-alarm severity-{{ alarm_summary.highest_severity }}" aria-live="polite">
-    <strong>{{ alarm_summary.active_count }} alarme(s) active(s)</strong>
+  <aside id="global-alarm" class="global-alarm severity-{{ alarm_summary.highest_severity }}">
+    <strong>{{ alarm_summary.active_count }} alarme{{ 's' if alarm_summary.active_count != 1 else '' }} active{{ 's' if alarm_summary.active_count != 1 else '' }}</strong>
     <span>{{ alarm_summary.control_count }} contrôle · {{ alarm_summary.auxiliary_count }} auxiliaire</span>
     <a href="/alarms">Examiner</a>
   </aside>
@@ -58,6 +62,20 @@
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">PHYTO · CONTRÔLE LOCAL LAN</footer>
+  <nav class="mobile-navbar" aria-label="Navigation mobile">
+    <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau</a>
+    <a href="/alarms"{% if current_page == 'alarms' %} aria-current="page"{% endif %}>Alarmes{% if alarm_summary and alarm_summary.active_count %}<span class="nav-count">{{ alarm_summary.active_count }}</span>{% endif %}</a>
+    <a href="/history"{% if current_page == 'history' %} aria-current="page"{% endif %}>Historique</a>
+    <details class="mobile-more"{% if current_page in ('config', 'console') %} data-current="true"{% endif %}>
+      <summary>Plus</summary>
+      <div class="mobile-more-panel">
+        <strong>Outils</strong>
+        <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
+        <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Plein jour</button>
+      </div>
+    </details>
+  </nav>
   <script src="/static/js/pwa.js?v={{ asset_versions.pwa }}" defer></script>
   {% block page_scripts %}{% endblock %}
 </body>

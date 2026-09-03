@@ -2,6 +2,8 @@
   "use strict";
 
   const sensorStatusLabels = {normal: "normal", degraded: "dégradé", absent: "absent", inconsistent: "incohérent", disabled: "désactivé"};
+  const timeLabels = {unknown: "inconnue", reliable: "fiable", unreliable: "non fiable"};
+  const networkLabels = {unknown: "inconnu", online: "en ligne", offline: "hors ligne", degraded: "dégradé"};
   let lastGeneratedAt = null;
   let lastReceivedAt = null;
   let fetchFailed = false;
@@ -40,6 +42,8 @@
     if (actual === "off" || actual === 0) return "ARRÊTÉ";
     return "INCONNU";
   };
+  const requestedLabel = (value) => value === "on" ? "EN MARCHE" : value === "off" ? "ARRÊTÉ" : value === "unknown" || value === undefined || value === null ? "INCONNU" : String(value);
+  const countLabel = (count, singular, plural) => `${count} ${count === 1 ? singular : plural}`;
 
   const updateFreshness = () => {
     const node = document.getElementById("freshness");
@@ -64,9 +68,11 @@
       text("#overview-title", state.overview.title || "État du contrôle");
       text("#overview-detail", state.overview.detail || "État indisponible.");
     }
-    text("#alarm-count", state.alarms?.active_count ?? 0);
-    text("#time-state", `Heure ${state.time?.state || "inconnue"}`);
-    text("#network-state", `Réseau ${state.network?.status || "inconnu"}`);
+    const alarmCount = state.alarms?.active_count ?? 0;
+    text("#alarm-count", alarmCount);
+    text("#alarm-count-label", alarmCount === 1 ? "alarme" : "alarmes");
+    text("#time-state", `Heure ${timeLabels[state.time?.state] || state.time?.state || "inconnue"}`);
+    text("#network-state", `Réseau ${networkLabels[state.network?.status] || state.network?.status || "inconnu"}`);
     text("#history-state", `Historique ${state.history?.available ? "disponible" : "indisponible"}`);
   };
 
@@ -74,12 +80,12 @@
     let banner = document.getElementById("global-alarm");
     if (!(alarms?.active_count || 0)) { banner?.remove(); return; }
     if (!banner) {
-      banner = document.createElement("aside"); banner.id = "global-alarm"; banner.setAttribute("aria-live", "polite");
+      banner = document.createElement("aside"); banner.id = "global-alarm";
       const title = document.createElement("strong"); const detail = document.createElement("span"); const link = document.createElement("a");
       link.href = "/alarms"; link.textContent = "Examiner"; banner.append(title, detail, link); document.querySelector(".site-header")?.after(banner);
     }
     banner.className = `global-alarm severity-${alarms.highest_severity || "warning"}`;
-    text("strong", `${alarms.active_count} alarme(s) active(s)`, banner);
+    text("strong", `${countLabel(alarms.active_count, "alarme active", "alarmes actives")}`, banner);
     text("span", `${alarms.control_count} contrôle · ${alarms.auxiliary_count} auxiliaire`, banner);
   };
 
@@ -90,12 +96,12 @@
     if (!count) banner?.remove();
     else {
       if (!banner) {
-        banner = document.createElement("aside"); banner.id = "override-banner"; banner.className = "global-alarm severity-override"; banner.setAttribute("aria-live", "polite");
+        banner = document.createElement("aside"); banner.id = "override-banner"; banner.className = "global-alarm severity-override";
         const title = document.createElement("strong"); const detail = document.createElement("span"); const link = document.createElement("a");
         link.href = "/#actionneurs"; link.textContent = "Examiner"; banner.append(title, detail, link); document.querySelector(".site-header")?.after(banner);
       }
-      text("strong", `${count} forçage(s) « arrêt » actif(s)`, banner);
-      text("span", "Équipement(s) coupé(s) volontairement — la conduite normale est suspendue", banner);
+      text("strong", `${countLabel(count, "forçage « arrêt » actif", "forçages « arrêt » actifs")}`, banner);
+      text("span", "Équipements concernés coupés volontairement — la conduite normale est suspendue", banner);
     }
     document.querySelectorAll("[data-actuator]").forEach((card) => {
       const item = items.get(card.dataset.actuator);
@@ -121,9 +127,13 @@
     if (!timer) return "";
     const prefix = timer.enabled ? "Actif" : "Désactivé";
     if (timer.kind === "daily") return detailed ? `Planning quotidien : ${timer.schedule.start} → ${timer.schedule.stop}.` : `${prefix} · ${timer.schedule.start} → ${timer.schedule.stop}`;
-    if (timer.schedule.mode === "journalier") return detailed
-      ? `Mode journalier : ${timer.schedule.triggers_per_day} activation(s), tous les ${timer.schedule.period_days} jour(s), première à ${timer.schedule.first_trigger_hour} h, pendant ${timer.schedule.action_duration_seconds} s.`
-      : `${prefix} · ${timer.schedule.triggers_per_day} activation(s), tous les ${timer.schedule.period_days} jour(s)`;
+    if (timer.schedule.mode === "journalier") {
+      const activations = countLabel(timer.schedule.triggers_per_day, "activation", "activations");
+      const period = countLabel(timer.schedule.period_days, "jour", "jours");
+      return detailed
+        ? `Mode journalier : ${activations}, tous les ${period}, première à ${timer.schedule.first_trigger_hour} h, pendant ${timer.schedule.action_duration_seconds} s.`
+        : `${prefix} · ${activations}, tous les ${period}`;
+    }
     return detailed
       ? `Mode séquentiel : jour ${timer.schedule.on_time_day} s ON / ${timer.schedule.off_time_day} s OFF · nuit ${timer.schedule.on_time_night} s ON / ${timer.schedule.off_time_night} s OFF.`
       : `${prefix} · cycle séquentiel jour/nuit`;
@@ -140,8 +150,8 @@
       text(".actuator-name", metadata.display_name || key, card);
       text(".actuator-usage", `${metadata.usage_type || "équipement"}${metadata.zone ? ` · ${metadata.zone}` : ""}`, card);
       text(".actuator-actual", stateLabel(key, actuator.actual), card);
-      text(".actuator-requested", String(actuator.requested ?? "unknown"), card);
-      text(".actuator-applied", String(actuator.applied ?? "—"), card);
+      text(".actuator-requested", requestedLabel(actuator.requested), card);
+      text(".actuator-applied", actuator.applied === undefined || actuator.applied === null ? "—" : requestedLabel(actuator.applied), card);
       text(".actuator-reason", actuator.reason || "Motif indisponible", card);
       text(".actuator-since", formatDuration(actuator.since_seconds), card);
       const next = formatNext(actuator.next_transition);
@@ -175,24 +185,41 @@
       text(".sensor-raw", `${number(sensor.raw_value, sensor.decimals)} ${sensor.unit}`, card); text(".sensor-observed", `${number(sensor.observed_value, sensor.decimals)} ${sensor.unit}`, card); text(".sensor-trusted", `${number(sensor.value, sensor.decimals)} ${sensor.unit}`, card); text(".sensor-unchanged", `${Math.round(sensor.unchanged_for_s || 0)} s`, card);
       text(".sensor-quality", (sensor.reason_codes || []).join(", ") || "Mesure qualifiée", card);
     });
-    (stats || []).forEach(updateStat); text(".section-count", `${(sensors || []).length} mesure(s)`);
+    (stats || []).forEach(updateStat); text(".section-count", countLabel((sensors || []).length, "mesure", "mesures"));
+  };
+
+  const updateClimateSummary = (state) => {
+    const sensors = new Map((state.sensors || []).map((sensor) => [sensor.key, sensor]));
+    const updateSensor = (name, key) => {
+      const item = sensors.get(key); const root = document.querySelector(`[data-climate-summary="${name}"]`);
+      if (!root) return;
+      text(".climate-summary-value", item ? number(item.value, item.decimals) : "—", root);
+      text(".climate-summary-detail", item ? `${sensorStatusLabels[item.status] || item.status} · ${formatAge(item.age_s)}` : "Indisponible", root);
+    };
+    updateSensor("temperature", "BME280T"); updateSensor("humidity", "BME280H");
+    const heater = state.actuators?.heater; const heaterRoot = document.querySelector('[data-climate-summary="heater"]');
+    if (heaterRoot) { text(".climate-summary-value", stateLabel("heater", heater?.actual), heaterRoot); text(".climate-summary-detail", heater?.reason || "Motif indisponible", heaterRoot); }
+    const motor = state.actuators?.motor; const motorRoot = document.querySelector('[data-climate-summary="motor"]');
+    if (motorRoot) { text(".climate-summary-value", stateLabel("motor", motor?.actual), motorRoot); text(".climate-summary-detail", motor?.reason || "Motif indisponible", motorRoot); }
   };
 
   const updateState = (state, {fresh = true, receivedAt = Date.now()} = {}) => {
     lastGeneratedAt = state.generated_at;
     if (fresh) { lastReceivedAt = receivedAt; fetchFailed = false; }
-    updateOverview(state); updateGlobalAlarm(state.alarms); updateActuators(state); updateOverrides(state.overrides); updateSensors(state.sensors, state.stats); updateFreshness();
+    updateOverview(state); updateGlobalAlarm(state.alarms); updateActuators(state); updateOverrides(state.overrides); updateSensors(state.sensors, state.stats); updateClimateSummary(state); updateFreshness();
+    document.dispatchEvent(new CustomEvent("phyto:history-availability", {detail: {available: Boolean(state.history?.available)}}));
   };
 
   const refresh = async () => {
     try {
       const response = await fetch("/api/v1/state", {headers: {Accept: "application/json"}, cache: "no-store"});
       await window.PhytoPwa?.markServerContact(); if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const state = await response.json(); const receivedAt = Date.now(); await window.PhytoPwa?.recordNetworkSuccess("state", state, receivedAt); updateState(state, {fresh: true, receivedAt});
+      const state = await response.json(); const receivedAt = Date.now(); await window.PhytoPwa?.recordNetworkSuccess("state", state, receivedAt); updateState(state, {fresh: true, receivedAt}); return true;
     } catch (error) {
       if (error instanceof TypeError) window.PhytoPwa?.markServerFailure(); fetchFailed = true;
       if (!storedStateLoaded) { storedStateLoaded = true; const stored = await window.PhytoPwa?.loadSnapshot("state"); if (stored?.data) { lastReceivedAt = stored.receivedAt; updateState(stored.data, {fresh: false, receivedAt: stored.receivedAt}); } }
       updateFreshness();
+      return false;
     }
   };
 
@@ -222,5 +249,8 @@
   document.querySelectorAll("[data-open-dialog]").forEach((button) => button.addEventListener("click", () => { activeDialogOpener = button; document.getElementById(button.dataset.openDialog)?.showModal(); }));
   document.querySelectorAll(".confirm-dialog").forEach((dialog) => { dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); }); dialog.addEventListener("close", () => activeDialogOpener?.focus()); });
 
-  updateFreshness(); window.setInterval(updateFreshness, 1000); window.setInterval(refresh, 5000); refresh();
+  updateFreshness();
+  window.setInterval(() => { if (document.visibilityState === "visible") updateFreshness(); }, 5000);
+  if (window.PhytoPwa?.createAdaptivePoller) window.PhytoPwa.createAdaptivePoller(refresh).start();
+  else refresh();
 })();

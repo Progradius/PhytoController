@@ -9,8 +9,13 @@
 </section>
 
 <section id="tendances" class="history-section" aria-labelledby="history-title" data-history-available="{{ 'true' if state.history.available else 'false' }}" data-history-view="full">
-  <div class="section-heading"><div><p class="eyebrow">72 heures explicables</p><h2 id="history-title">Tendances locales</h2></div><div class="history-range" role="group" aria-label="Période"><button class="button button-secondary is-selected" type="button" data-hours="24" aria-pressed="true">24 h</button><button class="button button-secondary" type="button" data-hours="48" aria-pressed="false">48 h</button><button class="button button-secondary" type="button" data-hours="72" aria-pressed="false">72 h</button></div></div>
-  <p id="history-message" class="card-meta" role="status">Chargement de l’historique…</p>
+  <div class="section-heading"><div><p class="eyebrow">72 heures explicables</p><h2 id="history-title">Tendances locales</h2></div><div class="history-range" role="group" aria-label="Période"{% if not state.history.available %} hidden{% endif %}><button class="button button-secondary is-selected" type="button" data-hours="24" aria-pressed="true">24 h</button><button class="button button-secondary" type="button" data-hours="48" aria-pressed="false">48 h</button><button class="button button-secondary" type="button" data-hours="72" aria-pressed="false">72 h</button></div></div>
+  <p id="history-message" class="card-meta" role="status"{% if not state.history.available %} hidden{% endif %}>Chargement de l’historique…</p>
+  <article id="history-empty-state" class="card history-empty-state"{% if state.history.available %} hidden{% endif %}>
+    <div><h3>Historique local indisponible</h3><p>Le contrôle de la serre reste actif. Aucune donnée enregistrée ne peut être affichée pour le moment.</p></div>
+    <div class="history-empty-actions"><button class="button button-secondary" type="button" data-history-retry>Réessayer</button><a class="button button-secondary" href="/alarms">Voir les alarmes</a></div>
+  </article>
+  <div class="history-content" hidden>
   <div class="history-grid">
     <article class="card chart-card">
       <h3>Températures et consignes</h3>
@@ -43,6 +48,7 @@
     <summary>Voir la synthèse sous forme de tableau</summary>
     <div class="history-table-scroll"><table class="history-data-table"><caption>Synthèse accessible de la période affichée</caption><thead><tr><th scope="col">Série</th><th scope="col">Type</th><th scope="col">Minimum</th><th scope="col">Moyenne</th><th scope="col">Maximum</th><th scope="col">Activité observée</th></tr></thead><tbody id="history-data-body"></tbody></table></div>
   </details>
+  </div>
   <output id="history-selection-output" class="visually-hidden" aria-live="polite"></output>
   <div id="history-tooltip" class="history-tooltip" role="tooltip" hidden></div>
 </section>

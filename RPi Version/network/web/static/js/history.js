@@ -3,11 +3,17 @@
   const preview = document.querySelector("[data-history-preview]");
   const section = document.getElementById("tendances");
   if (!section && !preview) return;
+  const themeColor = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
   const initPreview = () => {
     const message = document.getElementById("history-preview-message");
     const canvas = document.getElementById("history-preview-chart");
+    const dataRoot = preview.querySelector(".history-preview-data");
+    const emptyRoot = preview.querySelector(".history-preview-empty");
     let visible = false; let loaded = false; let refreshTimer = null;
+    let currentPreview = null;
+    let observed = false;
+    const showData = (shown) => { if (dataRoot) dataRoot.hidden = !shown; if (emptyRoot) emptyRoot.hidden = shown; if (message) message.hidden = !shown; };
     const format = (value, decimals = 1) => Number.isFinite(value) ? Number(value).toLocaleString("fr-FR", {minimumFractionDigits: decimals, maximumFractionDigits: decimals}) : "—";
     const duration = (seconds) => {
       if (!Number.isFinite(seconds)) return "—";
@@ -43,17 +49,18 @@
       canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); const ctx = canvas.getContext("2d"); ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
       const points = data.buckets.map((bucket) => ({ts: bucket.bucket_start_ts, value: bucket.sensors[key]?.avg, min: bucket.setpoints?.temp_min, max: bucket.setpoints?.temp_max}));
       const values = points.flatMap((point) => [point.value, point.min, point.max]).filter(Number.isFinite);
-      if (!values.length) { ctx.fillStyle = "#a0b9aa"; ctx.font = "13px system-ui"; ctx.fillText("Aucune température valide", 16, 36); return; }
+      if (!values.length) { ctx.fillStyle = themeColor("--chart-muted", "#a0b9aa"); ctx.font = "13px system-ui"; ctx.fillText("Aucune température valide", 16, 36); return; }
       const box = {left: 42, right: width - 8, top: 10, bottom: height - 25}; const low = Math.min(...values) - 1; const high = Math.max(...values) + 1;
       const x = (ts) => box.left + (ts - data.range_start_ts) / Math.max(1, data.range_end_ts - data.range_start_ts) * (box.right - box.left); const y = (value) => box.bottom - (value - low) / Math.max(.1, high - low) * (box.bottom - box.top);
-      ctx.font = "10px system-ui"; ctx.fillStyle = "#a0b9aa"; ctx.strokeStyle = "rgba(176,205,186,.16)";
+      ctx.font = "10px system-ui"; ctx.fillStyle = themeColor("--chart-muted", "#a0b9aa"); ctx.strokeStyle = themeColor("--chart-grid", "rgba(176,205,186,.16)");
       for (let index = 0; index <= 3; index += 1) { const yy = box.top + index / 3 * (box.bottom - box.top); ctx.beginPath(); ctx.moveTo(box.left, yy); ctx.lineTo(box.right, yy); ctx.stroke(); ctx.fillText(`${(high - index / 3 * (high - low)).toFixed(1)}°`, 2, yy + 3); }
       const target = points.filter((point) => Number.isFinite(point.min) && Number.isFinite(point.max));
-      if (target.length) { ctx.fillStyle = "rgba(117,186,255,.12)"; ctx.beginPath(); target.forEach((point, index) => ctx[index ? "lineTo" : "moveTo"](x(point.ts), y(point.max))); [...target].reverse().forEach((point) => ctx.lineTo(x(point.ts), y(point.min))); ctx.closePath(); ctx.fill(); }
-      let drawing = false; ctx.strokeStyle = "#50e38a"; ctx.lineWidth = 2; ctx.beginPath();
+      if (target.length) { ctx.fillStyle = `${themeColor("--chart-1", "#65b9ff")}22`; ctx.beginPath(); target.forEach((point, index) => ctx[index ? "lineTo" : "moveTo"](x(point.ts), y(point.max))); [...target].reverse().forEach((point) => ctx.lineTo(x(point.ts), y(point.min))); ctx.closePath(); ctx.fill(); }
+      let drawing = false; ctx.strokeStyle = themeColor("--chart-0", "#50e38a"); ctx.lineWidth = 2; ctx.beginPath();
       points.forEach((point) => { if (!Number.isFinite(point.value)) { if (drawing) ctx.stroke(); ctx.beginPath(); drawing = false; return; } ctx[drawing ? "lineTo" : "moveTo"](x(point.ts), y(point.value)); drawing = true; }); if (drawing) ctx.stroke();
     };
     const render = (data, storedAge = null) => {
+      currentPreview = data; showData(true);
       const temperature = data.series.find((item) => item.control_role === "climate_temperature") || data.series.find((item) => item.unit?.includes("°C"));
       const humidity = data.series.find((item) => item.control_role === "climate_humidity") || data.series.find((item) => item.unit?.includes("%"));
       if (temperature) draw(data, temperature.key);
@@ -70,11 +77,23 @@
     const load = async () => {
       if (!visible && loaded) return; preview.setAttribute("aria-busy", "true");
       try { const data = await request(); await window.PhytoPwa?.markServerContact(); await window.PhytoPwa?.storeSnapshot("history:24", data, Date.now()); render(data); loaded = true; }
-      catch (error) { if (error instanceof TypeError) window.PhytoPwa?.markServerFailure(); const stored = await window.PhytoPwa?.loadSnapshot("history:24") || await window.PhytoPwa?.loadSnapshot("history"); if (stored?.data) render(stored.data, Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000))); else message.textContent = `Historique local indisponible (${error.message}).`; }
+      catch (error) { if (error instanceof TypeError) window.PhytoPwa?.markServerFailure(); const stored = await window.PhytoPwa?.loadSnapshot("history:24") || await window.PhytoPwa?.loadSnapshot("history"); if (stored?.data) render(stored.data, Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000))); else { showData(false); message.textContent = `Historique local indisponible (${error.message}).`; } }
       finally { preview.setAttribute("aria-busy", "false"); }
     };
     const observer = new IntersectionObserver((entries) => { visible = entries.some((entry) => entry.isIntersecting); if (visible && !loaded) load(); clearInterval(refreshTimer); if (visible) refreshTimer = window.setInterval(() => { if (!document.hidden) load(); }, 300000); }, {rootMargin: "300px"});
-    if (preview.dataset.historyAvailable === "true") observer.observe(preview); else message.textContent = "Historique local indisponible. Le contrôle reste actif.";
+    const setAvailability = (available) => {
+      preview.dataset.historyAvailable = String(available);
+      if (available) {
+        if (!observed) { observer.observe(preview); observed = true; }
+        if (visible && !loaded) load();
+      } else if (!loaded) {
+        showData(false); message.textContent = "Historique local indisponible. Le contrôle reste actif.";
+      }
+    };
+    preview.querySelector("[data-history-preview-retry]")?.addEventListener("click", () => { visible = true; load(); });
+    document.addEventListener("phyto:history-availability", (event) => setAvailability(event.detail.available));
+    document.addEventListener("phyto:themechange", () => { if (currentPreview) draw(currentPreview, (currentPreview.series.find((item) => item.control_role === "climate_temperature") || currentPreview.series.find((item) => item.unit?.includes("°C")))?.key); });
+    setAvailability(preview.dataset.historyAvailable === "true");
     window.addEventListener("resize", () => { if (loaded && visible) load(); });
   };
   if (preview) initPreview();
@@ -82,7 +101,11 @@
   const message = document.getElementById("history-message");
   const tooltip = document.getElementById("history-tooltip");
   const selectionOutput = document.getElementById("history-selection-output");
-  const colors = ["#50e38a", "#65b9ff", "#ffc857", "#d88cff", "#ff7b7b", "#8ee3ef"];
+  const content = section.querySelector(".history-content");
+  const emptyState = document.getElementById("history-empty-state");
+  const rangeControls = section.querySelector(".history-range");
+  const colors = () => [0, 1, 2, 3, 4, 5].map((index) => themeColor(`--chart-${index}`, ["#50e38a", "#65b9ff", "#ffc857", "#d88cff", "#ff7b7b", "#8ee3ef"][index]));
+  const showHistoryData = (shown) => { if (content) content.hidden = !shown; if (emptyState) emptyState.hidden = shown; if (rangeControls) rangeControls.hidden = !shown; if (message) message.hidden = !shown; };
   const seriesDashes = [[], [8, 3], [2, 3], [10, 3, 2, 3], [5, 3], [12, 4]];
   const groups = {automation: ["daily_1", "daily_2", "cyclic_1", "cyclic_2"], "climate-actuator": ["heater", "motor"]};
   const fallbackNames = {daily_1: "Éclairage 1", daily_2: "Éclairage 2", cyclic_1: "Sortie cyclique 1", cyclic_2: "Sortie cyclique 2", heater: "Chauffage", motor: "Ventilation"};
@@ -103,6 +126,7 @@
     const hours = Math.floor(minutes / 60); const remainder = minutes % 60;
     return hours ? `${hours} h ${String(remainder).padStart(2, "0")} min` : `${remainder} min`;
   };
+  const countLabel = (count, singular, plural) => `${count} ${count === 1 ? singular : plural}`;
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -123,7 +147,7 @@
 
   const timeAxis = (ctx, box, height, start, end, x) => {
     const count = box.right - box.left < 460 ? 3 : 5;
-    ctx.fillStyle = "#a0b9aa"; ctx.font = "11px system-ui";
+    ctx.fillStyle = themeColor("--chart-muted", "#a0b9aa"); ctx.font = "11px system-ui";
     for (let index = 0; index < count; index += 1) {
       const timestamp = start + index / (count - 1) * (end - start);
       const label = formatDate(timestamp);
@@ -142,9 +166,9 @@
     ctx.clearRect(0, 0, width, height); ctx.font = "11px system-ui"; ctx.lineWidth = 1;
     for (let index = 0; index <= 4; index += 1) {
       const yy = box.top + index / 4 * (box.bottom - box.top);
-      ctx.strokeStyle = "rgba(176,205,186,.16)"; ctx.beginPath(); ctx.moveTo(box.left, yy); ctx.lineTo(box.right, yy); ctx.stroke();
+      ctx.strokeStyle = themeColor("--chart-grid", "rgba(176,205,186,.16)"); ctx.beginPath(); ctx.moveTo(box.left, yy); ctx.lineTo(box.right, yy); ctx.stroke();
       const value = maximum - index / 4 * range;
-      ctx.fillStyle = "#a0b9aa"; ctx.fillText(`${value.toFixed(range < 10 ? 1 : 0)}${unit}`, 2, yy + 4);
+      ctx.fillStyle = themeColor("--chart-muted", "#a0b9aa"); ctx.fillText(`${value.toFixed(range < 10 ? 1 : 0)}${unit}`, 2, yy + 4);
     }
     timeAxis(ctx, box, height, start, end, x);
     const graph = {ctx, x, y, box, width, height, start, end}; plots.set(canvas, graph); return graph;
@@ -189,8 +213,8 @@
   const drawEvents = (graph) => (current.events || []).forEach((event) => {
     const xx = graph.x(event.ts); if (xx < graph.box.left || xx > graph.box.right) return;
     const alarm = event.kind === "alarm";
-    graph.ctx.strokeStyle = alarm ? "rgba(255,107,107,.82)" : "rgba(255,200,87,.78)";
-    graph.ctx.fillStyle = alarm ? "#ff6b6b" : "#ffc857"; graph.ctx.lineWidth = 1;
+    graph.ctx.strokeStyle = alarm ? themeColor("--red", "#ff6b6b") : themeColor("--amber", "#ffc857");
+    graph.ctx.fillStyle = alarm ? themeColor("--red", "#ff6b6b") : themeColor("--amber", "#ffc857"); graph.ctx.lineWidth = 1;
     graph.ctx.beginPath(); graph.ctx.moveTo(xx, graph.box.top); graph.ctx.lineTo(xx, graph.box.bottom); graph.ctx.stroke();
     graph.ctx.beginPath();
     if (alarm) { graph.ctx.moveTo(xx, graph.box.top); graph.ctx.lineTo(xx - 4, graph.box.top + 7); graph.ctx.lineTo(xx + 4, graph.box.top + 7); }
@@ -200,7 +224,7 @@
   const drawCrosshair = (graph) => {
     if (!Number.isFinite(selectedTimestamp)) return;
     const xx = graph.x(selectedTimestamp); if (xx < graph.box.left || xx > graph.box.right) return;
-    graph.ctx.strokeStyle = "rgba(237,247,240,.72)"; graph.ctx.lineWidth = 1; graph.ctx.setLineDash([2, 3]);
+    graph.ctx.strokeStyle = themeColor("--chart-crosshair", "rgba(237,247,240,.72)"); graph.ctx.lineWidth = 1; graph.ctx.setLineDash([2, 3]);
     graph.ctx.beginPath(); graph.ctx.moveTo(xx, graph.box.top); graph.ctx.lineTo(xx, graph.box.bottom); graph.ctx.stroke(); graph.ctx.setLineDash([]);
   };
   const sensorSummary = (series, unit) => {
@@ -219,7 +243,7 @@
     values = values.filter(Number.isFinite);
     if (!values.length) {
       const empty = setup(canvas); empty.context.clearRect(0, 0, empty.width, empty.height);
-      empty.context.fillStyle = "#a0b9aa"; empty.context.font = "13px system-ui";
+      empty.context.fillStyle = themeColor("--chart-muted", "#a0b9aa"); empty.context.font = "13px system-ui";
       empty.context.fillText(visible.length ? "Aucune mesure valide sur cette période" : "Toutes les séries sont masquées", 16, 35);
       plots.delete(canvas); return;
     }
@@ -227,23 +251,23 @@
     const graph = sensorFrame(canvas, Math.min(...values) - padding, Math.max(...values) + padding, unit);
     if (options.temperature) {
       setpointSegments(["temp_min", "temp_max"]).forEach((points) => {
-        graph.ctx.fillStyle = "rgba(101,185,255,.10)"; graph.ctx.beginPath();
+        graph.ctx.fillStyle = `${themeColor("--chart-1", "#65b9ff")}1a`; graph.ctx.beginPath();
         points.forEach((bucket, index) => graph.ctx[index ? "lineTo" : "moveTo"](graph.x(bucket.bucket_start_ts), graph.y(bucket.setpoints.temp_max)));
         [...points].reverse().forEach((bucket) => graph.ctx.lineTo(graph.x(bucket.bucket_start_ts), graph.y(bucket.setpoints.temp_min)));
         graph.ctx.closePath(); graph.ctx.fill();
       });
-      drawSetpointLine(graph, "heater_off_threshold", "#ffc857", [4, 4]);
-      drawSetpointLine(graph, "vent_threshold", "#d88cff", [9, 4]);
+      drawSetpointLine(graph, "heater_off_threshold", themeColor("--chart-2", "#ffc857"), [4, 4]);
+      drawSetpointLine(graph, "vent_threshold", themeColor("--chart-3", "#d88cff"), [9, 4]);
     }
-    if (options.humidity) drawSetpointLine(graph, "humidity_threshold", "#ffc857", [5, 4]);
+    if (options.humidity) drawSetpointLine(graph, "humidity_threshold", themeColor("--chart-2", "#ffc857"), [5, 4]);
     visible.forEach((meta) => {
       const index = Math.max(0, series.findIndex((item) => item.key === meta.key));
       sensorSegments(meta.key).forEach((points) => {
-        graph.ctx.fillStyle = `${colors[index % colors.length]}24`; graph.ctx.beginPath();
+        graph.ctx.fillStyle = `${colors()[index % colors().length]}24`; graph.ctx.beginPath();
         points.forEach((point, pointIndex) => graph.ctx[pointIndex ? "lineTo" : "moveTo"](graph.x(point.ts), graph.y(point.max)));
         [...points].reverse().forEach((point) => graph.ctx.lineTo(graph.x(point.ts), graph.y(point.min)));
         graph.ctx.closePath(); graph.ctx.fill();
-        graph.ctx.strokeStyle = colors[index % colors.length]; graph.ctx.lineWidth = 2; graph.ctx.setLineDash(seriesDashes[index % seriesDashes.length]); graph.ctx.beginPath();
+        graph.ctx.strokeStyle = colors()[index % colors().length]; graph.ctx.lineWidth = 2; graph.ctx.setLineDash(seriesDashes[index % seriesDashes.length]); graph.ctx.beginPath();
         points.forEach((point, pointIndex) => graph.ctx[pointIndex ? "lineTo" : "moveTo"](graph.x(point.ts), graph.y(point.avg)));
         graph.ctx.stroke(); graph.ctx.setLineDash([]);
       });
@@ -266,7 +290,7 @@
     const box = {left: width < 430 ? Math.min(112, width * .36) : 158, right: width - 8, top: 12, bottom: height - 29};
     const start = current.range_start_ts; const end = current.range_end_ts;
     const x = (timestamp) => box.left + (timestamp - start) / Math.max(1, end - start) * (box.right - box.left);
-    ctx.clearRect(0, 0, width, height); ctx.strokeStyle = "rgba(176,205,186,.16)"; ctx.lineWidth = 1;
+    ctx.clearRect(0, 0, width, height); ctx.strokeStyle = themeColor("--chart-grid", "rgba(176,205,186,.16)"); ctx.lineWidth = 1;
     const laneHeight = (box.bottom - box.top) / Math.max(1, laneCount);
     for (let index = 0; index <= laneCount; index += 1) { const yy = box.top + index * laneHeight; ctx.beginPath(); ctx.moveTo(box.left, yy); ctx.lineTo(box.right, yy); ctx.stroke(); }
     timeAxis(ctx, box, height, start, end, x);
@@ -278,15 +302,15 @@
     const lanes = present.length ? present : ids;
     const graph = timelineFrame(canvas, lanes.length); graph.ctx.font = `${graph.width < 430 ? 10 : 11}px system-ui`;
     if (!lanes.length) {
-      graph.ctx.fillStyle = "#a0b9aa"; graph.ctx.font = "13px system-ui";
+      graph.ctx.fillStyle = themeColor("--chart-muted", "#a0b9aa"); graph.ctx.font = "13px system-ui";
       graph.ctx.fillText("Toutes les pistes sont masquées", graph.box.left + 10, graph.box.top + 28);
       drawEvents(graph); drawCrosshair(graph); return;
     }
     lanes.forEach((id, index) => {
       const top = graph.box.top + index * graph.laneHeight + 4; const laneHeight = Math.max(5, graph.laneHeight - 8);
-      graph.ctx.fillStyle = "rgba(160,185,170,.06)"; graph.ctx.fillRect(graph.box.left, top, graph.box.right - graph.box.left, laneHeight);
-      hatch(graph.ctx, graph.box.left, top, graph.box.right - graph.box.left, laneHeight, "rgba(160,185,170,.20)");
-      graph.ctx.fillStyle = "#dbe9df"; graph.ctx.fillText(fitText(graph.ctx, equipmentName(id), graph.box.left - 12), 2, top + laneHeight / 2 + 4);
+      graph.ctx.fillStyle = `${themeColor("--chart-muted", "#a0b9aa")}0f`; graph.ctx.fillRect(graph.box.left, top, graph.box.right - graph.box.left, laneHeight);
+      hatch(graph.ctx, graph.box.left, top, graph.box.right - graph.box.left, laneHeight, `${themeColor("--chart-muted", "#a0b9aa")}33`);
+      graph.ctx.fillStyle = themeColor("--chart-label", "#dbe9df"); graph.ctx.fillText(fitText(graph.ctx, equipmentName(id), graph.box.left - 12), 2, top + laneHeight / 2 + 4);
       const exactIntervals = current.actuator_history?.[id]?.intervals || [];
       if (exactIntervals.length) {
         exactIntervals.forEach((interval) => {
@@ -296,12 +320,12 @@
           if (interval.status !== "ok" || !Number.isFinite(interval.actual)) {
             hatch(graph.ctx, left, top, width, laneHeight, "rgba(255,107,107,.48)"); return;
           }
-          graph.ctx.fillStyle = "#0d1812"; graph.ctx.fillRect(left, top, width, laneHeight);
+          graph.ctx.fillStyle = themeColor("--chart-off", "#0d1812"); graph.ctx.fillRect(left, top, width, laneHeight);
           if (id === "motor") {
-            const speed = Math.max(0, Math.min(4, Math.round(interval.actual))); const speedColors = ["rgba(160,185,170,.05)", "#245c42", "#2f8b5a", "#3fbd73", "#50e38a"];
+            const speed = Math.max(0, Math.min(4, Math.round(interval.actual))); const speedColors = [themeColor("--chart-off", "#0d1812"), "#245c42", "#2f8b5a", "#3fbd73", themeColor("--chart-0", "#50e38a")];
             graph.ctx.fillStyle = speedColors[speed]; graph.ctx.fillRect(left, top, width, laneHeight);
             if (width > 18 && speed > 0) { graph.ctx.fillStyle = speed >= 3 ? "#062b15" : "#edf7f0"; graph.ctx.fillText(`V${speed}`, left + 3, top + laneHeight / 2 + 4); }
-          } else if (interval.actual > 0) { graph.ctx.fillStyle = "#50e38a"; graph.ctx.fillRect(left, top, width, laneHeight); }
+          } else if (interval.actual > 0) { graph.ctx.fillStyle = themeColor("--chart-0", "#50e38a"); graph.ctx.fillRect(left, top, width, laneHeight); }
           if (interval.boundary_precision === "observed") hatch(graph.ctx, left, top, Math.min(width, 7), laneHeight, "rgba(245,189,79,.78)");
         });
         return;
@@ -310,15 +334,15 @@
         const item = bucket.actuators[id]; const left = Math.max(graph.box.left, graph.x(bucket.bucket_start_ts));
         const right = Math.min(graph.box.right, graph.x(bucket.bucket_start_ts + current.bucket_seconds)); const width = Math.max(1, right - left + .5);
         if (!item || !item.valid_count || !Number.isFinite(item.avg_value)) { hatch(graph.ctx, left, top, width, laneHeight, "rgba(160,185,170,.32)"); return; }
-        graph.ctx.fillStyle = "#0d1812"; graph.ctx.fillRect(left, top, width, laneHeight);
+        graph.ctx.fillStyle = themeColor("--chart-off", "#0d1812"); graph.ctx.fillRect(left, top, width, laneHeight);
         if (id === "motor") {
-          const speed = Math.max(0, Math.min(4, item.avg_value)); const speedColors = ["rgba(160,185,170,.05)", "#245c42", "#2f8b5a", "#3fbd73", "#50e38a"];
+          const speed = Math.max(0, Math.min(4, item.avg_value)); const speedColors = [themeColor("--chart-off", "#0d1812"), "#245c42", "#2f8b5a", "#3fbd73", themeColor("--chart-0", "#50e38a")];
           graph.ctx.fillStyle = speedColors[Math.round(speed)]; graph.ctx.fillRect(left, top, width, laneHeight);
           if (item.min_value !== item.max_value) hatch(graph.ctx, left, top, width, laneHeight, "rgba(255,255,255,.42)");
           if (width > 18 && speed > 0) { graph.ctx.fillStyle = speed >= 3 ? "#062b15" : "#edf7f0"; graph.ctx.fillText(`V${Math.round(speed)}`, left + 3, top + laneHeight / 2 + 4); }
           return;
         }
-        if (item.on_rate === 1) { graph.ctx.fillStyle = "#50e38a"; graph.ctx.fillRect(left, top, width, laneHeight); }
+        if (item.on_rate === 1) { graph.ctx.fillStyle = themeColor("--chart-0", "#50e38a"); graph.ctx.fillRect(left, top, width, laneHeight); }
         else if (item.on_rate > 0) { graph.ctx.fillStyle = "rgba(245,189,79,.20)"; graph.ctx.fillRect(left, top, width, laneHeight); hatch(graph.ctx, left, top, width, laneHeight, "rgba(245,189,79,.72)"); }
       });
     });
@@ -329,7 +353,7 @@
   const legendItem = (label, kind, colorClass = "") => { const item = element("span", "chart-legend-item"); item.append(swatch(kind, colorClass), document.createTextNode(label)); return item; };
   const legendButton = (meta, index) => {
     const button = element("button", "chart-legend-button", meta.label); button.type = "button"; button.dataset.seriesKey = meta.key;
-    button.setAttribute("aria-pressed", String(!hiddenSeries.has(meta.key))); button.prepend(swatch("is-line", `series-color-${index % colors.length} series-style-${index % 3}`)); return button;
+    button.setAttribute("aria-pressed", String(!hiddenSeries.has(meta.key))); button.prepend(swatch("is-line", `series-color-${index % colors().length} series-style-${index % 3}`)); return button;
   };
   const buildLegends = (temperature, humidity) => {
     document.getElementById("temperature-legend").replaceChildren(...temperature.map(legendButton), legendItem("plage min–max", "is-band", "series-color-0"), legendItem("zone cible", "is-band", "series-color-1"), legendItem("arrêt chauffage", "is-dashed", "series-color-2"), legendItem("départ ventilation", "is-long-dash", "series-color-3"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
@@ -372,9 +396,9 @@
       const stats = actuatorStats(id); const item = element("button", "chart-summary-item"); item.type = "button"; item.dataset.actuatorKey = id; item.setAttribute("aria-pressed", String(!hiddenActuators.has(id)));
       const detail = !stats ? "Aucune observation"
         : stats.exact && id === "motor" ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} en marche · max V${formatNumber(stats.maximum, 0)} · couverture ${formatNumber(stats.coverage, 0)} %`
-          : stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} ON · ${stats.transitions} bascule(s) · couverture ${formatNumber(stats.coverage, 0)} %`
+          : stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} ON · ${countLabel(stats.transitions, "bascule", "bascules")} · couverture ${formatNumber(stats.coverage, 0)} %`
             : id === "motor" ? `Moy. V${formatNumber(stats.average)} · max V${formatNumber(stats.maximum, 0)} · active ${formatNumber(stats.active, 0)} %`
-              : `${formatNumber(stats.active, 0)} % ON · ${stats.transitions} bascule(s) · ${stats.currentState}`;
+              : `${formatNumber(stats.active, 0)} % ON · ${countLabel(stats.transitions, "bascule", "bascules")} · ${stats.currentState}`;
       item.append(element("strong", "", equipmentName(id)), element("span", "", detail)); return item;
     }));
   };
@@ -400,7 +424,7 @@
     });
     Object.values(groups).flat().forEach((id) => {
       const stats = actuatorStats(id); if (!stats) return;
-      rows.push(id === "motor" ? [equipmentName(id), "Actionneur", `V${formatNumber(stats.minimum, 0)}`, `V${formatNumber(stats.average)}`, `V${formatNumber(stats.maximum, 0)}`, stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} · couverture ${formatNumber(stats.coverage, 0)} %` : `${formatNumber(stats.active, 0)} %`] : [equipmentName(id), "Actionneur", "OFF", "—", "ON", stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} ON · ${stats.transitions} bascule(s) · couverture ${formatNumber(stats.coverage, 0)} %` : `${formatNumber(stats.active, 0)} % ON · ${stats.transitions} bascule(s)`]);
+      rows.push(id === "motor" ? [equipmentName(id), "Actionneur", `V${formatNumber(stats.minimum, 0)}`, `V${formatNumber(stats.average)}`, `V${formatNumber(stats.maximum, 0)}`, stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} · couverture ${formatNumber(stats.coverage, 0)} %` : `${formatNumber(stats.active, 0)} %`] : [equipmentName(id), "Actionneur", "ARRÊTÉ", "—", "EN MARCHE", stats.exact ? `${stats.approximate ? "≈ " : ""}${formatDuration(stats.activeDuration)} en marche · ${countLabel(stats.transitions, "bascule", "bascules")} · couverture ${formatNumber(stats.coverage, 0)} %` : `${formatNumber(stats.active, 0)} % en marche · ${countLabel(stats.transitions, "bascule", "bascules")}`]);
     });
     document.getElementById("history-data-body").replaceChildren(...rows.map((values) => {
       const row = document.createElement("tr"); values.forEach((value, index) => { const cell = document.createElement(index ? "td" : "th"); if (!index) cell.scope = "row"; cell.textContent = value; row.append(cell); }); return row;
@@ -416,6 +440,7 @@
   };
   const render = (data) => {
     current = data; selectedTimestamp = null; plots.clear();
+    showHistoryData(true);
     const temperature = data.series.filter((item) => item.unit.includes("°C")); const humidity = data.series.filter((item) => item.unit.includes("%"));
     const otherUnits = [...new Set(data.series.filter((item) => !item.unit.includes("°C") && !item.unit.includes("%")).map((item) => item.unit))];
     buildLegends(temperature, humidity); buildAdditionalCharts(otherUnits);
@@ -423,7 +448,7 @@
     renderGroupSummary(document.getElementById("automation-summary"), groups.automation); renderGroupSummary(document.getElementById("climate-actuator-summary"), groups["climate-actuator"]);
     buildTable(); drawAll();
     const exactCount = Object.values(data.actuator_history || {}).filter((item) => item.intervals?.length).length;
-    message.textContent = `${data.buckets.length} intervalle(s) de ${Math.round(data.bucket_seconds / 60)} min · courbes : moyenne et plage min–max · ${exactCount} actionneur(s) avec transitions GPIO relues. Les lacunes ne sont pas interpolées.`;
+    message.textContent = `${countLabel(data.buckets.length, "intervalle", "intervalles")} de ${Math.round(data.bucket_seconds / 60)} min · courbes : moyenne et plage min–max · ${countLabel(exactCount, "actionneur", "actionneurs")} avec transitions GPIO relues. Les lacunes ne sont pas interpolées.`;
   };
 
   const nearestBucketIndex = (timestamp) => {
@@ -439,10 +464,10 @@
       const item = bucket.actuators[id]; let value = "inconnu";
       const interval = (current.actuator_history?.[id]?.intervals || []).find((entry) => entry.start_ts <= bucket.bucket_start_ts && entry.end_ts > bucket.bucket_start_ts);
       if (interval?.status === "ok" && Number.isFinite(interval.actual)) {
-        value = id === "motor" ? `V${formatNumber(interval.actual, 0)} (GPIO relu)` : `${interval.actual > 0 ? "ON" : "OFF"} (GPIO relu)`;
+        value = id === "motor" ? `V${formatNumber(interval.actual, 0)} (GPIO relu)` : `${interval.actual > 0 ? "EN MARCHE" : "ARRÊTÉ"} (GPIO relu)`;
       } else if (item?.valid_count && Number.isFinite(item.avg_value)) {
         if (id === "motor") value = item.min_value === item.max_value ? `V${formatNumber(item.avg_value, 0)}` : `V${formatNumber(item.min_value, 0)} à V${formatNumber(item.max_value, 0)}`;
-        else value = item.on_rate === 1 ? "ON" : item.on_rate === 0 ? "OFF" : "mixte dans l’intervalle";
+        else value = item.on_rate === 1 ? "EN MARCHE" : item.on_rate === 0 ? "ARRÊTÉ" : "mixte dans l’intervalle";
       }
       entries.push([equipmentName(id), value]);
     });
@@ -513,12 +538,14 @@
       if (stored?.data) {
         render(stored.data); const storedHours = Number(stored.data.hours || hours); document.querySelectorAll("[data-hours]").forEach((item) => { const selected = Number(item.dataset.hours) === storedHours; item.classList.toggle("is-selected", selected); item.setAttribute("aria-pressed", String(selected)); });
         const age = Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000)); message.textContent = `Historique enregistré il y a ${age} min · données non actualisées, lacunes conservées.`;
-      } else message.textContent = `Historique local indisponible (${error.message}). Aucune vue enregistrée ; le contrôle reste actif.`;
+      } else { showHistoryData(false); message.textContent = `Historique local indisponible (${error.message}). Aucune vue enregistrée ; le contrôle reste actif.`; }
     } finally {
       section.setAttribute("aria-busy", "false");
     }
   };
   document.querySelectorAll("[data-hours]").forEach((button) => button.addEventListener("click", () => { document.querySelectorAll("[data-hours]").forEach((item) => { const selected = item === button; item.classList.toggle("is-selected", selected); item.setAttribute("aria-pressed", String(selected)); }); load(Number(button.dataset.hours)); }));
+  section.querySelector("[data-history-retry]")?.addEventListener("click", () => load(24));
+  document.addEventListener("phyto:themechange", drawAll);
   let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => current && drawAll(), 150); });
-  if (section.dataset.historyAvailable === "true") load(24); else message.textContent = "Historique local indisponible. Le contrôle reste actif et InfluxDB n’est pas requis pour cette vue.";
+  if (section.dataset.historyAvailable === "true") load(24); else { showHistoryData(false); message.textContent = "Historique local indisponible. Le contrôle reste actif et InfluxDB n’est pas requis pour cette vue."; }
 })();

@@ -31,10 +31,25 @@
   // Seules les différences **réelles** comptent : taper une valeur puis la
   // remettre ne doit ni allumer le bouton d'annulation ni retenir la page.
   const dirtyForms = new Set();
+  const cancelActions = new WeakMap();
+  let activeDirtyForm = null;
+  const dirtyBar = document.getElementById("config-dirty-bar");
+  const dirtyLabel = document.getElementById("config-dirty-label");
   const warnOnUnload = (event) => { event.preventDefault(); event.returnValue = ""; };
+  const formLabel = (form) => form.closest("details")?.querySelector("summary span")?.textContent?.trim() || "Cette section";
+  const updateDirtyBar = () => {
+    if (!dirtyBar) return;
+    if (!activeDirtyForm || !dirtyForms.has(activeDirtyForm)) activeDirtyForm = dirtyForms.values().next().value || null;
+    dirtyBar.classList.toggle("is-visible", Boolean(activeDirtyForm));
+    if (dirtyLabel && activeDirtyForm) {
+      const others = Math.max(0, dirtyForms.size - 1);
+      dirtyLabel.textContent = `Modifications · ${formLabel(activeDirtyForm)}${others ? ` · +${others} autre${others > 1 ? "s" : ""}` : ""}`;
+    }
+  };
   const updateUnloadGuard = () => {
     window.removeEventListener("beforeunload", warnOnUnload);
     if (dirtyForms.size > 0) window.addEventListener("beforeunload", warnOnUnload);
+    updateDirtyBar();
   };
   const serialize = (form) => {
     const entries = [];
@@ -70,22 +85,29 @@
         // prévisualisation sans que ce bloc ait à les connaître.
         form.dispatchEvent(new Event("input", { bubbles: true }));
       });
+      cancelActions.set(form, () => cancel.click());
     }
     const refreshDirty = () => {
       const dirty = serialize(form) !== initial;
       if (cancel) cancel.hidden = !dirty;
-      if (dirty) dirtyForms.add(form); else dirtyForms.delete(form);
+      if (dirty) { dirtyForms.add(form); activeDirtyForm = form; }
+      else dirtyForms.delete(form);
       updateUnloadGuard();
     };
     form.addEventListener("input", refreshDirty);
     form.addEventListener("change", refreshDirty);
     form.addEventListener("submit", () => {
-      dirtyForms.clear();
+      dirtyForms.delete(form);
+      if (activeDirtyForm === form) activeDirtyForm = null;
       updateUnloadGuard();
       const button = form.querySelector("[data-save-button]");
       if (button) { button.disabled = true; button.textContent = "Enregistrement…"; }
     });
   });
+  dirtyBar?.querySelector("[data-dirty-cancel]")?.addEventListener("click", () => {
+    if (activeDirtyForm) cancelActions.get(activeDirtyForm)?.();
+  });
+  dirtyBar?.querySelector("[data-dirty-save]")?.addEventListener("click", () => activeDirtyForm?.requestSubmit());
   // ── Prévisualisation serveur ────────────────────────────────────────────
   // Aucune formule thermique ici : le serveur rejoue `settings_from_config`
   // et renvoie les seuils effectifs. Le seuil de ventilation peut dépasser la

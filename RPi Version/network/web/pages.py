@@ -55,6 +55,7 @@ def _asset_versions() -> dict[str, str]:
         "alarms": STATIC_DIR / "js" / "alarms.js",
         "history": STATIC_DIR / "js" / "history.js",
         "pwa": STATIC_DIR / "js" / "pwa.js",
+        "theme": STATIC_DIR / "js" / "theme.js",
         "service_worker": STATIC_DIR / "service-worker.js",
         "font": STATIC_DIR / "fonts" / "visitor1.ttf",
         "favicon": STATIC_DIR / "favicon.svg",

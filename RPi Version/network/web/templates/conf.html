@@ -257,7 +257,7 @@
       {{ radios(scope, 'mode', cycle.mode, 'Mode de fonctionnement', (('journalier','Journalier'),('séquentiel','Séquentiel')), 'cyclic-' ~ num ~ '-mode') }}
       <div data-mode-fields="journalier"{% if form_value(scope, 'mode', cycle.mode)|string != 'journalier' %} hidden{% endif %}>
         <div class="field-grid two">
-          {{ number(scope, 'period_days', 'Période', cycle.period_days, 'jour(s)', 1, id_prefix='cyclic-' ~ num ~ '-period-days') }}
+          {{ number(scope, 'period_days', 'Période', cycle.period_days, 'jours', 1, id_prefix='cyclic-' ~ num ~ '-period-days') }}
           {{ number(scope, 'triggers_per_day', 'Activations par journée', cycle.triggers_per_day, '', 1, id_prefix='cyclic-' ~ num ~ '-triggers-per-day') }}
           {{ number(scope, 'first_trigger_hour', 'Première activation', cycle.first_trigger_hour, 'h', 0, 23, id_prefix='cyclic-' ~ num ~ '-first-trigger-hour') }}
           {{ number(scope, 'action_duration_seconds', 'Durée d’activation', cycle.action_duration_seconds, 's', 1, id_prefix='cyclic-' ~ num ~ '-action-duration') }}
@@ -342,7 +342,7 @@
         <div class="field-grid two">
           {{ number(scope, 'offset', 'Offset', profile.offset, definition.unit, '', '', '0.01', 'Ajouté à la valeur brute.', definition.slug ~ '-offset') }}
           {{ text(scope, 'calibrated_at', 'Dernière calibration', profile.calibrated_at or '', type='date', id_prefix=definition.slug ~ '-calibrated') }}
-          {{ number(scope, 'calibration_valid_days', 'Validité', profile.calibration_valid_days or '', 'jour(s)', 1, 3650, '1', 'Vide = date informative.', definition.slug ~ '-validity') }}
+          {{ number(scope, 'calibration_valid_days', 'Validité', profile.calibration_valid_days or '', 'jours', 1, 3650, '1', 'Vide = date informative.', definition.slug ~ '-validity') }}
           {{ number(scope, 'freshness_seconds', 'Fraîcheur maximale', profile.freshness_seconds, 's', 1, 3600, '1', '', definition.slug ~ '-freshness') }}
           {{ number(scope, 'plausible_min', 'Minimum plausible', profile.plausible_min, definition.unit, '', '', '0.01', '', definition.slug ~ '-minimum') }}
           {{ number(scope, 'plausible_max', 'Maximum plausible', profile.plausible_max, definition.unit, '', '', '0.01', '', definition.slug ~ '-maximum') }}
@@ -406,7 +406,7 @@
   <details class="config-section" id="logs"{% if active_section == 'logs' %} open{% endif %}><summary><span>Journalisation</span><span class="summary-value">{{ config.logs.level }}</span></summary>
     <form method="post" action="/conf/logs" data-config-form>{{ csrf() }}<div class="field-grid two">
       {{ choice('logs', 'level', 'Niveau', config.logs.level, ('DEBUG','INFO','WARNING','ERROR')) }}
-      {{ number('logs', 'retention_days', 'Rétention', config.logs.retention_days, 'jour(s)', 1) }}
+      {{ number('logs', 'retention_days', 'Rétention', config.logs.retention_days, 'jours', 1) }}
     </div>{{ save_button() }}</form>
   </details>
   <details class="config-section hardware" id="gpio"><summary><span>Matériel GPIO</span><span class="summary-value">Lecture seule</span></summary>
@@ -415,5 +415,10 @@
   </details>
 </section>
 </div>
+<aside id="config-dirty-bar" class="config-dirty-bar" aria-live="polite">
+  <span id="config-dirty-label">Modifications non enregistrées</span>
+  <button class="button button-secondary" type="button" data-dirty-cancel>Annuler</button>
+  <button class="button" type="button" data-dirty-save>Enregistrer</button>
+</aside>
 {% endblock %}
 {% block page_scripts %}<script src="/static/js/config.js?v={{ asset_versions.config }}" defer></script>{% endblock %}

@@ -18,6 +18,9 @@ module.exports = defineConfig({
   projects: [
     {name: "desktop-chromium", use: {...devices["Desktop Chrome"]}},
     {name: "mobile-chromium", use: {...devices["Pixel 5"]}},
+    {name: "mobile-etroit", use: {viewport: {width: 320, height: 568}, isMobile: true, hasTouch: true}},
+    {name: "mobile-paysage", use: {viewport: {width: 568, height: 320}, isMobile: true, hasTouch: true}},
+    {name: "pwa-chromium", use: {...devices["Pixel 5"], serviceWorkers: "allow"}},
   ],
   webServer: externalBaseUrl ? undefined : {
     command: `${process.env.PHYTO_TEST_PYTHON || "python3"} tests/ui_server.py`,
