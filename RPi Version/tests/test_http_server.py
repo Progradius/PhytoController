@@ -204,6 +204,42 @@ async def test_pages_dynamiques_et_secrets_absents(web_context):
     assert "Content-Security-Policy" in response.headers
 
 
+async def test_note_operateur_validee_et_persistee(web_context):
+    client, server, *_ = web_context
+
+    class AvailableHistory:
+        available = True
+
+    class NoteService:
+        history = AvailableHistory()
+        record_operator_note = AsyncMock()
+
+    service = NoteService()
+    server.operator_service = service
+    response = await client.post(
+        "/actions/history/notes",
+        data={
+            "csrf_token": CSRF_TOKEN,
+            "category": "intervention",
+            "note": "Porte ouverte pendant quinze minutes",
+            "alias": "Raphaël",
+        },
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status == 201
+    assert await response.json() == {"saved": True, "category": "intervention"}
+    service.record_operator_note.assert_awaited_once_with(
+        "intervention", "Porte ouverte pendant quinze minutes", "Raphaël"
+    )
+
+    rejected = await client.post(
+        "/actions/history/notes",
+        data={"csrf_token": CSRF_TOKEN, "category": "libre", "note": "test"},
+    )
+    assert rejected.status == 400
+
+
 async def test_graphiques_conservent_une_hauteur_logique_immuable(web_context):
     client, *_ = web_context
     dashboard = await (await client.get("/")).text()
@@ -518,6 +554,7 @@ async def test_corps_trop_volumineux_est_refuse(web_context):
 @pytest.mark.parametrize(
     "path",
     [
+        "/actions/history/notes",
         "/actions/stats/reset",
         "/actions/sensors/reset-quality",
         "/actions/system/reboot",

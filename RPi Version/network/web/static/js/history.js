@@ -4,6 +4,9 @@
   const section = document.getElementById("tendances");
   if (!section && !preview) return;
   const themeColor = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  const requestWithTimeout = (resource, options, timeout) => window.PhytoPwa?.fetchWithTimeout
+    ? window.PhytoPwa.fetchWithTimeout(resource, options, timeout)
+    : fetch(resource, options);
 
   const initPreview = () => {
     const message = document.getElementById("history-preview-message");
@@ -70,14 +73,14 @@
       message.textContent = storedAge === null ? "Min / moyenne / max · durées issues des transitions GPIO relues." : `Vue enregistrée il y a ${storedAge} min · données non actualisées.`;
     };
     const request = async (retry = true) => {
-      const response = await fetch("/api/v1/history?hours=24", {headers: {Accept: "application/json"}, cache: "no-store"});
+      const response = await requestWithTimeout("/api/v1/history?hours=24", {headers: {Accept: "application/json"}, cache: "no-store"}, 12000);
       if (response.status === 429 && retry) { const seconds = Math.max(1, Number(response.headers.get("Retry-After")) || 2); await new Promise((resolve) => window.setTimeout(resolve, seconds * 1000)); return request(false); }
       if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();
     };
     const load = async () => {
       if (!visible && loaded) return; preview.setAttribute("aria-busy", "true");
       try { const data = await request(); await window.PhytoPwa?.markServerContact(); await window.PhytoPwa?.storeSnapshot("history:24", data, Date.now()); render(data); loaded = true; }
-      catch (error) { if (error instanceof TypeError) window.PhytoPwa?.markServerFailure(); const stored = await window.PhytoPwa?.loadSnapshot("history:24") || await window.PhytoPwa?.loadSnapshot("history"); if (stored?.data) render(stored.data, Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000))); else { showData(false); message.textContent = `Historique local indisponible (${error.message}).`; } }
+      catch (error) { if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure(); else window.PhytoPwa?.markServerDegraded(`Historique momentanément indisponible (${error.message}).`); const stored = await window.PhytoPwa?.loadSnapshot("history:24") || await window.PhytoPwa?.loadSnapshot("history"); if (stored?.data) render(stored.data, Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000))); else { showData(false); message.textContent = `Historique local indisponible (${error.message}).`; } }
       finally { preview.setAttribute("aria-busy", "false"); }
     };
     const observer = new IntersectionObserver((entries) => { visible = entries.some((entry) => entry.isIntersecting); if (visible && !loaded) load(); clearInterval(refreshTimer); if (visible) refreshTimer = window.setInterval(() => { if (!document.hidden) load(); }, 300000); }, {rootMargin: "300px"});
@@ -212,12 +215,14 @@
   };
   const drawEvents = (graph) => (current.events || []).forEach((event) => {
     const xx = graph.x(event.ts); if (xx < graph.box.left || xx > graph.box.right) return;
-    const alarm = event.kind === "alarm";
-    graph.ctx.strokeStyle = alarm ? themeColor("--red", "#ff6b6b") : themeColor("--amber", "#ffc857");
-    graph.ctx.fillStyle = alarm ? themeColor("--red", "#ff6b6b") : themeColor("--amber", "#ffc857"); graph.ctx.lineWidth = 1;
+    const alarm = event.kind === "alarm"; const note = event.kind === "operator_note";
+    const color = alarm ? themeColor("--red", "#ff6b6b") : note ? themeColor("--blue", "#75baff") : themeColor("--amber", "#ffc857");
+    graph.ctx.strokeStyle = color;
+    graph.ctx.fillStyle = color; graph.ctx.lineWidth = 1;
     graph.ctx.beginPath(); graph.ctx.moveTo(xx, graph.box.top); graph.ctx.lineTo(xx, graph.box.bottom); graph.ctx.stroke();
     graph.ctx.beginPath();
     if (alarm) { graph.ctx.moveTo(xx, graph.box.top); graph.ctx.lineTo(xx - 4, graph.box.top + 7); graph.ctx.lineTo(xx + 4, graph.box.top + 7); }
+    else if (note) { graph.ctx.arc(xx, graph.box.top + 4, 4, 0, Math.PI * 2); }
     else { graph.ctx.moveTo(xx, graph.box.top); graph.ctx.lineTo(xx - 4, graph.box.top + 4); graph.ctx.lineTo(xx, graph.box.top + 8); graph.ctx.lineTo(xx + 4, graph.box.top + 4); }
     graph.ctx.closePath(); graph.ctx.fill();
   });
@@ -356,8 +361,8 @@
     button.setAttribute("aria-pressed", String(!hiddenSeries.has(meta.key))); button.prepend(swatch("is-line", `series-color-${index % colors().length} series-style-${index % 3}`)); return button;
   };
   const buildLegends = (temperature, humidity) => {
-    document.getElementById("temperature-legend").replaceChildren(...temperature.map(legendButton), legendItem("plage min–max", "is-band", "series-color-0"), legendItem("zone cible", "is-band", "series-color-1"), legendItem("arrêt chauffage", "is-dashed", "series-color-2"), legendItem("départ ventilation", "is-long-dash", "series-color-3"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
-    document.getElementById("humidity-legend").replaceChildren(...humidity.map(legendButton), legendItem("plage min–max", "is-band", "series-color-0"), legendItem("seuil humidité", "is-dashed", "series-color-2"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
+    document.getElementById("temperature-legend").replaceChildren(...temperature.map(legendButton), legendItem("plage min–max", "is-band", "series-color-0"), legendItem("zone cible", "is-band", "series-color-1"), legendItem("arrêt chauffage", "is-dashed", "series-color-2"), legendItem("départ ventilation", "is-long-dash", "series-color-3"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"), legendItem("note opérateur", "is-event-note"));
+    document.getElementById("humidity-legend").replaceChildren(...humidity.map(legendButton), legendItem("plage min–max", "is-band", "series-color-0"), legendItem("seuil humidité", "is-dashed", "series-color-2"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"), legendItem("note opérateur", "is-event-note"));
     document.getElementById("automation-legend").replaceChildren(legendItem("ON GPIO relu", "", "series-color-0"), legendItem("OFF GPIO relu", "is-off"), legendItem("bascule détectée à la minute", "is-mixed"), legendItem("non couvert", "is-unknown"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
     document.getElementById("climate-actuator-legend").replaceChildren(legendItem("chauffage ON relu", "", "series-color-0"), legendItem("arrêt relu", "is-off"), legendItem("ventilation V1 → V4", "is-band", "series-color-0"), legendItem("bascule détectée à la minute", "is-mixed"), legendItem("non couvert", "is-unknown"), legendItem("alarme", "is-event-alarm"), legendItem("configuration", "is-event-config"));
   };
@@ -430,6 +435,42 @@
       const row = document.createElement("tr"); values.forEach((value, index) => { const cell = document.createElement(index ? "td" : "th"); if (!index) cell.scope = "row"; cell.textContent = value; row.append(cell); }); return row;
     }));
   };
+  const insight = (label, value, detail, status = "normal") => {
+    const item = element("article", `history-insight status-${status}`);
+    item.append(element("span", "", label), element("strong", "", value), element("small", "", detail));
+    return item;
+  };
+  const buildInsights = () => {
+    const root = document.getElementById("history-insight-grid"); if (!root) return;
+    const temperature = current.series.find((item) => item.control_role === "climate_temperature") || current.series.find((item) => item.unit?.includes("°C"));
+    const points = temperature ? current.buckets.map((bucket) => ({ts: bucket.bucket_start_ts, value: bucket.sensors[temperature.key]?.avg, min: bucket.setpoints?.temp_min, max: bucket.setpoints?.temp_max, quality: bucket.sensor_quality?.[temperature.key] || {}})).filter((point) => [point.value, point.min, point.max].every(Number.isFinite)) : [];
+    let within = 0; let below = 0; let above = 0; let longest = 0; let run = 0; let previousTs = null; let previousState = null; let maxDeviation = 0;
+    points.forEach((point) => {
+      const contiguous = previousTs === null || point.ts - previousTs <= current.bucket_seconds * 2.5;
+      const state = point.value < point.min ? "below" : point.value > point.max ? "above" : "within";
+      if (state === "within") { within += 1; run = 0; }
+      else {
+        if (state === "below") below += 1; else above += 1;
+        run = contiguous && previousState === state ? run + current.bucket_seconds : current.bucket_seconds;
+        longest = Math.max(longest, run);
+        maxDeviation = Math.max(maxDeviation, state === "below" ? point.min - point.value : point.value - point.max);
+      }
+      previousTs = point.ts;
+      previousState = state;
+    });
+    const total = points.length; const targetRate = total ? within / total * 100 : null;
+    const heater = actuatorStats("heater"); const motor = actuatorStats("motor");
+    const events = current.events || []; const alarmCount = events.filter((event) => event.kind === "alarm").length; const noteCount = events.filter((event) => event.kind === "operator_note").length;
+    root.replaceChildren(
+      insight("Température dans la cible", total ? `${formatNumber(targetRate, 1)} %` : "—", total ? `${formatDuration(below * current.bucket_seconds)} sous la cible · ${formatDuration(above * current.bucket_seconds)} au-dessus` : "Aucune mesure exploitable", targetRate !== null && targetRate < 90 ? "warning" : "normal"),
+      insight("Plus longue excursion", total ? formatDuration(longest) : "—", maxDeviation ? `écart maximal ${formatNumber(maxDeviation, 1)} °C` : "aucune excursion observée", longest > 1800 ? "warning" : "normal"),
+      insight("Chauffage", heater ? formatDuration(heater.activeDuration || 0) : "—", heater ? `${countLabel(heater.transitions || 0, "bascule", "bascules")} · couverture ${formatNumber(heater.coverage || 0, 0)} %` : "Aucune observation"),
+      insight("Ventilation", motor ? formatDuration(motor.activeDuration || 0) : "—", motor ? `maximum V${formatNumber(motor.maximum || 0, 0)} · couverture ${formatNumber(motor.coverage || 0, 0)} %` : "Aucune observation"),
+      insight("Événements", String(alarmCount + noteCount), `${countLabel(alarmCount, "alarme", "alarmes")} · ${countLabel(noteCount, "note opérateur", "notes opérateur")}`, alarmCount ? "warning" : "normal")
+    );
+    const updated = document.getElementById("history-updated-at");
+    if (updated) updated.textContent = `Actualisé à ${new Date().toLocaleTimeString("fr-FR", {hour: "2-digit", minute: "2-digit"})}`;
+  };
   const drawAll = () => {
     if (!current) return;
     const temperature = current.series.filter((item) => item.unit.includes("°C")); const humidity = current.series.filter((item) => item.unit.includes("%"));
@@ -446,7 +487,7 @@
     buildLegends(temperature, humidity); buildAdditionalCharts(otherUnits);
     document.getElementById("temperature-summary").textContent = sensorSummary(temperature, "°C"); document.getElementById("humidity-summary").textContent = sensorSummary(humidity, "%");
     renderGroupSummary(document.getElementById("automation-summary"), groups.automation); renderGroupSummary(document.getElementById("climate-actuator-summary"), groups["climate-actuator"]);
-    buildTable(); drawAll();
+    buildTable(); buildInsights(); drawAll();
     const exactCount = Object.values(data.actuator_history || {}).filter((item) => item.intervals?.length).length;
     message.textContent = `${countLabel(data.buckets.length, "intervalle", "intervalles")} de ${Math.round(data.bucket_seconds / 60)} min · courbes : moyenne et plage min–max · ${countLabel(exactCount, "actionneur", "actionneurs")} avec transitions GPIO relues. Les lacunes ne sont pas interpolées.`;
   };
@@ -472,7 +513,7 @@
       entries.push([equipmentName(id), value]);
     });
     const events = (current.events || []).filter((event) => Math.abs(event.ts - bucket.bucket_start_ts) <= current.bucket_seconds / 2);
-    if (events.length) entries.push(["Événement", events.map((event) => event.kind === "alarm" ? "alarme" : "configuration").join(", ")]);
+    if (events.length) entries.push(["Événement", events.map((event) => event.kind === "alarm" ? "alarme" : event.kind === "operator_note" ? `note : ${event.payload?.note || "observation"}` : "configuration").join(", ")]);
     return entries;
   };
   const showSelection = (timestamp, position = null, announce = false) => {
@@ -518,7 +559,7 @@
   });
 
   const fetchHistory = async (hours, retry = true) => {
-    const response = await fetch(`/api/v1/history?hours=${hours}`, {headers: {Accept: "application/json"}, cache: "no-store"});
+    const response = await requestWithTimeout(`/api/v1/history?hours=${hours}`, {headers: {Accept: "application/json"}, cache: "no-store"}, 12000);
     if (response.status === 429 && retry) {
       const retryAfter = Math.min(5, Math.max(1, Number(response.headers.get("Retry-After")) || 1));
       await new Promise((resolve) => window.setTimeout(resolve, retryAfter * 1000));
@@ -530,10 +571,11 @@
   const load = async (hours) => {
     message.textContent = "Chargement de l’historique…"; tooltip.hidden = true; section.setAttribute("aria-busy", "true");
     try {
-      const response = await fetchHistory(hours); await window.PhytoPwa?.markServerContact();
-      if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); await window.PhytoPwa?.storeSnapshot(`history:${hours}`, data, Date.now()); render(data);
+      const response = await fetchHistory(hours);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`); await window.PhytoPwa?.markServerContact(); const data = await response.json(); await window.PhytoPwa?.storeSnapshot(`history:${hours}`, data, Date.now()); render(data);
     } catch (error) {
-      if (error instanceof TypeError) window.PhytoPwa?.markServerFailure();
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure();
+      else window.PhytoPwa?.markServerDegraded(`Historique momentanément indisponible (${error.message}).`);
       const stored = await window.PhytoPwa?.loadSnapshot(`history:${hours}`) || await window.PhytoPwa?.loadSnapshot("history");
       if (stored?.data) {
         render(stored.data); const storedHours = Number(stored.data.hours || hours); document.querySelectorAll("[data-hours]").forEach((item) => { const selected = Number(item.dataset.hours) === storedHours; item.classList.toggle("is-selected", selected); item.setAttribute("aria-pressed", String(selected)); });
@@ -543,9 +585,25 @@
       section.setAttribute("aria-busy", "false");
     }
   };
-  document.querySelectorAll("[data-hours]").forEach((button) => button.addEventListener("click", () => { document.querySelectorAll("[data-hours]").forEach((item) => { const selected = item === button; item.classList.toggle("is-selected", selected); item.setAttribute("aria-pressed", String(selected)); }); load(Number(button.dataset.hours)); }));
+  let currentHours = 24;
+  document.querySelectorAll("[data-hours]").forEach((button) => button.addEventListener("click", () => { currentHours = Number(button.dataset.hours); document.querySelectorAll("[data-hours]").forEach((item) => { const selected = item === button; item.classList.toggle("is-selected", selected); item.setAttribute("aria-pressed", String(selected)); }); load(currentHours); }));
   section.querySelector("[data-history-retry]")?.addEventListener("click", () => load(24));
   document.addEventListener("phyto:themechange", drawAll);
   let resizeTimer; window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => current && drawAll(), 150); });
+  window.setInterval(() => { if (!document.hidden && current) load(currentHours); }, 300000);
+  const noteForm = document.querySelector("[data-history-note-form]");
+  noteForm?.addEventListener("submit", async (event) => {
+    event.preventDefault(); const button = noteForm.querySelector('button[type="submit"]'); const status = noteForm.querySelector(".form-status");
+    button.disabled = true; status.textContent = "Enregistrement…";
+    try {
+      const response = await requestWithTimeout(noteForm.action, {method: "POST", headers: {Accept: "application/json"}, body: new FormData(noteForm)}, 10000);
+      if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+      await window.PhytoPwa?.markServerContact(); noteForm.querySelector('input[name="note"]').value = ""; status.textContent = "Note ajoutée à l’historique."; await load(currentHours);
+    } catch (error) {
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure();
+      else window.PhytoPwa?.markServerDegraded(`Note non enregistrée (${error.message}).`);
+      status.textContent = error.message || "Note non enregistrée.";
+    } finally { button.disabled = false; }
+  });
   if (section.dataset.historyAvailable === "true") load(24); else { showHistoryData(false); message.textContent = "Historique local indisponible. Le contrôle reste actif et InfluxDB n’est pas requis pour cette vue."; }
 })();

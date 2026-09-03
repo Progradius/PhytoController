@@ -1,5 +1,6 @@
 (() => {
   "use strict";
+  document.documentElement.classList.add("js");
 
   const STORAGE_KEY = "phyto.theme";
   const root = document.documentElement;

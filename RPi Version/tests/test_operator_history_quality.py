@@ -80,6 +80,24 @@ async def test_historique_enregistre_et_agrege_les_statuts_qualite(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_historique_restitue_les_notes_operateur(tmp_path):
+    history = OperatorHistory(tmp_path / "operator.sqlite3")
+    await history.record_events([{
+        "ts": time.time(), "kind": "operator_note", "subject": "intervention",
+        "payload": {"note": "Porte ouverte", "alias": "Raphaël"},
+    }])
+
+    payload = await history.query_history(24, {}, {})
+
+    assert payload["events"][-1]["kind"] == "operator_note"
+    assert payload["events"][-1]["subject"] == "intervention"
+    assert payload["events"][-1]["payload"] == {
+        "note": "Porte ouverte", "alias": "Raphaël",
+    }
+    await history.close()
+
+
+@pytest.mark.asyncio
 async def test_historique_reconstruit_les_durees_depuis_les_gpio_relus(tmp_path):
     history = OperatorHistory(tmp_path / "operator.sqlite3")
     started = time.time() - 600

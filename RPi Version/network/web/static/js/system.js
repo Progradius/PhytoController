@@ -38,7 +38,7 @@
 
   const probe = async () => {
     try {
-      const response = await fetch("/health/live", { cache: "no-store" });
+      const response = await (window.PhytoPwa?.fetchWithTimeout || fetch)("/health/live", { cache: "no-store" }, 900);
       if (!response.ok) return null;
       return await response.json();
     } catch (error) {

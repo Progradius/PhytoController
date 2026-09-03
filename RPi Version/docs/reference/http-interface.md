@@ -26,6 +26,7 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | GET | `/health/ready` | Superviseur sain | JSON 200 ou **503** |
 | POST | `/actions/stats/reset` | Efface un min/max (`key=`) | JSON si demandé, sinon 303 vers la carte du capteur |
 | POST | `/actions/overrides/create`, `/actions/overrides/cancel` | Pose ou lève une coupure opérateur temporaire | JSON si demandé, sinon 303 vers l'actionneur ou la maintenance |
+| POST | `/actions/history/notes` | Ajoute une annotation opérateur sans effet sur la régulation | JSON 201 si demandé, sinon 303 vers `/history#operator-notes` |
 | POST | `/actions/system/reboot` | `sudo reboot` | 202 |
 | POST | `/actions/system/poweroff` | `/sbin/shutdown -h now` | 202 |
 | GET | `/monitor` | **Redirection** vers `/#surveillance` | 303 |
@@ -82,6 +83,21 @@ injoignables. Ses règles sont volontairement asymétriques :
 La PWA demande la permission de notification uniquement sur clic. Elle notifie les nouvelles alarmes
 affectant le contrôle et toutes les alarmes critiques, avec déduplication par UUID. Il ne s'agit pas de
 Web Push : Chrome peut suspendre la page, donc aucune notification n'est garantie PWA fermée.
+
+## Lecture et annotation de l'historique
+
+La page `/history` calcule dans le navigateur un bilan de la période affichée : part des intervalles
+dont la température moyenne est dans la cible, temps observé sous et au-dessus des consignes, plus
+longue excursion, écart maximal, activité des actionneurs et nombre d'événements. Ces indicateurs
+restent des lectures de l'agrégat retourné par `/api/v1/history` ; ils n'inventent ni n'interpolent les
+lacunes.
+
+`POST /actions/history/notes` accepte `category` (`observation`, `intervention`, `culture` ou
+`maintenance`), `note` (1 à 240 caractères) et un `alias` facultatif (32 caractères maximum). La note
+est enregistrée comme événement `operator_note` dans l'historique auxiliaire SQLite et apparaît sur
+les courbes ainsi que dans leur exploration clavier. Elle ne modifie ni la configuration, ni un GPIO,
+ni la santé du contrôle. Comme toute mutation, la route exige le jeton CSRF et une origine valide ;
+aucune écriture ni commande n'est mise en attente hors ligne.
 
 ## Configuration POST
 

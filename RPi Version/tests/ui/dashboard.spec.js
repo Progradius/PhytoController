@@ -1,5 +1,6 @@
 const {test, expect} = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
+const {historyFixture} = require("./fixtures");
 
 test("le tableau de bord reste compact et navigable", async ({page}) => {
   await page.goto("/");
@@ -122,13 +123,92 @@ test("la barre mobile protège une configuration modifiée", async ({page}) => {
 test("les pages principales n’ont pas de violation d’accessibilité détectable", async ({page}) => {
   for (const path of ["/", "/alarms", "/history", "/conf#life"]) {
     await page.goto(path);
-    const results = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa"]).analyze();
+    const results = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
     expect(results.violations, `${path}: ${results.violations.map((item) => `${item.id} (${item.nodes.length})`).join(", ")}`).toEqual([]);
   }
   await page.goto("/");
   await page.evaluate(() => window.PhytoTheme.apply("daylight"));
-  const daylight = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa"]).analyze();
+  const daylight = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(daylight.violations, `plein jour: ${daylight.violations.map((item) => `${item.id} (${item.nodes.length})`).join(", ")}`).toEqual([]);
+});
+
+test("la police de marque est réellement décodable", async ({page}) => {
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(async () => {
+    await document.fonts.ready;
+    return document.fonts.check('12px "Visitor"');
+  })).toBe(true);
+});
+
+test("un service partiellement indisponible ne simule pas une coupure réseau", async ({page}) => {
+  await page.goto("/");
+  await page.evaluate(() => window.PhytoPwa.markServerDegraded("Historique momentanément indisponible (HTTP 503)."));
+  const banner = page.locator("#pwa-connection-banner");
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText("SERVICE DÉGRADÉ");
+  await expect(page.locator("body")).toHaveClass(/is-degraded/);
+  await expect(page.locator("body")).not.toHaveClass(/is-offline/);
+  await expect(page.getByRole("button", {name: "Couper"}).first()).toBeEnabled();
+});
+
+test("les commandes restent repérables avec les couleurs système forcées", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Contrôle ciblé du rendu Windows à contraste élevé.");
+  await page.emulateMedia({forcedColors: "active"});
+  await page.goto("/");
+  const action = page.getByRole("button", {name: "Couper"}).first();
+  await expect(action).toBeVisible();
+  expect(await action.evaluate((node) => getComputedStyle(node).borderStyle)).not.toBe("none");
+  const results = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).disableRules(["color-contrast"]).analyze();
+  expect(results.violations, results.violations.map((item) => item.id).join(", ")).toEqual([]);
+});
+
+test("les compteurs d’alarme suivent le flux vivant", async ({page}) => {
+  await page.goto("/alarms");
+  const alarm = {
+    id: "live-critical", severity: "critical", category: "control", title: "Surchauffe",
+    detail: "Température haute", consequence: "Culture exposée", advice: "Examiner",
+    affects_control: true, link: "/alarms", started_ts: Date.now() / 1000,
+    duration_seconds: 1, acknowledged_ts: null,
+  };
+  const chrome = await page.evaluate((item) => {
+    window.PhytoPwa.updateAlarmChrome({summary: {active_count: 1, control_count: 1, auxiliary_count: 0, highest_severity: "critical"}, alarms: [item]});
+    return {
+      summary: document.querySelector(".alarm-summary strong")?.textContent,
+      desktop: document.querySelector(".navbar .nav-count")?.textContent,
+      mobile: document.querySelector(".mobile-navbar .nav-count")?.textContent,
+      title: document.title,
+    };
+  }, alarm);
+  expect(chrome).toMatchObject({summary: "1", desktop: "1", mobile: "1"});
+  expect(chrome.title).toMatch(/^\(1\)/);
+});
+
+test("l’historique produit un bilan métier et expose les notes", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Le service worker réseau-seulement ne doit pas être court-circuité par une fixture HTTP.");
+  await page.route("**/api/v1/history?hours=24", (route) => route.fulfill({contentType: "application/json", body: JSON.stringify(historyFixture())}));
+  await page.goto("/history");
+  await page.evaluate(() => {
+    document.getElementById("tendances").dataset.historyAvailable = "true";
+    document.getElementById("operator-notes").hidden = false;
+  });
+  await page.getByRole("button", {name: "Réessayer"}).click();
+  await expect(page.locator("#history-insight-grid")).toContainText("Température dans la cible");
+  await expect(page.locator("#history-insight-grid")).toContainText("Plus longue excursion");
+  await expect(page.locator("#operator-notes")).toBeVisible();
+  await expect(page.locator("#temperature-legend")).toContainText("note opérateur");
+});
+
+test("le focus mobile n’est pas masqué par la navigation fixe", async ({page}) => {
+  test.skip(page.viewportSize().width > 800, "Comportement propre à la navigation mobile.");
+  await page.goto("/");
+  const target = page.locator("#maintenance button").first();
+  await target.focus();
+  await target.evaluate((node) => node.scrollIntoView({block: "end", behavior: "instant"}));
+  await expect.poll(() => page.evaluate(() => {
+    const focused = document.activeElement.getBoundingClientRect();
+    const navigation = document.querySelector(".mobile-navbar").getBoundingClientRect();
+    return focused.bottom - navigation.top;
+  })).toBeLessThanOrEqual(1);
 });
 
 test("le rafraîchissement d’une alarme conserve la saisie et le focus", async ({page}) => {

@@ -57,7 +57,7 @@
     const labels = document.createElement("div");
     const severity = document.createElement("span"); severity.className = "alarm-severity"; severity.textContent = severityLabels[alarm.severity] || alarm.severity;
     const category = document.createElement("span"); category.className = "alarm-category"; category.textContent = categoryLabels[alarm.category] || alarm.category;
-    const state = document.createElement("span"); state.textContent = source === "stored" ? "État non confirmé" : "Active";
+    const state = document.createElement("span"); state.textContent = source === "stored" ? "État non confirmé" : alarm.acknowledged_ts ? "Active · acquittée" : "Active · non acquittée";
     labels.append(severity, category); heading.append(labels, state);
 
     const title = document.createElement("h2"); title.textContent = alarm.title;
@@ -152,6 +152,8 @@
       empty.append(title, copy); list.append(empty);
     }
     previousStructure = signature;
+    const resultSummary = document.getElementById("alarm-result-summary");
+    if (resultSummary) resultSummary.textContent = `${alarms.length} ${alarms.length === 1 ? "résultat" : "résultats"} · actualisation automatique`;
     if (focusState) {
       const replacement = [...list.querySelectorAll("[data-alarm-id]")]
         .find((card) => card.dataset.alarmId === focusedId)?.querySelector('input[name="alias"]');

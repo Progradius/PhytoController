@@ -46,6 +46,7 @@ Exemple abrégé, sans valeurs de production :
   "motor": {"speed": 2, "percent": 50},
   "climate": {
     "state": "VENTILER",
+    "phase": "day",
     "reason": "chauffage : 27.4°C > 25.0°C · ventilation : 27.4°C ≥ 26.0°C → palier 2",
     "heater_on": false, "motor_speed": 2,
     "temperature": 27.4, "humidity": 52.1,
@@ -102,6 +103,7 @@ Exemple abrégé, sans valeurs de production :
 | `actuators` | Consigne, relecture GPIO instantanée, motif, durée monotone, prochaine transition et suivi demandé/réel |
 | `motor.speed` / `motor.percent` | Vitesse logique 0–4 et son pourcentage |
 | `climate.state` | État de l'arbitre : `DESACTIVE`, `CHAUFFER`, `NEUTRE`, `VENTILER`, `RENOUVELER`, `DESHUMIDIFIER`, `SECURITE_HAUTE`, `PLANCHER_THERMIQUE`, `REPLI_CAPTEUR`, `MANUEL` |
+| `climate.phase` | Phase de consigne effectivement appliquée : `day`, `night`, ou `null` avant le premier tick |
 | `climate.reason` | Motif lisible de la décision, chauffage puis ventilation |
 | `climate.vent_threshold` | Seuil de ventilation **effectif** (relevé si la consigne haute ne laissait pas de zone morte) |
 | `climate.heater_off_threshold` | Seuil d'extinction du chauffage |

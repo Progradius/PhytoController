@@ -109,6 +109,8 @@
 </div>
 {% endif %}
 
+<p class="config-mode-loading" role="status">Vérification des modes de configuration…</p>
+<div class="config-mode-content is-pending" data-config-mode-content>
 {# Le sélecteur reste masqué tant que le script n'a pas confirmé que la
    prévisualisation répond : le mode Simple écrit de vrais paramètres
    thermiques, et il ne se livre pas sans le retour qui les rend visibles. #}
@@ -414,6 +416,7 @@
     <dl class="gpio-list">{% for field, value in gpio_fields %}<div><dt>{{ field }}</dt><dd>GPIO {{ value }}</dd></div>{% endfor %}</dl>
   </details>
 </section>
+</div>
 </div>
 <aside id="config-dirty-bar" class="config-dirty-bar" aria-live="polite">
   <span id="config-dirty-label">Modifications non enregistrées</span>

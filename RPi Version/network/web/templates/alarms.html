@@ -21,15 +21,17 @@
 <form class="alarm-filters" method="get" action="/alarms">
   <label>État<select name="status"><option value="active"{% if filters.status == 'active' %} selected{% endif %}>Actives</option><option value="resolved"{% if filters.status == 'resolved' %} selected{% endif %}>Résolues</option><option value="all"{% if filters.status == 'all' %} selected{% endif %}>Toutes</option></select></label>
   <label>Gravité<select name="severity"><option value="">Toutes</option>{% for value, label in (('warning','Avertissement'),('error','Erreur'),('critical','Critique')) %}<option value="{{ value }}"{% if filters.severity == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-  <label>Catégorie<input name="category" value="{{ filters.category }}" maxlength="40" placeholder="Toutes"></label>
+  <label>Catégorie<select name="category"><option value="">Toutes</option>{% for value, label in (('control','Contrôle'),('sensor','Capteur'),('storage','Stockage'),('network','Réseau'),('system','Système'),('configuration','Configuration')) %}<option value="{{ value }}"{% if filters.category == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
   <label>Acquittement<select name="acknowledged"><option value="">Tous</option><option value="no"{% if filters.acknowledged == 'no' %} selected{% endif %}>Non acquittées</option><option value="yes"{% if filters.acknowledged == 'yes' %} selected{% endif %}>Acquittées</option></select></label>
-  <button class="button" type="submit">Filtrer</button>
+  <div class="alarm-filter-actions"><button class="button" type="submit">Filtrer</button><a class="button button-secondary" href="/alarms">Réinitialiser</a></div>
 </form>
+
+<p class="alarm-result-summary" id="alarm-result-summary" role="status"><strong>{{ alarms|length }}</strong> résultat{{ 's' if alarms|length != 1 else '' }}{% if not (filters.status == 'active' and not filters.severity and not filters.category and not filters.acknowledged) %} · vue filtrée, actualisation au rechargement{% else %} · actualisation automatique{% endif %}</p>
 
 <section class="alarm-list" id="alarm-list" data-live-refresh="{{ 'true' if filters.status == 'active' and not filters.severity and not filters.category and not filters.acknowledged else 'false' }}">
 {% for alarm in alarms %}
   <article class="alarm-card severity-{{ alarm.severity }} {{ 'is-resolved' if alarm.status == 'resolved' else '' }}" data-alarm-id="{{ alarm.id }}">
-    <div class="alarm-card-heading"><div><span class="alarm-severity">{{ {'warning':'Avertissement','error':'Erreur','critical':'Critique'}.get(alarm.severity, alarm.severity) }}</span><span class="alarm-category">{{ {'control':'Contrôle','sensor':'Capteur','storage':'Stockage','network':'Réseau','system':'Système'}.get(alarm.category, alarm.category) }}</span></div><span>{{ 'Active' if alarm.status == 'active' else 'Résolue' }}</span></div>
+    <div class="alarm-card-heading"><div><span class="alarm-severity">{{ {'warning':'Avertissement','error':'Erreur','critical':'Critique'}.get(alarm.severity, alarm.severity) }}</span><span class="alarm-category">{{ {'control':'Contrôle','sensor':'Capteur','storage':'Stockage','network':'Réseau','system':'Système','configuration':'Configuration'}.get(alarm.category, alarm.category) }}</span></div><span>{% if alarm.status == 'resolved' %}Résolue{% elif alarm.acknowledged_ts %}Active · acquittée{% else %}Active · non acquittée{% endif %}</span></div>
     <h2>{{ alarm.title }}</h2>
     {% if alarm.detail %}<p class="alarm-detail">{{ alarm.detail }}</p>{% endif %}
     <dl class="alarm-facts"><div><dt>Depuis</dt><dd><time data-timestamp="{{ alarm.started_ts }}">{{ alarm.started_ts }}</time></dd></div><div><dt>Durée</dt><dd data-duration="{{ alarm.duration_seconds }}">{{ alarm.duration_seconds }} s</dd></div><div><dt>Impact</dt><dd>{{ 'Contrôle' if alarm.affects_control else 'Auxiliaire' }}</dd></div></dl>

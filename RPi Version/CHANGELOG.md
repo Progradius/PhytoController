@@ -6,6 +6,19 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Finition et lecture opérationnelle de l'interface web
+
+- Les requêtes vivantes sont maintenant bornées dans le temps et distinguent une perte de réseau
+  d'un service HTTP dégradé ; seules les pertes de transport basculent l'interface en lecture seule.
+- Le tableau de bord expose la phase jour/nuit et les consignes climatiques effectives, actualise les
+  compteurs d'alarme et rend les confirmations d'action visibles sans perturber les lecteurs d'écran.
+- L'historique fournit un bilan métier de la période et accepte des notes opérateur locales, affichées
+  comme événements sur les courbes sans aucun effet sur la régulation.
+- La configuration évite le saut visuel du mode avancé vers le mode mémorisé et conserve une barre de
+  modifications persistante sur grand comme petit écran.
+- La police de marque est réparée et accompagnée de sa licence ; contraste renforcé, couleurs système
+  forcées, navigation mobile et tests WCAG 2.2 complètent la passe d'accessibilité.
+
 ### Protection de la configuration pendant les déploiements
 
 - `param/param.json` et `param/equipment_metadata.json` deviennent des fichiers strictement locaux,

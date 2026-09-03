@@ -174,6 +174,7 @@
       pendingWhilePaused = 0;
       render();
     }
+    window.PhytoPwa?.announce(paused ? "Console mise en pause." : "Console relancée.");
   });
 
   followButton?.addEventListener("click", () => {

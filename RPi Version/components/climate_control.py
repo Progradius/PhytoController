@@ -62,6 +62,7 @@ _snapshot: dict = {
     "motor_speed": 0,
     "temperature": None,
     "humidity": None,
+    "phase": None,
     "temp_min": None,
     "temp_max": None,
     "alarm": None,
@@ -375,7 +376,7 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
             debug(message, name=LOGGER_NAME)
 
         # 7) publication et persistance -----------------------------------
-        _publish(decision, memory, now_mono, sampling_time)
+        _publish(decision, memory, now_mono, sampling_time, is_day=is_day)
         window_changed = memory.quota_window_start != previous_window
         previous_window = memory.quota_window_start
         _persist(store, memory, force=window_changed)
@@ -384,7 +385,7 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
 
 
 def _publish(decision, memory: ClimateMemory, now_mono: float,
-             sampling_time: int) -> None:
+             sampling_time: int, *, is_day: bool) -> None:
     global _snapshot
     _snapshot = {
         "state": decision.state,
@@ -395,6 +396,7 @@ def _publish(decision, memory: ClimateMemory, now_mono: float,
         "dwell_remaining_seconds": decision.dwell_remaining_seconds,
         "temperature": decision.temperature,
         "humidity": decision.humidity,
+        "phase": "day" if is_day else "night",
         "temp_min": decision.temp_min,
         "temp_max": decision.temp_max,
         "alarm": decision.alarm,

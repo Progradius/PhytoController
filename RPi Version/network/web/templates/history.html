@@ -16,6 +16,10 @@
     <div class="history-empty-actions"><button class="button button-secondary" type="button" data-history-retry>Réessayer</button><a class="button button-secondary" href="/alarms">Voir les alarmes</a></div>
   </article>
   <div class="history-content" hidden>
+  <section class="history-insights" aria-labelledby="history-insights-title">
+    <div class="section-heading"><div><p class="eyebrow">Bilan de période</p><h3 id="history-insights-title">Lecture opérationnelle</h3></div><span id="history-updated-at" class="section-note">Calcul en cours…</span></div>
+    <div class="history-insight-grid" id="history-insight-grid"></div>
+  </section>
   <div class="history-grid">
     <article class="card chart-card">
       <h3>Températures et consignes</h3>
@@ -51,6 +55,16 @@
   </div>
   <output id="history-selection-output" class="visually-hidden" aria-live="polite"></output>
   <div id="history-tooltip" class="history-tooltip" role="tooltip" hidden></div>
+</section>
+
+<section id="operator-notes" class="operator-note-panel card" aria-labelledby="operator-note-title"{% if not state.history.available %} hidden{% endif %}>
+  <div><p class="eyebrow">Journal de conduite</p><h2 id="operator-note-title">Annoter l’historique</h2><p class="card-meta">Une note explique une intervention ou un événement de culture. Elle ne modifie jamais la régulation.</p></div>
+  <form method="post" action="/actions/history/notes" data-history-note-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="operator-note-fields"><label>Catégorie<select name="category"><option value="observation">Observation</option><option value="intervention">Intervention</option><option value="culture">Culture</option><option value="maintenance">Maintenance</option></select></label><label>Opérateur <input name="alias" maxlength="32" autocomplete="nickname" placeholder="facultatif"></label></div>
+    <label>Note <input name="note" maxlength="240" required placeholder="Ex. porte ouverte pendant 15 minutes"></label>
+    <div class="operator-note-actions"><button class="button" type="submit" data-requires-online>Ajouter à l’historique</button><output class="form-status" role="status" aria-live="polite"></output></div>
+  </form>
 </section>
 {% endblock %}
 {% block page_scripts %}<script src="/static/js/history.js?v={{ asset_versions.history }}" defer></script>{% endblock %}

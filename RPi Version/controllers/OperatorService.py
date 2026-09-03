@@ -690,6 +690,17 @@ class OperatorService:
         self.alarms.adopt(updated)
         return updated.payload()
 
+    async def record_operator_note(self, category: str, note: str, alias: str) -> None:
+        """Persiste une annotation de diagnostic sans la journaliser ni agir sur le contrôle."""
+        await self.history.record_events([{
+            "ts": time.time(),
+            "kind": "operator_note",
+            "subject": category,
+            "severity": None,
+            "alarm_id": None,
+            "payload": {"note": note, "alias": alias or None},
+        }])
+
     async def list_alarm_payloads(self, filters: dict) -> list[dict]:
         records = []
         if self.history.available:

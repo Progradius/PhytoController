@@ -543,7 +543,7 @@ class OperatorHistory:
 
         event_cursor = connection.execute(
             """SELECT ts,kind,subject,severity,alarm_id,payload_json
-               FROM events WHERE ts>=? AND ts<=? AND kind IN ('alarm','config')
+               FROM events WHERE ts>=? AND ts<=? AND kind IN ('alarm','config','operator_note')
                ORDER BY ts""",
             (start_ts, end_ts),
         )

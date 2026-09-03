@@ -9,6 +9,11 @@
   let fetchFailed = false;
   let storedStateLoaded = false;
   let activeDialogOpener = null;
+  const initialSensorKeys = [...document.querySelectorAll("[data-sensor]")]
+    .map((node) => node.dataset.sensor).sort().join("|");
+  const request = (resource, options, timeout) => window.PhytoPwa?.fetchWithTimeout
+    ? window.PhytoPwa.fetchWithTimeout(resource, options, timeout)
+    : fetch(resource, options);
 
   const text = (selector, value, root = document) => {
     const node = root.querySelector(selector);
@@ -44,6 +49,15 @@
   };
   const requestedLabel = (value) => value === "on" ? "EN MARCHE" : value === "off" ? "ARRÊTÉ" : value === "unknown" || value === undefined || value === null ? "INCONNU" : String(value);
   const countLabel = (count, singular, plural) => `${count} ${count === 1 ? singular : plural}`;
+  let toastTimer = null;
+  const showActionStatus = (message) => {
+    const node = document.getElementById("dashboard-action-status");
+    if (!node) return;
+    window.clearTimeout(toastTimer);
+    node.textContent = message;
+    node.hidden = false;
+    toastTimer = window.setTimeout(() => { node.hidden = true; }, 6000);
+  };
 
   const updateFreshness = () => {
     const node = document.getElementById("freshness");
@@ -177,6 +191,11 @@
   };
 
   const updateSensors = (sensors, stats) => {
+    const nextKeys = (sensors || []).map((sensor) => sensor.key).sort().join("|");
+    if (nextKeys !== initialSensorKeys) {
+      window.location.reload();
+      return;
+    }
     (sensors || []).forEach((sensor) => {
       const card = document.querySelector(`[data-sensor="${CSS.escape(sensor.key)}"]`); if (!card) return;
       card.classList.remove("status-normal", "status-degraded", "status-absent", "status-inconsistent", "status-disabled"); card.classList.add(`status-${sensor.status}`);
@@ -201,6 +220,21 @@
     if (heaterRoot) { text(".climate-summary-value", stateLabel("heater", heater?.actual), heaterRoot); text(".climate-summary-detail", heater?.reason || "Motif indisponible", heaterRoot); }
     const motor = state.actuators?.motor; const motorRoot = document.querySelector('[data-climate-summary="motor"]');
     if (motorRoot) { text(".climate-summary-value", stateLabel("motor", motor?.actual), motorRoot); text(".climate-summary-detail", motor?.reason || "Motif indisponible", motorRoot); }
+    const climate = state.climate || {};
+    text("#climate-phase", climate.phase === "day" ? "JOUR" : climate.phase === "night" ? "NUIT" : "PHASE INCONNUE");
+    text("#climate-target", `Cible ${number(climate.temp_min, 1)}–${number(climate.temp_max, 1)} °C`);
+    const temperature = Number(climate.temperature);
+    const minimum = Number(climate.temp_min);
+    const maximum = Number(climate.temp_max);
+    let assessment = "Évaluation indisponible";
+    let status = "unknown";
+    if ([climate.temperature, climate.temp_min, climate.temp_max].every((value) => value !== null && value !== undefined) && [temperature, minimum, maximum].every(Number.isFinite)) {
+      if (temperature < minimum) { assessment = `Sous la cible de ${number(minimum - temperature, 1)} °C`; status = "warning"; }
+      else if (temperature > maximum) { assessment = `Au-dessus de la cible de ${number(temperature - maximum, 1)} °C`; status = "warning"; }
+      else { assessment = `Dans la cible · marge ${number(Math.min(temperature - minimum, maximum - temperature), 1)} °C`; status = "normal"; }
+    }
+    text("#climate-assessment", assessment);
+    document.querySelector(".climate-context")?.setAttribute("data-status", status);
   };
 
   const updateState = (state, {fresh = true, receivedAt = Date.now()} = {}) => {
@@ -212,11 +246,14 @@
 
   const refresh = async () => {
     try {
-      const response = await fetch("/api/v1/state", {headers: {Accept: "application/json"}, cache: "no-store"});
-      await window.PhytoPwa?.markServerContact(); if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const response = await request("/api/v1/state", {headers: {Accept: "application/json"}, cache: "no-store"}, 6000);
+      if (!response.ok) {
+        window.PhytoPwa?.markServerDegraded(`État du contrôleur momentanément indisponible (HTTP ${response.status}).`);
+        throw new Error(`HTTP ${response.status}`);
+      }
       const state = await response.json(); const receivedAt = Date.now(); await window.PhytoPwa?.recordNetworkSuccess("state", state, receivedAt); updateState(state, {fresh: true, receivedAt}); return true;
     } catch (error) {
-      if (error instanceof TypeError) window.PhytoPwa?.markServerFailure(); fetchFailed = true;
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure(); fetchFailed = true;
       if (!storedStateLoaded) { storedStateLoaded = true; const stored = await window.PhytoPwa?.loadSnapshot("state"); if (stored?.data) { lastReceivedAt = stored.receivedAt; updateState(stored.data, {fresh: false, receivedAt: stored.receivedAt}); } }
       updateFreshness();
       return false;
@@ -228,11 +265,14 @@
     if (errorNode) errorNode.hidden = true;
     if (button) { button.disabled = true; button.textContent = "Traitement…"; }
     try {
-      const response = await fetch(form.action, {method: "POST", headers: {Accept: "application/json"}, body: new FormData(form)});
-      if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+      const response = await request(form.action, {method: "POST", headers: {Accept: "application/json"}, body: new FormData(form)}, 10000);
+      if (!response.ok) {
+        window.PhytoPwa?.markServerDegraded(`Action refusée ou indisponible (HTTP ${response.status}).`);
+        throw new Error((await response.text()) || `HTTP ${response.status}`);
+      }
       await window.PhytoPwa?.markServerContact(); await onSuccess(await response.json()); return true;
     } catch (error) {
-      if (error instanceof TypeError) window.PhytoPwa?.markServerFailure();
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure();
       if (errorNode) { errorNode.textContent = error.message || "Action impossible."; errorNode.hidden = false; errorNode.focus?.(); }
       return false;
     } finally { if (button) { button.disabled = false; button.textContent = original; } }
@@ -240,11 +280,11 @@
 
   document.querySelectorAll("[data-override-form]").forEach((form) => form.addEventListener("submit", async (event) => {
     event.preventDefault(); const target = String(new FormData(form).get("target") || "");
-    const ok = await submitEnhanced(form, async (payload) => { updateOverrides(payload); document.getElementById("dashboard-action-status").textContent = target === "all" ? "Intervention groupée appliquée." : `Intervention appliquée sur ${target}.`; await refresh(); });
+    const ok = await submitEnhanced(form, async (payload) => { updateOverrides(payload); showActionStatus(target === "all" ? "Intervention groupée appliquée." : `Intervention appliquée sur ${target}.`); await refresh(); });
     if (ok) form.closest("dialog")?.close();
   }));
   document.querySelectorAll("[data-stat-form]").forEach((form) => form.addEventListener("submit", async (event) => {
-    event.preventDefault(); await submitEnhanced(form, async (payload) => { updateStat(payload); document.getElementById("dashboard-action-status").textContent = `Extrêmes de ${payload.key} réinitialisés.`; });
+    event.preventDefault(); await submitEnhanced(form, async (payload) => { updateStat(payload); showActionStatus(`Extrêmes de ${payload.key} réinitialisés.`); });
   }));
   document.querySelectorAll("[data-open-dialog]").forEach((button) => button.addEventListener("click", () => { activeDialogOpener = button; document.getElementById(button.dataset.openDialog)?.showModal(); }));
   document.querySelectorAll(".confirm-dialog").forEach((dialog) => { dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); }); dialog.addEventListener("close", () => activeDialogOpener?.focus()); });

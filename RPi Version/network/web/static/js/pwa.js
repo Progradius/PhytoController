@@ -8,7 +8,8 @@
 
   let databasePromise = null;
   let lastContactAt = null;
-  let connectionFailed = false;
+  let connectionState = "unknown";
+  let degradedDetail = "";
   let offlineAtBoot = false;
   let contactedThisPage = false;
   let deferredInstallPrompt = null;
@@ -17,6 +18,7 @@
   let notificationEnabled = false;
   let alarmSeen = {};
   let alarmSeenInitialized = false;
+  const baseDocumentTitle = document.title.replace(/^\(\d+\)\s+/, "");
 
   const announce = (message, urgent = false) => {
     const node = document.getElementById(urgent ? "global-live-alert" : "global-live-status");
@@ -57,6 +59,25 @@
     window.addEventListener("online", resume);
     return {start: resume, stop: () => { stopped = true; clear(); }};
   };
+
+  const fetchWithTimeout = async (resource, options = {}, timeout = 6000) => {
+    const controller = new AbortController();
+    const externalSignal = options.signal;
+    const abort = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) abort();
+    else externalSignal?.addEventListener("abort", abort, {once: true});
+    const timer = window.setTimeout(() => controller.abort(new DOMException("Délai dépassé", "TimeoutError")), timeout);
+    try {
+      return await fetch(resource, {...options, signal: controller.signal});
+    } finally {
+      window.clearTimeout(timer);
+      externalSignal?.removeEventListener("abort", abort);
+    }
+  };
+
+  const isTransportError = (error) => (
+    error instanceof TypeError || error?.name === "AbortError" || error?.name === "TimeoutError"
+  );
 
   const openDatabase = () => {
     if (!databasePromise) {
@@ -132,28 +153,40 @@
 
   const updateConnectionBanner = () => {
     const banner = document.getElementById("pwa-connection-banner");
+    const title = document.getElementById("pwa-connection-title");
     const detail = document.getElementById("pwa-connection-detail");
-    if (!banner || !detail) return;
-    banner.hidden = !connectionFailed;
-    document.body.classList.toggle("is-offline", connectionFailed);
-    if (connectionFailed) {
+    if (!banner || !title || !detail) return;
+    const unavailable = connectionState === "offline";
+    const degraded = connectionState === "degraded";
+    banner.hidden = !unavailable && !degraded;
+    banner.classList.toggle("is-degraded", degraded);
+    document.body.classList.toggle("is-offline", unavailable);
+    document.body.classList.toggle("is-degraded", degraded);
+    if (unavailable) {
+      title.textContent = "HORS LIGNE";
       detail.textContent = lastContactAt
         ? `Données datant au mieux de ${formatElapsed(lastContactAt)} · non actualisées · lecture seule`
         : "Âge des données inconnu · données non actualisées · lecture seule";
       setControlsDisabled(true);
+    } else if (degraded) {
+      title.textContent = "SERVICE DÉGRADÉ";
+      detail.textContent = degradedDetail || "Le contrôleur répond, mais certaines données ne sont pas disponibles.";
+      setControlsDisabled(false);
     } else {
       setControlsDisabled(false);
     }
   };
 
   const markServerContact = async (receivedAt = Date.now()) => {
-    const wasOffline = connectionFailed;
+    const wasUnavailable = connectionState === "offline" || connectionState === "degraded";
+    const wasOffline = connectionState === "offline";
     contactedThisPage = true;
-    connectionFailed = false;
+    connectionState = "online";
+    degradedDetail = "";
     lastContactAt = receivedAt;
     await setPreference("lastContactAt", receivedAt);
     updateConnectionBanner();
-    if (wasOffline) announce("Connexion au contrôleur rétablie.");
+    if (wasUnavailable) announce("Connexion au contrôleur rétablie.");
     if (wasOffline && offlineAtBoot && !sessionStorage.getItem("phyto-pwa-reconnected")) {
       sessionStorage.setItem("phyto-pwa-reconnected", "1");
       window.location.reload();
@@ -161,11 +194,21 @@
   };
 
   const markServerFailure = () => {
-    const wasOnline = !connectionFailed;
+    const wasOnline = connectionState !== "offline";
     if (!contactedThisPage) offlineAtBoot = true;
-    connectionFailed = true;
+    connectionState = "offline";
+    degradedDetail = "";
     updateConnectionBanner();
     if (wasOnline) announce("Connexion au contrôleur interrompue. Les données affichées ne sont plus actualisées.");
+  };
+
+  const markServerDegraded = (detail = "") => {
+    const changed = connectionState !== "degraded" || degradedDetail !== detail;
+    contactedThisPage = true;
+    connectionState = "degraded";
+    degradedDetail = detail;
+    updateConnectionBanner();
+    if (changed) announce(detail || "Le contrôleur répond, mais un service est dégradé.");
   };
 
   const recordNetworkSuccess = async (key, data, receivedAt = Date.now()) => {
@@ -175,7 +218,10 @@
   window.PhytoPwa = {
     loadSnapshot,
     markServerContact,
+    markServerDegraded,
     markServerFailure,
+    isTransportError,
+    fetchWithTimeout,
     recordNetworkSuccess,
     storeSnapshot,
     createAdaptivePoller,
@@ -221,6 +267,66 @@
     (alarm.affects_control === true || alarm.severity === "critical")
   );
 
+  const alarmSummaryFromFeed = (feed) => {
+    if (feed?.summary) return feed.summary;
+    const alarms = feed?.alarms || [];
+    const rank = {warning: 0, error: 1, critical: 2};
+    const highest = alarms.reduce((value, alarm) => (
+      !value || (rank[alarm.severity] ?? -1) > (rank[value] ?? -1) ? alarm.severity : value
+    ), null);
+    return {
+      active_count: alarms.length,
+      unacknowledged_count: alarms.filter((alarm) => alarm.acknowledged_ts == null).length,
+      control_count: alarms.filter((alarm) => alarm.affects_control === true).length,
+      auxiliary_count: alarms.filter((alarm) => alarm.affects_control !== true).length,
+      highest_severity: highest,
+    };
+  };
+
+  const updateAlarmChrome = (feed) => {
+    const summary = alarmSummaryFromFeed(feed);
+    const count = Number(summary.active_count || 0);
+    document.querySelectorAll('nav a[href="/alarms"]').forEach((link) => {
+      let badge = link.querySelector(".nav-count");
+      if (!count) { badge?.remove(); return; }
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nav-count";
+        link.append(" ", badge);
+      }
+      badge.textContent = String(count);
+      badge.setAttribute("aria-label", `${count} ${count === 1 ? "alarme active" : "alarmes actives"}`);
+    });
+
+    const pageSummary = document.querySelector(".alarm-summary");
+    if (pageSummary) {
+      const strong = pageSummary.querySelector("strong");
+      const label = pageSummary.querySelector("span");
+      const detail = pageSummary.querySelector("small");
+      if (strong) strong.textContent = String(count);
+      if (label) label.textContent = count === 1 ? "active" : "actives";
+      if (detail) detail.textContent = `${summary.control_count || 0} contrôle · ${summary.auxiliary_count || 0} auxiliaire`;
+    }
+
+    let banner = document.getElementById("global-alarm");
+    if (!count) banner?.remove();
+    else {
+      if (!banner) {
+        banner = document.createElement("aside");
+        banner.id = "global-alarm";
+        banner.append(document.createElement("strong"), document.createElement("span"), document.createElement("a"));
+        const anchor = document.getElementById("override-banner") || document.querySelector(".site-header");
+        anchor?.after(banner);
+      }
+      banner.className = `global-alarm severity-${summary.highest_severity || "warning"}`;
+      banner.querySelector("strong").textContent = `${count} ${count === 1 ? "alarme active" : "alarmes actives"}`;
+      banner.querySelector("span").textContent = `${summary.control_count || 0} contrôle · ${summary.auxiliary_count || 0} auxiliaire`;
+      const link = banner.querySelector("a"); link.href = "/alarms"; link.textContent = "Examiner";
+    }
+    document.title = count ? `(${count}) ${baseDocumentTitle}` : baseDocumentTitle;
+  };
+  window.PhytoPwa.updateAlarmChrome = updateAlarmChrome;
+
   const trimSeenAlarms = () => {
     const entries = Object.entries(alarmSeen);
     if (entries.length <= MAX_SEEN_ALARMS) return;
@@ -248,6 +354,7 @@
   const processAlarmFeed = async (feed, source) => {
     const previousFeed = lastAlarmFeed;
     lastAlarmFeed = feed;
+    updateAlarmChrome(feed);
     document.dispatchEvent(new CustomEvent("phyto:alarm-feed", {detail: {feed, source}}));
     if (source !== "network") return;
 
@@ -298,16 +405,19 @@
 
   const fetchAlarmFeed = async () => {
     try {
-      const response = await fetch("/api/v1/alarms/active", {
+      const response = await fetchWithTimeout("/api/v1/alarms/active", {
         headers: {Accept: "application/json"},
         cache: "no-store",
-      });
+      }, 6000);
+      if (!response.ok) {
+        markServerDegraded(`Alarmes momentanément indisponibles (HTTP ${response.status}).`);
+        throw new Error(`HTTP ${response.status}`);
+      }
       await markServerContact();
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       await processAlarmFeed(await response.json(), "network");
       return true;
     } catch (error) {
-      if (error instanceof TypeError) markServerFailure();
+      if (isTransportError(error)) markServerFailure();
       const stored = await loadSnapshot("active-alarms");
       if (stored?.data) await processAlarmFeed(stored.data, "stored");
       return false;
@@ -399,7 +509,7 @@
     configureNotificationControls();
     updateNotificationControls();
     createAdaptivePoller(fetchAlarmFeed).start();
-    window.setInterval(() => { if (connectionFailed) updateConnectionBanner(); }, 60000);
+    window.setInterval(() => { if (connectionState === "offline") updateConnectionBanner(); }, 60000);
     const more = document.querySelector(".mobile-more");
     document.addEventListener("click", (event) => {
       if (more?.open && !more.contains(event.target)) more.open = false;

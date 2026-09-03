@@ -336,11 +336,11 @@
     const request = async () => {
       if (!supported) return;
       try {
-        const response = await fetch("/api/v1/config/preview", {
+        const response = await (window.PhytoPwa?.fetchWithTimeout || fetch)("/api/v1/config/preview", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
           body: JSON.stringify({ section, fields: collect() }),
-        });
+        }, 6000);
         if (response.status === 400) { supported = false; panel.hidden = true; return; }
         if (response.status === 429) { enqueue(request); return; }
         if (!response.ok) return;
@@ -362,6 +362,12 @@
   // chaque valeur est saisie explicitement.
   const MODE_KEY = "phyto.conf.mode";
   const switcher = document.querySelector("[data-mode-switch]");
+  const modeContent = document.querySelector("[data-config-mode-content]");
+  const modeLoading = document.querySelector(".config-mode-loading");
+  const revealModeContent = () => {
+    modeContent?.classList.remove("is-pending");
+    if (modeLoading) modeLoading.hidden = true;
+  };
   const hashTarget = (() => {
     if (!window.location.hash) return null;
     try { return document.getElementById(decodeURIComponent(window.location.hash.slice(1))); }
@@ -391,20 +397,22 @@
       try { localStorage.setItem(MODE_KEY, mode); } catch (_error) { /* stockage indisponible */ }
     }));
     (async () => {
-      if (!csrfToken) return;
+      if (!csrfToken) { revealModeContent(); return; }
       try {
-        const response = await fetch("/api/v1/config/preview", {
+        const response = await (window.PhytoPwa?.fetchWithTimeout || fetch)("/api/v1/config/preview", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
           body: JSON.stringify({ section: "simple", fields: {} }),
-        });
-        if (!response.ok) return;
+        }, 6000);
+        if (!response.ok) { revealModeContent(); return; }
         await response.json();
       } catch (_error) {
+        revealModeContent();
         return;
       }
       switcher.hidden = false;
       applyMode(initialMode);
+      revealModeContent();
       if (hashTarget) {
         let parent = hashTarget;
         while (parent) {
@@ -415,6 +423,7 @@
       }
     })();
   }
+  else revealModeContent();
 
   // Sans prévisualisation, le mode Avancé est déjà visible : le lien profond
   // doit tout de même ouvrir sa fiche au lieu de pointer vers un résumé fermé.

@@ -547,6 +547,7 @@ class Server:
             web.get("/api/v1/history", self._api_history),
             web.post("/api/v1/config/preview", self._config_preview),
             web.post("/actions/alarms/ack", self._acknowledge_alarm),
+            web.post("/actions/history/notes", self._history_note),
             web.post("/actions/overrides/create", self._override_create),
             web.post("/actions/overrides/cancel", self._override_cancel),
             web.post("/actions/stats/reset", self._reset_stats),
@@ -739,7 +740,7 @@ class Server:
         return self._html(main_page(self._state_payload(), self.csrf_token))
 
     async def _history(self, request: web.Request) -> web.Response:
-        return self._html(history_page(self._state_payload()))
+        return self._html(history_page(self._state_payload(), self.csrf_token))
 
     def _operator_snapshot(self) -> dict:
         if self.operator_service is None:
@@ -1442,6 +1443,26 @@ class Server:
         if "application/json" in request.headers.get("Accept", ""):
             return web.json_response(payload)
         raise web.HTTPSeeOther(location="/alarms")
+
+    async def _history_note(self, request: web.Request) -> web.Response:
+        if self.operator_service is None or not self.operator_service.history.available:
+            raise web.HTTPServiceUnavailable(text="Historique local indisponible")
+        form = request["form_data"]
+        category = str(form.get("category", "observation")).strip()
+        note = str(form.get("note", "")).strip()
+        alias = str(form.get("alias", "")).strip()
+        if category not in {"observation", "intervention", "culture", "maintenance"}:
+            raise web.HTTPBadRequest(text="Catégorie de note invalide")
+        if not note or len(note) > 240 or len(alias) > 32:
+            raise web.HTTPBadRequest(text="Note ou nom d’opérateur invalide")
+        try:
+            await self.operator_service.record_operator_note(category, note, alias)
+        except Exception:
+            warning("Note opérateur non persistée", name=LOGGER_NAME)
+            raise web.HTTPInternalServerError(text="Note non persistée")
+        if "application/json" in request.headers.get("Accept", ""):
+            return web.json_response({"saved": True, "category": category}, status=201)
+        raise web.HTTPSeeOther(location="/history#operator-notes")
 
     # ── forçages « arrêt » ────────────────────────────────────
     @staticmethod

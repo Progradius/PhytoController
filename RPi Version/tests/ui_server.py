@@ -68,6 +68,9 @@ def build_app():
         AppConfig.load(Path("param/param.example.json")).to_json(), encoding="utf-8"
     )
     store = ConfigStore(config_path)
+    # Le scénario par défaut représente une serre nominale : les états vides
+    # restent exercés explicitement dans les tests qui en ont besoin.
+    store.current.sensors.bme280_state = True
     sensors = FakeSensors(store.current)
     server_module.shared_config = lambda: store
     server_module.load_or_create_token = lambda: CSRF_TOKEN

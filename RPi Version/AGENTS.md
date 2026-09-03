@@ -229,7 +229,8 @@ to `PuppetMaster`.
   corruption de cet historique alarme mais ne dégrade jamais `control_healthy()` ni le watchdog.
   `/alarms`, `/history`, `/api/v1/alarms` et `/api/v1/history?hours=24|48|72` exposent ce diagnostic. Ne faites
   aucune lecture matérielle supplémentaire pour l'historique et ne déplacez jamais SQLite dans une
-  boucle de contrôle ou dans l'event loop.
+  boucle de contrôle ou dans l'event loop. Les annotations de `/actions/history/notes` sont des événements
+  auxiliaires sans effet sur la régulation ; leur texte ne doit jamais être recopié dans les logs.
 
 ## GPIO conventions — read before touching any pin code
 

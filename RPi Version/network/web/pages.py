@@ -134,14 +134,14 @@ def main_page(state: dict, csrf_token: str) -> str:
     )
 
 
-def history_page(state: dict) -> str:
+def history_page(state: dict, csrf_token: str | None = None) -> str:
     return render_template(
         "history.html",
         page_title="Historique",
         current_page="history",
         state=state,
         alarm_summary=state.get("alarms"),
-        csrf_token=None,
+        csrf_token=csrf_token,
     )
 
 
