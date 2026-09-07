@@ -95,6 +95,9 @@ param/sensor_stats.json
 # Noms et annotations modifiables depuis l'interface, propres à la machine.
 # L'absence du fichier fait revenir le catalogue intégré sans bloquer le boot.
 param/equipment_metadata.json
+# Carnet durable et annexes propres à l'exploitation.
+param/cultures.sqlite3*
+param/culture_media/
 
 # MicroPython precompiled files (si présents)
 *.mpy

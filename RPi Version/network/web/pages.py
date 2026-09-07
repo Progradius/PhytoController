@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import os
 import socket
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -45,6 +47,19 @@ def _mesure(value, decimals=1) -> str:
 env.filters["mesure"] = _mesure
 
 
+def _culture_date(value, zone="Europe/Paris"):
+    """Dates lisibles ; la valeur ISO exacte reste dans les formulaires et l'API."""
+    if not value:
+        return "—"
+    if len(value) == 10:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%d/%m/%Y")
+    local = datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(ZoneInfo(zone))
+    return local.strftime("%d/%m/%Y à %H:%M:%S (UTC%z)")
+
+
+env.filters["culture_date"] = _culture_date
+
+
 def _asset_versions() -> dict[str, str]:
     assets = {
         "style": STATIC_DIR / "css" / "style.css",
@@ -54,6 +69,8 @@ def _asset_versions() -> dict[str, str]:
         "system": STATIC_DIR / "js" / "system.js",
         "alarms": STATIC_DIR / "js" / "alarms.js",
         "history": STATIC_DIR / "js" / "history.js",
+        "cultures": STATIC_DIR / "js" / "cultures.js",
+        "cultures_style": STATIC_DIR / "css" / "cultures.css",
         "pwa": STATIC_DIR / "js" / "pwa.js",
         "theme": STATIC_DIR / "js" / "theme.js",
         "service_worker": STATIC_DIR / "service-worker.js",

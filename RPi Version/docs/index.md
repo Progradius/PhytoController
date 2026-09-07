@@ -59,6 +59,8 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 
 ### Exploiter et diagnostiquer
 
+- [Carnet de cultures : mères, lots, stades, journal et sauvegarde](operations/cultures.md)
+
 - [Runbook d'incident](operations/incident-runbook.md)
 - [Installation Raspberry Pi](operations/install-raspberry-pi.md)
 - [systemd et watchdog](operations/systemd.md)
@@ -77,6 +79,9 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Roadmap consolidée](roadmap.md)
 
 ### Faire évoluer le projet
+
+- [Contrat API du carnet de cultures](reference/cultures-api.md)
+- [Plan de gestion des cultures et état des livraisons](../tasks/gestion_cultures_plan.md)
 
 - [AGENTS.md](../AGENTS.md), miroir exact de [CLAUDE.md](../CLAUDE.md)
 - [Référence de configuration](reference/configuration.md)

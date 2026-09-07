@@ -32,6 +32,8 @@ La porte d'entrée de la documentation est [docs/index.md](docs/index.md).
 - [Runbook d'incident](docs/operations/incident-runbook.md)
 - [Registre des risques](docs/risk-register.md)
 - [Roadmap](docs/roadmap.md)
+- [Carnet de cultures : utilisation et sauvegarde](docs/operations/cultures.md)
+- [API du carnet de cultures](docs/reference/cultures-api.md)
 - [Audit historique du 25 août 2026](AUDIT-2026-08-25.md)
 - [Politique de sécurité](SECURITY.md)
 - [Changelog](CHANGELOG.md)

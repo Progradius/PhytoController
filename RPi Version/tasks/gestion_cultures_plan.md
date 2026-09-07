@@ -1,8 +1,9 @@
 # Plan — Gestion des cultures et carnet d'exploitation
 
 Date : 7 septembre 2026.
-Statut : besoin validé avec l'exploitant ; plan pour implémentation ultérieure.
-Ce document ne constitue ni une implémentation ni une autorisation de déploiement.
+Statut : besoin validé avec l'exploitant ; première livraison implémentée sur
+`feature/gestion-cultures`, vérifiée hors matériel, non déployée. Jalons 2 et 3 à réaliser.
+Ce document ne constitue pas une autorisation de déploiement.
 
 ## 1. Objectif et décisions validées
 
@@ -347,18 +348,37 @@ peut être proposée ; signaler que les données déjà purgées ne peuvent pas 
 
 ## 6. Livraisons et ordre d'implémentation
 
-Chaque jalon doit être utilisable, testé et documenté. Les cases décrivent du travail futur.
+Chaque jalon doit être utilisable, testé et documenté. Les cases suivent le travail livré ou restant.
 Le déploiement sur le Pi se prépare séparément avec sauvegarde et autorisation de l'exploitant.
 
 ### Jalon 1 — Cultures, parcours et carnet durable
 
-- [ ] Définir schéma, migrations, magasin dédié, erreurs et sauvegarde/restauration minimale.
-- [ ] Créer espaces, mères, lots multi-origines et reprise de cultures déjà commencées.
-- [ ] Implémenter effectifs, stades, dates, compteurs, transferts entiers et occupation.
-- [ ] Implémenter coupe, séchage, fin et archivage avec bilan texte/poids facultatif.
-- [ ] Ajouter journal texte, corrections traçables et actions idempotentes.
-- [ ] Ajouter vue cultures, fiches, résumé du tableau de bord et liens aux réglages existants.
-- [ ] Exporter le carnet et documenter conservation et restauration dès cette première livraison.
+- [x] Définir schéma, migrations, magasin dédié, erreurs et sauvegarde/restauration minimale.
+- [x] Créer espaces, mères, lots multi-origines et reprise de cultures déjà commencées.
+- [x] Implémenter effectifs, stades, dates, compteurs, transferts entiers et occupation.
+- [x] Implémenter coupe, séchage, fin et archivage avec bilan texte/poids facultatif.
+- [x] Ajouter journal texte, corrections traçables et actions idempotentes.
+- [x] Ajouter vue cultures, fiches, résumé du tableau de bord et liens aux réglages existants.
+- [x] Exporter le carnet et documenter conservation et restauration dès cette première livraison.
+
+Réalisation : `model/culture.py`, `utils/culture_store.py`, `network/web/cultures.py` et leurs
+templates/assets. Le magasin expose les opérations auxiliaires directement : aucun service
+supplémentaire ni job supervisé de régulation n'est nécessaire à ce jalon. Schéma initial 1,
+refus des versions inconnues, migrations futures explicitement requises. Les affectations fixes
+réutilisent les identifiants existants ; chaque événement conserve le catalogue connu à sa saisie.
+Guide : `docs/operations/cultures.md`. API : `docs/reference/cultures-api.md`.
+
+Validation de clôture du jalon 1, le 7 septembre 2026 après reprise de l'interruption :
+
+- `.venv/bin/python -m pytest -q` : 241 tests réussis ; avertissements de dépréciation
+  Pydantic/aiohttp existants, aucun échec.
+- `PHYTO_TEST_PYTHON=.venv/bin/python npx playwright test --workers=2` : 84 tests réussis,
+  26 exclusions prévues selon les profils ; références visuelles et accessibilité validées.
+- Les parcours mutateurs du carnet possèdent chacun une base temporaire par worker :
+  leurs occupations de l'espace 2 ne se chevauchent plus entre profils de navigateur.
+- Dates lisibles sur les fiches, parcours et révisions ; décalage UTC explicite pour les
+  instants, avec tests du passage de minuit et des deux heures locales identiques en automne.
+- Syntaxe JavaScript, `git diff --check` et synchronisation `CLAUDE.md`/`AGENTS.md` vérifiés.
 
 Sortie : parcours semis et boutures multi-mères jusqu'à l'archivage, reprise après redémarrage,
 aucune modification des horaires/configurations/GPIO provoquée par les actions de culture.

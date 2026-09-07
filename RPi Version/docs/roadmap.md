@@ -214,6 +214,17 @@ Un chantier n'est terminé que si :
 
 ## Ordre et dépendances
 
+### Gestion des cultures — chantier complémentaire, 7 septembre 2026
+
+La première livraison est implémentée sur `feature/gestion-cultures`, sans déploiement sur le Pi :
+mères individuelles, lots multi-origines, effectifs, stades et occupation datés, récolte/séchage,
+journal corrigible et durable, archives, export et sauvegarde/restauration sur copie.
+Les stades sont déclaratifs ; aucune commande matérielle ni dépendance du contrôle envers SQLite.
+Voir le [plan détaillé](../tasks/gestion_cultures_plan.md), le [guide](operations/cultures.md)
+et le [contrat API](reference/cultures-api.md). Les solutions/pH/EC/recettes constituent le jalon 2 ;
+photos, rappels et synthèses durables le jalon 3. Ce chantier ne clôt aucun risque matériel ci-dessus.
+
+
 ```text
 Lot 1 Documentation
   └─ Lot 2 Exploitation reproductible

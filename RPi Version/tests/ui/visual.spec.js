@@ -3,7 +3,10 @@ const {historyFixture} = require("./fixtures");
 
 test("référence visuelle du tableau de bord", async ({page}, testInfo) => {
   test.skip(!["desktop-chromium", "mobile-etroit"].includes(testInfo.project.name), "Deux largeurs de référence suffisent.");
+  await page.route("**/api/v1/cultures", route => route.fulfill({contentType: "application/json", body: JSON.stringify({occupants: [], clock_reliable: true})}));
   await page.goto("/");
+  await expect(page.locator("[data-culture-preview]")).toContainText("Aucune occupation déclarée");
+  await page.locator("[data-culture-updated]").evaluate(node => { node.textContent = "Carnet actualisé récemment"; });
   await page.locator(".freshness").evaluateAll((nodes) => nodes.forEach((node) => { node.textContent = "Mesure récente"; }));
   await expect(page).toHaveScreenshot("dashboard.png", {fullPage: testInfo.project.name === "desktop-chromium", animations: "disabled", maxDiffPixelRatio: 0.01});
 });

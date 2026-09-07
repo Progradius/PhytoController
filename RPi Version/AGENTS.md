@@ -232,6 +232,21 @@ to `PuppetMaster`.
   boucle de contrôle ou dans l'event loop. Les annotations de `/actions/history/notes` sont des événements
   auxiliaires sans effet sur la régulation ; leur texte ne doit jamais être recopié dans les logs.
 
+## Carnet de cultures (livraison 1)
+
+`model/culture.py` contient les règles pures ; `utils/culture_store.py` est le seul écrivain de
+`param/cultures.sqlite3`, dans un thread auxiliaire borné. `network/web/cultures.py` expose `/cultures`
+et `/api/v1/cultures`. Les stades, déplacements, récoltes et corrections sont **déclaratifs** : jamais
+un accès GPIO, une modification de `param.json`, un override ou un changement du watchdog.
+Le carnet garde origines multi-mères, révisions et clés d'idempotence sans purge de 72 h. Une erreur
+ou un schéma incompatible conserve la base et rend le carnet indisponible, sans affecter la santé
+du contrôle. Les mutations revalident tout le parcours et l'occupation de l'espace 2 avant commit.
+Ne pas copier naïvement un SQLite vivant en WAL : l'export utilise l'API de sauvegarde ;
+`scripts/restore-cultures.py` restaure seulement vers une nouvelle copie isolée. Guide et contrat :
+`docs/operations/cultures.md`, `docs/reference/cultures-api.md`. Photos, solutions structurées et
+rappels appartiennent aux jalons suivants. Les tests navigateur mutateurs du carnet sont désactivés
+sur toute cible `PHYTO_UI_BASE_URL` externe ; leur base locale de test est temporaire.
+
 ## GPIO conventions — read before touching any pin code
 
 Two opposite polarities coexist and mixing them can close relays on high voltage:

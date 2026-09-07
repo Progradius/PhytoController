@@ -54,6 +54,7 @@ from utils.overrides import (
 )
 from utils.schedule import day_night_times
 from utils.time_reliability import time_reliability
+from network.web.cultures import CultureViews
 
 
 LOGGER_NAME = "http"
@@ -458,6 +459,7 @@ class Server:
         heater_component=None,
         operator_service=None,
         equipment_store=None,
+        culture_store=None,
     ):
         self.controller_status = controller_status
         self.sensor_handler = sensor_handler
@@ -501,6 +503,7 @@ class Server:
             or self._tls_key_file
         )
         self._https_ready = False
+        self.cultures = CultureViews(self, culture_store)
         console_stream.install()
 
     @staticmethod
@@ -577,6 +580,10 @@ class Server:
             web.get("/static/icons/pwa-512.png", self._pwa_icon_512),
             web.get("/static/icons/pwa-maskable-512.png", self._pwa_icon_maskable),
         ])
+        app.add_routes(self.cultures.routes())
+        app.on_cleanup.append(self.cultures.close)
+        app.router.add_get("/static/js/cultures.js", self._cultures_js)
+        app.router.add_get("/static/css/cultures.css", self._cultures_css)
         return app
 
     async def run(self) -> None:
@@ -2046,6 +2053,8 @@ class Server:
     async def _pwa_js(self, request): return await self._asset("js/pwa.js", "application/javascript")
     async def _theme_js(self, request): return await self._asset("js/theme.js", "application/javascript")
     async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
+    async def _cultures_js(self, request): return await self._asset("js/cultures.js", "application/javascript")
+    async def _cultures_css(self, request): return await self._asset("css/cultures.css", "text/css")
     async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")
     async def _console_js(self, request): return await self._asset("js/console.js", "application/javascript")
     async def _system_js(self, request): return await self._asset("js/system.js", "application/javascript")

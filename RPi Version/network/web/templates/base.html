@@ -39,6 +39,7 @@
       <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau de bord</a>
       <a href="/alarms"{% if current_page == 'alarms' %} aria-current="page"{% endif %}>Alarmes{% if alarm_summary and alarm_summary.active_count %} <span class="nav-count">{{ alarm_summary.active_count }}</span>{% endif %}</a>
       <a href="/history"{% if current_page == 'history' %} aria-current="page"{% endif %}>Historique</a>
+      <a href="/cultures"{% if current_page == 'cultures' %} aria-current="page"{% endif %}>Cultures</a>
       <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
       <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
       <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Plein jour</button>
@@ -66,10 +67,11 @@
     <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau</a>
     <a href="/alarms"{% if current_page == 'alarms' %} aria-current="page"{% endif %}>Alarmes{% if alarm_summary and alarm_summary.active_count %}<span class="nav-count">{{ alarm_summary.active_count }}</span>{% endif %}</a>
     <a href="/history"{% if current_page == 'history' %} aria-current="page"{% endif %}>Historique</a>
-    <details class="mobile-more"{% if current_page in ('config', 'console') %} data-current="true"{% endif %}>
+    <details class="mobile-more"{% if current_page in ('cultures', 'config', 'console') %} data-current="true"{% endif %}>
       <summary>Plus</summary>
       <div class="mobile-more-panel">
         <strong>Outils</strong>
+        <a href="/cultures"{% if current_page == 'cultures' %} aria-current="page"{% endif %}>Cultures</a>
         <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
         <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
         <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Plein jour</button>

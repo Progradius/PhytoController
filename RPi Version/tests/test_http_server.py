@@ -19,6 +19,7 @@ from utils import overrides as overrides_module
 from utils import pretty_console as ui
 from utils.overrides import OverrideStore
 from utils.state_store import StateStore
+from utils.culture_store import CultureStore
 
 
 CSRF_TOKEN = "T" * 43
@@ -181,6 +182,7 @@ async def web_context(config_path, monkeypatch):
     server = server_module.Server(
         FakeStatus(), sensors, store.current,
         supervisor=supervisor, equipment_store=equipment,
+        culture_store=CultureStore(config_path.parent / "cultures.sqlite3", reliable=lambda: True),
     )
     client = TestClient(TestServer(server.create_app()))
     await client.start_server()

@@ -1,0 +1,20 @@
+.culture-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 1rem; }
+.culture-grid > *, .culture-form, .culture-form label { min-width: 0; }
+.culture-section { margin-block: 1.5rem; }
+.culture-counter { display: flex; flex-direction: column; gap: .4rem; margin-block: .75rem; }
+.culture-links { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
+.culture-form { display: grid; gap: .85rem; margin-top: 1rem; }
+.culture-form label { display: flex; flex-direction: column; gap: .4rem; }
+.culture-form input, .culture-form select, .culture-form textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
+.culture-form textarea { font: inherit; resize: vertical; min-height: 5rem; padding: .65rem .75rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+.culture-form .culture-confirm { flex-direction: row; align-items: flex-start; }
+.culture-form input[type=checkbox] { width: 1.25rem; flex-shrink: 0; }
+.culture-form-actions { display: grid; gap: .75rem; }
+.culture-origin { display: grid; gap: .7rem; padding-block: .75rem; border-bottom: 1px solid var(--border, #53675b); }
+.culture-origins { min-width: 0; padding: .75rem; }
+.culture-warning { padding: 1rem; border: 1px solid currentColor; border-radius: .5rem; }
+.culture-journal { margin-block: .8rem; overflow-wrap: anywhere; }
+.culture-note { white-space: pre-wrap; }
+.culture-grid summary { cursor: pointer; font-weight: 600; min-height: 2.5rem; }
+.culture-form [hidden] { display: none; }
+.culture-journal details { margin-top: .75rem; }

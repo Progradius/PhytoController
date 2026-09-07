@@ -1,5 +1,14 @@
 # Sauvegarde et restauration
 
+## Carnet de cultures
+
+`param/cultures.sqlite3` et ses annexes sont locaux et ignorés par Git. Les données n'ont pas
+la rétention de 72 h de l'historique technique. Utiliser le téléchargement de sauvegarde SQLite
+depuis `/cultures` : l'API SQLite produit une copie cohérente malgré le WAL. La procédure et
+l'outil de restauration sur copie sont décrits dans [le guide du carnet](cultures.md#export-et-sauvegarde).
+Prévoir cette sauvegarde hors Pi avant toute migration du carnet ; le script de déploiement
+ne la réalise pas automatiquement.
+
 ## Données vivantes
 
 | Fichier | Contenu | Sensibilité |

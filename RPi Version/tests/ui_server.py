@@ -1,6 +1,7 @@
-"""Serveur matériel-neutre réservé aux contrôles Playwright en lecture seule."""
+"""Serveur matériel-neutre ; les mutations du carnet restent dans une base temporaire."""
 
 from pathlib import Path
+import os
 import sys
 import tempfile
 
@@ -13,6 +14,7 @@ from network.web import server as server_module
 from param.config import AppConfig
 from param.config_store import ConfigStore
 from param.equipment_metadata import default_catalog
+from utils.culture_store import CultureStore
 from tests.test_http_server import (
     CSRF_TOKEN,
     FakeEquipmentStore,
@@ -80,6 +82,7 @@ def build_app():
         supervisor=FakeSupervisor(),
         equipment_store=FakeEquipmentStore(default_catalog()),
         operator_service=_FakeOperatorService(),
+        culture_store=CultureStore(Path(temporary.name) / "cultures.sqlite3", reliable=lambda: True),
     )
     app = server.create_app()
     # La référence garde le répertoire temporaire vivant pendant le serveur.
@@ -88,4 +91,5 @@ def build_app():
 
 
 if __name__ == "__main__":
-    web.run_app(build_app(), host="127.0.0.1", port=38123, print=None)
+    web.run_app(build_app(), host="127.0.0.1",
+                port=int(os.environ.get("PHYTO_UI_TEST_PORT", "38123")), print=None)
