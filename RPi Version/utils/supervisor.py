@@ -20,9 +20,9 @@ Ce module transforme cette panne silencieuse en panne visible et récupérable :
     dont on ignore l'état ;
   • chaque travail publie un **battement de cœur** ; un travail vivant mais
     muet (bloqué sur une attente sans fin) est détecté, annulé et relancé ;
-  • l'état complet (vivant, silence, redémarrages, dernière erreur) est
-    exposé pour `/status` et sert de condition au coup de patte du watchdog
-    (`utils/watchdog.py`).
+  • l'état complet (vivant, silence, redémarrages, dernière erreur, domaine)
+    est exposé pour `/status` ; le sous-ensemble `gates_watchdog` conditionne
+    seul le coup de patte du watchdog (`utils/watchdog.py`).
 
 Les battements sont propagés par `contextvars` : une tâche supervisée hérite du
 contexte du superviseur, donc `beat()` et `sleep()` savent seuls à quel travail
@@ -34,7 +34,9 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import os
 import traceback
+from collections import deque
 from time import monotonic
 from typing import Awaitable, Callable
 
@@ -50,6 +52,7 @@ BACKOFF_FACTOR = 2.0
 # Une tâche qui a tenu au moins ce temps repart d'un back-off neuf : une panne
 # isolée après 2 h de fonctionnement n'est pas une boucle de crash.
 BACKOFF_RESET_AFTER_SECONDS = 600.0
+RESTART_WINDOW_SECONDS = 10 * 60.0
 
 # Découpage des longues attentes : une sieste de 10 jours (cyclic journalier)
 # ne doit pas ressembler à une tâche morte.
@@ -103,6 +106,8 @@ class SupervisedJob:
         factory: Callable[[], Awaitable[None]],
         safe_state: Callable[[], None] | None,
         max_silence: float | None,
+        domain: str,
+        gates_watchdog: bool,
     ) -> None:
         self.name = name
         self.factory = factory
@@ -110,9 +115,12 @@ class SupervisedJob:
         # None = pas de contrôle de silence (serveur HTTP : rester en attente de
         # connexion est son fonctionnement normal, pas un blocage).
         self.max_silence = max_silence
+        self.domain = domain
+        self.gates_watchdog = gates_watchdog
 
         self.last_beat: float = monotonic()
         self.restarts: int = 0
+        self.restart_times: deque[float] = deque()
         self.reloads: int = 0
         self.stalls: int = 0
         self.last_error: str | None = None
@@ -130,7 +138,15 @@ class SupervisedJob:
         return monotonic() - self.last_beat
 
     def is_alive(self) -> bool:
-        return self.task is not None and not self.task.done()
+        # Le runner survit volontairement aux exceptions pour pouvoir relancer
+        # le travail. Il ne prouve donc pas que la boucle métier tourne : en
+        # plein back-off, `task` est vivant mais `inner` est déjà terminé.
+        return (
+            self.task is not None
+            and not self.task.done()
+            and self.inner is not None
+            and not self.inner.done()
+        )
 
     def is_stale(self) -> bool:
         return self.max_silence is not None and self.silence_seconds > self.max_silence
@@ -138,13 +154,22 @@ class SupervisedJob:
     def is_healthy(self) -> bool:
         return self.is_alive() and not self.is_stale()
 
+    def recent_restart_count(self, now: float | None = None) -> int:
+        current = monotonic() if now is None else now
+        while self.restart_times and current - self.restart_times[0] >= RESTART_WINDOW_SECONDS:
+            self.restart_times.popleft()
+        return len(self.restart_times)
+
     def snapshot(self) -> dict:
         return {
+            "domain": self.domain,
+            "gates_watchdog": self.gates_watchdog,
             "alive": self.is_alive(),
             "healthy": self.is_healthy(),
             "silence_s": round(self.silence_seconds, 1),
             "max_silence_s": self.max_silence,
             "restarts": self.restarts,
+            "restarts_10m": self.recent_restart_count(),
             "reloads": self.reloads,
             "stalls": self.stalls,
             "last_error": self.last_error,
@@ -173,6 +198,8 @@ class TaskSupervisor:
         *,
         safe_state: Callable[[], None] | None = None,
         max_silence: float | None = 300.0,
+        domain: str = "auxiliary",
+        gates_watchdog: bool = False,
     ) -> SupervisedJob:
         """
         `factory` doit **fabriquer** la coroutine à chaque appel : une coroutine
@@ -180,13 +207,16 @@ class TaskSupervisor:
         """
         if name in self._jobs:
             raise ValueError(f"Travail « {name} » déjà enregistré")
-        job = SupervisedJob(name, factory, safe_state, max_silence)
+        job = SupervisedJob(name, factory, safe_state, max_silence, domain, gates_watchdog)
         self._jobs[name] = job
         return job
 
     # --- cycle de vie ------------------------------------------
     def start(self) -> None:
         """Démarre un runner par travail enregistré, plus le veilleur de silence."""
+        gated = [job.name for job in self._jobs.values() if job.gates_watchdog]
+        if not gated:
+            raise RuntimeError("Aucune tâche de contrôle ne gouverne le watchdog")
         loop = asyncio.get_event_loop()
         for job in self._jobs.values():
             job.task = loop.create_task(self._runner(job), name=job.name)
@@ -196,6 +226,7 @@ class TaskSupervisor:
             "Tâches supervisées : " + ", ".join(self._jobs),
             name=LOGGER_NAME,
         )
+        info("Watchdog gouverné par : " + ", ".join(gated), name=LOGGER_NAME)
 
     async def wait(self) -> None:
         """
@@ -210,6 +241,34 @@ class TaskSupervisor:
     def is_healthy(self) -> bool:
         return all(job.is_healthy() for job in self._jobs.values())
 
+    def control_healthy(self) -> bool:
+        """Santé des seuls domaines de contrôle physique."""
+        if os.getenv("PHYTO_FAKE_CONTROL_UNHEALTHY") == "1":
+            return False
+        gated = [job for job in self._jobs.values() if job.gates_watchdog]
+        return bool(gated) and all(job.is_healthy() for job in gated)
+
+    def unhealthy_control_names(self) -> list[str]:
+        if os.getenv("PHYTO_FAKE_CONTROL_UNHEALTHY") == "1":
+            return ["injection_de_test"]
+        return [
+            name for name, job in self._jobs.items()
+            if job.gates_watchdog and not job.is_healthy()
+        ]
+
+    def health_domains(self) -> dict[str, dict]:
+        domains: dict[str, list[SupervisedJob]] = {}
+        for job in self._jobs.values():
+            domains.setdefault(job.domain, []).append(job)
+        return {
+            domain: {
+                "healthy": all(job.is_healthy() for job in jobs),
+                "tasks": [job.name for job in jobs],
+                "unhealthy": [job.name for job in jobs if not job.is_healthy()],
+            }
+            for domain, jobs in domains.items()
+        }
+
     def unhealthy_names(self) -> list[str]:
         return [name for name, job in self._jobs.items() if not job.is_healthy()]
 
@@ -217,7 +276,7 @@ class TaskSupervisor:
         return {name: job.snapshot() for name, job in self._jobs.items()}
 
     def request_reload(self, name: str) -> bool:
-        """Relance volontairement un travail après application de son état sûr."""
+        """Relance volontairement un travail sans réappliquer son état sûr."""
         job = self._jobs.get(name)
         if job is None or job.inner is None or job.inner.done():
             return False
@@ -311,6 +370,8 @@ class TaskSupervisor:
             # alimentée pendant que le superviseur attend.
             self._to_safe_state(job)
             job.restarts += 1
+            job.restart_times.append(monotonic())
+            job.recent_restart_count()
 
             if monotonic() - started >= BACKOFF_RESET_AFTER_SECONDS:
                 backoff = BACKOFF_INITIAL_SECONDS

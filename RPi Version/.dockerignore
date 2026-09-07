@@ -1,0 +1,19 @@
+# Secrets et état propres à la machine hôte. L'image exige un montage explicite
+# de param/param.json au runtime et ne doit jamais embarquer une configuration
+# de production présente dans le contexte de build.
+param/param.json
+param/param.json.bak
+param/equipment_metadata.json
+param/sensor_stats.json
+param/runtime_state.json
+param/.csrf_token
+param/operator_history.sqlite3*
+
+logs/
+*.log
+.git/
+.venv/
+venv/
+node_modules/
+playwright-report/
+test-results/

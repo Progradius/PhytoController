@@ -58,6 +58,13 @@ RH_VALID_MAX = 100.0
 # Lectures invalides consécutives tolérées avant de couper. À 30 s de période,
 # cela laisse 2 min 30 au capteur pour se rétablir.
 MAX_CONSECUTIVE_SENSOR_FAILURES = 5
+ALARM_CONTINUOUS_LIMIT = "heater_continuous_limit"
+ALARM_SENSOR_FALLBACK = "sensor_fallback"
+# Le forçage « arrêt » moteur est **absolu** (arbitrage opérateur du 28/08/2026) :
+# il prime sur `SECURITE_HAUTE`. La protection contre la surchauffe est donc
+# remplacée par cette alarme — un défaut *subi*, à la différence du forçage
+# lui-même qui est un acte volontaire et n'entre pas au centre d'alarmes.
+ALARM_MOTOR_LOCKOUT = "motor_lockout_overheat"
 
 # Durée maximale d'allumage continu, **indépendante du capteur** : même avec une
 # température parfaitement valide mais bloquée sur une valeur basse (défaut
@@ -87,6 +94,7 @@ STATE_OVERHEAT = "SECURITE_HAUTE"
 STATE_FLOOR = "PLANCHER_THERMIQUE"    # sous le plancher absolu : plus aucune ventilation
 STATE_SENSOR_FALLBACK = "REPLI_CAPTEUR"
 STATE_MANUAL = "MANUEL"
+STATE_FORCED_OFF = "FORCAGE_OFF"      # forçage opérateur borné (jalon 4)
 
 # Motifs de crédit des budgets hiver (mémorisés d'un tick à l'autre).
 CREDIT_RENEW = "renew"
@@ -165,6 +173,45 @@ class ClimateInputs:
     temperature: float | None
     humidity: float | None
     is_day: bool
+    temperature_inconsistent: bool = False
+    temperature_quality_reason: str | None = None
+
+    # Forçages « arrêt » opérateur : des **échéances**, pas des booléens. C'est
+    # `decide()` qui tranche l'expiration, à partir des horloges ci-dessus et de
+    # rien d'autre — la fonction reste pure et un forçage se rejoue au harnais.
+    # Un forçage n'est pas de la configuration : il n'a rien à faire dans
+    # `ClimateSettings`, dont dépendent les seuils dérivés.
+    heater_forced_off_until_epoch: float | None = None
+    heater_forced_off_deadline_mono: float | None = None
+    motor_forced_off_until_epoch: float | None = None
+    motor_forced_off_deadline_mono: float | None = None
+
+    @property
+    def heater_forced_off(self) -> bool:
+        return _forced_off(self.heater_forced_off_until_epoch,
+                           self.heater_forced_off_deadline_mono, self)
+
+    @property
+    def motor_forced_off(self) -> bool:
+        return _forced_off(self.motor_forced_off_until_epoch,
+                           self.motor_forced_off_deadline_mono, self)
+
+
+def _forced_off(until_epoch: float | None, deadline_mono: float | None,
+                inputs: "ClimateInputs") -> bool:
+    """
+    Échu au **premier** des deux horloges : un saut NTP avant coupe plus tôt,
+    un saut arrière ne prolonge rien. Règle volontairement dupliquée avec
+    `utils.overrides.ForcedOff.active_at` — la politique ne doit importer ni le
+    magasin, ni le disque, ni le journal.
+    """
+    if until_epoch is None:
+        return False
+    if inputs.now_epoch >= until_epoch:
+        return False
+    if deadline_mono is not None and inputs.now_mono >= deadline_mono:
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -196,17 +243,24 @@ class ClimateDecision:
 
     heater_on: bool
     motor_speed: int
+    motor_speed_requested: int
     state: str
     reason: str
     alarm: str | None = None
+    alarm_code: str | None = None
     temperature: float | None = None
     humidity: float | None = None
+    temp_min: float = 0.0
+    temp_max: float = 0.0
     vent_threshold: float = 0.0
     heater_off_threshold: float = 0.0
     renew_minutes_used: float = 0.0
     renew_minutes_quota: float = 0.0
     humidity_minutes_used: float = 0.0
     humidity_minutes_quota: float = 0.0
+    dwell_remaining_seconds: float = 0.0
+    heater_forced_off: bool = False
+    motor_forced_off: bool = False
 
 
 # ─────────────────────────────────────────────────────────────
@@ -309,12 +363,12 @@ def _roll_budgets(settings: ClimateSettings, inputs: ClimateInputs,
 # ─────────────────────────────────────────────────────────────
 def _decide_heater(settings: ClimateSettings, inputs: ClimateInputs,
                    memory: ClimateMemory, temp: float | None,
-                   sensor_lost: bool) -> tuple[bool, str | None, str, ClimateMemory]:
-    """Retourne `(chauffage_on, alarme, motif, mémoire)`."""
+                   sensor_lost: bool) -> tuple[bool, str | None, str | None, str, ClimateMemory]:
+    """Retourne `(chauffage_on, code_alarme, alarme, motif, mémoire)`."""
     now = inputs.now_mono
 
     if not settings.heater_enabled:
-        return False, None, "chauffage désactivé", replace(
+        return False, None, None, "chauffage désactivé", replace(
             memory, heater_cooldown_until=None
         )
 
@@ -330,7 +384,7 @@ def _decide_heater(settings: ClimateSettings, inputs: ClimateInputs,
             f"repos forcé de {FORCED_OFF_COOLDOWN_MINUTES} min "
             "(capteur bloqué ? puissance de chauffe insuffisante ?)"
         )
-        return False, alarm, f"durée max de {MAX_CONTINUOUS_ON_MINUTES} min atteinte", memory
+        return False, ALARM_CONTINUOUS_LIMIT, alarm, f"durée max de {MAX_CONTINUOUS_ON_MINUTES} min atteinte", memory
 
     in_cooldown = (memory.heater_cooldown_until is not None
                    and now < memory.heater_cooldown_until)
@@ -339,29 +393,37 @@ def _decide_heater(settings: ClimateSettings, inputs: ClimateInputs,
 
     # Garde-fou 2 : repli sur perte durable du capteur.
     if sensor_lost:
-        alarm = ("température ambiante illisible → chauffage coupé, "
+        diagnostic = (
+            f" ({inputs.temperature_quality_reason})"
+            if inputs.temperature_quality_reason else ""
+        )
+        alarm = (f"température ambiante illisible{diagnostic} → chauffage coupé, "
                  "régulation impossible")
-        return False, alarm, (
+        return False, ALARM_SENSOR_FALLBACK, alarm, (
             f"repli capteur ({memory.sensor_failures} lectures manquées)"
         ), memory
 
     if temp is None:
         # Panne transitoire : on conserve l'état, le compteur fait le reste.
-        return memory.heater_on, None, (
+        return memory.heater_on, None, None, (
             f"lecture manquée {memory.sensor_failures}/"
             f"{MAX_CONSECUTIVE_SENSOR_FAILURES} → état conservé"
         ), memory
 
     if in_cooldown:
-        return False, None, "repos forcé en cours → allumage inhibé", memory
+        alarm = (
+            f"repos forcé après {MAX_CONTINUOUS_ON_MINUTES} min de chauffe "
+            f"continue ({FORCED_OFF_COOLDOWN_MINUTES} min de cooldown)"
+        )
+        return False, ALARM_CONTINUOUS_LIMIT, alarm, "repos forcé en cours → allumage inhibé", memory
 
     if temp <= settings.temp_min:
-        return True, None, f"{temp:.1f}°C ≤ {settings.temp_min:.1f}°C", memory
+        return True, None, None, f"{temp:.1f}°C ≤ {settings.temp_min:.1f}°C", memory
     if temp > settings.heater_off_threshold:
-        return False, None, (
+        return False, None, None, (
             f"{temp:.1f}°C > {settings.heater_off_threshold:.1f}°C"
         ), memory
-    return memory.heater_on, None, (
+    return memory.heater_on, None, None, (
         f"{temp:.1f}°C dans la bande morte "
         f"]{settings.temp_min:.1f} ; {settings.heater_off_threshold:.1f}]"
     ), memory
@@ -380,6 +442,16 @@ def _decide_motor(settings: ClimateSettings, inputs: ClimateInputs,
     se négocie pas.
     """
     mode = (settings.motor_mode or "").lower()
+
+    # Forçage opérateur : **absolu**, avant le mode manuel et avant le repli
+    # capteur (arbitrage du 28/08/2026 — verrouillage pour intervention
+    # physique sur le ventilateur). C'est un renoncement assumé à
+    # `SECURITE_HAUTE` : il est compensé par un plafond de 4 h et par
+    # `ALARM_MOTOR_LOCKOUT`, levée plus bas dès que la serre chauffe malgré le
+    # verrou. `immediate=True` : un ordre d'arrêt ne se négocie pas avec
+    # `min_dwell_seconds`.
+    if inputs.motor_forced_off:
+        return (0, STATE_FORCED_OFF, "forçage opérateur : arrêt", None, True)
 
     if mode == "manual":
         return (clamp_speed(settings, settings.motor_user_speed), STATE_MANUAL,
@@ -494,13 +566,31 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
     temp = _valid_temperature(inputs.temperature)
     rh = _valid_humidity(inputs.humidity)
 
-    failures = 0 if temp is not None else memory.sensor_failures + 1
+    failures = (
+        MAX_CONSECUTIVE_SENSOR_FAILURES
+        if inputs.temperature_inconsistent
+        else 0 if temp is not None else memory.sensor_failures + 1
+    )
     memory = replace(memory, sensor_failures=failures)
     sensor_lost = failures >= MAX_CONSECUTIVE_SENSOR_FAILURES
 
-    heater_on, alarm, heater_reason, memory = _decide_heater(
+    heater_on, alarm_code, alarm, heater_reason, memory = _decide_heater(
         settings, inputs, memory, temp, sensor_lost
     )
+
+    # Forçage « arrêt » chauffage : post-filtre, et non branche interne. Ainsi
+    # `ALARM_SENSOR_FALLBACK`, `ALARM_CONTINUOUS_LIMIT`, le compteur de lectures
+    # manquées et le cooldown continuent d'être calculés et publiés pendant le
+    # forçage. Il couvre aussi la branche « lecture manquée » qui *tient* l'état
+    # ON, seule façon qu'un forçage laisse chauffer.
+    # `settings.vent_threshold` n'est volontairement **pas** touché : détourner
+    # `heater_enabled` pour couper le chauffage abaisserait le seuil de
+    # ventilation de l'hystérésis plus la zone morte, silencieusement, pendant
+    # toute la durée du forçage.
+    if inputs.heater_forced_off:
+        heater_on = False
+        heater_reason = f"forçage opérateur : arrêt ({heater_reason})"
+
     if heater_on != memory.heater_on:
         memory = replace(
             memory,
@@ -530,18 +620,35 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
     # déshumidification d'hiver restent nommés même quand le chauffage tourne :
     # ce sont des épisodes **bornés** et voulus, à ne pas confondre avec le
     # conflit chauffage/ventilation que la zone morte interdit.
-    if state not in (STATE_FLOOR, STATE_SENSOR_FALLBACK, STATE_MANUAL) and speed == 0:
+    if state not in (STATE_FLOOR, STATE_SENSOR_FALLBACK, STATE_MANUAL,
+                     STATE_FORCED_OFF) and speed == 0:
         if heater_on:
             state = STATE_HEAT
+        elif inputs.heater_forced_off:
+            state = STATE_FORCED_OFF
         elif not settings.heater_enabled and state == STATE_NEUTRAL:
             state = STATE_DISABLED
+
+    # Verrou moteur pendant que la serre monte : la ventilation aurait démarré
+    # sans le forçage. C'est le seul cas où l'arbitre ne peut plus rien faire —
+    # il le dit fort. L'alarme prime sur celle de durée de chauffe, jamais sur
+    # le repli capteur (température inconnue : rien à comparer).
+    if (inputs.motor_forced_off and temp is not None
+            and temp >= settings.vent_threshold
+            and alarm_code != ALARM_SENSOR_FALLBACK):
+        alarm_code = ALARM_MOTOR_LOCKOUT
+        alarm = (f"{temp:.1f}°C ≥ seuil de ventilation "
+                 f"{settings.vent_threshold:.1f}°C alors qu'un forçage « arrêt » "
+                 "verrouille le moteur → aucune ventilation possible")
 
     decision = ClimateDecision(
         heater_on=heater_on,
         motor_speed=speed,
+        motor_speed_requested=wanted,
         state=state,
         reason=f"chauffage : {heater_reason} · ventilation : {motor_reason}",
         alarm=alarm,
+        alarm_code=alarm_code,
         temperature=temp,
         humidity=rh,
         vent_threshold=settings.vent_threshold,
@@ -550,6 +657,18 @@ def decide(settings: ClimateSettings, inputs: ClimateInputs,
         renew_minutes_quota=settings.winter_refresh_minutes_per_hour,
         humidity_minutes_used=round(memory.humidity_minutes_used, 2),
         humidity_minutes_quota=settings.winter_humidity_minutes_per_hour,
+        dwell_remaining_seconds=round(
+            max(
+                0.0,
+                settings.min_dwell_seconds
+                - (inputs.now_mono - memory.motor_speed_since),
+            ) if speed != wanted else 0.0,
+            1,
+        ),
+        temp_min=settings.temp_min,
+        temp_max=settings.temp_max,
+        heater_forced_off=inputs.heater_forced_off,
+        motor_forced_off=inputs.motor_forced_off,
     )
     return decision, memory
 
@@ -589,3 +708,58 @@ def settings_from_config(config, is_day: bool) -> ClimateSettings:
         winter_humidity_threshold=motor.winter_humidity_threshold,
         winter_humidity_minutes_per_hour=float(motor.winter_humidity_minutes_per_hour),
     )
+
+
+def preview_thresholds(config) -> dict:
+    """
+    Seuils **effectifs** de l'arbitre pour une configuration donnée.
+
+    Projection de lecture, destinée à la prévisualisation de l'IHM. Elle
+    n'invente aucune formule : elle rejoue `settings_from_config`,
+    `vent_threshold` et `clamp_speed`, exactement ce que `decide()` utilisera.
+    Rejouer ces règles en JavaScript serait une seconde vérité, et c'est le
+    seuil de ventilation qui en souffrirait le premier : `vent_threshold` peut
+    dépasser la consigne haute saisie de l'hystérésis plus la zone morte, un
+    écart de deux degrés qu'un formulaire tairait en silence.
+    """
+    phases = {}
+    for name, is_day in (("day", True), ("night", False)):
+        settings = settings_from_config(config, is_day)
+        phases[name] = {
+            "temp_min": settings.temp_min,
+            "temp_max": settings.temp_max,
+            "heater_on_at_or_below": settings.temp_min,
+            "heater_off_above": round(settings.heater_off_threshold, 2),
+            # Les deux hystérésis du système sont republiées telles quelles :
+            # celle du chauffage (largeur de la bande morte) et celle des
+            # paliers de ventilation (écart entre engagement et relâchement).
+            "heater_hysteresis": settings.heater_hysteresis,
+            "vent_release": settings.vent_release,
+            "vent_threshold": round(settings.vent_threshold, 2),
+            "vent_threshold_raised": settings.vent_threshold_raised,
+            "vent_ladder": [
+                {
+                    "step": step,
+                    "starts_at": round(
+                        settings.vent_threshold + (step - 1) * settings.vent_step, 2
+                    ),
+                    "releases_below": round(
+                        settings.vent_threshold
+                        + (step - 1) * settings.vent_step
+                        - settings.vent_release,
+                        2,
+                    ),
+                    "effective_speed": clamp_speed(settings, step),
+                }
+                for step in range(1, 5)
+            ],
+            "absolute_floor_temp": settings.absolute_floor_temp,
+            "min_dwell_seconds": settings.min_dwell_seconds,
+        }
+    return {
+        "heater_enabled": config.heater_settings.enabled,
+        "motor_mode": config.motor.motor_mode,
+        "min_speed": config.motor.min_speed,
+        "max_speed": config.motor.max_speed,
+        "phases": phases,
+    }

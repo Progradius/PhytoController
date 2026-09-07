@@ -8,6 +8,21 @@
 4. Définir l'état sûr, le rollback et la preuve attendue.
 5. Ne jamais lire ou publier les valeurs sensibles de `param/param.json`.
 
+## Validation automatisée
+
+Installer les dépendances de développement puis exécuter la suite avant de proposer un changement
+Python :
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest
+```
+
+Une fixture ne doit jamais copier les valeurs du `param.json` vivant. Toute persistance de test reste
+sous `tmp_path`, tout GPIO est un faux explicite et toute commande système est remplacée par un double.
+Une modification matérielle exige en plus le protocole de
+[`hardware-validation.md`](hardware-validation.md).
+
 ## Style
 
 - Code, commentaires, messages et logs en français.

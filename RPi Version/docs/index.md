@@ -3,18 +3,33 @@
 **Public** : exploitation, maintenance, développement et audit.
 **Portée** : arborescence `RPi Version/`.
 **Référence initiale** : commit `61ad3df`, 25 août 2026.
-**Dernière vérification documentaire** : 26 août 2026, après le déploiement de l'arbitre thermique.
+**Dernière vérification documentaire** : 1er septembre 2026 à 19:49 UTC, clôture de la nouvelle
+observation du correctif de figement `985e42d` (172 800 s, 2 864 échantillons, zéro anomalie), puis
+déploiement contrôlé de l'observabilité des seuils effectifs au commit `2ecefb1`.
 
-**Écart entre le dépôt et la production, au 26 août 2026 :**
+**Écart entre le dépôt et la production, au 1er septembre 2026 :**
 
 | Chantier | Code | Déployé sur le Pi |
 |---|---|---|
 | Refonte web et acquisition capteurs | `ad39de2` | **Oui**, vérifié — [relevé](operations/web-baseline-2026-08-25.md) |
 | Arbitre thermique unifié (phase 2) | `a04abbd` | **Oui**, vérifié — [relevé](operations/climate-baseline-2026-08-26.md) |
-| Correctifs issus du relevé (zone morte sans chauffage, vocabulaire du seuil) | à venir | **Non** |
+| Correctifs thermiques et jalon 1 de l'expérience opérateur | `e91b021` | **Oui**, observation 48 h acceptée — [relevé](operations/jalon1-watchdog-observation-2026-08-28.md) |
+| Alarmes/historique, PWA, santé de déploiement et qualité capteurs | `b26d2b1` | **Oui**, mode `observe` ; HTTPS `:443` actif, observation 48 h close — [relevé](operations/jalon2-observation-operateur-2026-08-30.md) |
+| Correctif de la politique de figement des capteurs | `985e42d` | **Oui**, déployé le 30 août à 19:07 UTC ; observation corrective 48 h acceptée — [relevé](operations/jalon2-correctif-figement-observation-2026-09-01.md) |
+| Observabilité des seuils effectifs de figement | `2ecefb1` (code `1e807b8`) | **Oui**, déployée le 1er septembre à 19:47 UTC ; mode `observe`, seuils vérifiés dans l'API, santé complète |
 
-Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique. Deux correctifs mineurs
-identifiés par le relevé du 26 août attendent un déploiement ; ils sont décrits dans ce relevé.
+Le Pi exécute donc le chauffage et la ventilation sous un arbitre unique ainsi que le lot opérateur,
+PWA et qualité capteurs en mode `observe`. La fenêtre watchdog du jalon 1 est terminée et acceptée.
+L'observation invalidée par les redémarrages TLS et applicatif a été interrompue puis archivée, et la
+fenêtre complète sur `b26d2b1` s'est close le 30 août à 18:59:28 UTC en `accepted_with_warnings` :
+172 800 s, 2 864 échantillons, **0 échec**, mais 835 avertissements dus à un unique défaut de la
+détection de figement. Le correctif `985e42d` a été déployé le soir même — alarmes latchées disparues,
+dix tâches saines, aucune entrée de journal en WARNING — puis qualifié par une nouvelle fenêtre de
+172 800 s close le **1er septembre 2026 à 19:09:11 UTC** : 2 864 échantillons, zéro échec, zéro
+avertissement et les trois mesures BME280 `normal` sur toute la durée. Le mode reste `observe` : cette
+preuve qualifie le correctif de figement, pas la calibration, le repli matériel ni l'armement.
+L'observabilité des seuils a ensuite été déployée séparément au commit `2ecefb1` : HTTP/HTTPS à 200,
+dix tâches saines, aucune alarme et aucune entrée WARNING ou supérieure depuis le redémarrage.
 
 Cette documentation distingue systématiquement quatre niveaux de preuve :
 
@@ -38,6 +53,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 ### Intervenir sur le matériel
 
 - [Matrice GPIO, polarités et collisions](hardware/gpio-matrix.md)
+- [Validation matérielle des sorties](development/hardware-validation.md)
 - [Modèle de sûreté](architecture/safety-model.md)
 - [Runbook d'incident](operations/incident-runbook.md)
 
@@ -49,7 +65,12 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Baseline de production du 25 août 2026](operations/production-baseline-2026-08-25.md)
 - [Baseline web du 25 août 2026](operations/web-baseline-2026-08-25.md)
 - [Relevé de l'arbitre thermique du 26 août 2026](operations/climate-baseline-2026-08-26.md)
+- [Clôture de l'observation watchdog du 28 août 2026](operations/jalon1-watchdog-observation-2026-08-28.md)
+- [Clôture de l'observation opérateur du 30 août 2026](operations/jalon2-observation-operateur-2026-08-30.md)
+- [Clôture de l'observation corrective du figement du 1er septembre 2026](operations/jalon2-correctif-figement-observation-2026-09-01.md)
 - [Déploiement et rollback](operations/deployment-and-rollback.md)
+- [PWA locale et autorité TLS privée](operations/pwa-local-tls.md)
+- [Activation TLS de production du 28 août 2026](operations/pwa-tls-activation-2026-08-28.md)
 - [Monitoring](operations/monitoring.md)
 - [Sauvegarde et restauration](operations/backup-and-restore.md)
 - [Registre vivant des risques](risk-register.md)
@@ -61,6 +82,8 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Référence de configuration](reference/configuration.md)
 - [Interface HTTP](reference/http-interface.md) et [schémas d'état JSON](reference/status-schema.md)
 - [Checklist de changement sûr](development/safe-change-checklist.md)
+- [Stratégie de vérification](development/verification.md)
+- [Validation matérielle des sorties](development/hardware-validation.md)
 - [Décisions d'architecture](decisions/README.md)
 - [Registre vivant des risques](risk-register.md)
 - [Roadmap consolidée](roadmap.md)

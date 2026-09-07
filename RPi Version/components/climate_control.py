@@ -40,8 +40,12 @@ from components.climate_policy import (
 from utils.log_dedup import StateLogger
 from utils.pretty_console import critical, debug, error, info, warning
 from param.config_store import shared_config
+from utils.overrides import shared_overrides
 from utils.state_store import shared_store
 from utils.supervisor import beat, sleep as hb_sleep
+from utils.operational_state import publish
+from utils.schedule import is_day as scheduled_day
+from utils.time_reliability import time_reliability
 
 LOGGER_NAME = "climate"
 
@@ -49,6 +53,7 @@ STATE_SECTION = "climate"
 
 # Alarme persistante, lisible depuis l'extérieur (destinée à /status et à l'IHM).
 _alarm: str | None = None
+_alarm_code: str | None = None
 # Dernier instantané publié — l'API le sert sans jamais déclencher de lecture.
 _snapshot: dict = {
     "state": None,
@@ -57,6 +62,11 @@ _snapshot: dict = {
     "motor_speed": 0,
     "temperature": None,
     "humidity": None,
+    "phase": None,
+    "temp_min": None,
+    "temp_max": None,
+    "alarm": None,
+    "alarm_code": None,
     "vent_threshold": None,
     "heater_off_threshold": None,
     "renew_minutes_used": 0.0,
@@ -72,6 +82,11 @@ def get_climate_alarm() -> str | None:
     return _alarm
 
 
+def get_climate_alarm_status() -> dict:
+    """Forme structurée pour le centre d'alarmes, sans casser l'alias legacy."""
+    return {"code": _alarm_code, "message": _alarm}
+
+
 # L'API publique et le runbook parlent d'« alarme chauffage » depuis la Phase 0 :
 # on garde le nom historique en alias plutôt que de casser des scripts d'exploitation.
 get_heater_alarm = get_climate_alarm
@@ -82,31 +97,20 @@ def get_climate_snapshot() -> dict:
     return dict(_snapshot)
 
 
-def _set_alarm(reason: str) -> None:
-    global _alarm
-    if _alarm != reason:
+def _set_alarm(code: str, reason: str) -> None:
+    global _alarm, _alarm_code
+    if _alarm != reason or _alarm_code != code:
         _alarm = reason
+        _alarm_code = code
         error(f"ALARME thermique : {reason}", name=LOGGER_NAME)
 
 
 def _clear_alarm() -> None:
-    global _alarm
+    global _alarm, _alarm_code
     if _alarm is not None:
         info(f"Alarme thermique levée ({_alarm})", name=LOGGER_NAME)
         _alarm = None
-
-
-def _is_day(cfg) -> bool:
-    """
-    Phase jour/nuit, calée sur la plage du minuteur journalier n°1 (l'éclairage).
-    Sémantique inchangée depuis l'origine : c'est la lumière qui définit le jour,
-    pas l'horloge solaire.
-    """
-    now = datetime.now()
-    start = cfg.daily_timer1.start_hour * 60 + cfg.daily_timer1.start_minute
-    stop = cfg.daily_timer1.stop_hour * 60 + cfg.daily_timer1.stop_minute
-    now_m = now.hour * 60 + now.minute
-    return (start <= now_m <= stop) if start <= stop else (now_m >= start or now_m <= stop)
+        _alarm_code = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -255,7 +259,9 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
         # valide (audit C7, E7).
         cfg = config_store.refresh()
 
-        is_day = _is_day(cfg)
+        # Le climat emploie les consignes nuit jusqu'à une preuve NTP. Cette
+        # décision temporelle reste extérieure à la politique thermique pure.
+        is_day = time_reliability().use_day_settings() and scheduled_day(cfg)
         settings = settings_from_config(cfg, is_day)
         if settings.vent_threshold_raised:
             if reported_raised_threshold != settings.vent_threshold:
@@ -278,8 +284,16 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
             )
 
         # 2) lecture capteurs (une seule fois pour les deux organes) -------
-        temperature = await sensor_handler.fresh_value("BME280T", max_age=20.0)
-        humidity = await sensor_handler.fresh_value("BME280H", max_age=20.0)
+        temperature_reading = await sensor_handler.fresh_reading("BME280T")
+        humidity_reading = await sensor_handler.fresh_reading("BME280H")
+        temperature = (
+            temperature_reading.get("observed_value")
+            if temperature_reading and temperature_reading.get("control_usable") else None
+        )
+        humidity = (
+            humidity_reading.get("observed_value")
+            if humidity_reading and humidity_reading.get("control_usable") else None
+        )
 
         # 3) resynchronisation sur le matériel ----------------------------
         now_mono = monotonic()
@@ -287,12 +301,35 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
         memory = _sync_motor(motor_handler, memory)
 
         # 4) décision -----------------------------------------------------
+        # Forçages « arrêt » : une seule lecture du magasin en mémoire par tick,
+        # avec les horloges du tick. On transmet les **échéances**, pas un
+        # verdict : c'est `decide()` qui tranche l'expiration.
+        now_epoch = time()
+        overrides = shared_overrides()
+        heater_until, heater_deadline = overrides.deadlines(
+            "heater", now_epoch=now_epoch, now_mono=now_mono)
+        motor_until, motor_deadline = overrides.deadlines(
+            "motor", now_epoch=now_epoch, now_mono=now_mono)
+
         inputs = ClimateInputs(
             now_mono=now_mono,
-            now_epoch=time(),
+            now_epoch=now_epoch,
             temperature=temperature,
             humidity=humidity,
             is_day=is_day,
+            temperature_inconsistent=bool(
+                temperature_reading
+                and temperature_reading.get("status") == "inconsistent"
+                and temperature_reading.get("enforcement_mode") == "enforce"
+            ),
+            temperature_quality_reason=(
+                ", ".join(temperature_reading.get("reason_codes", []))
+                if temperature_reading else None
+            ),
+            heater_forced_off_until_epoch=heater_until,
+            heater_forced_off_deadline_mono=heater_deadline,
+            motor_forced_off_until_epoch=motor_until,
+            motor_forced_off_deadline_mono=motor_deadline,
         )
         decision, memory = decide(settings, inputs, memory)
 
@@ -308,11 +345,11 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
                 f"{'ON' if decision.heater_on else 'OFF'} — intervention requise",
                 name=LOGGER_NAME,
             )
-            _set_alarm("écriture GPIO du chauffage sans effet")
+            _set_alarm("heater_gpio_mismatch", "écriture GPIO du chauffage sans effet")
             # La mémoire est recalée au tick suivant par `_sync_heater` : on ne
             # prétend pas connaître un état qu'on n'a pas obtenu.
         elif decision.alarm:
-            _set_alarm(decision.alarm)
+            _set_alarm(decision.alarm_code or "climate_safety", decision.alarm)
         else:
             _clear_alarm()
 
@@ -339,7 +376,7 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
             debug(message, name=LOGGER_NAME)
 
         # 7) publication et persistance -----------------------------------
-        _publish(decision)
+        _publish(decision, memory, now_mono, sampling_time, is_day=is_day)
         window_changed = memory.quota_window_start != previous_window
         previous_window = memory.quota_window_start
         _persist(store, memory, force=window_changed)
@@ -347,23 +384,79 @@ async def climate_control(*, heater_component, motor_handler, sensor_handler,
         await hb_sleep(sampling_time)
 
 
-def _publish(decision) -> None:
+def _publish(decision, memory: ClimateMemory, now_mono: float,
+             sampling_time: int, *, is_day: bool) -> None:
     global _snapshot
     _snapshot = {
         "state": decision.state,
         "reason": decision.reason,
         "heater_on": decision.heater_on,
         "motor_speed": decision.motor_speed,
+        "motor_speed_requested": decision.motor_speed_requested,
+        "dwell_remaining_seconds": decision.dwell_remaining_seconds,
         "temperature": decision.temperature,
         "humidity": decision.humidity,
+        "phase": "day" if is_day else "night",
+        "temp_min": decision.temp_min,
+        "temp_max": decision.temp_max,
+        "alarm": decision.alarm,
+        "alarm_code": decision.alarm_code,
         "vent_threshold": round(decision.vent_threshold, 2),
         "heater_off_threshold": round(decision.heater_off_threshold, 2),
         "renew_minutes_used": decision.renew_minutes_used,
         "renew_minutes_quota": decision.renew_minutes_quota,
         "humidity_minutes_used": decision.humidity_minutes_used,
         "humidity_minutes_quota": decision.humidity_minutes_quota,
+        "heater_on_seconds": (
+            round(max(0.0, now_mono - memory.heater_on_since), 1)
+            if decision.heater_on and memory.heater_on_since is not None else 0.0
+        ),
+        "heater_limit_seconds": climate_policy.MAX_CONTINUOUS_ON_MINUTES * 60,
+        "heater_forced_off": decision.heater_forced_off,
+        "motor_forced_off": decision.motor_forced_off,
+        "cooldown_remaining_seconds": (
+            round(max(0.0, memory.heater_cooldown_until - now_mono), 1)
+            if memory.heater_cooldown_until is not None else 0.0
+        ),
         "updated_at": datetime.now().isoformat(timespec="seconds"),
     }
+    heater_since = memory.heater_on_since if decision.heater_on else None
+    publish(
+        "heater", stale_after=2 * sampling_time,
+        requested="on" if decision.heater_on else "off",
+        # Le temps restant du forçage n'est pas répété ici : `/api/v1/state`
+        # porte la clé `overrides`, seule source d'échéance, et l'IHM la joint
+        # sur l'identifiant d'équipement.
+        mode="forçage opérateur" if decision.heater_forced_off
+        else "automatique" if decision.state != climate_policy.STATE_DISABLED
+        else "désactivé",
+        reason=decision.reason.split(" · ventilation :", 1)[0].replace("chauffage : ", ""),
+        since_mono=heater_since,
+        next_transition={
+            "type": "safety_deadline" if decision.heater_on else "condition",
+            "in_seconds": max(0.0, climate_policy.MAX_CONTINUOUS_ON_MINUTES * 60 - _snapshot["heater_on_seconds"])
+            if decision.heater_on else None,
+            "condition": f"température > {decision.heater_off_threshold:.1f} °C" if decision.heater_on else None,
+        },
+        heater_off_threshold=round(decision.heater_off_threshold, 2),
+        on_seconds=_snapshot["heater_on_seconds"],
+        continuous_limit_seconds=_snapshot["heater_limit_seconds"],
+        cooldown_remaining_seconds=_snapshot["cooldown_remaining_seconds"],
+    )
+    publish(
+        "motor", stale_after=2 * sampling_time,
+        requested=decision.motor_speed_requested,
+        applied=decision.motor_speed,
+        mode="forçage opérateur" if decision.motor_forced_off else decision.state,
+        reason=decision.reason.split("ventilation : ", 1)[-1],
+        since_mono=memory.motor_speed_since,
+        next_transition={"type": "condition"},
+        dwell_remaining_seconds=decision.dwell_remaining_seconds,
+        renew_minutes_used=decision.renew_minutes_used,
+        renew_minutes_quota=decision.renew_minutes_quota,
+        humidity_minutes_used=decision.humidity_minutes_used,
+        humidity_minutes_quota=decision.humidity_minutes_quota,
+    )
 
 
 # Ré-exports pratiques pour les consommateurs (API, documentation).

@@ -14,6 +14,15 @@ from param.config_store import shared_config
 from utils.pretty_console import debug, success, warning, error, action
 
 LOGGER_NAME = "network"
+NMCLI_TIMEOUT_SECONDS = 15
+
+
+def _subprocess_label(exc: BaseException) -> str:
+    """Description sûre : ne jamais sérialiser ``cmd`` (il peut porter un secret)."""
+    if isinstance(exc, subprocess.CalledProcessError):
+        return f"{exc.__class__.__name__}, code {exc.returncode}"
+    return exc.__class__.__name__
+
 
 def get_connected_wifi_device() -> str | None:
     """
@@ -27,9 +36,11 @@ def get_connected_wifi_device() -> str | None:
         out = subprocess.run(
             ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device", "status"],
             capture_output=True, text=True, check=True,
+            timeout=NMCLI_TIMEOUT_SECONDS,
         ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as exc:
-        debug(f"État nmcli illisible : {exc}", name=LOGGER_NAME)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            FileNotFoundError, OSError) as exc:
+        debug(f"État nmcli illisible ({_subprocess_label(exc)})", name=LOGGER_NAME)
         return None
 
     for ligne in out.splitlines():
@@ -69,16 +80,25 @@ def do_connect() -> None:
 
     try:
         # Active la radio Wi-Fi
-        subprocess.run(["nmcli", "radio", "wifi", "on"], check=True)
+        subprocess.run(
+            ["nmcli", "radio", "wifi", "on"], check=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=NMCLI_TIMEOUT_SECONDS,
+        )
         # Se connecte
         subprocess.run(
             ["nmcli", "device", "wifi", "connect", ssid, "password", password],
-            check=True
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=NMCLI_TIMEOUT_SECONDS,
         )
         success("Connexion Wi-Fi réussie", name=LOGGER_NAME)
 
-    except subprocess.CalledProcessError as exc:
-        error(f"Erreur de connexion Wi-Fi : {exc}", name=LOGGER_NAME)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            FileNotFoundError, OSError) as exc:
+        error(
+            f"Erreur de connexion Wi-Fi ({_subprocess_label(exc)})",
+            name=LOGGER_NAME,
+        )
 
 
 def is_host_connected() -> str:

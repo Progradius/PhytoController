@@ -1,0 +1,526 @@
+(() => {
+  "use strict";
+
+  const DB_NAME = "phyto-pwa";
+  const DB_VERSION = 1;
+  const MAX_SEEN_ALARMS = 500;
+  const SEVERITY_RANK = {warning: 0, error: 1, critical: 2};
+
+  let databasePromise = null;
+  let lastContactAt = null;
+  let connectionState = "unknown";
+  let degradedDetail = "";
+  let offlineAtBoot = false;
+  let contactedThisPage = false;
+  let deferredInstallPrompt = null;
+  let serviceWorkerRegistration = null;
+  let lastAlarmFeed = null;
+  let notificationEnabled = false;
+  let alarmSeen = {};
+  let alarmSeenInitialized = false;
+  const baseDocumentTitle = document.title.replace(/^\(\d+\)\s+/, "");
+
+  const announce = (message, urgent = false) => {
+    const node = document.getElementById(urgent ? "global-live-alert" : "global-live-status");
+    if (!node || !message) return;
+    node.textContent = "";
+    window.requestAnimationFrame(() => { node.textContent = message; });
+  };
+
+  const createAdaptivePoller = (callback, {interval = 5000, maximum = 30000} = {}) => {
+    let timer = null;
+    let failures = 0;
+    let running = false;
+    let stopped = false;
+    const clear = () => { if (timer !== null) window.clearTimeout(timer); timer = null; };
+    const schedule = (delay = interval) => {
+      clear();
+      if (!stopped && document.visibilityState === "visible") timer = window.setTimeout(run, delay);
+    };
+    const run = async () => {
+      if (running || stopped || document.visibilityState !== "visible") return;
+      running = true;
+      try {
+        const success = await callback();
+        failures = success === false ? failures + 1 : 0;
+      } catch (_error) {
+        failures += 1;
+      } finally {
+        running = false;
+        const delay = failures ? Math.min(maximum, interval * (2 ** Math.min(failures - 1, 3))) : interval;
+        schedule(delay);
+      }
+    };
+    const resume = () => {
+      if (document.visibilityState !== "visible" || stopped) { clear(); return; }
+      clear(); run();
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return {start: resume, stop: () => { stopped = true; clear(); }};
+  };
+
+  const fetchWithTimeout = async (resource, options = {}, timeout = 6000) => {
+    const controller = new AbortController();
+    const externalSignal = options.signal;
+    const abort = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) abort();
+    else externalSignal?.addEventListener("abort", abort, {once: true});
+    const timer = window.setTimeout(() => controller.abort(new DOMException("Délai dépassé", "TimeoutError")), timeout);
+    try {
+      return await fetch(resource, {...options, signal: controller.signal});
+    } finally {
+      window.clearTimeout(timer);
+      externalSignal?.removeEventListener("abort", abort);
+    }
+  };
+
+  const isTransportError = (error) => (
+    error instanceof TypeError || error?.name === "AbortError" || error?.name === "TimeoutError"
+  );
+
+  const openDatabase = () => {
+    if (!databasePromise) {
+      databasePromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains("snapshots")) db.createObjectStore("snapshots", {keyPath: "key"});
+          if (!db.objectStoreNames.contains("preferences")) db.createObjectStore("preferences", {keyPath: "key"});
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+    return databasePromise;
+  };
+
+  const readRecord = async (storeName, key) => {
+    try {
+      const db = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction(storeName, "readonly").objectStore(storeName).get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const writeRecord = async (storeName, value) => {
+    try {
+      const db = await openDatabase();
+      await new Promise((resolve, reject) => {
+        const request = db.transaction(storeName, "readwrite").objectStore(storeName).put(value);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch (_error) {
+      // Le stockage hors ligne est une amélioration : son échec ne doit jamais
+      // casser l'interface vivante.
+    }
+  };
+
+  const storeSnapshot = async (key, data, receivedAt = Date.now()) => {
+    await writeRecord("snapshots", {key, data, receivedAt});
+  };
+
+  const loadSnapshot = (key) => readRecord("snapshots", key);
+  const getPreference = async (key, fallback = null) => (await readRecord("preferences", key))?.value ?? fallback;
+  const setPreference = (key, value) => writeRecord("preferences", {key, value});
+
+  const formatElapsed = (timestamp) => {
+    if (!Number.isFinite(timestamp)) return "à une date inconnue";
+    const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+    if (seconds < 60) return `il y a ${seconds} s`;
+    if (seconds < 3600) return `il y a ${Math.round(seconds / 60)} min`;
+    if (seconds < 86400) return `il y a ${(seconds / 3600).toFixed(1)} h`;
+    return `il y a ${(seconds / 86400).toFixed(1)} j`;
+  };
+
+  const setControlsDisabled = (disabled) => {
+    document.querySelectorAll("form input, form select, form textarea, form button, button[data-requires-online]").forEach((control) => {
+      if (disabled && !control.disabled) {
+        control.disabled = true;
+        control.dataset.pwaDisabled = "true";
+      } else if (!disabled && control.dataset.pwaDisabled === "true") {
+        control.disabled = false;
+        delete control.dataset.pwaDisabled;
+      }
+    });
+  };
+
+  const updateConnectionBanner = () => {
+    const banner = document.getElementById("pwa-connection-banner");
+    const title = document.getElementById("pwa-connection-title");
+    const detail = document.getElementById("pwa-connection-detail");
+    if (!banner || !title || !detail) return;
+    const unavailable = connectionState === "offline";
+    const degraded = connectionState === "degraded";
+    banner.hidden = !unavailable && !degraded;
+    banner.classList.toggle("is-degraded", degraded);
+    document.body.classList.toggle("is-offline", unavailable);
+    document.body.classList.toggle("is-degraded", degraded);
+    if (unavailable) {
+      title.textContent = "HORS LIGNE";
+      detail.textContent = lastContactAt
+        ? `Données datant au mieux de ${formatElapsed(lastContactAt)} · non actualisées · lecture seule`
+        : "Âge des données inconnu · données non actualisées · lecture seule";
+      setControlsDisabled(true);
+    } else if (degraded) {
+      title.textContent = "SERVICE DÉGRADÉ";
+      detail.textContent = degradedDetail || "Le contrôleur répond, mais certaines données ne sont pas disponibles.";
+      setControlsDisabled(false);
+    } else {
+      setControlsDisabled(false);
+    }
+  };
+
+  const markServerContact = async (receivedAt = Date.now()) => {
+    const wasUnavailable = connectionState === "offline" || connectionState === "degraded";
+    const wasOffline = connectionState === "offline";
+    contactedThisPage = true;
+    connectionState = "online";
+    degradedDetail = "";
+    lastContactAt = receivedAt;
+    await setPreference("lastContactAt", receivedAt);
+    updateConnectionBanner();
+    if (wasUnavailable) announce("Connexion au contrôleur rétablie.");
+    if (wasOffline && offlineAtBoot && !sessionStorage.getItem("phyto-pwa-reconnected")) {
+      sessionStorage.setItem("phyto-pwa-reconnected", "1");
+      window.location.reload();
+    }
+  };
+
+  const markServerFailure = () => {
+    const wasOnline = connectionState !== "offline";
+    if (!contactedThisPage) offlineAtBoot = true;
+    connectionState = "offline";
+    degradedDetail = "";
+    updateConnectionBanner();
+    if (wasOnline) announce("Connexion au contrôleur interrompue. Les données affichées ne sont plus actualisées.");
+  };
+
+  const markServerDegraded = (detail = "") => {
+    const changed = connectionState !== "degraded" || degradedDetail !== detail;
+    contactedThisPage = true;
+    connectionState = "degraded";
+    degradedDetail = detail;
+    updateConnectionBanner();
+    if (changed) announce(detail || "Le contrôleur répond, mais un service est dégradé.");
+  };
+
+  const recordNetworkSuccess = async (key, data, receivedAt = Date.now()) => {
+    await Promise.all([storeSnapshot(key, data, receivedAt), markServerContact(receivedAt)]);
+  };
+
+  window.PhytoPwa = {
+    loadSnapshot,
+    markServerContact,
+    markServerDegraded,
+    markServerFailure,
+    isTransportError,
+    fetchWithTimeout,
+    recordNetworkSuccess,
+    storeSnapshot,
+    createAdaptivePoller,
+    announce,
+  };
+
+  const configureSecureNotice = () => {
+    const notice = document.getElementById("pwa-security-notice");
+    const link = document.getElementById("pwa-security-link");
+    if (!notice || window.isSecureContext) return;
+    const configured = document.querySelector('meta[name="phyto-secure-url"]')?.content;
+    if (link && configured) link.href = configured;
+    notice.hidden = false;
+  };
+
+  const configureInstallation = () => {
+    const button = document.getElementById("pwa-install-button");
+    if (!button) return;
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    if (standalone || !window.isSecureContext) return;
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      button.hidden = false;
+    });
+    button.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) return;
+      button.disabled = true;
+      await deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      button.hidden = true;
+      button.disabled = false;
+    });
+    window.addEventListener("appinstalled", () => {
+      deferredInstallPrompt = null;
+      button.hidden = true;
+    });
+  };
+
+  const notificationEligible = (alarm) => (
+    alarm?.acknowledged_ts === null &&
+    (alarm.affects_control === true || alarm.severity === "critical")
+  );
+
+  const alarmSummaryFromFeed = (feed) => {
+    if (feed?.summary) return feed.summary;
+    const alarms = feed?.alarms || [];
+    const rank = {warning: 0, error: 1, critical: 2};
+    const highest = alarms.reduce((value, alarm) => (
+      !value || (rank[alarm.severity] ?? -1) > (rank[value] ?? -1) ? alarm.severity : value
+    ), null);
+    return {
+      active_count: alarms.length,
+      unacknowledged_count: alarms.filter((alarm) => alarm.acknowledged_ts == null).length,
+      control_count: alarms.filter((alarm) => alarm.affects_control === true).length,
+      auxiliary_count: alarms.filter((alarm) => alarm.affects_control !== true).length,
+      highest_severity: highest,
+    };
+  };
+
+  const updateAlarmChrome = (feed) => {
+    const summary = alarmSummaryFromFeed(feed);
+    const count = Number(summary.active_count || 0);
+    document.querySelectorAll('nav a[href="/alarms"]').forEach((link) => {
+      let badge = link.querySelector(".nav-count");
+      if (!count) { badge?.remove(); return; }
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nav-count";
+        link.append(" ", badge);
+      }
+      badge.textContent = String(count);
+      badge.setAttribute("aria-label", `${count} ${count === 1 ? "alarme active" : "alarmes actives"}`);
+    });
+
+    const pageSummary = document.querySelector(".alarm-summary");
+    if (pageSummary) {
+      const strong = pageSummary.querySelector("strong");
+      const label = pageSummary.querySelector("span");
+      const detail = pageSummary.querySelector("small");
+      if (strong) strong.textContent = String(count);
+      if (label) label.textContent = count === 1 ? "active" : "actives";
+      if (detail) detail.textContent = `${summary.control_count || 0} contrôle · ${summary.auxiliary_count || 0} auxiliaire`;
+    }
+
+    let banner = document.getElementById("global-alarm");
+    if (!count) banner?.remove();
+    else {
+      if (!banner) {
+        banner = document.createElement("aside");
+        banner.id = "global-alarm";
+        banner.append(document.createElement("strong"), document.createElement("span"), document.createElement("a"));
+        const anchor = document.getElementById("override-banner") || document.querySelector(".site-header");
+        anchor?.after(banner);
+      }
+      banner.className = `global-alarm severity-${summary.highest_severity || "warning"}`;
+      banner.querySelector("strong").textContent = `${count} ${count === 1 ? "alarme active" : "alarmes actives"}`;
+      banner.querySelector("span").textContent = `${summary.control_count || 0} contrôle · ${summary.auxiliary_count || 0} auxiliaire`;
+      const link = banner.querySelector("a"); link.href = "/alarms"; link.textContent = "Examiner";
+    }
+    document.title = count ? `(${count}) ${baseDocumentTitle}` : baseDocumentTitle;
+  };
+  window.PhytoPwa.updateAlarmChrome = updateAlarmChrome;
+
+  const trimSeenAlarms = () => {
+    const entries = Object.entries(alarmSeen);
+    if (entries.length <= MAX_SEEN_ALARMS) return;
+    entries.sort((left, right) => Number(right[1].observedAt || 0) - Number(left[1].observedAt || 0));
+    alarmSeen = Object.fromEntries(entries.slice(0, MAX_SEEN_ALARMS));
+  };
+
+  const showAlarmNotification = async (alarm, escalated) => {
+    if (
+      !serviceWorkerRegistration ||
+      !("Notification" in window) ||
+      Notification.permission !== "granted"
+    ) return;
+    const kind = alarm.severity === "critical" ? "alarme critique" : "alarme de contrôle";
+    await serviceWorkerRegistration.showNotification(`PhytoController — ${kind}`, {
+      body: alarm.title || "Une alarme requiert votre attention.",
+      icon: "/static/icons/pwa-192.png",
+      badge: "/static/icons/pwa-192.png",
+      tag: `phyto-alarm-${alarm.id}`,
+      renotify: Boolean(escalated),
+      data: {url: alarm.link || "/alarms"},
+    });
+  };
+
+  const processAlarmFeed = async (feed, source) => {
+    const previousFeed = lastAlarmFeed;
+    lastAlarmFeed = feed;
+    updateAlarmChrome(feed);
+    document.dispatchEvent(new CustomEvent("phyto:alarm-feed", {detail: {feed, source}}));
+    if (source !== "network") return;
+
+    await storeSnapshot("active-alarms", feed, Date.now());
+    if (previousFeed) {
+      const previous = new Map((previousFeed.alarms || []).map((alarm) => [alarm.id, alarm]));
+      for (const alarm of feed.alarms || []) {
+        const old = previous.get(alarm.id);
+        const escalated = Boolean(old && SEVERITY_RANK[alarm.severity] > SEVERITY_RANK[old.severity]);
+        if (!old || escalated) {
+          announce(`${escalated ? "Alarme aggravée" : "Nouvelle alarme"} : ${alarm.title || "attention requise"}.`, alarm.severity === "critical");
+        }
+      }
+    }
+    if (
+      !notificationEnabled ||
+      !("Notification" in window) ||
+      Notification.permission !== "granted"
+    ) return;
+
+    if (!alarmSeenInitialized) {
+      for (const alarm of feed.alarms || []) {
+        alarmSeen[alarm.id] = {severity: alarm.severity, observedAt: Date.now()};
+      }
+      alarmSeenInitialized = true;
+      trimSeenAlarms();
+      await Promise.all([
+        setPreference("alarmSeen", alarmSeen),
+        setPreference("alarmSeenInitialized", true),
+      ]);
+      return;
+    }
+
+    for (const alarm of feed.alarms || []) {
+      const previous = alarmSeen[alarm.id];
+      const escalated = Boolean(
+        previous &&
+        SEVERITY_RANK[alarm.severity] > SEVERITY_RANK[previous.severity]
+      );
+      if (notificationEligible(alarm) && (!previous || escalated)) {
+        await showAlarmNotification(alarm, escalated);
+      }
+      alarmSeen[alarm.id] = {severity: alarm.severity, observedAt: Date.now()};
+    }
+    trimSeenAlarms();
+    await setPreference("alarmSeen", alarmSeen);
+  };
+
+  const fetchAlarmFeed = async () => {
+    try {
+      const response = await fetchWithTimeout("/api/v1/alarms/active", {
+        headers: {Accept: "application/json"},
+        cache: "no-store",
+      }, 6000);
+      if (!response.ok) {
+        markServerDegraded(`Alarmes momentanément indisponibles (HTTP ${response.status}).`);
+        throw new Error(`HTTP ${response.status}`);
+      }
+      await markServerContact();
+      await processAlarmFeed(await response.json(), "network");
+      return true;
+    } catch (error) {
+      if (isTransportError(error)) markServerFailure();
+      const stored = await loadSnapshot("active-alarms");
+      if (stored?.data) await processAlarmFeed(stored.data, "stored");
+      return false;
+    }
+  };
+
+  const updateNotificationControls = () => {
+    const enable = document.getElementById("notification-enable");
+    const disable = document.getElementById("notification-disable");
+    const status = document.getElementById("notification-status");
+    if (!enable || !disable || !status) return;
+
+    const supported = window.isSecureContext && "Notification" in window && "serviceWorker" in navigator;
+    if (!supported) {
+      status.textContent = "Notifications indisponibles : ouvrez la version HTTPS dans un navigateur compatible.";
+      enable.hidden = true;
+      disable.hidden = true;
+      return;
+    }
+    if (Notification.permission === "denied") {
+      status.textContent = "Permission refusée. Réactivez les notifications depuis les réglages du site dans Chrome.";
+      enable.hidden = true;
+      disable.hidden = true;
+      return;
+    }
+    if (notificationEnabled && Notification.permission === "granted") {
+      status.textContent = "Notifications actives sur ce terminal tant que la PWA reste active.";
+      enable.hidden = true;
+      disable.hidden = false;
+      return;
+    }
+    status.textContent = "Notifications désactivées sur ce terminal.";
+    enable.hidden = false;
+    disable.hidden = true;
+  };
+
+  const configureNotificationControls = () => {
+    const enable = document.getElementById("notification-enable");
+    const disable = document.getElementById("notification-disable");
+    if (!enable || !disable) return;
+
+    enable.addEventListener("click", async () => {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        if (!lastAlarmFeed) await fetchAlarmFeed();
+        for (const alarm of lastAlarmFeed?.alarms || []) {
+          alarmSeen[alarm.id] = {severity: alarm.severity, observedAt: Date.now()};
+        }
+        alarmSeenInitialized = true;
+        notificationEnabled = true;
+        trimSeenAlarms();
+        await Promise.all([
+          setPreference("notificationsEnabled", true),
+          setPreference("alarmSeen", alarmSeen),
+          setPreference("alarmSeenInitialized", true),
+        ]);
+      }
+      updateNotificationControls();
+    });
+
+    disable.addEventListener("click", async () => {
+      notificationEnabled = false;
+      await setPreference("notificationsEnabled", false);
+      updateNotificationControls();
+    });
+  };
+
+  const initialize = async () => {
+    configureSecureNotice();
+    configureInstallation();
+    lastContactAt = await getPreference("lastContactAt", null);
+    notificationEnabled = await getPreference("notificationsEnabled", false);
+    alarmSeen = await getPreference("alarmSeen", {});
+    alarmSeenInitialized = await getPreference("alarmSeenInitialized", false);
+
+    if (sessionStorage.getItem("phyto-pwa-reconnected")) {
+      sessionStorage.removeItem("phyto-pwa-reconnected");
+    }
+
+    if (window.isSecureContext && "serviceWorker" in navigator) {
+      try {
+        serviceWorkerRegistration = await navigator.serviceWorker.register("/service-worker.js", {scope: "/"});
+        serviceWorkerRegistration = await navigator.serviceWorker.ready;
+      } catch (_error) {
+        serviceWorkerRegistration = null;
+      }
+    }
+
+    configureNotificationControls();
+    updateNotificationControls();
+    createAdaptivePoller(fetchAlarmFeed).start();
+    window.setInterval(() => { if (connectionState === "offline") updateConnectionBanner(); }, 60000);
+    const more = document.querySelector(".mobile-more");
+    document.addEventListener("click", (event) => {
+      if (more?.open && !more.contains(event.target)) more.open = false;
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && more?.open) {
+        more.open = false;
+        more.querySelector("summary")?.focus();
+      }
+    });
+  };
+
+  initialize();
+})();

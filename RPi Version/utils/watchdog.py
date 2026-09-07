@@ -11,8 +11,9 @@ ou six tâches mortes étaient donc parfaitement invisibles — le watchdog
 garantissait seulement que le thread tournait, c'est-à-dire rien.
 
 Ici, le coup de patte est **conditionnel** : il n'est donné que si le
-superviseur déclare toutes ses tâches vivantes et récentes. Dès qu'un travail
-est mort ou muet, on cesse de caresser et le redémarrage arrive tout seul.
+superviseur déclare les tâches de **contrôle physique** vivantes et récentes.
+Une panne auxiliaire (HTTP, Influx, temps) reste visible mais ne redémarre pas
+la serre. Dès qu'un travail de contrôle est mort ou muet, on cesse de caresser.
 
 Deux mécanismes, jamais les deux à la fois :
 

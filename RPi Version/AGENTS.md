@@ -24,15 +24,23 @@ sudo python3 main.py                 # run (root needed: GPIO, nmcli Wi-Fi, time
 PHYTO_RUN_MODE=service python3 main.py   # run under systemd — see "Run modes" below
 python3 initial_setup_tool.py        # interactive TUI to generate/edit param.json (writes to CWD, see gotchas)
 pip install -r requirements.txt
-docker build -t phyto . && docker run --privileged -p 8123:8123 phyto
+pip install -r requirements-dev.txt  # dépendances runtime + validation hors matériel
+python3 -m pytest                    # suite reproductible sans GPIO réel
+npm ci && npm run test:ui           # tests responsive en lecture seule ; PHYTO_UI_BASE_URL surcharge la cible
+docker build -t phyto . && docker run --privileged -p 8123:8123 \
+  -v "$(pwd)/param/param.json:/app/param/param.json:rw" phyto
 ```
 
-Web UI: `http://<pi>:8123` — `/` dashboard with 5 s live refresh, `/conf` section-based config form,
+Web UI: `http://<pi>:8123` — `/` action-oriented dashboard with 5 s live refresh, `/history` for
+the detailed 24/48/72 h charts, `/conf` section-based config form,
 `/console` (SSE log stream), `/api/v1/state` (versioned JSON), `/health/live`, `/health/ready` and the
 legacy `/status`. `/monitor` redirects to the dashboard; reset/reboot/poweroff remain **POST-only**.
 
-There is **no test suite and no linter configured** in this tree. Do not invent one; verify changes by
-reading the code and, when hardware is involved, by describing the expected GPIO transitions.
+The repository has a small `pytest` suite under `tests/`; run it for every Python change. It uses a
+recording fake for GPIO and temporary configuration files, and must remain runnable without root,
+external network or Raspberry Pi hardware (HTTP tests use loopback only). It does **not** qualify electrical behaviour: changes involving real
+pins, relays or loads also require the supervised procedure in `docs/development/hardware-validation.md`.
+There is still no linter configured; do not invent one as part of an unrelated change.
 
 ## Architecture
 
@@ -73,6 +81,11 @@ to `PuppetMaster`.
   * At boot an unusable `param.json` falls back to `param.json.bak` and **restores** it. There is nothing
     safe to synthesize beyond that: without `GPIO_Settings` no pin is known, so no output can be put in a
     safe state — refusing to start is the only honest answer, and `main.py` has touched no pin yet.
+  * `param/param.json` is a **machine-local, gitignored file**. Only the inert
+    `param/param.example.json` schema is versioned. `scripts/deploy.sh` rejects any target commit that
+    tracks the live configuration, and an exclusive `flock` prevents concurrent deployments. Never
+    reintroduce `param.json` into Git or a checkout/stash path: even a temporary replacement is observed
+    immediately by the running control loops.
 - `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
   one supervised job per concern (2 daily timers, 2 cyclic timers, the `climate_control` thermal arbiter,
   shared sensor snapshot, Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
@@ -142,7 +155,22 @@ to `PuppetMaster`.
 - `utils/state_store.py` — `param/runtime_state.json` (atomic, throttled to one write per minute), the
   regulation state that must **not** restart from zero: winter budgets, and the cyclic timers' sequential
   phase. A missing, unreadable or expired record is ignored — a resume can only shorten a cycle, never
-  invent one.
+  invent one. `save(..., strict=True)` **re-raises** the `OSError` and writes immediately; the swallowing
+  default stays the one for budgets, which must never be able to kill regulation.
+- `utils/overrides.py` — operator **force-OFF** overrides. An override is a **policy input, never a GPIO
+  access**: nothing in this module can switch anything on, it only ever cuts. Targets are the
+  `EQUIPMENT_IDS` whitelist — never a pin number or a free-form name. Two clocks, expiry at the **first**
+  of the two: `expires_epoch` is the only displayable deadline and the only one that survives a reboot,
+  `deadline_mono` is never persisted so an NTP jump can shorten an override but never extend it. Caps are
+  deliberately asymmetric — 4 h for `heater` and `motor`, 24 h elsewhere — because the **motor force-OFF
+  is absolute**: it outranks `REPLI_CAPTEUR` *and* `SECURITE_HAUTE` (operator ruling, 28/08/2026), so the
+  only remaining protection against a cooking greenhouse is how short the cut is, plus the
+  `motor_lockout_overheat` alarm raised by the policy. `create()` persists with `strict=True` before
+  returning (an accepted-but-unwritten override would vanish at the next reboot with nobody having lifted
+  it, hence HTTP 500); `cancel()` applies in memory first and only then persists — never restore a cut the
+  operator just lifted. The operator's free-text reason is **never interpolated into a log line**: it
+  would travel into the `/console` SSE stream and its download. On boot an override resumed before the
+  clock is trustworthy has its deadline re-based on the cap and is flagged "à confirmer".
 - `model/` — thin GPIO/state wrappers: `Component` (one relay pin), `Motor` (4 pins = 4 speeds),
   `DailyTimer`/`CyclicTimer` (schedule logic), `SensorStats` (min/max, persisted to
   `param/sensor_stats.json`).
@@ -151,8 +179,28 @@ to `PuppetMaster`.
   `Sensor_State`, maintains the shared timestamped snapshot consumed by HTTP and InfluxDB, and exposes
   fresh cached reads to the motor/heater loops. `controllers/sensor_catalog.py` is the canonical mapping
   for keys, activation flags, UI labels/units and InfluxDB measurements.
+- `controllers/sensor_quality.py` — pure calibration/quality policy. The catalog also owns hard plausible
+  bounds, freshness and freeze defaults; `Sensor_Quality` only narrows/overrides them. Snapshots separate
+  `raw_value`, offset-adjusted `observed_value` and trusted `value`, with statuses `normal`, `degraded`,
+  `absent`, `inconsistent`. Quality starts in `observe`; switching to `enforce` requires the literal UI
+  confirmation `ARMER`, and an already-confirmed BME280T inconsistency must enter `REPLI_CAPTEUR`
+  immediately. Never restore DS18B20 discovery-order addressing: calibration is bound to stable 1-Wire
+  IDs. Freeze/counter state is persisted, but monotonic timestamps are deliberately not restored.
+  **Freeze detection is an anchored dead band, never a per-sample delta.** `freeze_epsilon` is compared
+  against `freeze_anchor_value` — the value at the last *real* change — so the verdict is invariant under
+  the read cadence. Comparing against the previous sample measures a *slope*: at 10 s the same healthy
+  BME280 was declared frozen while at 60 s it was not, and a genuine 0.32 °C drift spread over 1 h 51
+  counted as frozen (production, 30/08/2026). An `epsilon` **above the sensor's noise floor** makes the
+  diagnostic blind — a calm night and a dead I²C register become the same observation, and no threshold
+  can separate two identical observations — hence `freeze_epsilon = 0.0` (strict identity, i.e. liveness
+  of the acquisition chain) for BME280 and DS18B20. Re-arming counts three *real* variations, not three
+  *consecutive* ones: resetting the counter on a calm sample turns the debounce into a ratchet that never
+  releases. Freeze answers "is acquisition alive?", never "is the value right?" — that one belongs to
+  `redundancy_groups` and calibration.
 - `sensor_handlers/` wrap the vendored drivers in `lib/sensors/`. A failed read returns `None` rather than
-  raising — every consumer must handle `None`.
+  raising — every consumer must handle `None`. **Drivers and handlers must not round**: full precision has
+  to reach the quality policy, whose freeze test lives on the acquisition noise. Rounding belongs to
+  presentation, which uses the catalog's `decimals` (`mesure` Jinja filter, `toFixed` in the JS).
 - `network/web/server.py` — aiohttp server with explicit routes and exact static-asset allow-list. It
   enforces a 64 KiB body limit, per-process CSRF token, same-origin POSTs, private/LAN `Host` validation,
   security headers and no-store on dynamic responses. `/conf/{section}` builds and validates a complete
@@ -164,8 +212,25 @@ to `PuppetMaster`.
 - `network/web/pages.py` — Jinja2 with autoescape; asset URLs carry a content hash so a redeployed
   CSS/JS file is not served from cache. Every page must stay inline-script/style free: the CSP has
   no `unsafe-inline`.
+- `network/web/static/service-worker.js` + `network/web/static/js/pwa.js` — PWA locale **à
+  fraîcheur dominante**. Le service worker ne met jamais en cache `/api/`, `/health/`, `/status`,
+  le SSE ni une méthode mutante ; il conserve seulement les assets hachés et les dernières pages de
+  lecture. Les snapshots IndexedDB ne sont lus qu'après un échec réseau, gardent la bannière
+  « HORS LIGNE — données datant de… — lecture seule » et ne déclenchent jamais de notification.
+  Aucune commande n'est mise en attente ou rejouée. HTTPS `:443` est un second point d'écoute
+  optionnel ; tout échec TLS laisse HTTP `:8123` et le contrôle actifs. Les notifications sont
+  locales, opt-in, limitées aux alarmes de contrôle/critiques et sans garantie PWA fermée.
 - `network/web/influx_handler.py` — InfluxDB **v1** line protocol over async aiohttp with a bounded timeout.
   It consumes the shared sensor snapshot and never performs or duplicates a hardware read.
+- `controllers/OperatorService.py` + `utils/alarm_manager.py` + `utils/operator_history.py` — couche
+  opérateur **auxiliaire** (jalon 2). Elle relit les snapshots existants et les GPIO, détecte les
+  alarmes idempotentes, puis confie tous les accès SQLite à un unique thread dédié. La base locale
+  conserve 72 h d'échantillons d'une minute et 30 jours d'occurrences résolues ; une panne ou une
+  corruption de cet historique alarme mais ne dégrade jamais `control_healthy()` ni le watchdog.
+  `/alarms`, `/history`, `/api/v1/alarms` et `/api/v1/history?hours=24|48|72` exposent ce diagnostic. Ne faites
+  aucune lecture matérielle supplémentaire pour l'historique et ne déplacez jamais SQLite dans une
+  boucle de contrôle ou dans l'event loop. Les annotations de `/actions/history/notes` sont des événements
+  auxiliaires sans effet sur la régulation ; leur texte ne doit jamais être recopié dans les logs.
 
 ## GPIO conventions — read before touching any pin code
 
@@ -209,8 +274,9 @@ is **enabled by default**, with `PHYTO_HW_WATCHDOG=0` as the explicit opt-out.
 
 - `initial_setup_tool.py` is a straight carry-over from the ESP32 version: it reads/writes `param.json`
   relative to the current directory, not `param/param.json`. Run it from `param/` or copy the result.
-- `param/param.json` holds Wi-Fi and InfluxDB credentials in clear text and **is tracked in git**. Never
-  paste its values into logs, issues, or commits.
+- `param/param.json` holds Wi-Fi and InfluxDB credentials in clear text and is deliberately **ignored by
+  Git**. Never force-add it or paste its values into logs, issues or commits. The historically versioned
+  credentials must still be considered compromised until rotated.
 - The HTTP server has **no authentication** — a deliberate choice, 8123 is LAN-only. Destructive actions
   are dedicated POST routes protected by CSRF/origin checks and an explicit browser confirmation. Never
   move one behind GET: a prefetch or an `<img src>` on any LAN page could fire it. Hostnames outside the

@@ -8,6 +8,7 @@
 - [ ] Configuration compatible ou migration fournie
 - [ ] Erreurs et rollback décrits
 - [ ] Documentation et risques mis à jour
+- [ ] `python3 -m pytest` sans échec
 - [ ] `diff -u CLAUDE.md AGENTS.md` vide
 - [ ] `git diff --check` sans erreur
 
@@ -22,6 +23,7 @@
 - [ ] ON/attente/OFF protégé par `energized()`
 - [ ] Plusieurs vitesses moteur impossibles ou coupées
 - [ ] Test sans charge, relais seul puis charge planifié
+- [ ] Protocole `docs/development/hardware-validation.md` suivi et preuve consignée
 - [ ] Lecture physique des GPIO avant/après arrêt
 - [ ] Protection matérielle indépendante vérifiée
 
@@ -59,7 +61,7 @@
 
 - [ ] Lecture du code
 - [ ] Vérification syntaxique proportionnée
-- [ ] Harnais/stub ciblé si possible
+- [ ] Suite `pytest` exécutée, test de régression ajouté si le contrat change
 - [ ] Vérification sur Pi si matériel concerné
 - [ ] Commit déployé identifié
 - [ ] Résultat et limites résiduelles consignés

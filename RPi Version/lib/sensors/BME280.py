@@ -86,14 +86,19 @@ class BME280:
         h = h * (1.0 - self.dig_H1 * h / 524288.0)
         return max(0.0, min(h, 100.0))
 
+    # Les trois lectures rendent la valeur compensée **non arrondie**. Arrondir
+    # ici détruirait le bruit d'acquisition (~0,005 °C à x1) qui est justement
+    # la preuve qu'un capteur est vivant : c'est ce bruit que le détecteur de
+    # figement observe. L'arrondi appartient à l'affichage, qui dispose du
+    # `decimals` du catalogue.
     def read_temperature(self):
         raw_t, _, _ = self._read_raw()
-        return round(self._compensate_temp(raw_t), 2)
+        return self._compensate_temp(raw_t)
 
     def read_pressure(self):
         _, raw_p, _ = self._read_raw()
-        return round(self._compensate_press(raw_p) / 100.0, 2)  # hPa
+        return self._compensate_press(raw_p) / 100.0  # hPa
 
     def read_humidity(self):
         _, _, raw_h = self._read_raw()
-        return round(self._compensate_hum(raw_h), 2)
+        return self._compensate_hum(raw_h)

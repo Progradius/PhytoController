@@ -66,12 +66,25 @@ Interface web :
 http://<adresse-du-pi>:8123
 ```
 
+La PWA locale utilise, après installation d'une autorité privée sur le terminal Android :
+
+```text
+https://phytocontroller.local/
+```
+
+Elle ajoute l'installation sur l'écran d'accueil, une fenêtre autonome, les raccourcis Tableau de
+bord/Historique/Alarmes, la dernière vue connue explicitement marquée hors ligne et des notifications locales
+tant qu'elle reste active. HTTP `:8123` demeure la voie de compatibilité et de récupération. Voir
+[PWA locale et TLS](docs/operations/pwa-local-tls.md).
+
 Routes principales :
 
-- `/` : tableau de bord, rafraîchi toutes les 5 secondes ;
+- `/` : tableau de bord orienté action, rafraîchi toutes les 5 secondes ;
+- `/history` : graphiques détaillés sur 24, 48 ou 72 heures ;
 - `/conf` : configuration, une section validée et enregistrée à la fois ;
 - `/console` : flux des logs du processus courant ;
 - `/api/v1/state` : état complet versionné en JSON ;
+- `/api/v1/alarms/active` : alarmes actives en mémoire pour la PWA ;
 - `/health/live` et `/health/ready` : sondes de disponibilité et de santé (`503` si une tâche est en défaut) ;
 - `/status` : ancien format JSON, conservé pour les scripts existants.
 
@@ -83,14 +96,24 @@ Détail complet : [interface HTTP](docs/reference/http-interface.md) et [schéma
 
 ## Configuration et données sensibles
 
-La configuration vivante est chargée depuis `param/param.json`. Ce fichier contient actuellement des identifiants Wi-Fi et InfluxDB en clair et reste suivi par Git :
+La configuration vivante est chargée depuis `param/param.json`. Ce fichier contient des identifiants
+Wi-Fi et InfluxDB en clair et reste strictement local à chaque Pi : il est ignoré par Git. Le fichier
+versionné `param/param.example.json` documente le schéma avec toutes les sorties désactivées ; ses GPIO
+et ses valeurs factices doivent être remplacés et validés avant toute première mise en service :
 
 - ne jamais copier son contenu dans un log, une issue, un rapport ou une demande d'assistance ;
 - ne jamais utiliser ses valeurs réelles dans un exemple documentaire ;
-- considérer les identifiants historiquement versionnés comme compromis ;
-- planifier leur sortie vers un fichier d'environnement protégé, puis leur rotation.
+- ne jamais le forcer dans Git ;
+- considérer les identifiants historiquement versionnés comme compromis et les faire tourner.
 
-Les statistiques sont persistées dans `param/sensor_stats.json`. Les deux fichiers sont sauvegardés puis restaurés par `scripts/deploy.sh` lors d'un déploiement normal.
+Une image Docker ne contient volontairement aucun `param.json`. Le fichier local doit être monté au
+lancement, par exemple avec
+`-v "$(pwd)/param/param.json:/app/param/param.json:rw"`. L’absence de ce montage fait échouer le boot
+avant tout accès GPIO, au lieu d’inventer une configuration matérielle.
+
+Les métadonnées d’équipements et les statistiques sont elles aussi locales. `scripts/deploy.sh`
+sauvegarde ces trois fichiers avant chaque bascule, mais ne les déplace et ne les restaure plus : Git
+ne les connaît pas et ne peut donc pas les écraser.
 
 ## Déploiement
 
@@ -100,11 +123,31 @@ Le script de déploiement est conçu pour être exécuté depuis le Raspberry Pi
 ./scripts/deploy.sh
 ```
 
-Il sauvegarde la configuration vivante, récupère le code en fast-forward, vérifie sa compilation avant de couper le service, redémarre, contrôle `/status` puis effectue un rollback si le service ne répond pas. La réponse HTTP de `/status` prouve actuellement la disponibilité du serveur, pas nécessairement la santé complète : vérifier également que le champ JSON `healthy` vaut `true`.
+Il prend d’abord un verrou exclusif, sauvegarde la configuration vivante, récupère le code sans jamais
+toucher aux fichiers locaux, vérifie sa compilation avant de couper le service, puis redémarre. Une
+cible qui versionne encore un fichier vivant est refusée. Le succès exige pendant 15 secondes continues : service actif,
+`/health/live`, `/health/ready` en 200, `control_healthy=true`, commit chargé identique à la cible et
+aucune alarme critique. Tout échec déclenche le rollback automatique, qualifié avec les mêmes critères.
 
 ## Vérification
 
-Il n'existe pas encore de suite de tests ni de linter configurés dans cette arborescence. Les changements sont vérifiés par lecture, harnais matériels ou stubs ciblés et observation du Raspberry Pi. Toute modification de GPIO, chauffage, moteur, timer, arrêt ou watchdog doit décrire les transitions attendues au démarrage, en régime nominal, sur exception, sur annulation et à l'arrêt.
+La validation automatisée sans matériel repose sur `pytest` :
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest
+```
+
+La suite emploie uniquement une configuration fictive, des répertoires temporaires et un faux GPIO
+enregistrant chaque transition. Elle ne nécessite ni root, ni réseau externe, ni Raspberry Pi ; les
+tests HTTP ouvrent seulement un socket loopback éphémère et ne lancent aucune commande système. Elle couvre la politique climatique, les passages jour/nuit et minuit, le magasin de
+configuration, les polarités GPIO, le superviseur et les protections HTTP.
+
+Elle ne remplace pas une qualification électrique. Toute modification de GPIO, chauffage, moteur,
+timer, arrêt ou watchdog doit aussi suivre le protocole supervisé de
+[`docs/development/hardware-validation.md`](docs/development/hardware-validation.md) et décrire les
+transitions attendues au démarrage, en régime nominal, sur exception, sur annulation et à l'arrêt.
+Il n'y a toujours pas de linter configuré.
 
 ## Licence
 

@@ -65,14 +65,16 @@ def set_ntp_time() -> None:
     Nécessite sudo ou des permissions adaptées.
     """
     try:
-        subprocess.run(["sudo", "timedatectl", "set-ntp", "true"], check=True)
+        subprocess.run(["sudo", "timedatectl", "set-ntp", "true"], check=True, timeout=15)
         status = subprocess.run(
             ["timedatectl", "show", "-p", "NTPSynchronized"],
-            capture_output=True, text=True, check=True
+            capture_output=True, text=True, check=True, timeout=15
         )
         success(f"NTP synchronisé : {status.stdout.strip()}", name=LOGGER_NAME)
     except subprocess.CalledProcessError as e:
         error(f"timedatectl a échoué : {e}", name=LOGGER_NAME)
+    except subprocess.TimeoutExpired:
+        error("timedatectl a dépassé le délai de 15 s", name=LOGGER_NAME)
     except Exception as e:
         error(f"Erreur synchro NTP : {e}", name=LOGGER_NAME)
 

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero compact">
+  <div>
+    <p class="eyebrow">Action système</p>
+    <h1>{{ action_label }} demandé</h1>
+    <p class="hero-copy">La commande part dans une seconde. Cette page suit l’état de la machine ;
+      elle n’a besoin d’aucune action de votre part.</p>
+  </div>
+</section>
+
+<section aria-labelledby="system-progress-title" data-system-action="{{ action }}">
+  <div class="section-heading"><h2 id="system-progress-title">Suivi</h2></div>
+  <p id="system-state" class="system-state" role="status" aria-live="polite">Commande transmise…</p>
+
+  {% if action == 'reboot' %}
+  <p class="section-note">Le redémarrage coupe la régulation puis la relance. Le retour est confirmé
+    par deux réponses successives de la sonde de vie, jamais par une seule.</p>
+  {% else %}
+  <p class="section-note">L’extinction arrête la régulation jusqu’à une remise sous tension manuelle.
+    Attendez que la LED d’activité cesse de clignoter avant de couper l’alimentation :
+    la carte SD écrit encore.</p>
+  {% endif %}
+
+  <p id="system-failure" class="system-failure" hidden>
+    La machine répond toujours après trente secondes : la commande a probablement échoué.
+    <a href="/alarms">Voir les alarmes</a> ·
+    <a href="/console?level=WARNING">Voir la console</a>
+  </p>
+
+  <p><a class="button button-secondary" href="/">Retour au tableau de bord</a></p>
+</section>
+{% endblock %}
+{% block page_scripts %}<script src="/static/js/system.js?v={{ asset_versions.system }}" defer></script>{% endblock %}

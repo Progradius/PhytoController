@@ -26,7 +26,8 @@ from pathlib import Path
 # Mode appliqué quand le fichier n'existe pas encore. Quand il existe, on
 # reporte le sien : `os.replace()` remplace l'inode, et un fichier passé
 # silencieusement en 0600 ferait apparaître un changement de mode dans git à
-# chaque déploiement (param.json et sensor_stats.json sont suivis).
+# chaque déploiement. Les fichiers vivants sont désormais ignorés par Git,
+# mais cette règle reste utile pour les autres fichiers versionnés.
 DEFAULT_MODE = 0o644
 
 

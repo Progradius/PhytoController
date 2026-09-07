@@ -111,9 +111,25 @@ lecture ; ils sont corrigés dans le commit suivant et **ne sont pas encore dép
    lit une panne. Le message est désormais dédupliqué sur la valeur du seuil et formulé comme ce
    qu'il est : une consigne trop basse pour laisser une zone morte, avec le réglage à modifier.
 
-## Reste à observer
+## TODO différé jusqu'à l'activation de la régulation automatique
 
-- Un vrai épisode de chauffe : le chauffage est désactivé, donc les seuils de chauffe, la durée
-  maximale d'allumage et le repos forcé n'ont pas été exercés en conditions réelles.
-- Un épisode froid et humide en mode hiver, pour voir les deux budgets se consommer et se réarmer.
-- Le passage aux paliers de ventilation en mode automatique (la serre est en manuel).
+**Décision opérateur du 28 août 2026** : la qualification thermique dynamique est volontairement
+reportée au moment où le chauffage et le mode automatique seront activés. Ce report n'est ni un
+défaut observé ni un motif de rollback. L'observation continue menée avec chauffage désactivé et
+moteur manuel qualifie la stabilité du service, du superviseur, des capteurs, des minuteries et du
+suivi demandé/réel des sorties ; elle ne qualifie pas une régulation qui n'était pas autorisée à agir.
+
+À cette activation, réaliser un essai supervisé et conserver les snapshots API, les journaux et les
+états GPIO couvrant au minimum :
+
+- un franchissement réel des seuils de chauffe, avec extinction par hystérésis ;
+- la limite de chauffe continue et le repos forcé qui la suit ;
+- le passage et le relâchement des paliers de ventilation en mode automatique, avec respect du temps
+  minimal de maintien ;
+- l'absence d'activation simultanée du chauffage et de l'extraction ;
+- un épisode froid et humide en mode hiver, afin de voir les budgets distincts de renouvellement et
+  de déshumidification se consommer, se borner puis se réarmer ;
+- la concordance entre décision publiée, état logique et niveau électrique réel des GPIO.
+
+Ce TODO est également suivi dans la [roadmap](../roadmap.md#arbitre-thermique) et dans le
+[registre des risques](../risk-register.md).

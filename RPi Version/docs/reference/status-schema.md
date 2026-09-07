@@ -3,22 +3,40 @@
 Deux formats coexistent : `/api/v1/state`, versionné et destiné à l'IHM comme à
 l'automatisation, et `/status`, conservé tel quel pour ne pas casser les scripts existants.
 
-## `/api/v1/state` (schéma 1)
+## `/api/v1/state` (schéma 2)
 
 Exemple abrégé, sans valeurs de production :
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "version": "0123456789abcdef0123456789abcdef01234567",
   "generated_at": "2026-08-25T21:14:03.512Z",
+  "web": {"https": {"configured": true, "ready": true, "port": 443}},
+  "overview": {"status": "operational", "title": "Serre opérationnelle",
+               "detail": "Toutes les tâches de contrôle répondent."},
   "health": {
     "healthy": true,
+    "control_healthy": true,
     "heater_alarm": null,
     "tasks": {
       "climate_control": {
         "alive": true, "healthy": true, "silence_s": 4.2, "max_silence_s": 300.0,
         "restarts": 0, "reloads": 1, "stalls": 0, "last_error": null
       }
+    }
+  },
+  "time": {
+    "state": "synchronized", "observed_state": "synchronized",
+    "daily_timers_suspended": false, "alarm": null
+  },
+  "day_night": {"source": "dailytimer1", "start": "19:00", "stop": "07:00", "empty": false},
+  "equipment": {"daily_1": {"display_name": "Éclairage 1", "dashboard_visible": true}},
+  "actuators": {
+    "daily_1": {
+      "requested": "on", "actual": "on", "reason": "dans la plage [début, fin)",
+      "since_seconds": 121.4, "stale": false, "tracking": "ok",
+      "next_transition": {"type": "clock", "at": "07:00"}
     }
   },
   "outputs": {
@@ -28,6 +46,7 @@ Exemple abrégé, sans valeurs de production :
   "motor": {"speed": 2, "percent": 50},
   "climate": {
     "state": "VENTILER",
+    "phase": "day",
     "reason": "chauffage : 27.4°C > 25.0°C · ventilation : 27.4°C ≥ 26.0°C → palier 2",
     "heater_on": false, "motor_speed": 2,
     "temperature": 27.4, "humidity": 52.1,
@@ -37,17 +56,26 @@ Exemple abrégé, sans valeurs de production :
     "updated_at": "2026-08-25T21:14:00"
   },
   "timers": [
-    {"id": "daily-1", "kind": "daily", "enabled": true, "output": "daily_timer_1",
+    {"id": "daily-1", "equipment_id": "daily_1", "kind": "daily", "enabled": true, "output": "daily_timer_1",
      "schedule": {"start": "19:00", "stop": "07:00"}},
-    {"id": "cyclic-1", "kind": "cyclic", "enabled": false, "output": "cyclic_1",
+    {"id": "cyclic-1", "equipment_id": "cyclic_1", "kind": "cyclic", "enabled": false, "output": "cyclic_1",
      "schedule": {"mode": "journalier", "period_days": 1, "triggers_per_day": 2,
                   "first_trigger_hour": 8, "action_duration_seconds": 30}}
   ],
   "sensors": [
-    {"key": "BME280T", "label": "Température de l’air", "unit": "°C", "decimals": 1,
-     "enabled": true, "status": "ok", "value": 21.4,
+    {"key": "BME280T", "slug": "bme280t", "family": "BME280", "label": "Température de l’air",
+     "unit": "°C", "decimals": 1, "enabled": true, "status": "normal",
+     "acquisition_status": "ok", "value": 21.4, "observed_value": 21.4,
+     "raw_value": 21.2, "control_usable": true, "would_block_control": false,
+     "control_disposition": "trusted", "reason_codes": [],
      "last_attempt_at": "2026-08-25T21:14:01Z", "last_success_at": "2026-08-25T21:14:01Z",
-     "age_s": 2.1}
+     "last_trusted_at": "2026-08-25T21:14:01Z", "age_s": 2.1,
+     "unchanged_for_s": 0.0, "freshness_threshold_s": 20.0,
+     "plausible_range": {"min": -20.0, "max": 60.0},
+     "calibration": {"offset": 0.2, "calibrated_at": "2026-08-01", "valid_days": 365, "overdue": false},
+     "failures": {"consecutive": 0, "since_calibration": 0,
+                  "incoherences_since_calibration": 0, "last_at": null},
+     "redundancy": {"group": null, "status": "not_configured", "delta": null}}
   ],
   "stats": [
     {"key": "BME280T", "min": 14.2, "min_at": "2026-08-20T05:11:02",
@@ -59,36 +87,67 @@ Exemple abrégé, sans valeurs de production :
 | Champ | Sens |
 |---|---|
 | `schema_version` | Entier ; toute évolution non additive doit l'incrémenter |
+| `version` | Commit Git figé au chargement du processus, ou valeur explicite de `PHYTO_VERSION` hors checkout |
 | `generated_at` | Instant de génération, UTC ISO 8601 suffixé `Z` |
+| `web.https` | Configuration, disponibilité réelle et port du second point d'écoute HTTPS ; aucun chemin de clé ou de certificat n'est publié |
+| `overview` | Synthèse de conduite pour l'IHM : `operational`, `degraded`, `override` ou `attention`, avec titre et motif déjà arbitrés côté serveur |
 | `health.healthy` | Santé agrégée du superviseur |
+| `health.control_healthy` | Santé des seuls timers, climat et acquisition qui gouvernent le watchdog |
+| `health.domains` | Santé regroupée par domaine, contrôle et auxiliaires distingués |
 | `health.heater_alarm` | `null` ou texte d'alarme thermique persistante (nom historique conservé) |
 | `health.tasks` | Snapshot par travail supervisé |
 | `outputs` | État **logique** de chaque sortie : `on`, `off` ou `unknown` |
+| `time` | Fiabilité de l'heure, suspension bornée des minuteries et alarme éventuelle |
+| `day_night` | Source et plage jour/nuit effectivement résolues |
+| `equipment` | Métadonnées descriptives, sans effet sur le contrôle |
+| `actuators` | Consigne, relecture GPIO instantanée, motif, durée monotone, prochaine transition et suivi demandé/réel |
 | `motor.speed` / `motor.percent` | Vitesse logique 0–4 et son pourcentage |
 | `climate.state` | État de l'arbitre : `DESACTIVE`, `CHAUFFER`, `NEUTRE`, `VENTILER`, `RENOUVELER`, `DESHUMIDIFIER`, `SECURITE_HAUTE`, `PLANCHER_THERMIQUE`, `REPLI_CAPTEUR`, `MANUEL` |
+| `climate.phase` | Phase de consigne effectivement appliquée : `day`, `night`, ou `null` avant le premier tick |
 | `climate.reason` | Motif lisible de la décision, chauffage puis ventilation |
 | `climate.vent_threshold` | Seuil de ventilation **effectif** (relevé si la consigne haute ne laissait pas de zone morte) |
 | `climate.heater_off_threshold` | Seuil d'extinction du chauffage |
 | `climate.*_minutes_used` / `_quota` | Budgets hiver consommés et alloués sur la fenêtre d'une heure en cours |
 | `climate.updated_at` | Horodatage local du dernier tick de régulation ; `null` avant le premier |
-| `timers` | Planification effective, telle que la lira la boucle |
-| `sensors` | Uniquement les mesures **activées**, dans l'ordre du catalogue |
+| `timers` | Planification effective, telle que la lira la boucle ; `equipment_id` la rattache à sa carte d'actionneur |
+| `sensors` | Uniquement les mesures **activées**, dans l'ordre du catalogue ; `slug` est l'ancre URL stable de la mesure |
 | `stats` | Min/max suivis et leurs horodatages locaux |
 
 Pour un capteur, `status` vaut :
 
-- `ok` : dernière tentative réussie et datant de moins de 30 s ;
-- `stale` : dernière réussite trop ancienne — `value` est la **dernière valeur connue** ;
-- `error` : dernière tentative en échec ;
-- `never` : aucune tentative depuis le démarrage ;
+- `normal` : mesure fraîche, plausible et cohérente ;
+- `degraded` : mesure encore qualifiée mais assortie d'une réserve, par exemple calibration expirée ou redondance indisponible ;
+- `absent` : aucune mesure fraîche et exploitable, après erreurs de lecture ou expiration du seuil de fraîcheur ;
+- `inconsistent` : valeur acquise mais hors plage, figée ou en désaccord avec son groupe redondant ;
 - `disabled` : capteur désactivé dans `Sensor_State` (absent de `sensors`).
 
-`value` est toujours la dernière valeur **valide** connue, jamais une valeur inventée ; `age_s`
-donne son ancienneté. Une valeur affichée avec `status` différent de `ok` ne doit pas être
-utilisée comme mesure courante.
+`raw_value` est la lecture matérielle, `observed_value` cette lecture après offset, et `value`
+uniquement la valeur **qualifiée**. Une valeur incohérente reste visible dans `observed_value` pour
+le diagnostic, mais `value` vaut `null`. `control_usable` est l'autorité explicite pour le contrôle :
+en mode `observe`, un figement ou un désaccord redondant peut être publié comme
+`shadow_accepted`; en mode `enforce`, la même décision devient immédiatement `blocked` sans
+attendre une nouvelle lecture. Une valeur hors plage, absente ou périmée est toujours bloquée.
+
+`reason_codes` explique la décision (`frozen`, `out_of_range`, `stale`,
+`redundancy_mismatch`, `calibration_overdue`, etc.). `age_s` porte l'âge de la dernière valeur
+qualifiée, tandis que `attempt_age_s` porte l'âge de la dernière tentative.
+
+Les seuils effectifs utilisés pour la décision sont publiés avec chaque mesure :
+`freshness_threshold_s`, `plausible_range`, `freeze_epsilon`, `freeze_after_seconds` et
+`freeze_min_samples`. `freeze_after_seconds=null` signifie que le diagnostic de figement est
+désactivé pour cette mesure. Ces valeurs incluent les éventuelles surcharges de `Sensor_Quality` ;
+elles permettent donc de vérifier la configuration réellement appliquée sans lire le fichier de
+configuration sur le Pi.
 
 Aucune lecture matérielle n'est déclenchée par une requête HTTP : le job supervisé
 `sensor_snapshot` rafraîchit l'instantané toutes les 10 s, l'IHM et InfluxDB le consomment.
+
+## `/api/v1/alarms/active` (schéma 1)
+
+Ce snapshot contient `schema_version`, `generated_at`, le résumé d'alarmes et les occurrences actives
+déjà tenues en mémoire par `AlarmManager`. Il ne consulte ni SQLite, ni GPIO, ni capteur. La PWA
+l'interroge toutes les cinq secondes lorsqu'elle est exécutée ; une occurrence conserve le même UUID
+tant qu'elle reste active, ce qui permet la déduplication locale des notifications.
 
 Pour une tâche :
 
@@ -100,6 +159,10 @@ Pour une tâche :
 - `reloads` : relances **volontaires** après changement de configuration ;
 - `stalls` : blocages silencieux détectés ;
 - `last_error` : dernière erreur connue.
+- `domain` : domaine de santé affiché ;
+- `gates_watchdog` : indique si cette tâche participe à `control_healthy`.
+
+Le registre `actuators` ne conserve jamais l'état matériel réel : celui-ci est relu pendant la requête HTTP. Une publication métier plus vieille que deux périodes porte `stale=true`, une consigne `unknown` et un suivi `unknown`. `tracking=known_hardware_fault` signifie que l'écart demandé/relu est couvert par l'annotation `out_of_service`, non qu'il est résolu.
 
 ## `/health/live` et `/health/ready`
 
@@ -122,14 +185,16 @@ les fautifs. C'est la sonde à brancher sur une supervision externe.
   "cyclic": {"period": 1, "duration": 30},
   "heater_alarm": null,
   "healthy": true,
+  "control_healthy": true,
+  "time": {"state": "synchronized"},
   "tasks": {}
 }
 ```
 
-`cyclic.period` est désormais une période en **jours** (`period_days`) ; le contournement par
+Les champs historiques restent figés ; les ajouts `control_healthy`, `time` et `health_domains`
+sont additifs. `cyclic.period` est désormais une période en **jours** (`period_days`) ; le contournement par
 `getattr` a disparu en même temps que le champ `period_minutes` inexistant lu par
-`SystemStatus.get_cyclic_period()`. Ce format est figé : toute nouvelle information va dans
-`/api/v1/state`.
+`SystemStatus.get_cyclic_period()`. Les détails d'actionneurs restent réservés à `/api/v1/state`.
 
 ## Interprétation
 

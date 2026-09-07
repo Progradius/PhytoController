@@ -30,6 +30,10 @@ from controllers.PuppetMaster import PuppetMaster
 from model.SensorStats import SensorStats
 
 from param.config_store import shared_config
+from utils.time_reliability import time_reliability
+from utils.overrides import shared_overrides
+from utils.alarm_manager import AlarmManager
+from utils.operator_history import OperatorHistory
 
 # =============================================================
 #                  VARIABLES GLOBALES SÉCURITÉ
@@ -144,6 +148,11 @@ title("Phyto-Controller - Boot", name=LOGGER_NAME)
 # chaque modification (audit C5, C7, M4).
 config = shared_config().current
 
+# Historique auxiliaire : initialisé avant l'event loop, sur son propre thread.
+# Une indisponibilité ne bloque jamais le boot et sera exposée comme alarme.
+operator_history = OperatorHistory()
+alarm_manager = AlarmManager(operator_history.startup_alarms)
+
 # Niveau et rétention de log : env PHYTO_LOG_LEVEL > param.json > INFO
 ui.apply_log_settings(config.logs.level, config.logs.retention_days)
 # Diffusion des logs du processus courant vers la page /console
@@ -202,12 +211,22 @@ except Exception:
 try:
     action("Synchronisation NTP…", name=LOGGER_NAME)
     set_ntp_time()
+    time_reliability().probe()
 except Exception:
     warning("NTP indisponible → heure non synchronisée", name=LOGGER_NAME)
 
 # (6) Vérification de la reachabilité de l'hôte
 if is_host_connected() == "offline":
     warning("Machine hôte hors-ligne → mode dégradé", name=LOGGER_NAME)
+
+# (6 bis) Forçages « arrêt » encore valides. Repris **avant** les composants :
+# les boucles doivent trouver le magasin peuplé dès leur première itération,
+# sinon un forçage laisserait passer un cycle complet après un redémarrage.
+try:
+    shared_overrides().restore()
+except Exception:
+    exception("Reprise des forçages impossible → aucun forçage actif",
+              name=LOGGER_NAME)
 
 # (7) Initialisation des composants physiques
 light1       = Component(pin=config.gpio.dailytimer1_pin)
@@ -250,6 +269,8 @@ puppet_master = PuppetMaster(
     cyclic_timer2      = cyclic_timer2,
     motor_handler      = motor_handler,
     heater_component   = heater,
+    operator_history   = operator_history,
+    alarm_manager      = alarm_manager,
 )
 
 # (12) Info mémoire

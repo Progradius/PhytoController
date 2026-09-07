@@ -80,7 +80,10 @@ class BME280Handler:
             return None
         try:
             val = self._read[key]()
-            return round(val, 2) if isinstance(val, (int, float)) else val
+            # Aucun arrondi ici : la précision complète doit atteindre la
+            # politique qualité, qui teste la vivacité du capteur sur son bruit.
+            # L'arrondi se fait à l'affichage, à partir du `decimals` du catalogue.
+            return float(val) if isinstance(val, (int, float)) else val
         except Exception as e:
             warning(f"BME280 : erreur lecture {label_fr} → {e}", name=LOGGER_NAME)
             return None

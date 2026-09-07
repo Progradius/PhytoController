@@ -2,12 +2,27 @@
 
 **Public** : pilotage et développement.
 **Référence initiale** : commit `61ad3df`, audit et plans au 25 août 2026.
-**Dernière mise à jour** : 26 août 2026, après le magasin de configuration unique (`f840a91`).
+**Dernière mise à jour** : 1er septembre 2026, pendant la qualification du correctif de figement
+des capteurs (`985e42d`).
 **Suivi de l'audit** : le tableau d'avancement par phase et le séquencement révisé vivent dans
 [`AUDIT-2026-08-25.md` § 8](../AUDIT-2026-08-25.md). Cette roadmap en est la vue par lot livrable ; les
 deux doivent rester cohérentes.
 
 La roadmap privilégie la réduction du risque physique, puis la reproductibilité et enfin la modernisation. Chaque chantier doit rester livrable, réversible et vérifiable indépendamment.
+
+## Validation automatisée minimale
+
+**État : implémentée hors matériel.**
+
+- [x] Tests paramétrés de `climate_policy.decide()` et de ses invariants thermiques
+- [x] Plancher absolu, quotas hiver, repli capteur, durée maximale et cooldown
+- [x] Transitions jour/nuit, plages semi-ouvertes et passage à minuit
+- [x] `ConfigStore` : sauvegarde, corruption, `.bak`, rollback de commit et erreur d'écriture
+- [x] Faux GPIO enregistrant les polarités et le break-before-make moteur
+- [x] Superviseur : crash, retour anormal, stall, back-off, reload et état sûr
+- [x] HTTP : formulaires, CSRF, Origin, Host, corps borné et actions POST-only
+- [x] Protocole matériel séparé, jamais lancé par la suite par défaut
+- [ ] Exécuter la suite automatiquement dans une CI au niveau racine du dépôt
 
 ## Définitions de sortie
 
@@ -52,7 +67,8 @@ Un chantier n'est terminé que si :
       ([relevé](operations/production-baseline-2026-08-25.md)) ; la source du bruit est tarie côté logiciel
       (`ds18b20_state=disabled`, voir lot 5)
 - [ ] Exercer le runbook : service mort, config invalide, tâche malsaine, alarme chauffage
-- [ ] Faire lire `healthy` au contrôle de déploiement : `/health/ready` est disponible, `scripts/deploy.sh` interroge encore `/status`
+- [x] Qualifier le déploiement sur le service actif, `/health/live`, `/health/ready`,
+      `control_healthy`, le commit attendu, l'absence d'alarme critique et 15 s de stabilité continue
 
 **Critère de sortie** : un second Pi peut être installé avec les artefacts du dépôt et des secrets fournis séparément ; sa configuration système est comparable à la référence.
 
@@ -91,12 +107,17 @@ Un chantier n'est terminé que si :
 - [x] Nommer deux budgets distincts — renouvellement et déshumidification, bornés et comptés en temps réellement écoulé
 - [x] Ajouter une hystérésis à état — seuil de relâchement distinct et `min_dwell_seconds`
 - [x] Persister quota hiver et phase cyclique — `utils/state_store.py`
-- [x] Définir le comportement sur capteur absent, hors plage ou figé — repli nommé `REPLI_CAPTEUR`
+- [x] Définir le comportement sur capteur absent, hors plage ou figé — qualification complète, déploiement initial en `observe`, puis repli nommé `REPLI_CAPTEUR` après armement explicite
 - [x] Vérification en production : huit travaux sains, cohérence décision ↔ `pinctrl`, état persisté,
       rechargement à chaud sans coupure de sortie
-- [ ] Essai sur plages limites avec le matériel réel : la serre est en chauffage désactivé et moteur
-      manuel, donc ni les seuils de chauffe, ni les paliers de ventilation, ni les budgets hiver
-      n'ont encore été exercés en conditions réelles
+- [ ] **TODO à la prochaine activation de la régulation thermique automatique** — essai supervisé
+      avec le matériel réel : vérifier au moins un franchissement des seuils de chauffe et de
+      ventilation, l'hystérésis, le temps de maintien des paliers, la limite de chauffe continue et
+      son repos forcé, les budgets hiver/déshumidification et la concordance décision API ↔ GPIO.
+      Décision opérateur du 28 août 2026 : cette qualification est volontairement reportée jusqu'à
+      l'activation du chauffage et du mode automatique. L'observation continue alors réalisée en
+      chauffage désactivé et moteur manuel valide la stabilité du contrôle, des minuteries, des
+      capteurs et du suivi des sorties, mais pas ces règles thermiques dynamiques.
 
 ### Configuration
 
@@ -149,6 +170,9 @@ Un chantier n'est terminé que si :
 - [x] Valider `Host` et documenter le filtrage réseau
 - [x] Séparer `/health/live` et `/health/ready`
 - [x] Déplacer l'export Influx et les lectures capteurs hors event loop
+- [x] Implémenter la PWA locale : HTTPS natif optionnel, manifeste, coque hors ligne à fraîcheur
+      dominante et notifications locales actives — **code non déployé**, autorité Android et scénarios
+      coupure/reconnexion encore à qualifier
 - [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop — **reboot et
       poweroff faits** (`asyncio.create_subprocess_exec`) ; `nmcli`/`ping`/`timedatectl` restent des
       `subprocess.run` bloquants **sans `timeout=`**. Ils ne s'exécutent qu'au boot, donc ils ne bloquent
@@ -207,22 +231,25 @@ prérequis encore vivant est **lot 3 → contraintes GPIO du lot 4**.
 
 ## Prochaines actions immédiates
 
-*(Révisées le 26 août 2026. Les lots 4 « thermique » et 4 « configuration » sont clos côté code ; l'ordre
-ci-dessous suit le risque physique résiduel, cohérent avec le séquencement du § 8 de l'audit.)*
+*(Révisées le 1er septembre 2026 après acceptation de la fenêtre corrective ; l'ordre reprend ensuite
+le risque physique résiduel.)*
 
-1. **Déployer et vérifier le magasin de configuration** (`f840a91`) sur le Pi — c'est le seul chantier
-   terminé qui ne soit pas encore en production.
-2. **Ouvrir le lot 3** : schéma électrique relu hors tension, puis `PinRegistry`, migration des broches
+1. [x] **Clôturer la fenêtre qualité** : `summary.json` accepté, 172 800 s, 2 864 échantillons, zéro
+   échec et zéro avertissement ; correctif de figement qualifié en mode `observe`.
+2. [x] **Déployer séparément l'observabilité des seuils effectifs** : commit `2ecefb1` chargé le
+   1er septembre à 19:47 UTC ; `freeze_epsilon`, `freeze_after_seconds` et `freeze_min_samples`
+   vérifiés dans `/api/v1/state`, mode `observe` conservé, santé complète et zéro alarme.
+3. **Ouvrir le lot 3** : schéma électrique relu hors tension, puis `PinRegistry`, migration des broches
    moteur et génération de la configuration de boot. Seul chantier restant qui touche la sûreté
    électrique, et il débloque la contrainte d'unicité GPIO laissée désactivée au lot 4.
-3. **Traiter le temps et le réseau** (RTC / `time_synced`, reconnexion Wi-Fi supervisée) — première classe
+4. **Traiter le temps et le réseau** (RTC / `time_synced`, reconnexion Wi-Fi supervisée) — première classe
    de panne non électrique : commutation 230 V à contretemps après une coupure secteur hors réseau.
-4. **Exercer le runbook** sur les quatre scénarios prévus, et faire lire `/health/ready` au contrôle de
-   déploiement (`scripts/deploy.sh` interroge encore `/status`).
-5. **Hygiène de build** : épinglage des dépendances, décision Docker, validations automatisées minimales.
-6. **Essai thermique sur plages limites** — dépend de la saison et de la remise en service du chauffage,
+5. **Exercer le runbook** sur les quatre scénarios prévus. Le contrôle de déploiement qualifie désormais
+   `/health/live`, `/health/ready`, la santé du contrôle, le commit et les alarmes sur une fenêtre stable.
+6. **Hygiène de build** : épinglage des dépendances, décision Docker, validations automatisées minimales.
+7. **Essai thermique sur plages limites** — dépend de la saison et de la remise en service du chauffage,
    se planifie indépendamment.
-7. **Secrets (rotation et historique Git)** — reporté par décision de l'exploitant, à reprendre en un lot
+8. **Secrets (rotation et historique Git)** — reporté par décision de l'exploitant, à reprendre en un lot
    indivisible.
 
 ## Relation avec les anciens plans

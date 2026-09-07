@@ -2,11 +2,15 @@
 
 **Source de vérité** : `param/config.py`.
 **Format actuel** : JSON avec sections PascalCase et booléens legacy `enabled`/`disabled`.
-**Sécurité** : ne jamais publier le fichier réel, qui contient des secrets.
+**Sécurité** : le fichier réel est local, ignoré par Git et par le contexte Docker ; ne jamais le
+publier ni le forcer dans l’index. `param/param.example.json` est le seul exemple versionné.
 
 ## Chargement et sauvegarde
 
-`AppConfig.load()` lit `param/param.json` et valide avec Pydantic v2. `save()` sérialise par alias, reconvertit les booléens legacy et écrit atomiquement. Les boucles ne consomment pas encore toutes la configuration de la même façon ; la colonne « application » décrit l'état actuel, pas une garantie idéale.
+`AppConfig.load()` lit `param/param.json` et valide avec Pydantic v2. `ConfigStore.save()` sérialise
+par alias, reconvertit les booléens legacy et écrit atomiquement. Le magasin partagé relit le fichier
+seulement lorsque son empreinte `(mtime_ns, taille)` change et publie la nouvelle configuration dans
+l’instance unique détenue par les composants.
 
 Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `populate_by_name=True`) : une affectation invalide lève au lieu de corrompre silencieusement la configuration vivante. `AppConfig.replace_from(candidat)` remplace champ par champ la configuration partagée par une candidate déjà validée — c'est ainsi que `POST /conf/{section}` publie un changement sans réinstancier les objets que détiennent le serveur, le moteur et le chauffage.
 
@@ -17,6 +21,7 @@ Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `po
 | `Life_Period` | `LifePeriod` | Stade affiché/métier | Objet partagé, comportement limité |
 | `DailyTimer1_Settings` | `DailyTimerSettings` | Sortie journalière 1 | Relue en boucle |
 | `DailyTimer2_Settings` | `DailyTimerSettings` | Sortie journalière 2 | Relue en boucle |
+| `Day_Night_Settings` | `DayNightSettings` | Référence globale jour/nuit | À chaud ; héritage explicite ou horaires personnalisés |
 | `Cyclic1_Settings` | `CyclicSettings` | Sortie cyclique 1 | Relue par itération, parfois tardivement |
 | `Cyclic2_Settings` | `CyclicSettings` | Sortie cyclique 2 | Relue par itération, parfois tardivement |
 | `Temperature_Settings` | `TemperatureSettings` | Consignes et arbitrage thermique | À chaud : relance de `climate_control` |
@@ -25,7 +30,66 @@ Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `po
 | `GPIO_Settings` | `GPIOSettings` | Broches | **Lecture seule dans l'IHM** ; redémarrage et intervention matérielle |
 | `Motor_Settings` | `MotorSettings` | Modes et consignes moteur | À chaud : relance de `climate_control` |
 | `Sensor_State` | `SensorState` | Capteurs activés | À chaud : `SensorController.reconfigure()` sur l'instance unique, puis rechargement Influx |
+| `Sensor_Quality` | `SensorQualitySettings` | Calibration, fraîcheur, plausibilité, figement, identités et redondance | À chaud ; mode observation par défaut, armement explicite du repli qualité |
 | `Log_Settings` | `LogSettings` | Niveau et rétention | À chaud |
+
+## Calibration et qualité des capteurs
+
+`Sensor_Quality.mode` vaut `observe` par défaut. Dans ce mode, les diagnostics sont publiés et
+alarmés, mais un figement plausible ou un désaccord redondant ne modifie pas encore les sorties.
+Le passage à `enforce` exige la confirmation littérale `ARMER` dans l'IHM ; une incohérence déjà
+confirmée sur `BME280T` déclenche alors immédiatement `REPLI_CAPTEUR` sans attendre cinq erreurs
+d'acquisition. Les valeurs hors plage et périmées ne sont jamais autorisées, quel que soit le mode.
+
+`profiles` est indexé par la clé canonique (`BME280T`, `DS18B#1`, etc.). Chaque profil peut
+surcharger l'offset additif, la date et la durée de validité de calibration, le seuil de fraîcheur,
+la plage plausible, l'epsilon de figement, la durée et le nombre minimal d'échantillons nécessaires
+pour déclarer un figement. `freeze_after_seconds: "disabled"` désactive seulement ce diagnostic.
+Les plages configurées doivent rester incluses dans les limites matérielles du catalogue.
+
+### Ce que mesure exactement le figement
+
+`freeze_epsilon` est une **bande morte ancrée**, pas une tolérance de pente : la mesure est déclarée
+figée quand elle ne quitte pas `±epsilon` autour de **la valeur de son dernier changement réel**
+pendant `freeze_after_seconds`. La référence n'est jamais l'échantillon précédent — sinon le critère
+mesurerait une vitesse de variation, et le même capteur dans le même air rendrait un verdict
+différent selon la fréquence de lecture.
+
+Choisir `epsilon` **au-dessus du plancher de bruit du capteur rend le diagnostic aveugle** : une nuit
+calme et un registre I²C mort deviennent la même observation, et aucun seuil ne peut alors les
+séparer. Un `epsilon` nul teste l'identité stricte, donc la vivacité de la chaîne d'acquisition :
+c'est le réglage sûr, et celui du catalogue pour les BME280 et les DS18B20. Ne l'augmenter qu'avec
+une mesure du bruit réel à l'appui, et vérifier que la plus longue plage de valeurs identiques
+observée reste très inférieure à `freeze_after_seconds`.
+
+Le réarmement demande `RECOVERY_SAMPLES` (3) **variations réelles**, pas trois variations
+consécutives : un échantillon calme intercalé ne remet pas le compteur à zéro. L'exigence inverse
+transformerait l'anti-rebond en cliquet et laisserait un capteur sain verrouillé.
+
+Chaque diagnostic répond à une question distincte, et aucun ne remplace les autres :
+
+| Diagnostic | Question posée | Ce qu'il ne couvre pas |
+|---|---|---|
+| `freeze` | la chaîne d'acquisition est-elle vivante ? | une mesure vivante mais fausse |
+| plage plausible | la valeur est-elle physiquement possible ? | une erreur dans la plage |
+| fraîcheur | l'instantané est-il récent ? | la justesse de la valeur |
+| `redundancy_groups` | deux sondes comparables sont-elles d'accord ? | un défaut commun aux deux |
+
+Élargir `freeze_epsilon` pour « attraper une dérive » est donc une erreur de conception : la dérive
+d'un capteur vivant relève de la redondance et de la calibration, jamais du figement.
+
+`ds18b20_bindings` lie chaque nom métier DS18B à son identifiant 1-Wire stable au format
+`28-xxxxxxxxxxxx`. Une sonde activée mais non liée est déclarée absente : l'ordre de découverte
+sysfs ne doit jamais déplacer une calibration d'une sonde physique à une autre.
+
+`redundancy_groups` contient des groupes de mesures de même unité, une tolérance et un quorum.
+Une mesure ne peut appartenir qu'à un groupe. Avec deux sondes en désaccord, aucune n'est choisie
+arbitrairement ; avec trois sondes ou plus, le plus grand groupe cohérent identifie les valeurs
+divergentes. Trois comparaisons cohérentes consécutives sont requises pour sortir du diagnostic.
+
+Modifier l'offset ou la date de calibration réinitialise les compteurs qualité et les min/max de la
+mesure concernée. L'état de figement et les compteurs sont conservés dans
+`param/runtime_state.json`; les instants monotones ne sont volontairement pas restaurés.
 
 ## Timers journaliers
 
@@ -37,7 +101,11 @@ Tous les modèles héritent de `ValidatedModel` (`validate_assignment=True`, `po
 | `stop_hour` | int | 0–23 | Borné dans le modèle |
 | `stop_minute` | int | 0–59 | Borné dans le modèle |
 
-Les plages traversant minuit sont gérées. L'IHM poste `start_time`/`stop_time` au format `HH:MM` (les secondes éventuelles d'un navigateur sont ignorées) ; une valeur hors bornes est refusée en 422 sans toucher au fichier.
+Les plages traversant minuit sont gérées avec une sémantique unique `[début, fin)` : la borne de fin est exclue et `début == fin` décrit une plage vide. L'IHM poste `start_time`/`stop_time` au format `HH:MM` (les secondes éventuelles d'un navigateur sont ignorées) ; une valeur hors bornes est refusée en 422 sans toucher au fichier.
+
+## Référence jour/nuit
+
+`Day_Night_Settings.source` vaut `dailytimer1` ou `custom`. Avec `dailytimer1`, le climat et les cycles séquentiels suivent en continu les horaires de la minuterie 1 ; les quatre horaires personnalisés restent mémorisés sans être utilisés. Avec `custom`, ils définissent la plage jour selon la même règle `[début, fin)`. Avant une preuve NTP, le climat et les cycles séquentiels utilisent toujours les paramètres nuit.
 
 ## Timers cycliques
 
@@ -54,7 +122,11 @@ Les plages traversant minuit sont gérées. L'IHM poste `start_time`/`stop_time`
 | `on_time_night` | int | >= 0 | Secondes ON la nuit |
 | `off_time_night` | int | >= 0 | Secondes OFF la nuit |
 
-Une désactivation peut être prise en compte tardivement si la boucle dort sur une longue période métier. Le futur ordonnanceur doit recalculer des échéances absolues à intervalle court.
+Le mode journalier recalcule une échéance strictement future toutes les 30 secondes : aucune impulsion passée n'est rattrapée. Les longues attentes restent donc réactives à un hand-edit de configuration. Le mode séquentiel conserve sa phase persistée et utilise les paramètres nuit tant que l'heure n'est pas synchronisée.
+
+## Métadonnées d'équipements
+
+`param/equipment_metadata.json` est volontairement séparé de `param.json` et écrit atomiquement. Il indexe `daily_1`, `daily_2`, `cyclic_1`, `cyclic_2`, `motor` et `heater`. Les champs descriptifs (`display_name`, `usage_type`, `zone`, `icon`, `wiring_note`, `dashboard_visible`, `out_of_service`) n'ont aucun effet sur le contrôle. Les booléens sont des booléens JSON natifs. Un fichier absent ou illisible rend le catalogue par défaut sans empêcher le démarrage.
 
 ## Température et chauffage
 

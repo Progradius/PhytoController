@@ -29,7 +29,12 @@ Restart=always
 
 L'unité principale observée est versionnée dans `deploy/phyto.service` et le fragment dans `deploy/phyto.service.d/watchdog.conf`. Les propriétés effectives étaient : service actif, `Type=notify`, `Restart=always`, `RestartSec=5`, `WatchdogUSec=10min`, `NRestarts=0`.
 
-L'unité principale utilise `User=progradius`, le venv du dépôt, `PHYTO_RUN_MODE=service`, `PHYTO_HW_WATCHDOG=0` et les capacités ambiantes `CAP_SYS_ADMIN CAP_SYS_RAWIO`. systemd tient parallèlement le watchdog matériel avec `RuntimeWatchdogSec=15`; l'application utilise donc la voie de notification systemd.
+L'unité principale utilise `User=progradius`, le venv du dépôt, `PHYTO_RUN_MODE=service`,
+`PHYTO_HW_WATCHDOG=0` et les capacités ambiantes historiques `CAP_SYS_ADMIN CAP_SYS_RAWIO`.
+Le drop-in PWA ajoute `CAP_NET_BIND_SERVICE` pour le port HTTPS 443 et les chemins du certificat ;
+il réénumère explicitement les trois capacités après remise à zéro de la liste. Voir
+[PWA locale et TLS](pwa-local-tls.md). systemd tient parallèlement le watchdog matériel avec
+`RuntimeWatchdogSec=15`; l'application utilise donc la voie de notification systemd.
 
 ## Contrôles
 

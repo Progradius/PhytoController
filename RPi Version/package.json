@@ -1,0 +1,11 @@
+{
+  "name": "phyto-controller-ui-tests",
+  "private": true,
+  "scripts": {
+    "test:ui": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.55.0"
+  }
+}

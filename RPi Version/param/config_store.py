@@ -62,6 +62,7 @@ class ConfigStore:
         # fil d'exécution : le verrou évite d'avoir à y revenir.
         self._lock = threading.RLock()
         self._stamp: tuple[int, int] | None = None
+        self._recovery_pending = False
         self._current: AppConfig = self._boot_load()
 
     # ──────────────────────────────────────────────────────────
@@ -78,6 +79,11 @@ class ConfigStore:
     @property
     def path(self) -> Path:
         return self._path
+
+    @property
+    def recovery_pending(self) -> bool:
+        """Vrai jusqu'à la première adoption validée après un repli ``.bak``."""
+        return self._recovery_pending
 
     def refresh(self) -> AppConfig:
         """
@@ -100,6 +106,7 @@ class ConfigStore:
 
             self._current.replace_from(fresh)
             self._stamp = stamp
+            self._recovery_pending = False
             ui.debug("Configuration rechargée depuis le disque", name=LOGGER_NAME)
             return self._current
 
@@ -117,6 +124,7 @@ class ConfigStore:
             validated = self._revalidate(candidate)
             self._write(validated)
             self._current.replace_from(validated)
+            self._recovery_pending = False
             return self._current
 
     def commit(self) -> AppConfig:
@@ -137,6 +145,7 @@ class ConfigStore:
                 raise
             self._write(validated)
             self._current.replace_from(validated)
+            self._recovery_pending = False
             return self._current
 
     # ──────────────────────────────────────────────────────────
@@ -218,6 +227,7 @@ class ConfigStore:
         try:
             config = AppConfig.load(self._path)
         except Exception as exc:
+            self._recovery_pending = True
             ui.error(
                 f"param.json inutilisable ({exc.__class__.__name__} : {exc}) → "
                 "tentative de reprise sur la copie de secours",

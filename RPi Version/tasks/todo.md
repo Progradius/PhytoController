@@ -1,3 +1,219 @@
+# TODO — Déploiement et armement de la qualité des capteurs
+
+**État au 1er septembre 2026 à 19:44 UTC** : correctif de figement **déployé au commit
+`985e42d`** le 30 août 2026 à 19:07 UTC puis qualifié par une observation continue de 172 800 s :
+2 864 échantillons, zéro échec, zéro avertissement et les trois mesures BME280 `normal` pendant
+toute la fenêtre. Voir le
+[relevé de clôture](../docs/operations/jalon2-correctif-figement-observation-2026-09-01.md).
+Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à
+validation complète.
+
+La fenêtre précédente, close le 30 août à 18:59:28 UTC en `accepted_with_warnings` — 172 800 s,
+2 864 échantillons, 0 échec, 835 avertissements de cause unique — a établi la continuité du contrôle
+et révélé le défaut de la politique de figement corrigé par `837f778`. Voir le
+[relevé de clôture](../docs/operations/jalon2-observation-operateur-2026-08-30.md).
+
+**Le correctif est déployé mais pas encore qualifié** : la mémoire qualité repart de zéro, donc
+aucune mesure ne peut être déclarée figée avant 1 800 s. La preuve attendue est une nuit calme
+complète, période où l'ancien critère se déclenchait systématiquement.
+
+Références :
+
+- [`docs/reference/configuration.md`](../docs/reference/configuration.md#calibration-et-qualité-des-capteurs) ;
+- [`docs/reference/status-schema.md`](../docs/reference/status-schema.md) ;
+- [`docs/development/hardware-validation.md`](../docs/development/hardware-validation.md) ;
+- [`docs/operations/deployment-and-rollback.md`](../docs/operations/deployment-and-rollback.md).
+
+## 1. Déployer sans armer
+
+- [x] Commiter puis déployer la version avec `Sensor_Quality.mode = observe` ; ne pas saisir
+      `ARMER` pendant ce premier déploiement
+- [x] Vérifier après déploiement : `phyto.service` actif, `/health/live` et `/health/ready` à 200,
+      `control_healthy=true`, commit attendu, aucun redémarrage ou blocage de tâche et aucune alarme
+      critique nouvelle
+- [x] Vérifier dans `/api/v1/state` que `schema_version=2`, que chaque capteur actif publie
+      `status`, `reason_codes`, `raw_value`, `observed_value`, `value`, `control_usable`, les compteurs
+      et les seuils effectifs, sans secret ni valeur inventée
+- [ ] Confirmer physiquement que le déploiement en observation n'a modifié aucune sortie et relever
+      les GPIO selon la procédure matérielle supervisée
+
+## 2. Observer une période représentative
+
+- [x] Lancer `scripts/observe-jalon2-operator-quality.sh` pendant 48 h au commit `5520850`. Début :
+      `2026-08-28T18:07:22Z` ; fin attendue : `2026-08-30T18:07:22Z` ; PID observateur initial :
+      `381479` ; PID service de référence : `381022` ; répertoire de preuve :
+      `~/phyto-observations/jalon2-operateur-qualite-20260828T180722Z`
+- [x] Au prochain redéploiement, arrêter proprement le PID observateur vérifié avec `SIGTERM`, attendre
+      son `summary.json` interrompu, redéployer et valider le service, puis nettoyer ou archiver
+      uniquement le répertoire invalidé ci-dessus
+- [x] Après ces contrôles, relancer une nouvelle observation de 172 800 s : début
+      `2026-08-28T18:59:28Z`, fin attendue `2026-08-30T18:59:28Z`, PID observateur initial `388349`,
+      PID service de référence `387866`, commit `b26d2b1`, preuves sous
+      `~/phyto-observations/jalon2-operateur-qualite-20260828T185928Z`
+- [x] À la fin de cette nouvelle fenêtre, ne l'accepter que si `status=accepted`, durée réelle d'au
+      moins 172 800 s, zéro échantillon en échec et examen explicite de tout avertissement.
+      **Clôturée le 30 août 2026 à 18:59:28 UTC** : `status=accepted_with_warnings`, 172 800 s
+      réelles, 2 864 échantillons, **0 échec**, 835 avertissements tous dus au même défaut de la
+      politique de figement. Examen et décision dans le
+      [relevé de clôture](../docs/operations/jalon2-observation-operateur-2026-08-30.md) : fenêtre
+      acceptée comme preuve de continuité du contrôle, refusée comme qualification du figement
+- [ ] Laisser fonctionner le système en mode `observe` pendant plusieurs cycles jour/nuit et une
+      durée représentative des périodes naturellement stables de la serre
+- [ ] Relever pour chaque mesure les statuts, `unchanged_for_s`, échecs consécutifs, incohérences,
+      expirations de calibration et raisons de dégradation
+- [ ] Vérifier le measurement Influx `sensor_quality` et confirmer qu'une valeur suspecte reste
+      analysable dans cette série sans apparaître dans les measurements métier de confiance
+- [ ] Vérifier que les alarmes qualité sont idempotentes, se résolvent au rétablissement et ne
+      dégradent ni `control_healthy()` ni le watchdog
+- [ ] Consigner les faux positifs et faux négatifs constatés, avec date et contexte, sans recopier
+      la configuration sensible
+
+## 2 bis. Correctif de la politique de figement (30 août 2026)
+
+Résultat final de l'observation précédente : **0 échantillon en échec**, mais 835 échantillons avec
+avertissement sur 2 864, tous de la même cause. L'analyse intermédiaire ayant conduit au correctif
+portait encore sur 2 284 échantillons et 546 avertissements. `BME280T` et `BME280H` — les deux
+mesures qui pilotent l'arbitre thermique — ont été déclarées `inconsistent` sur 23,8 % et 21,5 % de
+la fenêtre complète, `reason=frozen`, alors que les capteurs mesuraient normalement (amplitude réelle
+6,45 °C et 14,95 %, aucune erreur d'acquisition).
+
+Cause : `evaluate_sample()` comparait chaque lecture à la **précédente**, donc mesurait une pente et
+non une valeur bloquée ; à la cadence réelle de 10 s une température saine bouge de 0,01 °C sous un
+epsilon de 0,02 °C. Preuve la plus nette : l'épisode du 30/08 02:40:30Z → 04:31:41Z, 6 671 s
+déclarées figées pendant lesquelles la température est passée de 25,92 à 26,24 °C. Le même signal
+donnait « figé » à 5 s et 10 s d'intervalle et « sain » à 60 s — un verdict fonction de la cadence.
+
+- [x] Ancrer la comparaison sur la valeur du dernier changement réel (`freeze_anchor_value`) au lieu
+      de l'échantillon précédent : le verdict devient invariant par cadence
+- [x] Passer `freeze_epsilon` à `0.0` pour `BME280T`, `BME280H` et `BME280P`, aligné sur les DS18B20.
+      Base de mesure : sur 38 h la plus longue plage de valeurs strictement identiques est de 361 s
+      (T), 181 s (H) et 181 s (P), contre des seuils de 1 800 s et 3 600 s
+- [x] Supprimer le double arrondi à 0,01 (`lib/sensors/BME280.py` et `BME280Handler._safe`) : la
+      précision complète doit atteindre la politique qualité. Arrondi déplacé à l'affichage (filtre
+      Jinja `mesure`, `toFixed` côté JS), `decimals` ajouté à la charge utile des min/max
+- [x] Supprimer le cliquet de réarmement : trois variations **réelles** suffisent, un échantillon
+      calme intercalé ne remet plus le compteur à zéro
+- [x] Documenter la séparation des rôles (figement = vivacité de l'acquisition ; redondance =
+      justesse) dans `docs/reference/configuration.md`, `safety-model.md`, `verification.md` et
+      `CLAUDE.md`/`AGENTS.md`
+- [x] Ajouter les tests de non-régression, dont le **test de propriété d'invariance par cadence**
+      (5 s / 10 s / 60 s) qui interdit la classe de bug — suite complète : 150 tests verts
+- [x] Déployer après la clôture de la fenêtre en cours, puis relancer une observation de 172 800 s
+      au commit corrigé. **Fait le 30 août 2026** : déploiement de `985e42d` à 19:07:27 UTC
+      (`NRestarts=0`, `boot_id` inchangé), puis nouvelle fenêtre lancée à 19:09:11 UTC — fin attendue
+      le **1er septembre à 19:09:11 UTC**, observateur `722191`, service `721771`, preuves sous
+      `~/phyto-observations/jalon2-operateur-qualite-20260830T190911Z`
+- [x] Contrôler après déploiement : `healthy`/`control_healthy` à `true`, dix tâches saines sans
+      restart ni stall, sept domaines sains, **zéro alarme active** (les deux alarmes
+      `sensor_quality` latchées ont disparu), trois capteurs en `normal` sans `reason_codes`,
+      compteurs d'incohérences remis à zéro, HTTP et HTTPS à 200, aucune entrée de journal en
+      WARNING ou plus depuis le démarrage, six actionneurs en `tracking=ok`
+- [x] Confirmer les seuils effectifs dans le code déployé : `freeze_epsilon = 0.0` pour les trois
+      BME280, `freeze_after_seconds` à 1 800/1 800/3 600, `freeze_min_samples = 30`, mode `observe`,
+      aucun profil surchargé ; `runtime_state.json` porte bien `freeze_anchor_value`. Suppression du
+      double arrondi visible : `raw_value = 28.523013138119133` au lieu de deux décimales
+- [x] Vérifier sur la nouvelle fenêtre que `BME280T`/`BME280H` ne produisent plus d'avertissement de
+      figement et que le statut reste `normal` sur les périodes calmes de nuit. **Clôturée le
+      1er septembre 2026 à 19:09:11 UTC** : `status=accepted`, 172 800 s réelles, 2 864 échantillons,
+      zéro échec, zéro avertissement et 2 864/2 864 statuts `normal` pour chacune des trois mesures
+      BME280. Les deux tranches nocturnes du relevé intermédiaire étaient déjà exemptes de faux
+      figement.
+- [x] Combler le manque côté API : `/api/v1/state` publie désormais `freeze_epsilon`,
+      `freeze_after_seconds` et `freeze_min_samples` avec les autres seuils effectifs ; contrat
+      documenté, testé et exigé par l'observateur. **Déployé après clôture de la fenêtre le
+      1er septembre 2026 au commit `2ecefb1`** : mode `observe` conservé, seuils effectifs conformes
+      pour les trois BME280, dix tâches saines et zéro alarme.
+
+**Points laissés ouverts, à mesurer avant activation** (ne pas régler à l'aveugle) :
+
+- `MLX-AMB` et `MLX-OBJ` conservent `freeze_epsilon = 0.05`. La sémantique est désormais saine (bande
+  morte ancrée), mais la valeur n'est appuyée sur aucune mesure de bruit — à qualifier si ces
+  capteurs sont activés.
+- `DS18Handler` arrondit encore à 0,1 °C, une grille bien plus grossière que la résolution réelle des
+  sondes. Avec `freeze_epsilon = 0.0`, un plateau prolongé dans un bac d'eau stable pourrait produire
+  un faux positif. Sondes désactivées aujourd'hui ; à traiter avant de les activer.
+
+## 3. Calibrer les profils
+
+- [ ] Comparer chaque capteur actif avec un instrument de référence adapté et consigner la méthode,
+      la date, les conditions et l'incertitude de la comparaison
+- [ ] Renseigner l'offset et la date de calibration, puis vérifier que les diagnostics, compteurs et
+      min/max concernés sont réinitialisés comme prévu
+- [ ] Ajuster, mesure par mesure, la fraîcheur, la plage plausible, l'epsilon, la durée et le nombre
+      minimal d'échantillons de figement à partir des observations réelles
+- [ ] Confirmer après chaque modification que les seuils effectifs publiés par l'API correspondent à
+      la configuration et qu'aucun ancien diagnostic calculé avec les seuils précédents ne subsiste
+- [ ] Laisser à nouveau fonctionner au moins une période représentative après le dernier ajustement
+
+## 4. Stabiliser les identités DS18B20
+
+- [ ] Si les DS18B20 restent désactivés, consigner que cette étape est non applicable ; sinon relever
+      physiquement l'identifiant `28-xxxxxxxxxxxx` de chaque sonde
+- [ ] Lier chaque `DS18B#1`, `DS18B#2` et `DS18B#3` actif à son identifiant 1-Wire stable depuis
+      `/conf`, sans utiliser l'ordre de découverte sysfs
+- [ ] Redémarrer le service et vérifier que chaque nom métier conserve la même sonde, la même
+      calibration et la même zone malgré un ordre de découverte éventuellement différent
+- [ ] Débrancher puis rebrancher une sonde pendant une procédure contrôlée et confirmer qu'elle est
+      déclarée absente puis rétablie sans emprunter l'identité d'une autre sonde
+
+## 5. Qualifier la redondance
+
+- [ ] Ne créer un groupe que pour des sondes de même unité, physiquement comparables et exposées au
+      même phénomène ; documenter leur emplacement et la tolérance retenue
+- [ ] Vérifier avec deux sondes en désaccord qu'aucune n'est choisie arbitrairement
+- [ ] Pour tout groupe de trois sondes ou plus, vérifier qu'une valeur divergente est isolée par un
+      quorum cohérent
+- [ ] Vérifier qu'un quorum indisponible produit un état dégradé ou incohérent explicite et non une
+      fausse mesure de confiance
+- [ ] Vérifier qu'après un désaccord, trois comparaisons cohérentes sont nécessaires au réarmement
+- [ ] Refaire une période d'observation après toute modification d'un groupe ou de sa tolérance
+
+## 6. Qualifier matériellement le repli
+
+- [ ] Planifier une intervention supervisée, charges haute tension consignées au premier passage,
+      conformément à `docs/development/hardware-validation.md`
+- [ ] Vérifier d'abord le repli historique sur cinq lectures de température manquées : chauffage
+      réellement OFF, moteur à `sensor_fallback_speed`, alarme persistante et GPIO cohérents
+- [ ] Simuler de façon bornée un figement plausible de `BME280T` en restant en mode `observe` et
+      confirmer que le diagnostic apparaît sans changement de sortie
+- [ ] Vérifier la récupération du figement sur trois variations plausibles réelles
+- [ ] Préparer le scénario armé avec chauffage et moteur sous surveillance, une méthode de retour
+      immédiat vers `observe` et une protection thermique indépendante fonctionnelle
+
+## 7. Armer progressivement
+
+- [ ] Avant armement, confirmer : période d'observation terminée, zéro faux positif non expliqué,
+      profils stabilisés, identités DS18B20 fixées, redondance qualifiée, matériel validé et moyen de
+      retour disponible
+- [ ] Relever le commit, l'heure, l'opérateur, les statuts qualité, l'état climatique, les GPIO,
+      `control_healthy()`, le watchdog et les alarmes actives
+- [ ] Dans `/conf`, passer de `observe` à `enforce` en saisissant explicitement `ARMER`
+- [ ] Vérifier immédiatement qu'une incohérence déjà confirmée déclenche `REPLI_CAPTEUR` sans attendre
+      une nouvelle lecture : chauffage OFF et moteur à `sensor_fallback_speed`
+- [ ] Vérifier qu'en l'absence d'incohérence confirmée l'armement ne provoque ni clignotement de relais,
+      ni transition moteur, ni redémarrage anormal d'une tâche
+- [ ] Surveiller étroitement un premier cycle complet, puis une période représentative, avec contrôle
+      conjoint de l'API, des alarmes, d'InfluxDB, des GPIO et de l'état physique de la serre
+
+## 8. Rollback et critères de clôture
+
+- [ ] Tester le retour `enforce` → `observe` et confirmer qu'une décision qualité déjà en cache perd
+      immédiatement son autorité de blocage sans nécessiter de nouvelle lecture matérielle
+- [ ] Exercer si nécessaire le rollback applicatif selon la procédure documentée, sans modifier les
+      identités ni effacer les preuves de calibration
+- [ ] Confirmer après retour ou rollback : service prêt, contrôle sain, watchdog caressé, sorties
+      cohérentes, données de confiance non contaminées et alarmes expliquées
+- [ ] Mettre à jour le changelog, la roadmap, le registre des risques et un relevé d'exploitation avec
+      les dates, seuils retenus, résultats et limites résiduelles
+- [ ] Ne déclarer la qualité capteurs « déployée et armée » qu'après clôture de toutes les cases
+      applicables et preuve qu'aucune étape n'a dégradé la régulation ou la sûreté électrique
+
+**Limites à conserver dans la clôture** : la détection logicielle ne couvre pas un défaut commun à
+plusieurs sondes, un figement plus court que le seuil, un relais mécaniquement collé, la fenêtre de
+boot ou une défaillance du Pi. Le thermostat ou fusible thermique indépendant reste obligatoire.
+
+---
+
 # TODO — Refonte de la journalisation (plan `tasks/logging_refonte_plan.md`)
 
 ## P3 — Sécurité
@@ -165,7 +381,8 @@ de `GENERIC_SAFE_PINS` dans `main.py`.
 
 - [ ] Commiter, déployer sur le Pi et relever le comportement réel (`/health/ready`, console SSE,
       sauvegarde d'une section, bascule capteur)
-- [ ] `scripts/deploy.sh` : passer la sonde de `/status` à `/health/ready`
+- [x] `scripts/deploy.sh` : qualifier service, liveness, readiness, contrôle, commit, alarmes critiques
+      et stabilité continue avant succès ou après rollback
 - [ ] Transformer le harnais de fumigation HTTP en vérification reproductible
 - [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop
 - [ ] Contraintes GPIO (unicité, broches réservées) — dépend du `PinRegistry` du lot 3
@@ -226,3 +443,293 @@ harnais `/tmp/claude-1000/phyto/test_fixes.py`, **21 contrôles, aucun échec**)
 
 - Le Pi exécute `aiohttp 3.11.18`, sous le plancher `>=3.12.15` du nouveau `requirements.txt` :
   `scripts/deploy.sh` met le venv à jour automatiquement, une installation manuelle non.
+
+---
+
+# TODO — Qualification opérationnelle de la PWA locale
+
+**État : code et HTTPS `:443` déployés ; transport TLS vérifié le 28 août 2026, qualification complète
+sur Chrome Android et essais de dégradation encore ouverts.** Relevé :
+[`docs/operations/pwa-tls-activation-2026-08-28.md`](../docs/operations/pwa-tls-activation-2026-08-28.md).
+
+Procédure de référence : [`docs/operations/pwa-local-tls.md`](../docs/operations/pwa-local-tls.md).
+HTTP `:8123` doit rester la voie de compatibilité et de récupération pendant toute la qualification.
+Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()` ou le watchdog.
+
+## 1. Préparer et activer TLS
+
+- [ ] Créer l'autorité privée sur le poste d'administration, dans un emplacement protégé situé hors
+      du dépôt ; conserver et sauvegarder `phyto-root-ca.key` hors du Raspberry Pi et d'Android
+- [x] Générer le certificat serveur avec `deploy/pwa-tls-server.ext`, puis vérifier sa chaîne, son
+      échéance, l'usage `TLS Web Server Authentication` et les SAN `phytocontroller.local`,
+      `phytocontroller` et `10.42.0.1`
+- [x] Comparer et consigner l'empreinte SHA-256 de `phyto-root-ca.crt` avant toute distribution
+- [x] Installer sur le Pi uniquement `server.crt`, `server.key` et le certificat public de la racine,
+      avec les propriétaires et modes documentés ; confirmer que la clé privée est lisible par
+      `progradius` mais pas par les autres utilisateurs
+- [ ] Installer le drop-in `deploy/phyto.service.d/pwa-tls.conf`, exécuter `daemon-reload`, puis
+      planifier le redémarrage comme une opération de production avec vérification des états GPIO sûrs
+- [x] Vérifier que `:8123` et `:443` écoutent simultanément, que `/health/ready` répond sur HTTP et que
+      `/health/live` répond en HTTPS avec validation complète de la chaîne et du nom d'hôte
+- [x] Vérifier dans `/api/v1/state` que `web.https.configured=true`, `ready=true` et `port=443`, sans
+      exposition des chemins de clé ou de certificat
+- [ ] Simuler un échec TLS contrôlé pendant une fenêtre prévue et confirmer que HTTP `:8123`, la
+      régulation, `control_healthy()` et le watchdog restent sains, avec `web.https.ready=false`
+
+## 2. Installer et contrôler la PWA sur Chrome Android
+
+- [ ] Transférer uniquement `phyto-root-ca.crt` sur le terminal Android et comparer son empreinte
+      SHA-256 avec celle consignée sur le poste d'administration
+- [ ] Installer la racine comme autorité pour les applications ; ne jamais transférer
+      `phyto-root-ca.key`, `server.key` ni un fichier PKCS#12 sur le terminal
+- [ ] Ouvrir `https://phytocontroller.local/` dans Chrome et vérifier l'absence d'interstitiel ou
+      d'avertissement TLS
+- [ ] Installer la PWA avec le bouton du tableau de bord et confirmer le lancement en fenêtre
+      autonome, l'icône normale/maskable et le nom `PhytoController`
+- [ ] Vérifier les raccourcis d'écran d'accueil « Tableau de bord » et « Alarmes » et confirmer qu'ils
+      ouvrent la bonne vue dans la PWA
+
+## 3. Qualifier la coupure réseau et la fraîcheur dominante
+
+- [ ] En ligne, ouvrir le tableau de bord et les alarmes, attendre au moins un rafraîchissement réussi
+      de l'état, des alarmes et de l'historique, puis relever leurs heures de réception
+- [ ] Couper réellement le réseau entre Android et le Pi sans arrêter la PWA
+- [ ] Vérifier que la bannière rouge `HORS LIGNE` apparaît rapidement et reste visible sur toutes les
+      vues avec « données datant au mieux de… · non actualisées · lecture seule »
+- [ ] Vérifier que l'âge affiché augmente avec le temps et qu'aucun snapshot IndexedDB ne remet la vue
+      en état « à jour »
+- [ ] Vérifier que les dernières vues Tableau de bord et Alarmes restent lisibles, que l'historique
+      annonce explicitement l'âge de son snapshot et que les alarmes stockées portent « État non
+      confirmé » / « Lecture seule hors ligne »
+- [ ] Vérifier que tous les formulaires et boutons de mutation sont désactivés hors ligne, notamment
+      acquittement, configuration, remise à zéro, reboot et extinction
+- [ ] Inspecter Cache Storage et confirmer l'absence de `/api/**`, `/health/**`, `/status`, du SSE et
+      de toute requête POST ; confirmer qu'aucune commande n'est mise en attente ou rejouée
+- [ ] Tenter d'ouvrir `/conf`, `/console` et une URL inconnue hors ligne : elles doivent afficher le
+      repli neutre, jamais une ancienne page de configuration ou de console
+
+## 4. Qualifier la reconnexion
+
+- [ ] Rétablir le réseau et confirmer que la bannière ne disparaît qu'après une réponse HTTP réelle du
+      contrôleur, jamais sur le seul événement navigateur `online`
+- [ ] Si la PWA a démarré hors ligne, confirmer qu'elle recharge une seule fois la vue après le premier
+      contact réussi, sans boucle de rechargement
+- [ ] Vérifier que l'état, les alarmes et l'historique redeviennent frais, que les actions sont
+      réactivées et qu'aucune mutation ancienne n'est envoyée
+- [ ] Répéter au moins deux cycles coupure/reconnexion et confirmer que l'âge, la bannière et les
+      snapshots restent cohérents
+
+## 5. Qualifier les notifications locales
+
+- [ ] Depuis la page Alarmes, vérifier que Chrome ne demande aucune permission avant le clic explicite
+      sur « Activer les notifications »
+- [ ] Activer les notifications et confirmer que les alarmes déjà présentes servent de référence sans
+      déclencher une rafale rétrospective
+- [ ] Provoquer de façon sûre une **nouvelle** alarme non acquittée affectant le contrôle, puis vérifier
+      une notification unique, son libellé minimal et l'ouverture du bon diagnostic au toucher
+- [ ] Vérifier qu'une alarme auxiliaire non critique ne notifie pas et qu'une alarme critique notifie
+      même si elle est auxiliaire
+- [ ] Vérifier qu'un rafraîchissement de la même occurrence UUID ne renotifie pas ; vérifier qu'une
+      escalade de gravité peut renotifier une fois
+- [ ] Couper le réseau avec un snapshot d'alarme enregistré et confirmer que sa restauration ne
+      déclenche aucune notification
+- [ ] Désactiver les notifications depuis l'IHM et confirmer qu'aucune nouvelle notification locale
+      n'est émise
+- [ ] Consigner la limite attendue : aucune garantie lorsque Chrome suspend ou ferme complètement la
+      PWA, puisqu'il n'existe ni Web Push ni service externe
+
+## 6. Exercer le rollback contrôlé
+
+- [ ] Avant rollback, relever le commit, l'état de `phyto.service`, `NRestarts`, `/health/ready`, les
+      sorties physiques et la disponibilité simultanée de `:8123` et `:443`
+- [ ] Effectuer le rollback selon `docs/operations/deployment-and-rollback.md`, sans `git reset --hard`
+      improvisé et sans supprimer les certificats sous `/etc/phyto/tls`
+- [ ] Confirmer après rollback que la régulation et HTTP `:8123` sont sains, même si `:443` disparaît
+      avec une version antérieure à la PWA
+- [ ] Confirmer que la PWA déjà installée reste honnêtement hors ligne avec son dernier snapshot et ne
+      présente jamais ces données comme actuelles
+- [ ] Redéployer la version PWA, vérifier le retour de `:443`, l'actualisation du service worker et le
+      rétablissement des données fraîches
+- [ ] Si la coque locale reste bloquée sur une ancienne version, exercer puis documenter la procédure
+      de désinstallation ou d'effacement des données du site Chrome
+
+## Critères de clôture
+
+- [ ] Toutes les cases précédentes sont accompagnées d'une date, du terminal Android/Chrome utilisé et
+      des observations utiles, sans recopier de secret ni de clé
+- [ ] Aucun défaut TLS, cache, notification ou navigateur observé pendant la qualification n'a affecté
+      les boucles de contrôle, les sorties GPIO, `control_healthy()` ou le watchdog
+- [ ] La clé `phyto-root-ca.key` est absente du Pi, d'Android, de Git et des sauvegardes applicatives
+- [ ] Les risques `R-WEB-05` et `R-WEB-06` de `docs/risk-register.md` sont réévalués avec les preuves de
+      qualification avant de déclarer la PWA déployée et vérifiée
+
+---
+
+# TODO — Jalon 3 « Configuration guidée » (plan `qol_operator_experience_plan.md`)
+
+**Arbitrages opérateur du 28 août 2026**
+
+- Profil thermique du mode Simple : **aligné sur la configuration déployée**, pas sur la proposition
+  du plan — hystérésis 2 °C, zone morte 1 °C, palier 1 °C, relâchement 0,5 °C, maintien 120 s,
+  plancher 5 °C, repli capteur 0, marge hiver 2 °C, budgets renouvellement 5 min/h et humidité
+  15 min/h, vitesse minimale 0, vitesse hiver par défaut 1. Passer en mode Simple ne modifie donc
+  aucun réglage fin tant que l'opérateur ne touche pas aux champs exposés.
+- Intensité douce / normale / forte : **mapping du plan conservé** (2/2, 3/3, 4/4 pour
+  `max_speed` / `winter_refresh_speed`). Rappel consigné : les vitesses moteur 1 et 3 sont hors
+  service côté puissance, « normale » commande donc une vitesse morte tant que la panne dure.
+- Livraison en **trois commits** déployables et retirables séparément.
+
+## Commit 1 — 3a formulaire sans perte + 3b registre central des champs
+
+- [x] Étendre `SECTION_FIELDS` en registre : chaque entrée porte sa cible de configuration **et**
+      son libellé humain ; supprimer les listes de noms dupliquées
+- [x] Construire l'index inverse `payload → champ de formulaire` à partir du même registre
+      (horaires compris : `*_hour` / `*_minute` → `start_time` / `stop_time`)
+- [x] Humaniser les messages Pydantic (table type → phrase française, bornes injectées depuis `ctx`)
+- [x] Rattacher les contraintes croisées aux deux champs concernés (min/max jour, min/max nuit,
+      vitesse min/max) au lieu d'une erreur globale
+- [x] Re-rendre la saisie du POST sur 422 (multidict), secrets jamais réémis, portée par formulaire
+      (`sensor-quality` porté par sa clé capteur)
+- [x] Afficher l'erreur sous le champ (`aria-describedby`, `aria-invalid`), bandeau global réservé
+      aux erreurs non rattachables
+- [x] Focus sur le premier champ refusé ; un champ numérique refusé se re-rend en texte pour que la
+      valeur rejetée reste visible et corrigeable
+- [x] Factoriser les quatre réponses 422/500 de `_configuration_post` en un seul point
+- [x] Tests : saisie conservée, secret absent du HTML, contrainte croisée rattachée, message humanisé
+
+## Commit 2 — 3c prévisualisation serveur
+
+- [x] `POST /api/v1/config/preview` : mêmes parseurs, candidat Pydantic complet, aucune écriture
+- [x] Garde d'in-flight (un preview à la fois) + intervalle minimum, corps jamais journalisé,
+      aucun champ sensible en réponse, jeton en en-tête `X-CSRF-Token`
+- [x] Réponse portant le **seuil de ventilation effectif** reconstruit par `settings_from_config`
+      (jour et nuit), l'indicateur « seuil relevé » et les écarts détectés
+- [x] IHM : encart de prévisualisation par section, aucune formule thermique dupliquée en JavaScript
+
+## Commit 3 — 3d mode Simple, dirty-check et flash
+
+- [x] Sélecteur Simple / Avancé, simple par défaut, choix mémorisé en `localStorage`
+- [x] Section Simple : planning jour/nuit, min/max jour et nuit, humidité max, intensité, saison,
+      chauffage, plannings ; profil et mapping ci-dessus
+- [x] Un `motor_mode` manuel existant exige un choix explicite avant toute écriture
+- [x] Le mode Simple ne s'affiche que si la prévisualisation répond
+- [x] Dirty-check sur écarts réels, bouton d'annulation, `beforeunload`
+- [x] Flash opaque côté serveur après succès : champs modifiés, heure, mode d'application
+
+## Vérification (identique pour les trois commits)
+
+- [ ] `python -m pyflakes` sur tout l'arbre — 0 « undefined name » (leçon du 26 août 2026)
+- [ ] `python3 -m pytest` vert, sortie conservée dans un fichier temporaire
+- [ ] Aucun secret dans le HTML rendu ni dans les journaux
+- [ ] `diff -u CLAUDE.md AGENTS.md` vide si l'un des deux change
+
+## Revue — Jalon 3 livré le 28 août 2026
+
+Trois commits sur `feature/qol-operator-experience`, déployables et retirables séparément :
+
+| Commit | Contenu |
+|---|---|
+| `5c4256a` | 3a + 3b — registre de champs, saisie conservée sur 422, messages humanisés |
+| `ee42a78` | 3c — `POST /api/v1/config/preview` et seuil de ventilation effectif |
+| `f9e7273` | 3d — mode Simple, suivi des écarts, compte rendu opaque |
+| `054e173` | correctifs de revue — compte rendu équipements, octet nul dans `config.js` |
+
+**Critère du plan** — « aucune erreur ne force à ressaisir la section entière, aucun secret ne
+réapparaît et le mode simple a un effet déterministe prévisualisé (seuil effectif inclus) » :
+couvert et testé (`tests/test_http_server.py`, 141 tests verts).
+
+**Écart assumé par rapport au plan.** Le profil du mode Simple reprend les valeurs déployées et non
+celles proposées par le plan (hystérésis 2 °C au lieu de 1 °C, budgets hiver 5/15 au lieu de 8/6) —
+arbitrage opérateur, pour qu'un passage en mode Simple ne modifie aucune régulation par lui-même.
+Le mapping d'intensité du plan est conservé tel quel, malgré les vitesses moteur 1 et 3 hors
+service côté puissance.
+
+**Limite connue, à consigner.** La stickiness des sous-fiches « qualité capteur » conserve la
+saisie mais laisse le message d'erreur dans le bandeau global : ces formulaires ne passent pas par
+`SECTION_FIELDS`, donc aucune erreur n'y est rattachable à un champ. Le reste des sections place
+bien le message sous le champ.
+
+**Reste à faire avant de déclarer le jalon vérifié** (hors portée d'une session sans matériel) :
+
+- [ ] Déploiement via `scripts/deploy.sh`, puis vérification HTTP et états GPIO
+- [ ] Essai navigateur réel du sélecteur Simple / Avancé, du `beforeunload` et de l'annulation
+- [ ] Vérifier sur le Pi qu'aucun secret n'apparaît dans `logs/phyto.log` après un refus de la
+      section `wifi` et de la section `influx`
+- [ ] Critère de rollback écrit à l'avance et rollback exercé
+
+# TODO — Jalon 4 « Overrides force-OFF, console et système » (plan `qol_operator_experience_plan.md`)
+
+## Arbitrages opérateur (28 août 2026)
+
+| Sujet | Décision |
+|---|---|
+| Force-OFF moteur vs protections thermiques | **Verrouillage absolu** — prime sur `REPLI_CAPTEUR` et `SECURITE_HAUTE` (écart assumé au plan v2) |
+| Durée maximale | 4 h chauffage **et moteur** (garde-fou dérivé), 24 h ailleurs ; défaut 60 min |
+| Coupure groupée | Oui — « Arrêt général (maintenance) » déplie les six cibles |
+| Visibilité | Bannière globale dédiée + événement `override` en historique ; pas d'alarme pour le forçage lui-même |
+
+Garde-fou compensatoire au verrouillage absolu : alarme `critical`
+`motor_lockout_overheat` dès que la température dépasse le seuil de ventilation
+effectif pendant qu'un forçage empêche de ventiler.
+
+## Commit 1 — Overrides force-OFF
+
+- [x] `utils/overrides.py` : `ForcedOff` (double horloge), `OverrideStore`, plafonds par cible,
+      reprise au boot rebornée et « à confirmer » avant heure fiable
+- [x] `utils/state_store.py` : `save(..., strict=True)` qui relance l'`OSError`, défaut inchangé
+- [x] `climate_policy` : quatre échéances dans `ClimateInputs`, `_forced_off()` pur,
+      `STATE_FORCED_OFF`, `ALARM_MOTOR_LOCKOUT`
+- [x] Moteur : première branche de `_decide_motor`, avant `manual` et `sensor_lost`, `immediate=True`
+- [x] Chauffage : post-filtre dans `decide()` — alarmes, compteur et cooldown préservés,
+      `vent_threshold` intouché
+- [x] `climate_control` : une lecture du magasin par tick, snapshot et modes publiés
+- [x] Minuteries journalière et cyclique : lecture en tête de boucle, tranche ≤ 30 s
+- [x] `main.py` : reprise avant l'initialisation des composants
+- [x] Routes `POST /actions/overrides/create` et `/cancel`, cible `all`, 500 si non persisté,
+      `request_reload` des minuteries seulement
+- [x] `/api/v1/state` : clé `overrides` additive, avec plafonds
+- [x] IHM : section « Interventions », dialogues, bannière globale (`render_template`), CSS
+- [x] `OperatorService` : `record_override_event`, définition `motor_lockout_overheat`
+- [x] Tests : `tests/test_overrides.py` (16), matrice pure (13), routes HTTP (10)
+- [x] `pyflakes` 0 « undefined name », `pytest` 190 verts, aucun octet nul, `diff CLAUDE.md AGENTS.md` vide
+
+## Commit 2 — Console
+
+- [x] Flux SSE structuré JSON, tampon serveur 2 000 lignes
+- [x] Barre d'outils : pause, autoscroll, filtres niveau/composant, recherche, compteurs,
+      copie, téléchargement, effacement de la vue
+- [x] Tampon client borné à 2 000, `textContent` uniquement
+- [x] Paramètres d'URL `level` / `component` / `q`, liens d'alarme enrichis
+- [x] Tests : JSON structuré, message multiligne, borne 2 000, absence d'`innerHTML`, liens
+
+## Commit 3 — Reboot / extinction
+
+- [x] Réponse 202 immédiate, commande différée, code retour toujours journalisé
+- [x] Page de suivi + `system.js` : indisponibilité puis deux `/health/live`, échec probable à 30 s
+- [x] `POST /monitor` legacy sur le même chemin, URL finale inerte
+- [x] `_spawn_system_command` isolé : la suite de tests ne démarre jamais un vrai `reboot`
+- [x] Tests : 202 avant lancement, argv correct, `/monitor` legacy, garde-fous du script
+
+## Vérification du jalon 4
+
+- [x] `pyflakes` sur tout l'arbre — 0 « undefined name »
+- [x] `pytest` — 200 tests verts (`/tmp/pytest-j4j.txt`)
+- [x] Aucun octet nul dans les fichiers texte (leçon du 28 août 2026)
+- [x] `diff -u CLAUDE.md AGENTS.md` vide
+- [x] Déploiement `scripts/deploy.sh` commit par commit, vérification HTTP et états GPIO sur le Pi
+      (2 septembre 2026 — voir `docs/operations/jalon4-deploiement-2026-09-02.md`)
+- [x] Verrou moteur absolu qualifié sur matériel : mode manuel vitesse 2 → quatre broches LOW,
+      puis retour à la vitesse 2 à la levée
+- [x] Expiration automatique et reprise après redémarrage qualifiées sur le Pi
+- [x] Raison d'un forçage absente de `phyto.log` et de `journalctl`
+- [x] Essai réel d'un redémarrage : 202 avant coupure, disparition, `boot_id` changé,
+      deux `/health/live` puis retour annoncé, GPIO identiques à la référence
+- [x] Coupure en pleine impulsion qualifiée sur la serre : forçage créé pendant une phase ON
+      séquentielle de `cyclic_2`, `energized()` coupe le relais à la seconde sur annulation de la
+      tâche, et la phase reprend depuis l'état persisté à l'expiration
+- [ ] Console : stabilité à 2 000 lignes en observation longue
+
+La **coupure sur faute** est sortie du périmètre du jalon 4 (arbitrage du 2 septembre 2026) : le
+jalon ne touche pas au chemin `energized()`, sa moitié logicielle est couverte par la suite de
+tests, et sa moitié électrique appartient à `docs/development/hardware-validation.md`, où elle
+était déjà inscrite (« Relais actifs-BAS » étapes 4-5, « Supervision et arrêt » étape 1).

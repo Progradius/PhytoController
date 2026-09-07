@@ -48,7 +48,11 @@ La production utilise l'utilisateur `progradius` et le chemin `/home/progradius/
 
 ## Configuration
 
-`param/param.json` est actuellement requis au boot. Il contient des secrets et ne doit pas être construit à partir d'un exemple avec des valeurs de production.
+`param/param.json` est requis au boot, contient des secrets et reste propre à la machine : il est ignoré
+par Git. `param/param.example.json` inventorie le schéma avec les sorties désactivées et des valeurs
+fictives. Pour une nouvelle installation, le copier vers `param/param.json`, renseigner les identifiants,
+vérifier chaque GPIO contre le câblage réel, puis valider le modèle avant de raccorder les charges. Ne
+jamais forcer le fichier vivant dans Git.
 
 Avant démarrage :
 
@@ -85,6 +89,11 @@ sudo systemctl start phyto
 systemctl status phyto --no-pager
 curl -fsS http://127.0.0.1:8123/status | jq '{healthy, heater_alarm, tasks}'
 ```
+
+La PWA demande en plus une autorité privée, un certificat serveur et le drop-in qui autorise le bind
+sur `:443`. Cette étape est volontairement séparée de l'installation de base : suivre
+[PWA locale et autorité TLS privée](pwa-local-tls.md), puis vérifier les deux transports avant
+d'installer l'autorité sur Android.
 
 ## Mise en service progressive
 

@@ -6,6 +6,96 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ## Non publié
 
+### Finition et lecture opérationnelle de l'interface web
+
+- Les requêtes vivantes sont maintenant bornées dans le temps et distinguent une perte de réseau
+  d'un service HTTP dégradé ; seules les pertes de transport basculent l'interface en lecture seule.
+- Le tableau de bord expose la phase jour/nuit et les consignes climatiques effectives, actualise les
+  compteurs d'alarme et rend les confirmations d'action visibles sans perturber les lecteurs d'écran.
+- L'historique fournit un bilan métier de la période et accepte des notes opérateur locales, affichées
+  comme événements sur les courbes sans aucun effet sur la régulation.
+- La configuration évite le saut visuel du mode avancé vers le mode mémorisé et conserve une barre de
+  modifications persistante sur grand comme petit écran.
+- La police de marque est réparée et accompagnée de sa licence ; contraste renforcé, couleurs système
+  forcées, navigation mobile et tests WCAG 2.2 complètent la passe d'accessibilité.
+
+### Protection de la configuration pendant les déploiements
+
+- `param/param.json` et `param/equipment_metadata.json` deviennent des fichiers strictement locaux,
+  ignorés par Git ; un exemple neutre et sans identifiants réels documente désormais le schéma.
+- `scripts/deploy.sh` prend un verrou exclusif avant toute sauvegarde et refuse un second lancement,
+  fige la cible par SHA et rejette toute révision qui versionne encore un fichier vivant.
+- Le déploiement ne remet plus jamais `param/` à l’état Git, même momentanément ; l’option dangereuse
+  `--config-git` est supprimée et explicitement refusée.
+- Les contextes Docker excluent les secrets et états locaux ; une configuration doit être montée
+  explicitement au lancement du conteneur.
+- Régressions couvertes : concurrence, option interdite, absence de checkout sur la configuration et
+  validation d’un exemple dont toutes les sorties sont neutralisées.
+
+### Observabilité des seuils capteurs
+
+**Déployée et vérifiée sur le Pi le 1er septembre 2026 au commit `2ecefb1` ; mode qualité resté
+`observe`.**
+
+- `/api/v1/state` publie désormais, pour chaque mesure active, `freeze_epsilon`,
+  `freeze_after_seconds` et `freeze_min_samples` en plus de la fraîcheur et de la plage plausible.
+  L'observateur jalon 2 vérifie leur présence, ce qui rend les profils effectifs auditables sans
+  lecture directe de la configuration du Pi.
+
+### Calibration et qualité des capteurs
+
+**Implémentée et vérifiée hors matériel ; mode initial `observe`, non encore qualifié ni armé sur le Pi.**
+
+- Catalogue unique enrichi par mesure : limites plausibles, fraîcheur, seuil de variation, durée et
+  échantillons de figement, rôle éventuel dans le contrôle.
+- Profils `Sensor_Quality` persistants : offset, date/validité de calibration, surcharges de seuils,
+  identités DS18B20 stables et groupes redondants validés.
+- Moteur de qualité pur avec états `normal`, `degraded`, `absent`, `inconsistent`, compteurs
+  persistants, récupération sur trois échantillons et séparation brute/observée/qualifiée.
+- Déploiement en deux temps : observation sans changement de sorties, puis armement explicite par
+  confirmation `ARMER`. Une incohérence thermique confirmée déclenche alors immédiatement
+  `REPLI_CAPTEUR` ; une acquisition simplement manquée conserve le garde-fou historique à cinq essais.
+- `/api/v1/state` passe au schéma 2 ; tableau de bord, centre d'alarmes, historique SQLite v2 et point
+  Influx `sensor_quality` publient le diagnostic sans réintroduire une valeur suspecte dans les séries
+  de confiance.
+- Interface `/conf` pour calibrer, lier les identités 1-Wire, configurer la redondance, observer puis
+  armer, et réinitialiser explicitement les diagnostics.
+
+### Qualification du déploiement
+
+- Le processus publie désormais le commit Git figé à son démarrage dans `/health/live` et
+  `/api/v1/state`.
+- `scripts/deploy.sh` exige le service actif, liveness, readiness 200, santé du contrôle, commit
+  attendu et zéro alarme critique pendant 15 secondes continues avant de conclure au succès.
+- Toute rupture remet la fenêtre de stabilité à zéro ; le rollback est qualifié par les mêmes critères.
+
+### Validation automatisée minimale
+
+- Suite `pytest` sans matériel couvrant la politique climatique et ses invariants, les quotas hiver,
+  le repli capteur, la durée maximale de chauffe, les horaires jour/nuit, `ConfigStore`, le superviseur
+  et les protections HTTP.
+- Faux `RPi.GPIO` enregistrant les transitions des relais actifs-BAS et du moteur actif-HAUT, y compris
+  la coupure sur exception/annulation et le passage tout-LOW avant un changement de vitesse.
+- Configuration de test entièrement fictive et écritures confinées aux répertoires temporaires ; aucune
+  commande reboot/poweroff n'est exécutée.
+- Protocole de qualification électrique séparé : la suite automatique ne prétend pas remplacer la
+  vérification sur Raspberry Pi, relais puis charges sous surveillance.
+
+### PWA locale
+
+**Implémentée, non déployée et non encore qualifiée sur Android.**
+
+- Second point d'écoute HTTPS aiohttp optionnel, en parallèle du HTTP historique `:8123` ; une panne
+  TLS reste auxiliaire et ne coupe ni l'IHM HTTP, ni le contrôle.
+- Manifeste `standalone`, icônes normale/maskable et raccourcis Tableau de bord/Alarmes.
+- Service worker limité aux assets et aux dernières pages de lecture : API, SSE et mutations restent
+  strictement réseau, sans Background Sync ni rejeu.
+- Derniers snapshots état/alarmes/historique conservés dans IndexedDB, toujours accompagnés d'une
+  bannière « HORS LIGNE — données datant de… — lecture seule » et d'actions désactivées.
+- Notifications locales opt-in pour les alarmes de contrôle ou critiques, dédupliquées par UUID et
+  seulement lorsque la PWA reste exécutée ; aucun Web Push ni service externe.
+- Artefacts systemd, extension de certificat et procédure d'autorité locale versionnés.
+
 ### Arbitre thermique unifié (audit — phase 2)
 
 **Code `e93644a` ; déployé et vérifié sur le Pi le 26 août 2026** (`a04abbd`) — relevé dans
