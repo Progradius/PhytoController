@@ -220,7 +220,7 @@ test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau
   await photoForm.getByLabel("Légende", {exact: true}).fill("Image de test du carnet");
   await photoForm.getByLabel("Photo", {exact: true}).setInputFiles({name: "faux.jpg", mimeType: "image/jpeg", buffer: Buffer.from("<svg></svg>")});
   await photoForm.getByRole("button", {name: "Enregistrer la photo"}).click();
-  await expect(photoForm.locator("output")).toContainText("Photo invalide");
+  await expect(photoForm.locator(".culture-form-errors")).toContainText("Photo invalide");
   await expect(photoForm.getByLabel("Légende", {exact: true})).toHaveValue("Image de test du carnet");
   // Image synthétique issue de la page de test ; aucune photo de l'exploitation.
   const photo = await page.screenshot({type: "jpeg", clip: {x: 0, y: 0, width: 250, height: 150}});

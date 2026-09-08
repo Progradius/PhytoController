@@ -92,10 +92,15 @@
     const errorId = `${control.id}-error`;
     let note = document.getElementById(errorId);
     if (!note) {
-      note = document.createElement("p");
+      // Le message va **dans** le <label> enveloppant, en dernier : posé après lui, il
+      // deviendrait une cellule de plus dans une grille de champs et se retrouverait à côté
+      // du champ refusé au lieu de rester sous lui. Un <span> parce qu'un <p> est interdit
+      // dans un <label>. `unmark`/`clearField` le retrouvent par son identifiant.
+      note = document.createElement(label ? "span" : "p");
       note.className = "field-error";
       note.id = errorId;
-      (label || control).after(note);
+      if (label) label.append(note);
+      else control.after(note);
     }
     // Jamais d'injection : le message du serveur reste du texte.
     note.textContent = message;

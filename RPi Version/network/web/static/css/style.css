@@ -140,14 +140,18 @@ progress::-webkit-progress-bar { background: var(--soft); } progress::-webkit-pr
 input, select { min-height: 44px; width: 100%; padding: .65rem .75rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-size: 16px; }
 input:hover, select:hover { border-color: var(--green); }
 input:user-invalid { border-color: var(--red); }
-input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--red); }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--red); }
 .compact-time-control { width: min(100%, 19rem); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: .55rem; }
 .compact-time-part { min-width: 0; display: grid; gap: .25rem; color: var(--muted); font-size: .76rem; font-weight: 500; }
 .compact-time-part input { min-width: 0; text-align: center; font-size: 1.08rem; font-variant-numeric: tabular-nums; font-weight: 700; }
 .compact-time-separator { min-height: 44px; display: inline-flex; align-items: center; color: var(--muted); font-size: 1.3rem; font-weight: 700; }
 .compact-time-control[aria-invalid="true"] input { border-color: var(--red); }
-.field-invalid > label, .field-invalid legend { color: var(--red); }
-.field-error { margin: .38rem 0 0; color: var(--red); font-size: .84rem; font-weight: 650; }
+/* `.field-invalid` est posée sur l'enveloppe du champ par la configuration, et sur le
+   <label> enveloppant lui-même par les formulaires du carnet. */
+.field-invalid > label, .field-invalid legend, label.field-invalid { color: var(--red); }
+/* Rendu en <span> à l'intérieur du <label> du carnet : sans `display: block` le message
+   se placerait à côté du champ au lieu de rester sous lui. */
+.field-error { display: block; margin: .38rem 0 0; color: var(--red); font-size: .84rem; font-weight: 650; }
 .preview-panel { margin: 1rem 0; padding: .85rem 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--soft); font-size: .86rem; }
 .preview-panel p { margin: .25rem 0; color: var(--muted); }
 .preview-panel .preview-title { color: var(--text); font-weight: 650; }

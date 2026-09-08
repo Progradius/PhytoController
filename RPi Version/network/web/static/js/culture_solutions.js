@@ -41,8 +41,25 @@
   document.querySelectorAll(".solution-form").forEach(form => {
     forms.register(form);
     const get = name => form.elements[name]?.value || "";
-    const products = () => Array.from(form.querySelectorAll("[data-product]"), (row, index) => ({product: row.querySelector('[name="product"]').value,
-      quantity: decimal(row.querySelector('[name="quantity"]').value, "quantity", index), unit: row.querySelector('[name="unit"]').value})).filter(p => p.product.trim() || p.quantity !== null);
+    // Le serveur numérote les ingrédients dans **la liste qu'il a reçue**, filtrée des lignes
+    // vides : `sentProducts[i]` retient le rang DOM de la ligne à l'origine du i-ème envoi.
+    // Sans cette table, un refus sur le deuxième produit envoyé désignerait le deuxième
+    // produit de la page, qui peut en être un autre. Les refus locaux, eux, portent déjà le
+    // rang DOM et n'ont rien à traduire.
+    let sentProducts = [];
+    const products = () => {
+      sentProducts = [];
+      const list = [];
+      Array.from(form.querySelectorAll("[data-product]")).forEach((row, rank) => {
+        const entry = {product: row.querySelector('[name="product"]').value,
+          quantity: decimal(row.querySelector('[name="quantity"]').value, "quantity", rank),
+          unit: row.querySelector('[name="unit"]').value};
+        if (!entry.product.trim() && entry.quantity === null) return;
+        sentProducts.push(rank);
+        list.push(entry);
+      });
+      return list;
+    };
     const effective = form.elements.effective_at;
     if (effective?.dataset.instant) {
       const d = new Date(effective.dataset.instant);
@@ -166,6 +183,9 @@
           const recipe = form.elements.recipe_id.selectedOptions[0];
           if (recipe.value) {
             if (!form.elements.confirm_recipe.checked) throw invalid("Vérifier les quantités avant validation.", "confirm_recipe");
+            // Les ingrédients viennent alors de la recette, pas des lignes de la page :
+            // aucun rang DOM à traduire, et la table doit cesser de désigner les anciennes.
+            sentProducts = [];
             Object.assign(command, {recipe_id: recipe.value, recipe_revision: Number(recipe.dataset.revision),
               ingredients: JSON.parse(recipe.dataset.ingredients).map(p => ({...p, quantity: p.quantity * (command.volume_l / Number(recipe.dataset.volume))}))});
           }
@@ -181,7 +201,9 @@
       if (answer.offline || answer.busy) return;
       if (!answer.ok) {
         const data = answer.data || {};
-        forms.showError(form, {...data,
+        const rank = ["product", "quantity", "unit"].includes(data.field) && typeof data.index === "number"
+          ? sentProducts[data.index] : undefined;
+        forms.showError(form, {...data, ...(rank === undefined ? {} : {index: rank}),
           error: `${data.error} Saisie conservée.${answer.status === 409 ? " Ouvrir cette page dans un nouvel onglet pour consulter la version actuelle." : ""}`});
         return;
       }

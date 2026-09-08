@@ -30,9 +30,7 @@ saisie n'est mise en attente ni rejouée — le formulaire garde la saisie à l'
 
 `/cultures` commence par un bloc daté du jour, dans le fuseau du carnet :
 
-1. **Trois raccourcis** — saisir un relevé, noter une observation, créer une culture. Le raccourci
-   d'observation mène directement à la fiche lorsqu'une seule culture est suivie, sinon à la liste.
-2. **Les rappels classés** : *En retard*, *Aujourd'hui*, *Terminés aujourd'hui*, puis un simple
+1. **Les rappels classés** : *En retard*, *Aujourd'hui*, *Terminés aujourd'hui*, puis un simple
    décompte « n à venir » qui renvoie aux cycles. Les rappels en retard et du jour sont
    **actionnables sur place** : « Marquer fait », « Reporter » ou « Annuler », avec une note de
    suivi, sans ouvrir `/cultures/cycles`. Après enregistrement, la page revient sur la carte du
@@ -40,6 +38,13 @@ saisie n'est mise en attente ni rejouée — le formulaire garde la saisie à l'
    Le champ « Nouvelle échéance » ne concerne que « Reporter » : il n'apparaît qu'au choix de cette
    action. Sans JavaScript, il reste visible en permanence — rien n'est perdu.
    Un carnet sans aucun rappel propose de créer le premier.
+2. **Trois raccourcis** — saisir un relevé, noter une observation, créer une culture. Le raccourci
+   d'observation mène directement à la fiche lorsqu'une seule culture est suivie, sinon à la liste.
+   Ils viennent **après** les rappels : sur un téléphone de 393 px de large, trois boutons empilés
+   repoussaient la première carte de rappel hors de l'écran, et l'accueil montrait ce qu'on peut
+   faire avant ce qui est dû. Les liens de rubrique (« Cultures actives », « Archives », « Réglages
+   des équipements ») passent pour la même raison sous l'agenda, l'en-tête ne gardant que le titre
+   et sa ligne de présentation. Ils restent dans l'en-tête d'une fiche.
 3. **Les dernières opérations** : au plus cinq entrées du journal transversal, un lien par entrée,
    suivies de « Voir tout le journal » lorsqu'il y en a davantage.
 
@@ -82,6 +87,12 @@ alors verrouillés et le bouton devient **« Réessayer la photo »** : seule la
 n'est jamais réenregistrée ni dupliquée. Choisir une autre image ou recharger la fiche sont les
 deux issues possibles. Une photo de plus de 5 Mio est refusée avant même l'envoi.
 
+**Sauf pour un conflit de version.** Si la fiche a changé entre l'observation et la photo, la
+révision mémorisée sur le formulaire est périmée : la rejouer ne pourrait donner qu'un second refus.
+Le message devient alors « L'observation est enregistrée ; la fiche a changé entre-temps :
+rechargez-la puis ajoutez la photo depuis l'entrée. », et le bouton est remplacé par un lien
+**« Recharger la fiche »** qui mène à l'entrée déjà écrite.
+
 Une photo peut aussi être ajoutée après coup à n'importe quelle entrée non annulée, depuis son
 repli « Ajouter une photo à cette entrée ».
 
@@ -107,25 +118,37 @@ Le serveur ne signale **qu'une seule faute à la fois** : un formulaire portant 
 corrige en deux envois. Pour la création d'une culture, les contrôles suivent l'ordre du formulaire,
 de sorte que la faute désignée est toujours la première rencontrée à l'écran. Certains refus ne
 désignent aucun champ (conflit de version, carnet indisponible) : ils restent affichés dans le
-résumé, sans lien mort.
+résumé, sans lien mort. Un conflit de version y ajoute le lien « Ouvrir la fiche actualisée », qui
+ouvre un autre onglet et laisse la saisie intacte.
+
+Les formulaires des cycles — rappels, suivis de rappel, vérifications et photos d'entrée — rendent
+leurs refus de la même façon : ils partagent le même socle d'envoi que la fiche et les solutions.
+La zone d'état du formulaire ne porte plus que la progression (« Enregistrement… ») et le message
+hors ligne.
 
 ### Démarrer une culture ou en reprendre une en cours
 
 *Livré dans le même lot.* Le formulaire de création commence par une question explicite :
 « Je démarre une culture » ou « Elle est déjà en cours ».
 
-- **Je démarre** : le groupe « situation actuelle » se replie. Une seule date est demandée, celle
-  de l'origine ; le début du stade et l'entrée dans l'espace la reprennent, et le stade est celui
-  du départ réel du parcours — maintien pour un pied mère, germination pour un semis, enracinement
-  pour une bouture. Ce premier stade vient du modèle, pas du formulaire.
-- **Elle est déjà en cours** : le groupe « situation actuelle » s'ouvre et redemande le stade
-  courant, son début et l'entrée dans l'espace, chacun pouvant être une date approximative. La
-  recopie faite en mode démarrage est annulée au basculement.
+- **Je démarre** : dans le groupe « situation actuelle », seuls le stade, sa date de début, la date
+  d'entrée dans l'espace et la note d'explication sont masqués ; le choix de l'espace, lui, reste
+  visible et demandé. Une seule date est donc à saisir, celle de l'origine ; le début du stade et
+  l'entrée dans l'espace la recopient, précision comprise, et le stade est celui du départ réel du
+  parcours — maintien pour un pied mère, germination pour un semis, enracinement pour une bouture.
+  Ce premier stade vient du modèle, pas du formulaire.
+- **Elle est déjà en cours** : les champs masqués réapparaissent et le stade courant, son début et
+  l'entrée dans l'espace sont redemandés, chacun pouvant être une date approximative. La recopie de
+  la date d'origine **cesse** au basculement, mais les dates déjà reportées ne sont ni effacées ni
+  figées : elles restent en place, affichées telles quelles, et se modifient librement.
 
 Un **récapitulatif avant validation** se reconstruit à chaque frappe et montre, dans l'ordre, les
 dates telles qu'elles seront enregistrées, avec leurs précisions. Rien n'y est réordonné en
-silence : une incohérence se voit et se corrige avant l'envoi. Sans JavaScript, tous les champs
-restent visibles et la création fonctionne — le script ne fait que replier, recopier et récapituler.
+silence : une incohérence se voit et se corrige avant l'envoi. La section entière est rendue masquée
+et révélée par le script : sans JavaScript, aucun titre ne surplombe une liste vide. Les champs de la
+situation actuelle, eux, restent tous visibles et la création fonctionne — le script ne fait que
+masquer, recopier et récapituler. Seule exception, antérieure au lot UI 2 : la désignation d'un pied mère
+pour un lot de boutures exige le script (voir « Limites connues » du contrat d'API).
 
 Le passé antérieur au stade déclaré s'ajoute ensuite depuis la fiche, section « Compléter le
 parcours passé » (voir plus bas).

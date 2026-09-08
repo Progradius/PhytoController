@@ -171,6 +171,31 @@ async def test_fiche_porte_l_entete_la_triade_et_ses_ancres(web_context):
     assert "<script>" not in page
 
 
+async def test_fiche_archivee_garde_son_dernier_releve(web_context):
+    # Le relevé était retrouvé en balayant les listes d'accueil : une mère archivée puis
+    # libérée n'y figure plus (ni dans `items`, filtré sur l'archivage, ni dans `occupants`,
+    # dont l'espace est retombé à None) et son relevé disparaissait de sa propre fiche.
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Mère relevé", kind="mother"),
+                                     headers=headers)).json()
+    subject_id = saved["subject_id"]
+    reading = {"request_id": str(uuid.uuid4()), "operation": "entry", "kind": "reading",
+               "targets": [subject_id], "effective_at": "2026-09-02", "ph": 6.2}
+    response = await client.post("/api/v1/cultures/solutions", json=reading, headers=headers)
+    assert response.status == 200, await response.text()
+    archive = {"request_id": str(uuid.uuid4()), "operation": "event", "subject_id": subject_id,
+               "version": saved["version"], "kind": "archive", "effective_at": "2026-09-03",
+               "payload": {"note": "Mère retirée"}}
+    assert (await client.post("/api/v1/cultures", json=archive, headers=headers)).status == 200
+
+    overview = await (await client.get("/api/v1/cultures")).json()
+    assert all(item["id"] != subject_id for item in overview["items"] + overview["occupants"])
+    page = await (await client.get("/cultures/" + subject_id)).text()
+    assert "Dernier relevé : 02/09/2026 · pH 6.2" in page
+    assert "Aucun relevé rattaché à cette culture" not in page
+
+
 async def test_creation_propose_les_deux_situations_et_ses_stades(web_context):
     from model.culture import creation_stages, first_stage
     client, *_ = web_context

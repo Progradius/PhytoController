@@ -33,12 +33,21 @@ async def failing(store, command):
     ({"stage": "inconnu"}, "stage", None),
     ({"stage_at": "2027-01-01"}, "stage_at", None),
     ({"space": "space_9"}, "space", None),
+    # Une reprise en séchage hors de l'espace 2 : la projection le refusait déjà, mais sans
+    # champ et seulement à l'insertion de la récolte, donc après tout le formulaire.
+    ({"stage": "sechage", "space": "space_1"}, "space", None),
     ({"space_at": "2027-01-01"}, "space_at", None),
 ])
 async def test_champ_fautif_de_la_creation(cultures, overrides, field, index):
     error = await failing(cultures, create(**overrides))
     assert (error.field, error.index) == (field, index)
     assert (await cultures.call("overview"))["total"] == 0
+
+
+async def test_sechage_hors_espace_2_garde_le_message_de_la_projection(cultures):
+    # Le contrôle anticipé ne doit pas introduire un second libellé pour la même règle.
+    error = await failing(cultures, create(stage="sechage", space="space_1"))
+    assert str(error) == "La récolte et le séchage ont lieu dans l'espace 2."
 
 
 @pytest.mark.parametrize("overrides, field", [
@@ -106,6 +115,9 @@ async def solution_error(store, command):
       "effective_at": "2026-09-01", "temperature_c": 500}, "temperature_c", None),
     ({"operation": "entry", "kind": "renewal", "reservoir_id": "reservoir_2",
       "effective_at": "2026-09-01", "volume_l": -3}, "volume_l", None),
+    # Volume absent d'un renouvellement : le refus est le même, il désigne le même champ.
+    ({"operation": "entry", "kind": "topup", "reservoir_id": "reservoir_2",
+      "effective_at": "2026-09-01"}, "volume_l", None),
     ({"operation": "entry", "kind": "inconnu", "reservoir_id": "reservoir_2",
       "effective_at": "2026-09-01"}, "kind", None),
     ({"operation": "entry", "kind": "reading", "targets": ["fantome"],

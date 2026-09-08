@@ -45,6 +45,7 @@
 {% if kind == 'harvest' %}<p>Récolte du lot entier et début du séchage dans l’espace 2. Vérifiez séparément <a href="/conf#daily-timer-2">l’éclairage</a>, <a href="/conf#cyclic-1">la pompe</a> et <a href="/conf#motor">la ventilation</a>.</p>{% endif %}
 {{ submit(label) }}</form>
 {% endmacro %}
+{% macro rubric_links() %}<div class="culture-links"><a href="/cultures">Cultures actives</a><a href="/cultures?archives=1">Archives</a><a href="/conf">Réglages des équipements</a></div>{% endmacro %}
 {% macro reminder_card(reminder, closed=false) %}
 <article class="card culture-reminder" id="reminder-{{ reminder.id }}" tabindex="-1">
 <p class="culture-added" hidden>Rappel mis à jour.</p>
@@ -62,7 +63,10 @@
 </article>
 {% endmacro %}
 {% block content %}
-<section class="hero compact"><div><p class="eyebrow">Carnet durable</p>{% if not detail %}<h1>{{ 'Archives' if archives else 'Cultures' }}</h1>{% endif %}<p class="hero-copy">Origines, parcours et observations. Les stades servent au suivi ; les horaires se règlent séparément.</p></div><div class="culture-links"><a href="/cultures">Cultures actives</a><a href="/cultures?archives=1">Archives</a><a href="/conf">Réglages des équipements</a></div></section>
+{# Les trois liens de rubrique ne sont pas ce qu'on vient lire : sur un téléphone ils
+   repoussaient l'agenda sous la ligne de flottaison. Ils restent dans l'en-tête d'une fiche,
+   et passent sous l'agenda sur l'accueil, où celui-ci dit ce qui est à faire. #}
+<section class="hero compact"><div><p class="eyebrow">Carnet durable</p>{% if not detail %}<h1>{{ 'Archives' if archives else 'Cultures' }}</h1>{% endif %}<p class="hero-copy">Origines, parcours et observations. Les stades servent au suivi ; les horaires se règlent séparément.</p></div>{% if detail %}{{ rubric_links() }}{% endif %}</section>
 {% set culture_section = '' %}{% include 'culture_navigation.html' %}
 
 {% if error %}<article class="card"><h2>Carnet indisponible</h2><p role="alert">{{ error }}</p><p>Le contrôle de la serre reste indépendant du carnet.</p><a href="/cultures">Réessayer</a></article>{% endif %}
@@ -74,18 +78,21 @@
 {% set reminders=agenda.reminders %}
 <section id="agenda" class="culture-section" aria-labelledby="agenda-title">
 <div class="section-heading"><h2 id="agenda-title">Aujourd’hui · {{ overview.today|culture_date(overview.timezone) }}</h2></div>
-<p class="card-meta">Les rappels et les opérations sont déclaratifs : le carnet ne commande aucun équipement et n’envoie aucune notification.</p>
-<div class="culture-links culture-shortcuts">
-<a class="button" href="/cultures/solutions?kind=reading#saisie">Saisir un relevé</a>
-<a class="button" href="{% if overview.total == 1 and overview['items'] %}/cultures/{{ overview['items'][0].id|urlencode }}#observation{% else %}#liste{% endif %}">Noter une observation</a>
-<a class="button" href="#creer-lot">Nouvelle culture</a>
-</div>
+{# Ce qui est en retard passe avant les raccourcis : sur un téléphone de 393 px, trois
+   boutons empilés repoussaient la première carte de rappel hors de l'écran, et l'écran
+   d'accueil montrait des actions possibles au lieu de ce qui est dû. #}
 {% if reminders.overdue or reminders.due_today or reminders.done_today or reminders.upcoming_count %}
 {% for bucket,title in (('overdue','En retard'),('due_today','Aujourd’hui'),('done_today','Terminés aujourd’hui')) %}
 {% if reminders[bucket] %}<h3>{{ title }}</h3><div class="culture-grid">{% for reminder in reminders[bucket] %}{{ reminder_card(reminder, bucket == 'done_today') }}{% endfor %}</div>{% endif %}
 {% endfor %}
 {% if reminders.upcoming_count %}<p><a href="/cultures/cycles#rappels">{{ reminders.upcoming_count }} à venir</a></p>{% endif %}
 {% else %}<p>Aucun rappel en cours dans le carnet. <a href="/cultures/cycles#rappels">Créer un rappel</a>.</p>{% endif %}
+<div class="culture-links culture-shortcuts">
+<a class="button" href="/cultures/solutions?kind=reading#saisie">Saisir un relevé</a>
+<a class="button" href="{% if overview.total == 1 and overview['items'] %}/cultures/{{ overview['items'][0].id|urlencode }}#observation{% else %}#liste{% endif %}">Noter une observation</a>
+<a class="button" href="#creer-lot">Nouvelle culture</a>
+</div>
+<p class="card-meta">Les rappels et les opérations sont déclaratifs : le carnet ne commande aucun équipement et n’envoie aucune notification.</p>
 <h3>Dernières opérations</h3>
 {% for entry in agenda.journal %}<article class="card culture-journal-entry"><p><a href="{{ entry.link }}">{{ entry.type_label }}</a>{{ ' · annulée' if entry.cancelled else '' }} · {{ entry.effective_at|culture_date(overview.timezone) }}{{ ' (approximatif)' if entry.precision == 'approximative' else '' }} · {{ entry.target_label }}</p>
 {% if entry.measures %}<p class="card-meta">{% if entry.measures.ph is not none %}pH {{ entry.measures.ph }}{% endif %}{% if entry.measures.ec is not none %} · EC {{ entry.measures.ec }} mS/cm{% endif %}{% if entry.measures.volume_l is not none %} · {{ entry.measures.volume_l }} L{% endif %}</p>{% endif %}
@@ -94,6 +101,7 @@
 {% if agenda.journal_truncated %}<p><a href="/cultures/journal">Voir tout le journal</a></p>{% endif %}
 </section>
 {% endif %}
+{{ rubric_links() }}
 <p class="card-meta">J0 correspond à la date locale de début ; les jours sont calendaires ({{ overview.timezone }}), pas des périodes de 24 h.</p>
 <p class="card-meta" data-device-timezone>Les heures précises sont saisies dans le fuseau de votre appareil.</p>
 {% if not archives %}
@@ -133,7 +141,9 @@
 <div data-creation-space-date>{{ date_fields('space_at',overview.today,label='Entrée dans cet espace') }}</div>
 <p class="card-meta" data-creation-note>Un stade peut avoir commencé avant le déplacement : les deux dates restent indépendantes.</p>
 </fieldset>
-<section class="culture-creation-summary" aria-labelledby="recapitulatif-{{ kind }}"><h3 id="recapitulatif-{{ kind }}">Récapitulatif avant validation</h3><ol data-creation-summary></ol></section>
+{# La frise est construite par le script : sans lui, le titre surplomberait une liste vide.
+   `cultures.js` révèle la section au premier récapitulatif. #}
+<section class="culture-creation-summary" aria-labelledby="recapitulatif-{{ kind }}" hidden><h3 id="recapitulatif-{{ kind }}">Récapitulatif avant validation</h3><ol data-creation-summary></ol></section>
 {{ submit(title) }}</form></details>{% endfor %}
 </section>{% endif %}
 {% else %}
@@ -200,8 +210,10 @@
 {% endif %}
 </section>
 <section id="releves" class="culture-section"><h2>Relevés</h2>
-{% set reading=namespace(latest=none) %}{% for item in overview['items'] + overview.occupants if item.id == subject.id and item.latest_reading %}{% set reading.latest = item.latest_reading %}{% endfor %}
-{% if reading.latest %}<p>Dernier relevé : {{ reading.latest.effective_at|culture_date(overview.timezone) }} · pH {{ reading.latest.ph if reading.latest.ph is not none else '—' }} · EC {{ reading.latest.ec if reading.latest.ec is not none else '—' }} mS/cm</p>
+{# Le relevé vient de la fiche : une culture archivée ou libérée n'est plus dans les
+   listes d'accueil, et le balayage y perdait son dernier relevé. #}
+{% set reading=subject.latest_reading %}
+{% if reading %}<p>Dernier relevé : {{ reading.effective_at|culture_date(overview.timezone) }} · pH {{ reading.ph if reading.ph is not none else '—' }} · EC {{ reading.ec if reading.ec is not none else '—' }} mS/cm</p>
 {% else %}<p>Aucun relevé rattaché à cette culture pour l’instant.</p>{% endif %}
 <p><a href="/cultures/solutions?target={{ subject.id|urlencode }}&amp;kind=reading#saisie">Saisir un relevé pour cette culture</a> · <a href="/cultures/solutions?target={{ subject.id|urlencode }}">Ouvrir les relevés contextualisés</a></p></section>
 <section id="photos" class="culture-section"><h2>Photos</h2>

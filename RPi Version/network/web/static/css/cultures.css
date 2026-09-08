@@ -102,6 +102,12 @@
 .culture-context { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .5rem .75rem; border-left: 3px solid currentColor; }
 .culture-local-links { font-size: .95rem; }
 .culture-new-entry > summary, .culture-filters > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: list-item; align-content: center; }
+/* Cible tactile de tous les replis du carnet : action principale, création, « Autres
+   opérations », « Traçabilité », « Corriger cette entrée », « Ajouter une photo ». Une
+   règle générique plutôt qu'une par section : chaque nouveau repli l'obtient d'office. */
+.culture-section details > summary, details.culture-section > summary, .card > summary {
+  cursor: pointer; min-height: 44px; display: list-item; align-content: center;
+}
 .solution-filter, .target-filter { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); align-items: end; }
 .solution-chart svg { display: block; }
 
@@ -125,7 +131,8 @@ details.culture-primary-action > summary { font-weight: 700; }
 .culture-photo-preview img { max-width: min(100%, 18rem); height: auto; border-radius: .5rem; }
 .culture-trace .card-meta { overflow-wrap: anywhere; }
 /* Cible d'un retour après enregistrement : jamais une couleur seule, le libellé
-   « Entrée ajoutée » est révélé au même moment et le focus s'y pose. */
+   « Entrée ajoutée » — rendu `hidden` par le gabarit et révélé par le script au moment du
+   retour — apparaît en même temps et le focus s'y pose. */
 [tabindex="-1"]:target, [tabindex="-1"]:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
 [tabindex="-1"]:target { background: var(--surface-alt, var(--bg)); }
 .culture-added { margin: 0 0 .4rem; font-weight: 700; }
@@ -140,3 +147,28 @@ details.culture-primary-action > summary { font-weight: 700; }
 .culture-creation-summary ol { margin: 0; padding-left: 1.3rem; }
 .culture-creation-summary li { margin-block: .3rem; overflow-wrap: anywhere; }
 .culture-creation-summary ol:empty { display: none; }
+
+/* Téléphone : sur 393 × 727 px, le premier rappel dû doit tenir entier au-dessus de la
+   ligne de flottaison. Rien n'est retiré — la navigation défile latéralement dans son
+   propre conteneur, les raccourcis tiennent sur une ligne, l'en-tête est resserré. */
+@media (max-width: 30rem) {
+  .culture-navigation { flex-wrap: nowrap; overflow-x: auto; margin-block: .35rem; gap: .35rem; }
+  .culture-navigation a { flex: 0 0 auto; white-space: nowrap; }
+  .hero.compact { margin-bottom: .5rem; gap: .35rem; }
+  .hero.compact .hero-copy { margin-block: .2rem; font-size: .92rem; }
+  .hero.compact .eyebrow { margin-bottom: .1rem; }
+  .hero.compact h1 { margin-block: .1rem; }
+  .culture-section > .section-heading { margin-block: .35rem; }
+  #agenda > h3 { margin-block: .5rem .35rem; }
+  .culture-shortcuts { flex-wrap: wrap; gap: .35rem; margin-block: .5rem; }
+  .culture-shortcuts .button { flex: 1 1 8rem; justify-content: center; padding: .5rem .4rem; font-size: .85rem; }
+  .culture-reminder { margin-block: .35rem; }
+  .culture-reminder h4 { margin-bottom: .15rem; }
+  .culture-reminder p { margin-block: .15rem; }
+  /* La note de suivi reste redimensionnable ; seule sa hauteur d'ouverture est réduite,
+     `min-height` seule ne suffit pas — deux lignes intrinsèques la dépassent déjà. */
+  .culture-reminder textarea { min-height: 3rem; height: 3.5rem; }
+  .culture-reminder .culture-form { margin-top: .35rem; gap: .5rem; }
+  .culture-reminder .culture-form label { gap: .25rem; }
+  .culture-reminder .culture-form-actions { gap: .4rem; }
+}

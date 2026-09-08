@@ -48,6 +48,18 @@
     const precision = form.elements[`${name}_precision`].value;
     return {value: precision === "instant" ? (input.dataset.renderedInstant === value ? input.dataset.instant : new Date(value).toISOString()) : value, precision};
   };
+  // Le serveur numérote les poids par origine dans **la liste qu'il a reçue**, or celle-ci
+  // est filtrée : les origines laissées vides n'y figurent pas. Sans cette table, un refus
+  // sur le deuxième poids envoyé désignerait le deuxième champ de la page, qui peut être un
+  // autre. `sent[i]` retient donc le rang DOM du contrôle à l'origine du i-ème envoi.
+  const sentRanks = new WeakMap();
+  const SENT_FIELDS = {origin_weight: "origin_weights"};
+  const translate = (form, data) => {
+    const map = sentRanks.get(form)?.[SENT_FIELDS[data?.field]];
+    const rank = map && typeof data.index === "number" ? map[data.index] : undefined;
+    return rank === undefined ? data : {...data, index: rank};
+  };
+
   const payload = (form) => {
     const kind = form.dataset.kind;
     const get = name => form.elements[name]?.value || "";
@@ -69,26 +81,34 @@
       const raw = get("weight_g").trim();
       const weight = raw ? Number(raw.replace(",", ".")) : null;
       if (weight !== null && !Number.isFinite(weight)) throw new Error("Poids sec invalide.");
+      const ranks = [];
+      const weights = [];
+      Array.from(form.querySelectorAll("[data-origin-weight]")).forEach((input, rank) => {
+        if (!input.value.trim()) return;
+        const value = Number(input.value.replace(",", "."));
+        if (!Number.isFinite(value)) throw new Error("Poids par origine invalide.");
+        ranks.push(rank);
+        weights.push({origin_id: input.dataset.originWeight, weight_g: value});
+      });
+      sentRanks.set(form, {origin_weights: ranks});
       Object.assign(data, {weight_g: weight, release: form.elements.release.checked, lessons: get("lessons"),
-        origin_weights: Array.from(form.querySelectorAll("[data-origin-weight]"))
-          .filter(input => input.value.trim()).map(input => {
-            const value = Number(input.value.replace(",", "."));
-            if (!Number.isFinite(value)) throw new Error("Poids par origine invalide.");
-            return {origin_id: input.dataset.originWeight, weight_g: value};
-          })});
+        origin_weights: weights});
     }
     return data;
   };
 
   // Un conflit de version n'est pas une faute de saisie : la saisie reste dans le
   // formulaire et l'opérateur ouvre la fiche à jour dans un autre onglet.
+  // Le refus passe par le résumé d'erreur comme tous les autres : `status()` écrit dans la
+  // zone d'état, que le socle vide au refus suivant, et le conflit y serait le seul message
+  // que le formulaire n'annonce pas.
   const showConflict = (form, message) => {
-    forms.status(form, `${message} Votre saisie reste dans ce formulaire. `);
-    const output = form.querySelector("output");
+    const summary = forms.showError(form, {error: `${message} Votre saisie reste dans ce formulaire.`});
+    if (!summary) return;
     const link = document.createElement("a");
     link.href = location.href; link.target = "_blank"; link.rel = "noopener";
     link.textContent = "Ouvrir la fiche actualisée";
-    output?.append(link);
+    (summary.querySelector("li:last-of-type") || summary).append(" ", link);
   };
 
   // Destination après un enregistrement : l'entrée créée quand le serveur la nomme,
@@ -216,6 +236,8 @@
           item.textContent = text;
           return item;
         }));
+        // La section est rendue masquée : son titre ne doit apparaître qu'avec la frise.
+        summary.closest(".culture-creation-summary")?.removeAttribute("hidden");
       };
       // Recopie de la date d'origine : uniquement en mode « Je démarre », précision et type
       // de champ compris, pour que la reprise ne se retrouve jamais avec une date déduite.
@@ -295,7 +317,7 @@
       if (result.offline || result.busy) return;
       if (!result.ok) {
         if (result.status === 409) showConflict(form, result.data.error);
-        else forms.showError(form, result.data);
+        else forms.showError(form, translate(form, result.data));
         return;
       }
       forms.status(form, "Enregistré. Ouverture de la fiche…");
@@ -329,12 +351,19 @@
       preview.append(image);
       preview.hidden = false;
     });
-    const lockObservation = () => {
+    const lockObservation = (retry) => {
       for (const name of ["note", "effective_at", "effective_at_precision"]) {
         const control = form.elements[name];
         if (control) control.disabled = true;
       }
-      button.textContent = "Réessayer la photo";
+      if (retry) { button.textContent = "Réessayer la photo"; return; }
+      // Conflit de révision : réessayer avec la même révision mémorisée ne peut donner qu'un
+      // second refus. L'entrée, elle, existe : la photo s'ajoute depuis la fiche rechargée.
+      const link = document.createElement("a");
+      link.className = button.className;
+      link.href = `/cultures/${encodeURIComponent(form.dataset.subject)}#event-${encodeURIComponent(form.dataset.eventId)}`;
+      link.textContent = "Recharger la fiche";
+      button.replaceWith(link);
     };
     const sendPhoto = async (chosen) => {
       forms.status(form, "Envoi de la photo…");
@@ -345,8 +374,11 @@
         confirm_date: form.elements.confirm_date?.checked || false});
       if (result.offline || result.busy) return false;
       if (!result.ok) {
-        lockObservation();
-        forms.showError(form, {error: `L’observation est enregistrée ; la photo n’a pas été acceptée : ${result.data.error}`});
+        const conflict = result.status === 409;
+        lockObservation(!conflict);
+        forms.showError(form, {error: conflict
+          ? "L’observation est enregistrée ; la fiche a changé entre-temps : rechargez-la puis ajoutez la photo depuis l’entrée."
+          : `L’observation est enregistrée ; la photo n’a pas été acceptée : ${result.data.error}`});
         return false;
       }
       return true;

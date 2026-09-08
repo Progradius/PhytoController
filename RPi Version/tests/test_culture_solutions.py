@@ -248,8 +248,10 @@ async def test_intentions_visibles_et_type_par_defaut_de_la_saisie(web_context):
     assert response.status == 200, await response.text()
     html = await response.text()
     # Cible et période suivent l'intention ; seul le type change, et la saisie s'ouvre.
+    # Les séparateurs de la requête sont échappés : `&` nu dans un attribut HTML est une
+    # référence d'entité mal formée, que les analyseurs ne toléreront pas toujours.
     for kind in ("reading", "water", "renewal", "topup"):
-        assert f'href="?target=reservoir_2&start=2026-07-01&end=2026-09-01&kind={kind}#saisie"' in html
+        assert f'href="?target=reservoir_2&amp;start=2026-07-01&amp;end=2026-09-01&amp;kind={kind}#saisie"' in html
     assert 'data-intention="water" aria-current="true"' in html
     assert html.count('aria-current="true"') == 1
     assert "Saisir : Arrosage" in html

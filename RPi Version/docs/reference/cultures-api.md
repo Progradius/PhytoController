@@ -3,9 +3,11 @@
 Ce document décrit l'état livré du carnet : les trois livraisons initiales (cultures et parcours,
 solutions et relevés, photos/rappels/cycles) et les lots A à H du plan de rattrapage, qui ajoutent
 le schéma 4, les vérifications corrigibles, les plages cibles, les repères d'éclairage, les
-affectations d'équipements et le journal transversal. Les lots UI 1 et 2 n'ajoutent **aucune route**
-et aucune persistance : ils enrichissent les réponses existantes (erreurs rattachées à un champ,
-bloc `agenda`, blocs de fiche, identité de l'entrée écrite).
+affectations d'équipements et le journal transversal. Les lots UI 1 et 2 n'ajoutent **aucune route
+d'API ni de page** et aucune persistance : ils enrichissent les réponses existantes (erreurs
+rattachées à un champ, bloc `agenda`, blocs de fiche, identité de l'entrée écrite). La seule route
+qu'ils ajoutent est statique, `GET /static/js/culture_forms.js`, servie comme les autres actifs
+depuis la liste blanche du serveur, avec son empreinte de contenu en paramètre `v`.
 
 Toutes les routes sont locales, dynamiques et `no-store`. Les POST exigent le jeton existant
 `X-CSRF-Token`, le Host autorisé et la même origine que le serveur. Corps JSON limité à 64 Kio.
@@ -52,7 +54,9 @@ Champs actuellement nommés, par API (les autres refus restent globaux et s'affi
 | `POST /api/v1/cultures`, `event` / `correct` / `backfill` | `effective_at`, `drying_at`, `reason`, `stage`, `space`, `count`, `origin_id`, `weight_g`, `origin_weight`*, `confirm_date` |
 | `POST /api/v1/cultures/solutions` | `name`, `volume_l`, `product`*, `quantity`*, `unit`*, `kind`, `target`, `ph`, `ec`, `ec_unit`, `temperature_c`, `context`, `compensation`, `recipe_id`, `effective_at`, `reason`, `confirm_date` |
 | `POST /api/v1/cultures/journal` | `effective_at`, `reason` |
-| `POST /api/v1/cultures/cycles` | `confirm_date` |
+| `POST /api/v1/cultures/cycles` | `confirm_date` (horloge non fiable, contrôlé dans `_aux_transaction`, donc valable aussi pour les vérifications) |
+| `POST /api/v1/cultures/cycles`, `checklist` / `checklist_correct` / `checklist_cancel` | Aucun au-delà de `confirm_date` : `utils/culture_checklist_store.py` lève ses `CultureError` sans champ et appelle `stamp` sans `field=` |
+| `POST /api/v1/cultures/photos` | Aucun : `utils/culture_media_store.py` ne lève aucune erreur portant un champ, et ses appels à `text_value` sont sans `field=`. Le message « Choisir une photo de 5 Mio maximum. » désignant `photo` est produit **par le client**, avant tout envoi |
 | `POST /api/v1/cultures/targets`, `/light`, `/equipment` | Aucun à ce jour : ces refus sont globaux |
 
 (*) Champ répétable : le refus est accompagné d'`index`.
@@ -102,8 +106,12 @@ Les dates d'événements conservent leur valeur et leur `precision` originales.
 ### Bloc `agenda` (lot UI 2)
 
 `GET /api/v1/cultures?agenda=1` ajoute à la vue d'ensemble un bloc de synthèse, calculé **dans**
-`_overview` à partir des sujets déjà projetés et de deux requêtes SQL : aucune projection nouvelle,
-aucune acquisition. Il est absent par défaut, et la page `/cultures` ne le demande que pour l'accueil
+`_overview` à partir des sujets déjà projetés et de deux requêtes propres à `_agenda` — les rappels
+courants en une lecture (`_reminders(revisions=False)`, qui supprime la requête d'historique par
+rappel), puis `TODAY_JOURNAL + 1` lignes de la vue `culture_journal` —, complétées par
+l'enrichissement ligne à ligne de `_journal_enrich` (noms des sujets, entrée d'origine, cibles,
+photos et révisions antérieures de la seule page affichée). Il n'y a donc pas exactement deux
+requêtes, mais **aucune projection neuve** et aucune acquisition. Il est absent par défaut, et la page `/cultures` ne le demande que pour l'accueil
 des cultures actives — une fiche a le sien, et `?archives=1` n'a ni rappel ni prochaine action.
 
 ```json
@@ -136,16 +144,17 @@ des cultures actives — une fiche a le sien, et `?archives=1` n'a ni rappel ni 
 Un carnet vide ne produit ni zéro ni entrée inventée : les seaux sont des listes vides,
 `upcoming_count` vaut `0` et `journal` est vide.
 
-### Fiche : `reminders`, `media`, `actions`, `stage_options` (lot UI 2)
+### Fiche : `reminders`, `media`, `actions`, `stage_options`, `stage_options_full` (lot UI 2)
 
-`GET /api/v1/cultures/{id}` ajoute quatre blocs, tous dérivés de données déjà lues :
+`GET /api/v1/cultures/{id}` ajoute cinq clés, toutes dérivées de données déjà lues :
 
 | Clé | Contenu |
 | --- | --- |
 | `reminders` | Les rappels du seul sujet, classés dans les **quatre** seaux (`upcoming` est ici sérialisé, la fiche l'affiche), sans révisions |
 | `media` | `_media_list(subject_id)` : photos de la culture, `owner_kind="event"`, les plus récentes d'abord, **bornées à 100** |
 | `actions` | `fiche_actions(subject)` : `{"primary": [...], "other": [...]}` |
-| `stage_options` | `stage_options(subject)` : stades proposables pour une progression, dans l'ordre du parcours |
+| `stage_options` | `stage_options(subject)` : stades proposables pour une **progression**, dans l'ordre du parcours — strictement postérieurs au stade courant |
+| `stage_options_full` | `stage_options(subject, current=True)` : le parcours entier du sujet, dans le même ordre, pour la **correction** d'un stade déjà saisi |
 
 `actions.primary` commence toujours par `reading` puis `observation`. Ces deux identifiants ne sont
 **pas** des types d'événement : `reading` est un lien vers la saisie de relevé
@@ -159,9 +168,15 @@ des actions autorisées, sans jamais répéter `note` ni l'action promue.
 Les règles sont pures et vivent dans `model/culture.py` (`allowed_actions`, `fiche_actions`,
 `stage_options`, `first_stage`, `creation_stages`) ; `tests/test_culture_actions.py` vérifie leur
 équivalence avec le gabarit rendu sur une matrice type × stade × espace × archivage.
-`stage_options` rouvre la liste entière du parcours en mode correction (`current` renseigné) :
-corriger une saisie n'est pas progresser, et interdire le retour en arrière rendrait une erreur de
-stade irréparable.
+C'est **`stage_options_full`**, et elle seule, qui rouvre la liste entière du parcours : corriger une
+saisie n'est pas progresser, et interdire le retour en arrière rendrait une erreur de stade
+irréparable. Le gabarit choisit entre les deux clés sur le seul critère « un stade est-il déjà
+enregistré dans la saisie corrigée » (`payload.stage`), sans connaître aucun rang de stade.
+`stage_options` **ne change jamais de forme** : c'est toujours la même liste de progression, quelle
+que soit l'origine de la requête ; un client qui ne lit qu'elle voit exactement ce qu'il voyait
+avant le lot UI 2. Les deux listes excluent le séchage — il commence par une récolte — et l'entrée
+du parcours non retenue par l'origine (`germination` pour une bouture, `enracinement` pour un
+semis) ; pour un pied mère, elles se réduisent toutes deux à `maintien`.
 
 ## Création : `POST /api/v1/cultures`
 
@@ -530,9 +545,14 @@ deux requêtes séquentielles et jamais une seule : d'abord la note
 première a réussi. `event_revision` est donc obligatoire et vaut la révision retournée par cette
 note — une correction de l'entrée intercalée entre les deux envois fait échouer la photo en `409`,
 ce qui est le comportement voulu : la photo se rattache à une version précise, pas à un événement
-flou. Une note enregistrée dont la photo est refusée n'est **pas** effacée : seule la photo est à
-rejouer, avec une clé d'idempotence neuve, la note conservant la sienne. Sans `event_id` dans la
-réponse de la note, aucune photo n'est envoyée.
+flou. Une note enregistrée dont la photo est refusée n'est **pas** effacée, et la note n'est jamais
+renvoyée : le formulaire mémorise l'`event_id` et l'`event_revision` retournés, et un envoi suivant
+ne repart plus qu'en photo, rattachée à cette entrée. Il n'y a **qu'une seule clé d'idempotence par
+formulaire** (`culture_forms.js` la garde dans une `WeakMap` indexée par formulaire) : elle est
+conservée tant que la signature de la saisie ne change pas et régénérée dès qu'elle change. Renvoyer
+le même fichier après un refus rejoue donc la même clé — c'est la vérification voulue —, tandis que
+choisir une autre photo, dont le nom, la taille et la date entrent dans la signature, en produit une
+neuve. Sans `event_id` dans la réponse de la note, aucune photo n'est envoyée.
 
 La limite de 5 Mio est vérifiée même sans `Content-Length` ; réception limitée à 30 secondes,
 métadonnées à 7 000 caractères. La limite JSON globale reste 64 Kio. Erreurs spécifiques :
@@ -963,7 +983,8 @@ contourner par le client. Mesures faites hors matériel, sans qualification sur 
 | Sujet alimenté à l'instant d'un renouvellement | Un relevé « avant renouvellement » saisi à l'instant exact du renouvellement suit, pour le filtre par sujet alimenté, la période ouverte à cet instant ; la page des solutions reste la référence pour ce cas de bord |
 | Résolution d'équipement d'une page | `GET /api/v1/cultures/equipment?at=…` renvoie dans `resolved` **toutes** les affectations couvrant cette date, tous équipements confondus ; le filtre `equipment` restreint `equipments`, pas `resolved`. La résolution par saisie (`items[].equipment` des solutions) reste, elle, propre à sa date effective |
 | Une seule erreur par requête | La validation s'arrête au premier refus : un formulaire portant deux fautes doit être corrigé et renvoyé deux fois. Le client (`culture_forms.js`) accepte déjà N erreurs, c'est le serveur qui n'en produit qu'une |
-| Champs nommés partiels | `field` n'existe que pour les API listées dans « Forme des erreurs métier » ; plages cibles, éclairage et équipements refusent encore sans désigner de champ, et le refus s'affiche alors en résumé de formulaire |
+| Champs nommés partiels | `field` n'existe que pour les API listées dans « Forme des erreurs métier » ; plages cibles, éclairage, équipements, photos et vérifications refusent encore sans désigner de champ — seul `confirm_date` reste nommé pour les vérifications —, et le refus s'affiche alors en résumé de formulaire |
+| Origines de boutures sans JavaScript | Dans le formulaire de création, le champ « Pied mère » de chaque origine est rendu avec l'attribut `hidden` et n'est révélé que par le script (`syncOrigins` dans `cultures.js`) : sans JavaScript, la ligne « bouture » reste masquée et un lot de boutures ne peut pas désigner sa mère depuis cette page. Limite antérieure au lot UI 2 |
 | Bornes de l'agenda | `agenda.journal` est plafonné à `TODAY_JOURNAL = 5` entrées et `upcoming_count` remplace la liste des rappels à venir : l'accueil n'est pas une seconde page de journal ni un second écran de rappels |
 | Photos d'une fiche | `detail.media` est borné à 100 photos, sans pagination : au-delà, la galerie des cycles reste la vue complète |
 | `event_id` d'un rejeu ancien | Le rejeu d'une clé d'idempotence enregistrée avant le lot UI 2 rend le résultat mémorisé tel quel, donc sans `event_id` ni `event_revision` ; un client ne peut pas en déduire qu'aucune entrée n'a été écrite |

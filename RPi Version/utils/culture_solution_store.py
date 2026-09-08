@@ -231,7 +231,7 @@ class SolutionStoreMixin:
                 if kind == "reading" and values["ph"] is None and values["ec"] is None:
                     raise CultureError("Renseigner au moins le pH ou l’EC.")
                 if kind in ("renewal", "topup") and (values["volume_l"] is None or values["volume_l"] <= 0):
-                    raise CultureError("Volume strictement positif obligatoire.")
+                    raise CultureError("Volume strictement positif obligatoire.", "volume_l")
                 recipe_id = command.get("recipe_id") or None
                 recipe_revision = command.get("recipe_revision") if recipe_id else None
                 frozen = ingredients(command.get("ingredients", []))

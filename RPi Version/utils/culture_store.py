@@ -278,6 +278,11 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         subject = next((s for s in subjects if s["id"] == subject_id), None)
         if subject is None:
             raise CultureError("Culture introuvable.")
+        # Le dernier relevé est porté par la fiche elle-même, comme sur l'accueil : le
+        # gabarit n'a donc plus à retrouver le sujet dans une liste d'accueil qui, pour une
+        # culture archivée ou libérée, ne le contient plus. La projection supplémentaire est
+        # assumée : une fiche en paie déjà une.
+        subject["latest_reading"] = self._latest_solution_readings().get(subject_id)
         events = self._events(subject_id)
         versions = self._events(subject_id, revisions=True)
         for event in events:
@@ -483,6 +488,10 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         space = command.get("space", "space_1")
         if not isinstance(space, str) or space not in SPACES:
             raise CultureError("Espace inconnu.", "space")
+        # Message inchangé : c'est celui que la projection produirait à l'insertion de la
+        # récolte, mais elle le lèverait sans champ, donc après le formulaire entier.
+        if kind == "lot" and stage == "sechage" and space != "space_2":
+            raise CultureError("La récolte et le séchage ont lieu dans l'espace 2.", "space")
         stamp(command.get("space_at"), command.get("space_precision", "date"), self.zone, now, field="space_at")
         return kind, origin_type, origins, stage, space
 

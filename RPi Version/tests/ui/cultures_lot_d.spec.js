@@ -106,8 +106,8 @@ test("vérifications : correction, annulation, historique, conflit d'onglet et d
   // 4. L'onglet périmé reçoit un conflit : rien n'est écrit, la saisie reste dans la page.
   const refused = await submit(stale, staleForm);
   expect(refused.status()).toBe(409);
-  await expect(staleForm.locator("output")).toContainText("actualiser");
-  await expect(staleForm.locator("output")).toContainText("Ouvrir la fiche actuelle dans un nouvel onglet.");
+  await expect(staleForm.locator(".culture-form-errors")).toContainText("actualiser");
+  await expect(staleForm.locator(".culture-form-errors")).toContainText("Ouvrir la fiche actuelle dans un nouvel onglet.");
   await expect(staleForm.locator('[name="reason"]')).toHaveValue("Annulation depuis un onglet resté ouvert");
   await stale.close();
 

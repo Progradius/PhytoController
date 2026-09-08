@@ -63,7 +63,7 @@
 <h1>Solutions et relevés</h1>{% set culture_section = 'solutions' %}{% include 'culture_navigation.html' %}
 {# Intentions quotidiennes : la cible et la période du filtre sont conservées, seul le type
    change. Les deux autres types (nutriments, correction pH) restent dans le choix « Action ». #}
-{% set intention_query %}{% if filters.get('target') %}target={{ filters['target']|urlencode }}&{% endif %}{% if filters.get('start') %}start={{ filters['start']|urlencode }}&{% endif %}{% if filters.get('end') %}end={{ filters['end']|urlencode }}&{% endif %}{% endset %}
+{% set intention_query %}{% if filters.get('target') %}target={{ filters['target']|urlencode }}&amp;{% endif %}{% if filters.get('start') %}start={{ filters['start']|urlencode }}&amp;{% endif %}{% if filters.get('end') %}end={{ filters['end']|urlencode }}&amp;{% endif %}{% endset %}
 <nav class="culture-links" aria-label="Que voulez-vous saisir ?" data-solution-intentions>
 {% for key,label in (('reading','Mesurer pH / EC'),('water','Arroser'),('renewal','Renouveler la solution'),('topup','Ajouter de l’eau')) %}<a class="button{{ '' if filters.get('kind') == key else ' button-secondary' }}" href="?{{ intention_query }}kind={{ key }}#saisie" data-intention="{{ key }}"{% if filters.get('kind') == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav>
 <nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#saisie">Saisie</a><a href="#reservoirs">Réservoirs</a><a href="#courbes">Courbes</a><a href="#journal-solutions">Journal</a><a href="#recettes">Recettes</a></nav>
