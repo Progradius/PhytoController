@@ -81,14 +81,14 @@ migration déjà livrée pour y ajouter les besoins d’un lot ultérieur.
 Points d’entrée : `utils/culture_solution_store.py`,
 `network/web/templates/culture_solutions.html`, `network/web/static/js/culture_solutions.js`.
 
-- [ ] Toujours inclure l’intervention déjà associée à chaque relevé affiché en correction,
+- [x] Toujours inclure l’intervention déjà associée à chaque relevé affiché en correction,
   même lorsqu’elle est absente des 200 interventions récentes.
-- [ ] Permettre de retrouver une intervention ancienne avec une recherche ou une pagination
+- [x] Permettre de retrouver une intervention ancienne avec une recherche ou une pagination
   bornée, contextualisée par cible et date ; ne pas charger tout le carnet dans un select.
-- [ ] Conserver le lien existant lors d’une correction sans changement d’association.
-- [ ] Rendre les liens vers les interventions consultables à travers la pagination et les
+- [x] Conserver le lien existant lors d’une correction sans changement d’association.
+- [x] Rendre les liens vers les interventions consultables à travers la pagination et les
   filtres du journal, y compris lorsque la destination n’est pas sur la page courante.
-- [ ] Préserver les règles avant/après, les transactions de renouvellement, les révisions
+- [x] Préserver les règles avant/après, les transactions de renouvellement, les révisions
   et les conflits d’édition.
 
 Critères d’acceptation :
@@ -106,21 +106,21 @@ Points d’entrée : `utils/culture_cycle_store.py`, `network/web/culture_cycles
 `network/web/templates/culture_cycles.html`, `network/web/static/js/culture_cycles.js`,
 `network/web/static/service-worker.js`, `network/web/static/js/pwa.js`.
 
-- [ ] Remplacer la coupe aux 10 000 derniers points par une restitution bornée couvrant
+- [x] Remplacer la coupe aux 10 000 derniers points par une restitution bornée couvrant
   l’ensemble du cycle : synthèse adaptée à sa durée et navigation vers le détail horaire.
-- [ ] Effectuer l’agrégation et la pagination dans le magasin, avec requêtes bornées ; éviter
+- [x] Effectuer l’agrégation et la pagination dans le magasin, avec requêtes bornées ; éviter
   de lire tout l’historique avant de tronquer une liste Python.
-- [ ] Calculer les moyennes depuis les sommes et effectifs valides, sans moyenne non pondérée
+- [x] Calculer les moyennes depuis les sommes et effectifs valides, sans moyenne non pondérée
   de moyennes horaires. Conserver min/max, nombres de valeurs et couverture explicite.
-- [ ] Garder les capteurs distincts, les périodes manquantes visibles et le contexte commun
+- [x] Garder les capteurs distincts, les périodes manquantes visibles et le contexte commun
   à la serre. Documenter la convention des intervalles et des heures aux bords du cycle.
-- [ ] Séparer les données nécessaires au graphique du tableau détaillé paginé afin de ne
+- [x] Séparer les données nécessaires au graphique du tableau détaillé paginé afin de ne
   pas dupliquer des milliers de lignes dans le HTML initial.
-- [ ] Garantir une synthèse de cycle consultable hors ligne dans les limites existantes.
+- [x] Garantir une synthèse de cycle consultable hors ligne dans les limites existantes.
   Définir précisément quels détails visités sont conservés et afficher leurs dates.
-- [ ] Signaler l’indisponibilité d’un détail non conservé ; ne jamais présenter une synthèse
+- [x] Signaler l’indisponibilité d’un détail non conservé ; ne jamais présenter une synthèse
   partielle comme couvrant une période qui n’a pas été chargée.
-- [ ] Conserver les bornes de stockage PWA, la priorité réseau et l’absence de cache des API.
+- [x] Conserver les bornes de stockage PWA, la priorité réseau et l’absence de cache des API.
   Une hausse arbitraire du plafond de taille ne suffit pas à traiter ce lot.
 
 Critères d’acceptation :
@@ -142,15 +142,15 @@ Critères d’acceptation :
 Points d’entrée : `model/culture.py`, `utils/culture_store.py`,
 `network/web/templates/cultures.html`, `network/web/static/js/cultures.js`.
 
-- [ ] Ajouter une action explicite pour renseigner une étape passée connue, distincte du
+- [x] Ajouter une action explicite pour renseigner une étape passée connue, distincte du
   changement de stade courant.
-- [ ] Proposer les étapes admissibles à leur date effective, y compris sur une fiche déjà
+- [x] Proposer les étapes admissibles à leur date effective, y compris sur une fiche déjà
   en floraison, en séchage ou archivée, sans imposer de modifier artificiellement sa clôture.
-- [ ] Permettre de compléter un déplacement historique manquant lorsque le parcours et
+- [x] Permettre de compléter un déplacement historique manquant lorsque le parcours et
   l’occupation peuvent être revalidés ; aucun déplacement partiel du lot.
-- [ ] Préserver date effective, date de saisie, précision et fuseau, et revalider tout le
+- [x] Préserver date effective, date de saisie, précision et fuseau, et revalider tout le
   parcours, les occupations et les liens aux solutions avant commit.
-- [ ] Afficher les durées des périodes terminées dans le parcours et la comparaison des
+- [x] Afficher les durées des périodes terminées dans le parcours et la comparaison des
   cycles, avec la même convention calendaire que les compteurs existants.
 
 Critères d’acceptation :
@@ -286,9 +286,9 @@ intervention sur le Pi pour commencer les corrections et leur validation hors ma
 
 | Lot | Statut | Commit de livraison | Validation / limites |
 | --- | --- | --- | --- |
-| A | À faire | — | — |
-| B | À faire | — | — |
-| C | À faire | — | — |
+| A | Livré (8 septembre 2026) | `2284074` | 20 tests magasin/HTTP, Playwright bureau + téléphone ; recherche insensible à la casse mais pas aux accents ; en mode recherche les filtres du journal sont ignorés ; `_solution_data` charge encore toutes les entrées en mémoire |
+| B | Livré (8 septembre 2026) | `1cdf87d` | 16 tests dont couverture, zéros réels, changement d’heure et taille sous 1 Mio ; 12 000 agrégats : page 258 217 o, JSON 178 966 o, 27 à 138 ms hors matériel (non qualifié sur le Pi) ; détail horaire réservé à une sélection unique ; `measures` pH/EC lit encore tous les relevés |
+| C | Livré (8 septembre 2026) | `e749c80` | Tests magasin et HTTP (dates, instants, minuit, DST, horloge non fiable, onglet périmé, révisions), Playwright bureau + téléphone ; portée `stage`/`move` seulement, la clôture se corrige par `correct` |
 | D | À faire | — | — |
 | E | À faire | — | — |
 | F | À faire | — | — |

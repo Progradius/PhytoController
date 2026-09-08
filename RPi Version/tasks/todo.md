@@ -6,12 +6,13 @@ Baseline (8 septembre 2026, `58e97e6`) : 273 pytest, 92 Playwright, `git diff --
 ## Phase 0 — préparation
 - [x] Fixture Playwright partagée `tests/ui/culture_fixtures.js` (un spec par lot, sans conflit)
 - [x] Commit du plan de rattrapage et de la préparation
-- [ ] Conception du schéma 4 (migrations lots D à H) avant toute évolution de schéma
+- [x] Conception du schéma 4 (migrations lots D à H) avant toute évolution de schéma
 
 ## Phase 1 — lots sans évolution de schéma (parallèle)
-- [ ] Lot A — correction de relevés liés à une intervention ancienne
-- [ ] Lot B — cycles longs, agrégation bornée en magasin, PWA bornée
-- [ ] Lot C — étapes rétrospectives d'un parcours repris
+- [x] Lot A — correction de relevés liés à une intervention ancienne (`2284074`)
+- [x] Lot B — cycles longs, agrégation bornée en magasin, PWA bornée (`1cdf87d`)
+- [x] Lot C — étapes rétrospectives d'un parcours repris (`e749c80`)
+- [x] Vérification phase 1 : 281 pytest, 107 Playwright sur 5 profils, pyflakes, octets nuls
 
 ## Phase 2 — schéma 4 puis lots D à H
 - [ ] Migration schéma 4 (une seule, sauvegarde `.before-v4.sqlite3`)
