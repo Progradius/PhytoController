@@ -54,6 +54,35 @@ async def test_carnet_http_securite_et_absence_effet_controle(web_context, monke
     assert (await client.get("/health/ready")).status == 200
 
 
+async def test_backfill_http_complete_le_passe_sans_toucher_au_stade(web_context):
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    command = create("Reprise", stage="floraison", space="space_2",
+                     origin_at="2026-06-01", space_at="2026-08-01", stage_at="2026-08-01")
+    saved = await (await client.post("/api/v1/cultures", json=command, headers=headers)).json()
+    detail = await (await client.get("/api/v1/cultures/" + saved["subject_id"])).json()
+    assert detail["backfill"] == {"stages": ["germination", "vegetatif"],
+                                  "spaces": ["space_1", "space_2"], "before": "2026-08-01"}
+    step = {"kind": "move", "effective_at": "2026-06-05", "precision": "date", "payload": {"space": "space_1"}}
+    body = {"request_id": str(uuid.uuid4()), "operation": "backfill", "subject_id": saved["subject_id"],
+            "version": saved["version"], "steps": [step]}
+    response = await client.post("/api/v1/cultures", json=body, headers=headers)
+    assert response.status == 200, await response.text()
+    updated = await response.json()
+    # Onglet périmé : la version attendue protège la saisie, même sur une étape passée.
+    assert (await client.post("/api/v1/cultures", json={**body, "request_id": str(uuid.uuid4())}, headers=headers)).status == 409
+    late = {**body, "request_id": str(uuid.uuid4()), "version": updated["version"],
+            "steps": [{"kind": "stage", "effective_at": "2026-08-01", "precision": "date",
+                       "payload": {"stage": "vegetatif"}}]}
+    assert (await client.post("/api/v1/cultures", json=late, headers=headers)).status == 400
+    detail = await (await client.get("/api/v1/cultures/" + saved["subject_id"])).json()
+    assert detail["subject"]["stage"] == "floraison" and detail["subject"]["stage_at"] == "2026-08-01"
+    assert [period["stage"] for period in detail["subject"]["periods"]] == ["floraison"]
+    assert [space["space"] for space in detail["subject"]["occupations"]] == ["space_1", "space_2"]
+    page = await (await client.get("/cultures/" + saved["subject_id"])).text()
+    assert "Compléter le parcours passé" in page and "Ajouter une étape passée" in page
+
+
 async def test_panne_carnet_ne_degrade_pas_controle(web_context, monkeypatch):
     from utils.culture_store import CultureUnavailable
     client, server, *_ = web_context

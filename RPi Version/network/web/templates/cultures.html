@@ -64,7 +64,7 @@
 {% else %}
 {% set subject=detail.subject %}
 <section class="culture-grid"><article class="card"><div class="culture-counter">{{ counter(subject) }}</div><p>{{ spaces.get(subject.space,'Espace libéré') }} · {{ 'Archivé' if subject.archived else 'En cours' }}</p><p>Origine : {{ subject.origin_at|culture_date(overview.timezone) }}{{ ' (approximative)' if subject.origin_precision == 'approximative' else '' }} · âge {{ subject.origin_age.days }} jours</p>{% if subject.kind == 'lot' %}<p>{{ subject.count }} plantes restantes · {{ subject.initial_count }} au départ</p><ul>{% for origin in subject.origins %}<li>{{ origin.count }} {{ 'boutures' if origin.mother_id else 'semis' }} · {% if origin.mother_id %}<a href="/cultures/{{ origin.mother_id }}">{% for mother in overview.mothers if mother.id == origin.mother_id %}{{ mother.name }}{% endfor %}</a>{% else %}{{ origin.label }}{% endif %}</li>{% endfor %}</ul>{% endif %}<p>{{ subject.variety }}</p>{% if subject.balance is defined %}<p>{{ subject.balance.note }}</p>{% if subject.balance.weight_g is defined and subject.balance.weight_g is not none %}<p>Poids sec : {{ subject.balance.weight_g }} g</p>{% endif %}{% endif %}</article>
-<article class="card"><h2>Parcours</h2><ol>{% for period in subject.periods %}<li>{{ stages[period.stage] }} · {{ period.start|culture_date(overview.timezone) }} → {{ period.end|culture_date(overview.timezone) if period.end else 'en cours' }}</li>{% endfor %}</ol>{% if subject.kind == 'mother' %}<h3>Lots descendants</h3><ul>{% for child in detail.descendants %}<li><a href="/cultures/{{ child.id }}">{{ child.name }}</a></li>{% else %}<li>Aucun prélèvement enregistré.</li>{% endfor %}</ul>{% endif %}</article></section>
+<article class="card"><h2>Parcours</h2><ol>{% for period in subject.periods %}<li>{{ stages[period.stage] }} · {{ period.start|culture_date(overview.timezone) }} → {{ period.end|culture_date(overview.timezone) if period.end else 'en cours' }}{% if period.duration %} · <span class="culture-duration">{{ period.duration.days }} jours{{ ' à ce jour' if not period.end else '' }} ({{ period.duration.weeks }} sem. + {{ period.duration.remaining_days }} j)</span>{% endif %}</li>{% endfor %}</ol>{% if subject.kind == 'mother' %}<h3>Lots descendants</h3><ul>{% for child in detail.descendants %}<li><a href="/cultures/{{ child.id }}">{{ child.name }}</a></li>{% else %}<li>Aucun prélèvement enregistré.</li>{% endfor %}</ul>{% endif %}</article></section>
 <section class="culture-section"><h2>Ajouter au carnet</h2><div class="culture-grid">
 {% for kind,label in event_kinds.items() if kind != 'create' %}
 {% if kind in ('note','identity') or (not subject.archived and ((subject.kind == 'mother' and kind == 'archive') or (subject.kind == 'lot' and ((kind in ('stage','move','loss','harvest') and subject.stage != 'sechage' and not (kind == 'stage' and subject.stage == 'floraison') and not (kind == 'harvest' and subject.space != 'space_2')) or (kind == 'finish' and subject.stage == 'sechage'))))) or (kind == 'release' and subject.archived and subject.space) %}
@@ -73,6 +73,24 @@
 {% if kind == 'harvest' %}<p>Récolte du lot entier et début du séchage dans l’espace 2. Vérifiez séparément <a href="/conf#daily-timer-2">l’éclairage</a>, <a href="/conf#cyclic-1">la pompe</a> et <a href="/conf#motor">la ventilation</a>.</p>{% endif %}
 {{ submit(label) }}</form></details>{% endif %}{% endfor %}
 </div></section>
+{% if detail.backfill.before %}
+<section class="culture-section culture-backfill"><h2>Compléter le parcours passé</h2>
+<p class="card-meta">Pour une culture reprise en cours de cycle : ces étapes sont antérieures au début du stade courant ({{ stages[subject.stage] }} depuis le {{ subject.stage_at|culture_date(overview.timezone) }}). Elles ne changent ni ce stade, ni son compteur, ni la clôture de la fiche. Une étape à la même date que le stade courant est refusée : préciser une date antérieure.</p>
+<div class="culture-grid">
+{% if detail.backfill.stages %}
+<details class="card"><summary>Ajouter une étape passée</summary><form class="culture-form" data-culture-backfill data-mode="stage" data-subject="{{ subject.id }}" data-version="{{ subject.version }}">
+<label>Étape passée<select name="stage">{% for key in detail.backfill.stages %}<option value="{{ key }}">{{ stages[key] }}</option>{% endfor %}</select></label>
+{{ date_fields(value=subject.origin_at[:10],label='Date effective de cette étape') }}
+<label>Motif ou source de la date (facultatif)<input name="reason" maxlength="500"></label>
+{{ submit('Enregistrer cette étape passée') }}</form></details>
+{% else %}<p class="card-meta">Toutes les étapes antérieures de ce parcours sont déjà renseignées.</p>{% endif %}
+<details class="card"><summary>Ajouter un déplacement passé</summary><form class="culture-form" data-culture-backfill data-mode="move" data-subject="{{ subject.id }}" data-version="{{ subject.version }}">
+<p class="card-meta">Le lot entier occupe l’espace indiqué à partir de cette date, jusqu’au déplacement suivant déjà enregistré.</p>
+<label>Espace occupé<select name="space">{% for key in detail.backfill.spaces %}<option value="{{ key }}">{{ spaces[key] }}</option>{% endfor %}</select></label>
+{{ date_fields(value=subject.origin_at[:10],label='Date d’entrée dans cet espace') }}
+<label>Motif ou source de la date (facultatif)<input name="reason" maxlength="500"></label>
+{{ submit('Enregistrer ce déplacement passé') }}</form></details>
+</div></section>{% endif %}
 <section class="culture-section"><h2>Journal et corrections</h2><p class="card-meta">Une correction conserve la version précédente et revalide tout le parcours.</p>
 {% for event in detail.events %}<article class="card culture-journal"><div class="section-heading"><h3>{{ event_kinds[event.kind] }}{{ ' · annulé' if event.cancelled else '' }}</h3><span>{{ event.effective_at|culture_date(overview.timezone) }}{{ ' (approximatif)' if event.precision == 'approximative' else '' }}</span></div>
 {{ event_summary(event) }}

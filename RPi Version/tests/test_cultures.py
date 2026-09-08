@@ -37,6 +37,120 @@ async def event(store, result, kind, day, payload=None, **extra):
     return await store.call("mutate", command)
 
 
+async def backfill(store, result, steps, **extra):
+    command = {"request_id": str(uuid.uuid4()), "operation": "backfill", "subject_id": result["subject_id"],
+               "version": result["version"], "steps": steps, **extra}
+    return await store.call("mutate", command)
+
+
+async def test_reprise_en_floraison_completee_retrospectivement(cultures):
+    mother = await cultures.call("mutate", create("Mère", "mother", origin_at="2026-05-01",
+        space_at="2026-05-01", stage_at="2026-05-01"))
+    lot = await cultures.call("mutate", create("Reprise", origin_type="cutting", stage="floraison",
+        space="space_2", origin_at="2026-06-01", space_at="2026-08-01", stage_at="2026-08-01",
+        origins=[{"mother_id": mother["subject_id"], "count": 6}]))
+    detail = await cultures.call("detail", lot["subject_id"])
+    assert detail["backfill"] == {"stages": ["enracinement", "vegetatif"],
+                                  "spaces": ["space_1", "space_2"], "before": "2026-08-01"}
+    assert detail["subject"]["age"]["days"] == 37
+    await cultures.call("solution_mutate", {"operation": "entry", "request_id": str(uuid.uuid4()),
+        "kind": "renewal", "reservoir_id": "cuttings_1", "effective_at": "2026-06-01", "volume_l": 20})
+    await cultures.call("solution_mutate", {"operation": "entry", "request_id": str(uuid.uuid4()),
+        "kind": "renewal", "reservoir_id": "reservoir_2", "effective_at": "2026-06-01", "volume_l": 20})
+    links = (await cultures.call("solution_data"))["links"]
+    assert [link["subject_id"] for link in links] == [lot["subject_id"]]
+    lot = await backfill(cultures, lot, [
+        {"kind": "stage", "effective_at": "2026-06-05", "payload": {"stage": "enracinement"}},
+        {"kind": "move", "effective_at": "2026-06-10", "payload": {"space": "space_1"}},
+        {"kind": "stage", "effective_at": "2026-06-15", "payload": {"stage": "vegetatif"}}])
+    subject = (await cultures.call("detail", lot["subject_id"]))["subject"]
+    # Le stade courant et son compteur sont inchangés : seules les périodes passées apparaissent.
+    assert subject["stage"] == "floraison" and subject["stage_at"] == "2026-08-01"
+    assert subject["age"]["days"] == 37
+    assert [(p["stage"], p["duration"]["days"]) for p in subject["periods"]] == [
+        ("enracinement", 10), ("vegetatif", 47), ("floraison", 37)]
+    assert [(o["space"], o["end"] is None) for o in subject["occupations"]] == [
+        ("space_1", False), ("space_2", True)]
+    # L'attribution des solutions suit les dates d'occupation corrigées.
+    links = sorted((await cultures.call("solution_data"))["links"], key=lambda link: link["start_at"])
+    # Clés UTC : minuit local du 10 juin et du 1er août, heure d'été.
+    assert len(links) == 2 and links[0]["start_at"] == "2026-06-09T22:00:00+00:00"
+    assert links[0]["end_at"] == "2026-07-31T22:00:00+00:00"
+    assert links[1]["start_at"] == "2026-07-31T22:00:00+00:00" and links[1]["end_at"] is None
+    assert (await cultures.call("detail", lot["subject_id"]))["backfill"]["stages"] == []
+
+
+async def test_backfill_refuse_atomiquement_chronologie_et_occupation(cultures):
+    other = await cultures.call("mutate", create("Occupant", space="space_2", space_at="2026-07-01",
+        origin_at="2026-07-01", stage_at="2026-07-01"))
+    lot = await cultures.call("mutate", create("Reprise", stage="floraison", origin_at="2026-06-01",
+        space="space_1", space_at="2026-06-01", stage_at="2026-08-01"))
+    events = len((await cultures.call("detail", lot["subject_id"]))["events"])
+    key = str(uuid.uuid4())
+    with pytest.raises(CultureError, match="précéder"):
+        await backfill(cultures, lot, [{"kind": "stage", "effective_at": "2026-08-01",
+                                        "payload": {"stage": "vegetatif"}}], request_id=key)
+    with pytest.raises(CultureError, match="antérieure manquante"):
+        await backfill(cultures, lot, [{"kind": "stage", "effective_at": "2026-07-01",
+                                        "payload": {"stage": "sechage"}}])
+    with pytest.raises(CultureError, match="occupé"):
+        await backfill(cultures, lot, [
+            {"kind": "stage", "effective_at": "2026-06-20", "payload": {"stage": "vegetatif"}},
+            {"kind": "move", "effective_at": "2026-07-02", "payload": {"space": "space_2"}}])
+    detail = await cultures.call("detail", lot["subject_id"])
+    assert len(detail["events"]) == events and detail["subject"]["stage"] == "floraison"
+    assert (await cultures.call("detail", other["subject_id"]))["subject"]["space"] == "space_2"
+    # Aucune trace de l'échec : la clé reste libre pour une autre saisie.
+    saved = await backfill(cultures, lot, [{"kind": "stage", "effective_at": "2026-06-20",
+                                            "payload": {"stage": "vegetatif"}}], request_id=key)
+    assert saved["saved"]
+
+
+async def test_backfill_precisions_dst_revisions_et_onglet_perime(cultures, tmp_path):
+    cultures.reliable = lambda: False
+    spring = await cultures.call("mutate", {**create("Printemps", stage="floraison", origin_at="2026-03-20",
+        space_at="2026-03-20", stage_at="2026-04-05"), "confirm_date": True})
+    with pytest.raises(CultureError, match="Horloge"):
+        await backfill(cultures, spring, [{"kind": "stage", "effective_at": "2026-03-28",
+                                           "payload": {"stage": "germination"}}])
+    spring = await backfill(cultures, spring, [
+        {"kind": "stage", "effective_at": "2026-03-28T23:30:00+01:00", "precision": "instant",
+         "payload": {"stage": "germination"}},
+        {"kind": "stage", "effective_at": "2026-03-29T03:30:00+02:00", "precision": "instant",
+         "payload": {"stage": "vegetatif"}}], confirm_date=True)
+    subject = (await cultures.call("detail", spring["subject_id"]))["subject"]
+    # Une heure « sautée » au passage à l'heure d'été ne crée ni ne perd un jour calendaire.
+    assert [p["duration"]["days"] for p in subject["periods"]] == [1, 7, 155]
+    assert [p["precision"] for p in subject["periods"]] == ["instant", "instant", "date"]
+    events = (await cultures.call("detail", spring["subject_id"]))["events"]
+    germination = next(e for e in events if e["payload"].get("stage") == "germination")
+    corrected = await cultures.call("mutate", {"request_id": str(uuid.uuid4()), "operation": "correct",
+        "subject_id": spring["subject_id"], "version": spring["version"], "event_id": germination["id"],
+        "effective_at": "2026-03-27", "precision": "approximative", "confirm_date": True,
+        "payload": {"stage": "germination"}, "reason": "Date retrouvée"})
+    row = next(e for e in (await cultures.call("detail", spring["subject_id"]))["events"] if e["id"] == germination["id"])
+    assert row["precision"] == "approximative" and row["revisions"][0]["precision"] == "instant"
+    with pytest.raises(CultureConflict):
+        await backfill(cultures, spring, [{"kind": "move", "effective_at": "2026-03-25",
+                                           "payload": {"space": "space_2"}}], confirm_date=True)
+    assert (await cultures.call("detail", spring["subject_id"]))["subject"]["periods"][0]["duration"]["days"] == 2
+    autumn_store = CultureStore(tmp_path / "autumn.sqlite3", now=lambda: datetime(2026, 11, 10, tzinfo=timezone.utc))
+    try:
+        autumn = await autumn_store.call("mutate", create("Automne", stage="floraison",
+            origin_at="2026-10-20", space_at="2026-10-20", stage_at="2026-11-01"))
+        autumn = await backfill(autumn_store, autumn, [
+            {"kind": "stage", "effective_at": "2026-10-25T02:30:00+02:00", "precision": "instant",
+             "payload": {"stage": "germination"}},
+            {"kind": "stage", "effective_at": "2026-10-25T02:30:00+01:00", "precision": "instant",
+             "payload": {"stage": "vegetatif"}}])
+        subject = (await autumn_store.call("detail", autumn["subject_id"]))["subject"]
+        # Heure locale ambiguë : deux instants distincts, une seule date locale, donc zéro jour.
+        assert [p["duration"]["days"] for p in subject["periods"]] == [0, 7, 9]
+        assert corrected["saved"]
+    finally:
+        await autumn_store.close()
+
+
 async def test_cycle_multi_meres_recolte_et_archive(cultures):
     a = await cultures.call("mutate", create("Mère A", "mother"))
     b = await cultures.call("mutate", create("Mère B", "mother"))

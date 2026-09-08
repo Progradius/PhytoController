@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from model.culture import (CultureConflict, CultureError, event_payload, integer, project,
-                           stamp, text_value, validate_spaces)
+from model.culture import (SPACES, CultureConflict, CultureError, backfill_stages, event_payload,
+                           integer, project, stamp, text_value, validate_spaces)
 
 from model.culture_solution import RESERVOIRS
 from utils.culture_solution_store import SolutionStoreMixin, SOLUTION_SCHEMA, SOLUTION_TABLES
@@ -213,6 +213,9 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
             event["revisions"] = [v for v in versions if v["id"] == event["id"] and v["revision"] < event["revision"]]
         return {"subject": subject, "events": events[offset:offset + 40], "total": len(events),
                 "offset": offset, "timezone": self.zone, "clock_reliable": self.reliable(),
+                "backfill": {"stages": backfill_stages(subject),
+                             "spaces": ["space_1"] if subject["kind"] == "mother" else list(SPACES),
+                             "before": subject.get("stage_at")},
                 "photos": self._media_for_events([e["id"] for e in events[offset:offset + 40]]),
                 "descendants": [{"id": s["id"], "name": s["name"]} for s in subjects
                                 if any(o["mother_id"] == subject_id for o in s["origins"])]}
@@ -254,7 +257,7 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
         fields = {"request_id", "operation", "confirm_date", "kind", "name", "variety", "origin_type",
                   "origins", "origin_at", "origin_precision", "stage", "stage_at", "stage_precision",
                   "space", "space_at", "space_precision", "subject_id", "version", "event_id",
-                  "effective_at", "precision", "payload", "cancelled", "reason"}
+                  "effective_at", "precision", "payload", "cancelled", "reason", "steps"}
         if set(command) - fields:
             raise CultureError("Champ de commande inconnu.")
         key = text_value(command.get("request_id"), "Clé de requête", 100)
@@ -275,7 +278,7 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
             now = self.now()
             if operation == "create":
                 subject_id = self._create(command, now)
-            elif operation in ("event", "correct"):
+            elif operation in ("event", "correct", "backfill"):
                 if type(command.get("version")) is not int:
                     raise CultureError("Version entière obligatoire.")
                 subject_id = text_value(command.get("subject_id"), "Identifiant")
@@ -290,6 +293,8 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
                         raise CultureError("Événement introuvable.")
                     self._insert_event(subject_id, old["kind"], command, now,
                                        event_id=old["id"], revision=old["revision"] + 1)
+                elif operation == "backfill":
+                    self._backfill(subject_id, command, now)
                 else:
                     if command.get("kind") == "create":
                         raise CultureError("Origine déjà enregistrée.")
@@ -305,6 +310,41 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
                       "version": next(s["version"] for s in projections if s["id"] == subject_id)}
             self._db.execute("INSERT INTO requests VALUES (?,?,?)", (key, fingerprint, json.dumps(result)))
         return result
+
+    def _backfill(self, subject_id, command, now):
+        """Complète les étapes passées connues d'un parcours repris en cours de cycle.
+
+        Chaque étape est un événement daté avant le début du stade courant : la projection
+        replace donc ces étapes à leur date, sans déplacer le stade affiché ni la clôture.
+        Toutes les étapes entrent dans la transaction de l'appelant : aucune n'est écrite
+        si l'une d'elles, l'occupation des espaces ou les liens aux solutions sont refusés.
+        """
+        steps = command.get("steps")
+        if not isinstance(steps, list) or not 1 <= len(steps) <= 12:
+            raise CultureError("Renseigner de 1 à 12 étapes passées.")
+        subject = next(s for s in self._projections() if s["id"] == subject_id)
+        if not subject.get("stage_at"):
+            raise CultureError("Renseigner le stade courant avant de compléter le passé.")
+        # Borne stricte : à date égale l'ordre dépendrait de la seule séquence d'insertion.
+        limit = stamp(subject["stage_at"], subject["stage_precision"], self.zone, now)[0]
+        allowed = backfill_stages(subject)
+        spaces = ["space_1"] if subject["kind"] == "mother" else list(SPACES)
+        for step in steps:
+            if not isinstance(step, dict) or set(step) - {"kind", "effective_at", "precision", "payload", "reason"}:
+                raise CultureError("Étape passée invalide.")
+            kind = step.get("kind")
+            if kind not in ("stage", "move"):
+                raise CultureError("Seuls un stade ou un déplacement passés peuvent être complétés.")
+            payload = step.get("payload") or {}
+            if not isinstance(payload, dict):
+                raise CultureError("Étape passée invalide.")
+            if kind == "stage" and payload.get("stage") not in allowed:
+                raise CultureError("Ce stade n'est pas une étape antérieure manquante de ce parcours.")
+            if kind == "move" and payload.get("space") not in spaces:
+                raise CultureError("Espace inconnu pour cette culture.")
+            if stamp(step.get("effective_at"), step.get("precision", "date"), self.zone, now)[0] >= limit:
+                raise CultureError("Une étape passée doit précéder le début du stade courant.")
+            self._insert_event(subject_id, kind, step, now)
 
     def _create(self, command, now):
         kind = command.get("kind")

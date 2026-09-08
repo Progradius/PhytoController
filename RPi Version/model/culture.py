@@ -129,6 +129,27 @@ def event_payload(kind, raw):
     return result
 
 
+def stage_path(subject):
+    """Ordre des stades d'un lot, déduit de son origine ; un pied mère n'en a pas."""
+    if subject["kind"] == "mother":
+        return []
+    return (["germination"] if subject["origin_type"] == "seed" else ["enracinement"]) + \
+        ["vegetatif", "floraison", "sechage"]
+
+
+def backfill_stages(subject):
+    """Stades du parcours antérieurs au stade courant et encore absents de la fiche.
+
+    Le stade courant n'est jamais proposé : une reprise en cours de cycle se complète
+    vers le passé, sans toucher au stade affiché ni à la clôture de la fiche.
+    """
+    path = stage_path(subject)
+    if not subject.get("stage") or subject["stage"] not in path:
+        return []
+    known = {period["stage"] for period in subject["periods"]}
+    return [stage for stage in path[:path.index(subject["stage"])] if stage not in known]
+
+
 def project(subject, events, origins, now, zone, reliable):
     """Rejoue le parcours entier après chaque correction, avant validation en base."""
     current = dict(subject)
@@ -163,7 +184,7 @@ def project(subject, events, origins, now, zone, reliable):
                 if stage != "maintien" or current["stage"]:
                     raise CultureError("Un pied mère possède une seule période de maintien.")
             else:
-                path = (["germination"] if subject["origin_type"] == "seed" else ["enracinement"]) + ["vegetatif", "floraison", "sechage"]
+                path = stage_path(subject)
                 if stage not in path or (current["stage"] and path.index(stage) <= path.index(current["stage"])):
                     raise CultureError("Les stades doivent progresser dans l'ordre du parcours.")
                 if stage == "sechage" and kind != "harvest":
@@ -219,6 +240,9 @@ def project(subject, events, origins, now, zone, reliable):
         raise CultureError("L'origine de la culture ne peut pas être annulée.")
     if not current["periods"] or not current["occupations"]:
         raise CultureError("Conserver au moins un stade et une entrée dans un espace.")
+    # Même convention calendaire que les compteurs : une période encore ouverte se compte jusqu'à aujourd'hui.
+    for period in current["periods"]:
+        period["duration"] = age(period["start"], period["end"], now, zone)
     current["age"] = age(current.get("stage_at"), current.get("stage_end"), now, zone)
     current["origin_age"] = age(current["origin_at"], current.get("stage_end"), now, zone)
     current["clock_reliable"] = reliable

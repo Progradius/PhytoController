@@ -78,7 +78,7 @@
     }
     return data;
   };
-  document.querySelectorAll("[data-culture-create], [data-culture-event], [data-culture-correct]").forEach(form => {
+  document.querySelectorAll("[data-culture-create], [data-culture-event], [data-culture-correct], [data-culture-backfill]").forEach(form => {
     form.querySelectorAll("input[data-instant]").forEach(input => {
       const d = new Date(input.dataset.instant);
       input.step = "any";
@@ -144,6 +144,14 @@
               count: Number(row.querySelector('[name="origin_count"]').value),
             }));
           }
+        } else if (form.hasAttribute("data-culture-backfill")) {
+          // Une étape passée est un événement daté avant le stade courant : elle ne le remplace pas.
+          const effective = stamp(form, "effective_at");
+          const mode = form.dataset.mode;
+          command = {operation: "backfill", subject_id: form.dataset.subject, version: Number(form.dataset.version),
+            steps: [{kind: mode, effective_at: effective.value, precision: effective.precision,
+              payload: mode === "stage" ? {stage: form.elements.stage.value} : {space: form.elements.space.value},
+              reason: form.elements.reason.value}]};
         } else {
           const effective = stamp(form, "effective_at");
           command = {operation: form.hasAttribute("data-culture-correct") ? "correct" : "event",
