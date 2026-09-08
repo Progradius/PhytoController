@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% macro confirm() %}{% if not data.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié les dates malgré l’horloge non synchronisée.</label>{% endif %}{% endmacro %}
+{% macro target_name(item) %}{% for reservoir in data.reservoirs if reservoir.id == item.reservoir_id %}{{ reservoir.name }}{% endfor %}{% for subject in data.subjects if subject.id == item.subject_id %}{{ subject.name }}{{ ' (archivée)' if subject.archived else '' }}{% endfor %}{% endmacro %}
+{% macro range_text(item) %}pH {{ item.ph_min if item.ph_min is not none else '—' }} à {{ item.ph_max if item.ph_max is not none else '—' }} · EC {{ item.ec_min if item.ec_min is not none else '—' }} à {{ item.ec_max if item.ec_max is not none else '—' }} mS/cm{% endmacro %}
+{% macro target_form(target={}) %}
+<form class="culture-form target-form" data-target-form data-operation="target"{% if target %} data-id="{{ target.id }}" data-version="{{ target.revision }}"{% endif %}>
+<label>Cible de la plage<select name="target" required><option value="">Choisir une cible</option>
+{% for reservoir in data.reservoirs %}<option value="{{ reservoir.id }}"{% if target.get('reservoir_id', filters.get('target')) == reservoir.id %} selected{% endif %}>{{ reservoir.name }}</option>{% endfor %}
+{% for subject in data.subjects %}<option value="{{ subject.id }}"{% if target.get('subject_id') == subject.id or (not target and filters.get('target') == subject.id) %} selected{% endif %}>{{ subject.name }}{{ ' (archivée)' if subject.archived else '' }}</option>{% endfor %}</select></label>
+<label>Intitulé de la plage<input name="label" maxlength="120" value="{{ target.get('label','') }}"></label>
+<label>Stade de contexte (informatif, il n’entre pas dans la résolution)<select name="stage"><option value="">Sans stade</option>{% for key,label in stages.items() %}<option value="{{ key }}"{% if target.get('stage') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<div class="culture-grid">
+<label>pH minimum<input name="ph_min" inputmode="decimal" value="{{ target.ph_min if target and target.ph_min is not none else '' }}"></label>
+<label>pH maximum<input name="ph_max" inputmode="decimal" value="{{ target.ph_max if target and target.ph_max is not none else '' }}"></label>
+<label>EC minimum<input name="ec_min" inputmode="decimal" value="{{ target.ec_min if target and target.ec_min is not none else '' }}"></label>
+<label>EC maximum<input name="ec_max" inputmode="decimal" value="{{ target.ec_max if target and target.ec_max is not none else '' }}"></label>
+<label>Unité de l’EC saisie<select name="ec_unit"><option>mS/cm</option><option>µS/cm</option></select></label></div>
+<p class="card-meta">Une plage pH seule, EC seule ou les deux. Virgule décimale acceptée ; l’EC est enregistrée en mS/cm. Aucune plage par défaut n’est proposée.</p>
+<label>Début de validité<input type="date" name="start_at" value="{{ target.get('start_at', data.today) }}" required></label>
+<label>Précision du début<select name="start_precision">{% for key,label in (('date','Date connue'),('approximative','Date approximative')) %}<option value="{{ key }}"{% if target.get('start_precision','date') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Fin de validité (facultative)<input type="date" name="end_at" value="{{ target.get('end_at','') or '' }}"></label>
+<label>Précision de la fin<select name="end_precision">{% for key,label in (('date','Date connue'),('approximative','Date approximative')) %}<option value="{{ key }}"{% if target.get('end_precision','date') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Note<textarea name="note" maxlength="4000">{{ target.get('note','') }}</textarea></label>
+{% if target %}<label>Motif de la correction<input name="reason" maxlength="500" value=""></label>{% endif %}
+{{ confirm() }}<button class="button" type="submit">{{ 'Enregistrer la correction' if target else 'Enregistrer la plage cible' }}</button><output role="status" aria-live="polite"></output></form>
+{% endmacro %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
+{% block content %}
+<h1>Plages cibles pH et EC</h1>
+<nav class="culture-links" aria-label="Navigation du carnet"><a href="/cultures">Cultures et parcours</a><a href="/cultures/solutions">Solutions et relevés</a><a href="/cultures/cycles">Cycles et rappels</a><a href="#plages">Plages enregistrées</a></nav>
+<p>Repères de lecture déclaratifs. Une plage n’ordonne aucun dosage, ne modifie aucun réglage et ne déclenche aucune alarme de contrôle. Elle est facultative : une période sans plage reste affichée sans bande de référence.</p>
+{% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
+{% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates de validité avant de confirmer.</p>{% endif %}
+<section class="culture-section card"><h2>Enregistrer une plage cible</h2>
+<p class="card-meta">La plage s’applique aux mesures dont la date tombe dans sa fenêtre de validité. Elle n’est jamais appliquée rétroactivement aux mesures antérieures à son début. Résolution : cibles directes du relevé, puis sujets alimentés par la solution à cette date, puis réservoir du relevé — priorité stricte, sans mélange entre deux sources.</p>
+{{ target_form() }}</section>
+<section id="plages" class="culture-section"><h2>Plages enregistrées</h2>
+<form method="get" class="culture-form target-filter"><label>Filtrer la cible<select name="target"><option value="">Toutes les cibles</option>{% for item in data.reservoirs + data.subjects %}<option value="{{ item.id }}"{% if filters.get('target') == item.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+<label>Filtrer la portée<select name="scope"><option value="">Toutes les portées</option>{% for key,label in (('reservoir','Réservoirs'),('subject','Cultures')) %}<option value="{{ key }}"{% if filters.get('scope') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<button class="button" type="submit">Filtrer</button></form>
+<p>{{ data.total }} plage(s) enregistrée(s) pour ce filtre.</p>
+<div class="culture-links"><a data-targets-export href="/api/v1/cultures/targets/export?format=csv">Exporter les plages cibles CSV</a><a href="/api/v1/cultures/solutions/export">Exporter les relevés avec leurs cibles résolues</a></div>
+{% for item in data["items"] %}<article class="card culture-journal target-item" id="target-{{ item.id }}">
+<h3>{{ item.label or 'Plage sans intitulé' }}{{ ' · annulée' if item.cancelled else '' }}</h3>
+<p>{{ target_name(item) }} · référence {{ item.id[:8] }} · version {{ item.revision }}</p>
+<p>{{ range_text(item) }}</p>
+<p>Du {{ item.start_at|culture_date(data.timezone) }}{{ ' (approximatif)' if item.start_precision == 'approximative' else '' }} {% if item.end_at %}au {{ item.end_at|culture_date(data.timezone) }}{{ ' (approximative)' if item.end_precision == 'approximative' else '' }}{% else %}et toujours en vigueur{% endif %}{% if item.stage %} · contexte de saisie : {{ stages[item.stage] }}{% endif %}</p>
+<p class="culture-note">{{ item.note }}</p>
+{% if item.reason %}<p>Motif : {{ item.reason }}</p>{% endif %}
+<p class="card-meta">Saisie le {{ item.recorded_at|culture_date(data.timezone) }}{{ ' · horloge non synchronisée' if item.clock_reliable == 0 else '' }}</p>
+{% if not item.cancelled %}
+<details><summary>Corriger cette plage</summary>{{ target_form(item) }}</details>
+{% if not item.end_at %}<details><summary>Clore la validité</summary>
+<form class="culture-form target-form" data-target-form data-operation="target_action" data-action="end" data-id="{{ item.id }}" data-version="{{ item.revision }}">
+<label>Dernier jour de validité<input type="date" name="end_at" required></label>
+<label>Précision de la fin<select name="end_precision"><option value="date">Date connue</option><option value="approximative">Date approximative</option></select></label>
+<label>Motif<input name="reason" maxlength="500"></label>
+{{ confirm() }}<button class="button" type="submit">Clore la validité</button><output role="status" aria-live="polite"></output></form></details>{% endif %}
+<details><summary>Annuler cette plage</summary><p class="card-meta">L’annulation retire la plage de la résolution ; elle reste consultable avec son motif et ses versions.</p>
+<form class="culture-form target-form" data-target-form data-operation="target_action" data-action="cancel" data-id="{{ item.id }}" data-version="{{ item.revision }}">
+<label>Motif de l’annulation<input name="reason" maxlength="500" required></label>
+{{ confirm() }}<button class="button" type="submit">Annuler la plage</button><output role="status" aria-live="polite"></output></form></details>
+{% endif %}
+{% if item.revisions %}<details><summary>Versions précédentes ({{ item.revisions|length }})</summary>{% for old in item.revisions %}<p>Version {{ old.revision }} · {{ range_text(old) }} · du {{ old.start_at|culture_date(data.timezone) }}{% if old.end_at %} au {{ old.end_at|culture_date(data.timezone) }}{% endif %}{{ ' · annulée' if old.cancelled else '' }}</p><p class="culture-note">{{ old.note }}</p>{% if old.reason %}<p>Motif : {{ old.reason }}</p>{% endif %}{% endfor %}</details>{% endif %}
+</article>{% else %}<p>Aucune plage cible pour ce filtre. Les relevés restent lisibles sans bande de référence.</p>{% endfor %}
+<nav class="culture-links" aria-label="Pagination des plages cibles">{% if data.offset %}<a data-targets-offset="{{ [0,data.offset-40]|max }}" href="?offset={{ [0,data.offset-40]|max }}">Précédentes</a>{% endif %}{% if data.offset+40 < data.total %}<a data-targets-offset="{{ data.offset+40 }}" href="?offset={{ data.offset+40 }}">Suivantes</a>{% endif %}</nav></section>
+{% endif %}{% endblock %}
+{% block page_scripts %}<script src="/static/js/culture_targets.js?v={{ asset_versions.culture_targets }}" defer></script>{% endblock %}

@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 
 from model.culture import CultureConflict, CultureError, age, stamp, text_value
 from model.culture_solution import RESERVOIRS, SOLUTION_KINDS, ingredients, measurements, number
+# Lot E : la plage cible d'un relevé est résolue à la date de ce relevé, jamais rétroactivement.
+from model.culture_targets import resolve_targets, target_bands, target_text
 
 SOLUTION_TABLES = ("reservoirs", "recipes", "solution_entries", "solution_targets", "solution_periods", "solution_links")
 # Fenêtre proposée dans le sélecteur d'intervention : jamais tout le carnet d'un coup.
@@ -306,6 +308,8 @@ class SolutionStoreMixin:
         if target and target not in RESERVOIRS and target not in {s["id"] for s in subjects}:
             raise CultureError("Cible de filtre inconnue.")
         active = {e["id"]: e for e in entries if not e["cancelled"]}
+        # Lot E : révisions courantes des plages cibles, lues une seule fois pour tout le lot.
+        target_ranges = self._current_targets()
         for entry in entries:
             at = entry["sort_at"]
             intervention = active.get(entry["intervention_id"])
@@ -315,6 +319,9 @@ class SolutionStoreMixin:
             entry["period_id"] = matched[0]["id"] if matched else None
             entry["fed_subjects"] = [link["subject_id"] for link in links if link["period_id"] == entry["period_id"] and
                                      (link["start_at"] < at <= (link["end_at"] or "9999") if before else link["start_at"] <= at < (link["end_at"] or "9999"))]
+            # Lot E : plage cible applicable à cette date, ou None. Aucune plage par défaut,
+            # aucun diagnostic ni dosage ; c'est un repère de lecture attaché au relevé.
+            entry["target"] = resolve_targets(entry, target_ranges)
         selected = [e for e in entries if (not target or target == e["reservoir_id"] or target in e["targets"] or target in e["fed_subjects"])
                     and (not kind or kind == e["kind"]) and e["sort_at"] >= start
                     and (not end_date or stamp(e["effective_at"], e["precision"], self.zone, self.now())[1] <= end_date)]
@@ -336,7 +343,12 @@ class SolutionStoreMixin:
                 target_key = entry["reservoir_id"] or ",".join(sorted(entry["targets"]))
                 key = (day, target_key, entry["period_id"])
                 bucket = buckets.setdefault(key, {"at": stamp(day, "date", self.zone, self.now())[0],
-                    "target": target_key, "period": entry["period_id"], "ph_values": [], "ec_values": [], "annotations": []})
+                    "target": target_key, "period": entry["period_id"], "ph_values": [], "ec_values": [],
+                    "annotations": [], "target_range": entry["target"]})
+                # Un agrégat journalier ne porte une plage que si toutes ses mesures partagent
+                # la même : deux contextes ne se moyennent pas en une cible intermédiaire.
+                if (bucket["target_range"] or {}).get("id") != (entry["target"] or {}).get("id"):
+                    bucket["target_range"] = None
                 for metric in ("ph", "ec"):
                     if entry[metric] is not None:
                         bucket[metric + "_values"].append(entry[metric])
@@ -354,11 +366,14 @@ class SolutionStoreMixin:
                 chart.append(bucket)
         else:
             chart = [{"at": e["sort_at"], "ph": e["ph"], "ec": e["ec"], "target": e["reservoir_id"] or ",".join(e["targets"]),
-                      "period": e["period_id"], "label": SOLUTION_KINDS[e["kind"]],
+                      "period": e["period_id"], "label": SOLUTION_KINDS[e["kind"]], "target_range": e["target"],
                       "annotations": [SOLUTION_KINDS[e["kind"]]] if e["kind"] != "reading" else []} for e in chart_entries]
         chart.sort(key=lambda p: p["at"])
         truncated = len(chart) > 2000
         chart = chart[-2000:]
+        # Lot E : bandes de référence dérivées des plages réellement résolues, jamais prolongées
+        # sur une période sans cible ni inventées avant la première plage saisie.
+        bands = target_bands([{"at": point["at"], "target": point.pop("target_range")} for point in chart])
         chart_start = min((p["at"] for p in chart), default="9999")
         chart_end = max((p["at"] for p in chart), default="")
         stage_subjects = {s["id"] for s in subjects if s["id"] == target or any(link["subject_id"] == s["id"] and
@@ -370,8 +385,11 @@ class SolutionStoreMixin:
         revisions = self._solution_entries(revisions=True)
         for entry in page:
             entry["revisions"] = [r for r in revisions if r["id"] == entry["id"] and r["revision"] < entry["revision"]]
+            # Lot G : contexte d'équipement résolu à la date effective de l'intervention,
+            # avec sa provenance ; jamais un repli sur le catalogue courant.
+            entry["equipment"] = self._equipment_context_at(entry["sort_at"], entry.get("equipment_context"), entry["recorded_at"])
         linked = [e["intervention_id"] for e in page if e["intervention_id"]]
-        return {"items": page, "chart": chart, "chart_aggregated": aggregated, "chart_truncated": truncated, "stages": stages, "total": len(selected), "offset": offset, "periods": periods, "links": links,
+        return {"items": page, "chart": chart, "chart_targets": bands, "chart_aggregated": aggregated, "chart_truncated": truncated, "stages": stages, "total": len(selected), "offset": offset, "periods": periods, "links": links,
                 "reservoirs": [dict(r) for r in self._db.execute("SELECT * FROM reservoirs")],
                 "recipes": self._recipes(), "subjects": [{"id": s["id"], "name": s["name"], "kind": s["kind"], "archived": s["archived"]} for s in subjects],
                 **self._solution_interventions(entries, subjects, "", 0, linked),
@@ -383,12 +401,13 @@ class SolutionStoreMixin:
         output = io.StringIO(newline="")
         writer = csv.writer(output)
         fields = ["id", "revision", "cancelled", "kind", "reservoir_id", "period_id", "effective_at", "precision", "recorded_at",
-                  "ph", "ec", "temperature_c", "volume_l", "context", "compensation", "intervention_id", "targets", "fed_subjects", "ingredients", "note", "reason"]
+                  "ph", "ec", "ph_cible", "ec_cible", "temperature_c", "volume_l", "context", "compensation", "intervention_id", "targets", "fed_subjects", "ingredients", "note", "reason"]
         writer.writerow(["EC_mS_cm" if f == "ec" else f for f in fields])
         for entry in self._solution_data(filters, export=True):
             row = []
             for field in fields:
-                value = entry.get(field)
+                # Lot E : la cible est celle résolue à la date du relevé ; une absence reste vide.
+                value = target_text(entry.get("target"), field[:2]) if field.endswith("_cible") else entry.get(field)
                 value = "" if value is None else json.dumps(value, ensure_ascii=False) if isinstance(value, list) else str(value)
                 if value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
                     value = "'" + value
