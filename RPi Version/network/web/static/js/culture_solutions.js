@@ -62,6 +62,49 @@
       if (!preparation && form.elements.recipe_id.value) { form.elements.recipe_id.value = ""; preview(); }
       form.elements.volume_l.required = ["renewal", "topup"].includes(kind);
     };
+    // Recherche bornée d'intervention : le select ne contient jamais tout le carnet.
+    const lookup = form.querySelector("[data-intervention-lookup]");
+    const select = form.elements.intervention_id;
+    if (lookup && select) {
+      const status = lookup.querySelector("[data-intervention-status]");
+      const search = lookup.querySelector('[name="intervention_search"]');
+      const kinds = JSON.parse(lookup.dataset.kinds || "{}");
+      const size = Number(lookup.dataset.page) || 200;
+      let offset = 0, busyLookup = false;
+      const describe = item => `${kinds[item.kind] || item.kind} · ${item.effective_at} · ${item.target_label} · ${item.id.slice(0, 8)}`;
+      const load = async step => {
+        if (busyLookup) return;
+        const next = Math.max(0, step === null ? 0 : offset + step * size);
+        busyLookup = true; status.textContent = "Recherche des interventions…";
+        try {
+          const query = new URLSearchParams({interventions: search.value, interventions_offset: String(next)});
+          const response = await fetch(`/api/v1/cultures/solutions?${query}`, {headers: {Accept: "application/json"}});
+          const data = await response.json().catch(() => ({error: "Réponse illisible."}));
+          if (!response.ok) throw new Error(data.error || "Recherche refusée.");
+          offset = data.interventions_offset;
+          const kept = select.selectedOptions[0];
+          const keep = kept && kept.value ? {value: kept.value, text: kept.textContent} : null;
+          select.textContent = "";
+          select.append(new Option("Sans lien", ""));
+          const seen = new Set();
+          data.interventions.forEach(item => { seen.add(item.id); select.append(new Option(describe(item), item.id)); });
+          // L'association en cours reste proposée même absente de la fenêtre affichée.
+          if (keep && !seen.has(keep.value)) select.append(new Option(keep.text, keep.value));
+          select.value = keep ? keep.value : "";
+          const last = Math.min(data.interventions_total, offset + size);
+          status.textContent = data.interventions_total
+            ? `${data.interventions_total} intervention(s) trouvée(s) · affichées ${offset + 1} à ${last}, de la plus récente à la plus ancienne.`
+            : "Aucune intervention pour cette recherche ; l’association en cours reste conservée.";
+        } catch (error) {
+          status.textContent = error instanceof TypeError ? "Recherche non aboutie : l’association en cours est conservée." : error.message;
+        } finally { busyLookup = false; }
+      };
+      lookup.querySelector("[data-intervention-find]").addEventListener("click", () => load(null));
+      lookup.querySelectorAll("[data-intervention-page]").forEach(button => {
+        button.addEventListener("click", () => load(Number(button.dataset.interventionPage)));
+      });
+      search.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); load(null); } });
+    }
     form.elements.kind?.addEventListener("change", sync);
     form.elements.target?.addEventListener("change", sync);
     form.elements.recipe_id?.addEventListener("change", preview);

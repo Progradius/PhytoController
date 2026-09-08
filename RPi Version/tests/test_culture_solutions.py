@@ -200,6 +200,10 @@ async def test_solutions_http_securite_et_rendu(web_context, monkeypatch):
     assert (await client.get("/static/js/culture_solutions.js")).status == 200
     assert (await client.get("/api/v1/cultures/solutions?target=absent")).status == 400
     assert (await client.get("/api/v1/cultures/solutions/export")).status == 200
+    lookup = await client.get("/api/v1/cultures/solutions?interventions=renouvellement")
+    assert lookup.status == 200 and "items" not in await lookup.json()
+    assert (await client.get("/api/v1/cultures/solutions?interventions=x&interventions_offset=-1")).status == 400
+    assert (await client.get("/api/v1/cultures/solutions?interventions=" + "x" * 200)).status == 400
     assert (await client.post("/api/v1/cultures/solutions", json=[], headers=headers)).status == 400
     assert (await client.post("/api/v1/cultures/solutions", json={"note": "x"*70000}, headers=headers)).status == 413
     assert config.current.to_json() == original and not writes and not sensors.reconfigured
@@ -230,6 +234,50 @@ async def test_courbes_longues_pagination_et_preparation_sans_rupture(cultures):
     focused = await cultures.call("solution_data", {}, 0, False, first["id"])
     assert any(e["id"] == first["id"] for e in focused["items"])
     assert len((await cultures.call("solution_data", {"start": "2026-08-02", "end": "2026-08-02"}, 0, True))) == 502
+
+
+async def test_intervention_ancienne_reste_liee_et_retrouvable(cultures):
+    """Lot A : une correction de pH ou de note conserve un lien devenu ancien."""
+    lot = await cultures.call("mutate", create(space="space_2"))
+    renewal = await cultures.call("solution_mutate", entry(day="2026-08-01"))
+    await cultures.call("solution_mutate", entry(day="2026-08-01", reservoir_id="cuttings_1"))
+    reading_command = entry("reading", "2026-08-01", ph=6, intervention_id=renewal["id"], context="after")
+    reading = await cultures.call("solution_mutate", reading_command)
+    # Plus de 200 interventions ultérieures, sur deux cibles, repoussent le renouvellement hors fenêtre.
+    for index in range(201):
+        day = f"2026-08-{index % 28 + 1:02d}"
+        target = "reservoir_2" if index % 2 else "cuttings_1"
+        await cultures.call("solution_mutate", entry("topup", day, reservoir_id=target, volume_l=1))
+    data = await cultures.call("solution_data", {}, 0, False, reading["id"])
+    proposed = {item["id"] for item in data["interventions"]}
+    assert data["interventions_total"] == 203 and len(data["interventions"]) == 201
+    assert renewal["id"] in proposed and any(item["linked"] for item in data["interventions"])
+    # Correction « pH seul » : l'association n'est ni mentionnée, ni perdue, ni changée.
+    partial = {"operation": "correct", "request_id": str(uuid.uuid4()), "id": reading["id"], "version": 1,
+               "kind": "reading", "reservoir_id": "reservoir_2", "effective_at": "2026-08-01", "ph": 6.5}
+    saved = await cultures.call("solution_mutate", partial)
+    row = next(e for e in (await cultures.call("solution_data", {}, 0, False, reading["id"]))["items"] if e["id"] == reading["id"])
+    assert row["ph"] == 6.5 and row["intervention_id"] == renewal["id"] and row["context"] == "after"
+    # Correction « note seule », depuis la version issue de la précédente.
+    await cultures.call("solution_mutate", {**partial, "request_id": str(uuid.uuid4()), "version": saved["version"],
+                                            "ph": 6.5, "note": "Relevé revérifié"})
+    row = next(e for e in (await cultures.call("solution_data", {}, 0, False, reading["id"]))["items"] if e["id"] == reading["id"])
+    assert row["note"] == "Relevé revérifié" and row["intervention_id"] == renewal["id"] and row["revision"] == 3
+    # Recherche bornée : l'intervention ancienne reste sélectionnable pour une saisie rétrospective.
+    found = await cultures.call("solution_data", None, 0, False, None, renewal["id"][:8])
+    assert [item["id"] for item in found["interventions"]] == [renewal["id"]] and "items" not in found
+    assert found["interventions"][0]["target_label"] == "Réservoir de l’espace 2"
+    page = await cultures.call("solution_data", None, 0, False, None, "", 200)
+    assert page["interventions_offset"] == 200 and len(page["interventions"]) == 3
+    assert (await cultures.call("solution_data", None, 0, False, None, "appoint"))["interventions_total"] == 201
+    # Association incohérente : refus atomique, sans doublon à la nouvelle tentative identique.
+    before = await cultures.call("export")
+    broken = {**reading_command, "request_id": str(uuid.uuid4()), "operation": "correct", "id": reading["id"],
+              "version": 3, "targets": [lot["subject_id"]], "reservoir_id": None}
+    for _ in range(2):
+        with pytest.raises(CultureError):
+            await cultures.call("solution_mutate", broken)
+    assert before == await cultures.call("export")
 
 
 async def test_migration_interrompue_ne_publie_pas_un_schema_partiel(cultures):

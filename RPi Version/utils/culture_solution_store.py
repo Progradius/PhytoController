@@ -11,6 +11,8 @@ from model.culture import CultureConflict, CultureError, age, stamp, text_value
 from model.culture_solution import RESERVOIRS, SOLUTION_KINDS, ingredients, measurements, number
 
 SOLUTION_TABLES = ("reservoirs", "recipes", "solution_entries", "solution_targets", "solution_periods", "solution_links")
+# Fenêtre proposée dans le sélecteur d'intervention : jamais tout le carnet d'un coup.
+INTERVENTION_PAGE = 200
 SOLUTION_SCHEMA = """
 CREATE TABLE reservoirs (id TEXT PRIMARY KEY, name TEXT NOT NULL, space TEXT NOT NULL UNIQUE);
 CREATE TABLE recipes (id TEXT NOT NULL, revision INTEGER NOT NULL, name TEXT NOT NULL,
@@ -55,6 +57,34 @@ class SolutionStoreMixin:
     def _recipes(self):
         return [{**dict(r), "ingredients": json.loads(r["ingredients"])} for r in self._db.execute(
             "SELECT r.* FROM recipes r WHERE revision=(SELECT MAX(v.revision) FROM recipes v WHERE v.id=r.id) ORDER BY name")]
+
+    def _solution_interventions(self, entries, subjects, search="", offset=0, linked=()):
+        """Fenêtre bornée d'interventions sélectionnables, plus les liens déjà utilisés.
+
+        La recherche porte sur le type, la date effective, la cible et la référence : une
+        intervention ancienne reste atteignable sans charger tout le carnet dans un select.
+        """
+        names = {s["id"]: s["name"] for s in subjects}
+        catalogue = {}
+        for entry in reversed(entries):
+            if entry["kind"] == "reading":
+                continue
+            target = (RESERVOIRS[entry["reservoir_id"]][0] if entry["reservoir_id"] in RESERVOIRS
+                      else " et ".join(names.get(t, t) for t in entry["targets"]))
+            catalogue[entry["id"]] = {"id": entry["id"], "kind": entry["kind"], "effective_at": entry["effective_at"],
+                                      "reservoir_id": entry["reservoir_id"], "targets": entry["targets"],
+                                      "target_label": target, "cancelled": bool(entry["cancelled"]),
+                                      "linked": entry["id"] in linked}
+        needle = " ".join(search.lower().split())
+        candidates = [item for item in catalogue.values() if not item["cancelled"] and (not needle or needle in " ".join(
+            (SOLUTION_KINDS[item["kind"]], item["effective_at"], item["target_label"], item["id"])).lower())]
+        window = candidates[offset:offset + INTERVENTION_PAGE]
+        shown = {item["id"] for item in window}
+        # Une intervention déjà associée reste proposée même hors de la fenêtre ou de la recherche.
+        window = window + [catalogue[key] for key in dict.fromkeys(linked) if key in catalogue and key not in shown]
+        return {"interventions": window, "interventions_total": len(candidates),
+                "interventions_offset": offset, "interventions_search": search,
+                "interventions_page": INTERVENTION_PAGE}
 
     def _solution_rebuild(self, subjects=None, validate_only=False):
         """Revalide puis reconstruit les intervalles dérivés dans la transaction de l'appelant."""
@@ -172,6 +202,11 @@ class SolutionStoreMixin:
                     text_value(command.get("name"), "Nom de recette"), volume,
                     json.dumps(recipe_ingredients, ensure_ascii=False), now.isoformat()))
             else:
+                if old is not None:
+                    # Une correction muette sur l'association conserve celle de la version précédente :
+                    # corriger un pH ou une note ne doit ni perdre ni changer l'intervention liée.
+                    command = {**{field: old[field] for field in ("intervention_id", "context") if old[field] is not None},
+                               **command}
                 kind = command.get("kind")
                 if not isinstance(kind, str) or kind not in SOLUTION_KINDS or (old and old["kind"] != kind):
                     raise CultureError("Type d’intervention invalide ou modifié.")
@@ -238,7 +273,11 @@ class SolutionStoreMixin:
             self._db.execute("INSERT INTO requests VALUES (?,?,?)", (key, fingerprint, json.dumps(result)))
         return result
 
-    def _solution_data(self, filters=None, offset=0, export=False, focus=None):
+    def _solution_data(self, filters=None, offset=0, export=False, focus=None, search=None, search_offset=0):
+        if search is not None:
+            # Mode recherche : réponse bornée au seul bloc d'interventions, sans courbe ni journal.
+            search = text_value(search, "Recherche d’intervention", 100, False)
+            return self._solution_interventions(self._solution_entries(), self._projections(), search, search_offset)
         filters = filters or {}
         if set(filters) - {"target", "kind", "start", "end"}:
             raise CultureError("Filtre inconnu.")
@@ -327,11 +366,11 @@ class SolutionStoreMixin:
         revisions = self._solution_entries(revisions=True)
         for entry in page:
             entry["revisions"] = [r for r in revisions if r["id"] == entry["id"] and r["revision"] < entry["revision"]]
+        linked = [e["intervention_id"] for e in page if e["intervention_id"]]
         return {"items": page, "chart": chart, "chart_aggregated": aggregated, "chart_truncated": truncated, "stages": stages, "total": len(selected), "offset": offset, "periods": periods, "links": links,
                 "reservoirs": [dict(r) for r in self._db.execute("SELECT * FROM reservoirs")],
                 "recipes": self._recipes(), "subjects": [{"id": s["id"], "name": s["name"], "kind": s["kind"], "archived": s["archived"]} for s in subjects],
-                "interventions": [{"id": e["id"], "kind": e["kind"], "effective_at": e["effective_at"], "reservoir_id": e["reservoir_id"], "targets": e["targets"]}
-                                  for e in reversed(entries) if not e["cancelled"] and e["kind"] != "reading"][:200],
+                **self._solution_interventions(entries, subjects, "", 0, linked),
                 "latest": next((e for e in selected if not e["cancelled"] and (e["ph"] is not None or e["ec"] is not None)), None),
                 "timezone": self.zone, "clock_reliable": self.reliable(),
                 "today": self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()}

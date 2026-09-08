@@ -117,9 +117,25 @@ class CultureViews:
     def solution_filters(request):
         return {key: request.query[key] for key in ("target", "kind", "start", "end") if request.query.get(key)}
 
-    async def solutions(self, request):
+    @staticmethod
+    def solution_lookup(request):
+        """Recherche bornée d'intervention : paramètres distincts des filtres du journal."""
+        if "interventions" not in request.query:
+            return None, 0
         try:
-            return web.json_response(await self.store.call("solution_data", self.solution_filters(request), self.offset(request)))
+            offset = int(request.query.get("interventions_offset", "0"))
+            if not 0 <= offset <= 1000000:
+                raise ValueError()
+        except ValueError:
+            raise web.HTTPBadRequest(text="Pagination des interventions invalide.") from None
+        return request.query["interventions"], offset
+
+    async def solutions(self, request):
+        search, search_offset = self.solution_lookup(request)
+        try:
+            return web.json_response(await self.store.call("solution_data", self.solution_filters(request),
+                                                           self.offset(request), False, request.query.get("entry"),
+                                                           search, search_offset))
         except CultureError as exc:
             return web.json_response({"error": str(exc)}, status=400)
         except CultureUnavailable as exc:
