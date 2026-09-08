@@ -2,13 +2,31 @@
 
 ## Carnet de cultures
 
-`param/cultures.sqlite3` et ses annexes sont locaux et ignorés par Git. Les données n'ont pas
-la rétention de 72 h de l'historique technique. Utiliser la sauvegarde complète ZIP depuis `/cultures/cycles` : elle inclut la copie SQLite
-cohérente malgré le WAL, les fichiers `param/culture_media/` et leur manifeste SHA-256.
-Une sauvegarde SQLite seule ne suffit plus dès qu’une photo est enregistrée. La procédure et
-l'outil de restauration sur copie sont décrits dans [le guide du carnet](cultures.md#export-et-sauvegarde).
-Prévoir cette sauvegarde hors Pi avant toute migration du carnet ; le script de déploiement
-ne la réalise pas automatiquement.
+`param/cultures.sqlite3` et ses annexes sont locaux et ignorés par Git. Le schéma courant est le
+**4**. Les données n'ont pas la rétention de 72 h de l'historique technique. Utiliser la sauvegarde
+complète ZIP depuis `/cultures/cycles` : elle inclut la copie SQLite cohérente malgré le WAL, les
+fichiers `param/culture_media/` — photos d'événements **et** d'observations d'espace — et leur
+manifeste SHA-256 (`format=phyto-cultures-bundle`, chaque fichier avec sa taille et son SHA-256).
+Une sauvegarde SQLite seule ne suffit plus dès qu’une photo est enregistrée.
+
+La restauration se fait **uniquement vers une destination nouvelle**, jamais par écrasement :
+
+```bash
+.venv/bin/python scripts/restore-cultures.py --bundle <archive.zip> <dossier-inexistant>
+.venv/bin/python scripts/restore-cultures.py <base.sqlite3> <fichier-inexistant>
+```
+
+Les schémas 1 à 4 sont acceptés ; l'outil refuse le carnet actif et toute destination existante.
+La procédure complète est décrite dans [le guide du carnet](cultures.md#export-et-sauvegarde) et
+[l'exercice de restauration](cultures.md#restaurer-une-sauvegarde-complète-sur-copie).
+
+À chaque migration, le carnet écrit lui-même une copie préalable `cultures.sqlite3.before-vN.sqlite3`
+(`.before-v2`, `.before-v3`, `.before-v4`, une par version traversée) et refuse d'écraser une copie
+déjà présente : voir
+[Lever une sauvegarde `.before-v4`](cultures.md#lever-une-sauvegarde-before-v4-après-migration-interrompue).
+Ces copies restent **sur le Pi** : elles ne remplacent pas une sauvegarde hors machine. Prévoir
+celle-ci avant toute migration du carnet ; le script de déploiement ne la réalise pas
+automatiquement.
 
 ## Données vivantes
 

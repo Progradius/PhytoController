@@ -227,6 +227,20 @@ le jalon 3 ajoute photos bornées, rappels, vérifications déclaratives, synth�
 durables, bilan enrichi, comparaison, consultation PWA et sauvegarde ZIP restaurable sur copie.
 Les trois jalons sont implémentés et vérifiés hors matériel, sans déploiement Pi. Ce chantier ne clôt aucun risque matériel ci-dessus.
 
+**Rattrapage après audit — écarts A à H livrés le 8 septembre 2026**, sur la même branche et
+toujours sans déploiement Pi. Le [plan de rattrapage](../tasks/gestion_cultures_rattrapage_plan.md)
+en donne le détail lot par lot ; commits `2284074`, `e749c80`, `1cdf87d`, `ca865d0`, `40a07db`,
+`f4a00cc`, `f51e619`, `8d7c9b5`, `d40a243`, `a7d2eab`, `d568ae2`. Contenu : correction d'un relevé
+lié à une intervention ancienne (A), consultation intégrale des cycles longs avec détail horaire
+paginé et pages PWA bornées (B), complément rétrospectif d'un parcours repris (C), puis le
+**schéma 4** et les vérifications corrigibles (D), les plages cibles pH/EC historisées (E), les
+repères d'éclairage rapprochés des horaires configurés (F), les affectations d'équipements datées
+(G) et le journal transversal avec observations d'espace (H). Volumétrie relevée hors matériel avec
+12 000 agrégats horaires : page des cycles 258 217 octets, JSON 178 966 octets — mesures de
+validation, sans qualification des performances sur le Pi. Les limites résiduelles connues sont
+listées dans le [contrat API](reference/cultures-api.md#limites-connues). Ce rattrapage
+n'autorise aucun déploiement et ne clôt aucun risque matériel.
+
 
 ```text
 Lot 1 Documentation

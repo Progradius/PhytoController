@@ -5,6 +5,9 @@
 **Dernière mise à jour** : 1er septembre 2026, après clôture de l'observation corrective de la qualité
 capteurs en mode `observe`. La fenêtre couvre 172 800 s et 2 864 échantillons avec zéro échec, zéro
 avertissement et aucun faux figement sur les trois mesures BME280.
+**Ajout du 8 septembre 2026** : trois risques `R-CULT-*` ouverts par le rattrapage du carnet de
+cultures (branche `feature/gestion-cultures`, non déployée). Ils ne touchent ni la régulation, ni
+les GPIO, ni le watchdog.
 
 Les réductions apportées par la refonte web sont **implémentées, déployées et vérifiées** sur le
 Pi le 25 août 2026 (commit `ad39de2`, service démarré à 23:36 CEST). Preuve :
@@ -40,6 +43,9 @@ Ce document décrit l'état courant. L'audit historique conserve les preuves dé
 | R-MAINT-01 | Moyen | Dépendances non verrouillées et environnement non reproductible | Bornes minimales dans `requirements.txt` ; `requests` retiré, `jinja2` et `aiohttp` désormais requis | Lock compatible Pi, politique de mise à jour | Installation répétée produisant les mêmes versions validées |
 | R-MAINT-02 | Moyen | Docker ne reflète pas clairement la production | Image privilégiée, sudo et services système implicites | Décider support, corriger ou marquer expérimental | Procédure testée ou retrait documenté |
 | R-LEGAL-01 | Moyen | AGPL-3.0 déclarée sans fichier `LICENSE` | Ouvert | Ajouter le texte de licence approprié | Fichier versionné et README cohérent |
+| R-CULT-01 | Moyen | Table `requests` du carnet jamais purgée : les clés d'idempotence s'accumulent indéfiniment et font croître `cultures.sqlite3` proportionnellement au nombre de mutations | Ouvert, jamais déployé : le carnet vit sur `feature/gestion-cultures` | Décider une politique de rétention des clés compatible avec l'idempotence des nouvelles tentatives, ou instrumenter la taille de la base | Croissance mesurée sur un carnet chargé et politique appliquée sans casser l'idempotence |
+| R-CULT-02 | Moyen | Budget médias sous pression : la sauvegarde ZIP est plafonnée à 5 002 entrées et `MAX_MEDIA_BYTES` à 256 Mio (5 000 photos, réserve disque 128 Mio) ; les photos d'observation d'espace du lot H consomment le même budget, qui devient donc plus vite atteignable | Ouvert, hors matériel : plafonds vérifiés par les tests, jamais atteints en exploitation | Suivre le compteur de stockage de `/cultures/cycles` et arbitrer entre relèvement des plafonds et politique d'archivage hors Pi | Exercice avec un carnet proche des plafonds : refus explicite, aucune photo supprimée en silence, sauvegarde ZIP toujours produite |
+| R-CULT-03 | Moyen | Lectures non bornées en mémoire dans le carnet : `_solution_data` et les `measures` pH/EC des synthèses de cycle chargent toutes les entrées correspondantes, alors que les lectures climatiques sont bornées en SQL | Ouvert ; sans effet sur la régulation, le carnet étant hors event loop et hors watchdog | Appliquer aux relevés la même agrégation/pagination SQL bornée que le lot B a introduite pour le climat | Réponse et empreinte mémoire mesurées sur un carnet chargé, avec la même méthode que les 12 000 agrégats du lot B |
 
 ## Risques réduits, à surveiller
 

@@ -59,7 +59,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 
 ### Exploiter et diagnostiquer
 
-- [Carnet de cultures : mères, lots, stades, journal et sauvegarde](operations/cultures.md)
+- [Carnet de cultures : mères, lots, stades, solutions, cycles, journal et sauvegarde](operations/cultures.md)
 
 - [Runbook d'incident](operations/incident-runbook.md)
 - [Installation Raspberry Pi](operations/install-raspberry-pi.md)
@@ -82,6 +82,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 
 - [Contrat API du carnet de cultures](reference/cultures-api.md)
 - [Plan de gestion des cultures et état des livraisons](../tasks/gestion_cultures_plan.md)
+- [Plan de rattrapage du carnet après audit, lots A à I](../tasks/gestion_cultures_rattrapage_plan.md)
 
 - [AGENTS.md](../AGENTS.md), miroir exact de [CLAUDE.md](../CLAUDE.md)
 - [Référence de configuration](reference/configuration.md)
@@ -106,6 +107,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 | Watchdog | `utils/watchdog.py` et configuration systemd installée |
 | Polarité des sorties | `model/Component.py` et `model/Motor.py` |
 | Routes HTTP et schémas d'état | `network/web/server.py` |
+| Carnet de cultures (schéma SQLite 4) | `utils/culture_store.py` et ses mixins ; `param/cultures.sqlite3` sur le Pi |
 | Catalogue des mesures capteurs | `controllers/sensor_catalog.py` |
 | Politique thermique (chauffage et ventilation) | `components/climate_policy.py` |
 | État de régulation reporté d'un démarrage à l'autre | `utils/state_store.py` et `param/runtime_state.json` sur le Pi |

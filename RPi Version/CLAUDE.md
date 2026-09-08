@@ -232,33 +232,75 @@ to `PuppetMaster`.
   boucle de contrôle ou dans l'event loop. Les annotations de `/actions/history/notes` sont des événements
   auxiliaires sans effet sur la régulation ; leur texte ne doit jamais être recopié dans les logs.
 
-## Carnet de cultures (livraisons 1 à 3)
+## Carnet de cultures (schéma 4)
 
-`model/culture.py` contient les règles pures ; `utils/culture_store.py` est le seul écrivain de
-`param/cultures.sqlite3`, dans un thread auxiliaire borné. `network/web/cultures.py` expose `/cultures`
-et `/api/v1/cultures`. Les stades, déplacements, récoltes et corrections sont **déclaratifs** : jamais
-un accès GPIO, une modification de `param.json`, un override ou un changement du watchdog.
-Le carnet garde origines multi-mères, révisions et clés d'idempotence sans purge de 72 h. Une erreur
-ou un schéma incompatible conserve la base et rend le carnet indisponible, sans affecter la santé
-du contrôle. Les mutations revalident tout le parcours et l'occupation de l'espace 2 avant commit.
-Ne pas copier naïvement un SQLite vivant en WAL : l'export utilise l'API de sauvegarde ;
-`scripts/restore-cultures.py` restaure seulement vers une nouvelle copie isolée. Guide et contrat :
-`docs/operations/cultures.md`, `docs/reference/cultures-api.md`. `model/culture_solution.py` et `utils/culture_solution_store.py` ajoutent les solutions structurées
-au même écrivain SQLite (schéma 2, sauvegarde `.before-v2.sqlite3` avant migration). Les renouvellements
-et intersections occupation/solution sont reconstruits dans chaque transaction, y compris après
-correction d’un parcours ; l’alimentation s’arrête à la coupe. Les arrosages multi-mères gardent
-un volume total unique et les préparations une copie figée des ingrédients. Les recettes sont
-versionnées. `/cultures/solutions` propose les saisies, corrections, filtres, courbes et CSV ;
-les agrégats journaliers ne mélangent jamais cibles et périodes de solution. Le schéma 3 ajoute photos dans `param/culture_media/`, rappels versionnés, vérifications
-déclaratives et agrégats horaires durables (`CultureService`, snapshots existants uniquement,
-`gates_watchdog=False`). Seules les valeurs normales alimentent les agrégats ; les absences
-ne deviennent jamais des zéros. Les migrations conservent une copie `.before-v3.sqlite3`.
-La sauvegarde ZIP inclut base et médias avec manifeste ; `restore-cultures.py --bundle` ne
-publie qu’un nouveau dossier isolé. Les photos sont réencodées sans métadonnées et bornées
-en taille, dimensions, nombre et espace disque. La PWA garde au plus 20 pages du carnet et
-40 photos consultées, datées, relues après échec réseau seulement ; aucun rappel ne déclenche
-de notification système et aucune mutation n’est rejouée. Les tests navigateur mutateurs du carnet sont désactivés
-sur toute cible `PHYTO_UI_BASE_URL` externe ; leur base locale de test est temporaire.
+`model/culture*.py` porte les règles **pures** ; `utils/culture_store.py` reste le seul écrivain de
+`param/cultures.sqlite3`, dans un unique thread auxiliaire borné, et n'est plus qu'un assemblage de
+mixins par domaine : `culture_solution_store`, `culture_cycle_store`, `culture_media_store`,
+`culture_checklist_store` (vérifications), `culture_targets_store` (plages cibles pH/EC),
+`culture_light_store` (repères d'éclairage), `culture_equipment_store` (affectations datées) et
+`culture_journal_store` (journal transversal et observations d'espace). Un domaine = un mixin + son
+modèle pur + sa vue ; ne pas rapatrier de règle métier dans `culture_store.py`.
+`network/web/cultures.py` monte les pages `/cultures`, `/cultures/solutions`, `/cultures/cycles`,
+`/cultures/targets`, `/cultures/light`, `/cultures/equipment`, `/cultures/journal` et leurs API
+`/api/v1/cultures/…`. Tout y est **déclaratif** : jamais un accès GPIO, une modification de
+`param.json`, un override, un changement du watchdog ni une nouvelle acquisition capteur, et jamais
+de SQLite dans l'event loop (`CultureStore.call(...)`). Une erreur, une corruption ou un schéma
+inconnu conserve la base et rend le carnet indisponible **sans** dégrader `control_healthy()` ni le
+watchdog (`gates_watchdog=False`). Le carnet garde origines multi-mères, révisions et clés
+d'idempotence (`request_id` + empreinte) sans purge de 72 h ; les mutations revalident tout le
+parcours et l'occupation exclusive de l'espace 2 avant commit ; les absences ne deviennent jamais
+des zéros.
+
+Schémas : 2 = solutions structurées (périodes, recettes versionnées, préparation figée, arrosages
+multi-mères à volume total unique, alimentation coupée à la récolte) ; 3 = photos dans
+`param/culture_media/`, rappels versionnés, vérifications et agrégats horaires durables
+(`CultureService`, snapshots existants uniquement) ; **4 = livré en une seule fois avant les lots
+D à H**, son DDL figé dans `utils/culture_schema_v4.py` — ne plus le retoucher, un besoin nouveau
+est un schéma 5. Chaque version traversée écrit sa sauvegarde exclusive `.before-vN.sqlite3` et
+refuse d'écraser une sauvegarde existante. La migration 4 met `PRAGMA foreign_keys=OFF` **hors**
+transaction — indispensable pour recréer une table enfant, sans effet à l'intérieur d'une
+transaction —, exécute le DDL dans un `BEGIN IMMEDIATE`, contrôle `PRAGMA foreign_key_check`
+**dans** la transaction, puis rétablit les clés dans un `finally` ; toute erreur laisse la base
+intacte en version 3 avec sa sauvegarde, qui bloque volontairement une seconde tentative.
+
+Invariants ajoutés par les lots D à H, à préserver :
+
+- le **conflit de vérification** est dérivé à la lecture (rejeu de `project()` comparé au contexte
+  enregistré à la saisie), jamais stocké : une copie serait une seconde vérité à resynchroniser
+  après chaque correction rétrospective ;
+- les **plages cibles** se résolvent mesure par mesure, dans l'ordre strict cible directe → sujet
+  alimenté → réservoir, **sans fusion** entre sources et **sans rétroactivité** ; `stage` reste
+  informatif, pour qu'une correction de stade ne change pas l'applicabilité d'une plage passée ;
+- la résolution d'un **contexte d'équipement** suit affectation datée → `equipment_context` copié à
+  la saisie → inconnu, et ne retombe **jamais** sur le catalogue courant : un nom d'aujourd'hui
+  n'est pas une association d'hier ;
+- le **journal** est la vue SQL `culture_journal`, une ligne par opération (cibles jointes à la
+  demande, un arrosage partagé compte pour 1) ; elle est exclue de l'export, ses trois sources y
+  figurant déjà ;
+- une **observation d'espace** vise l'espace explicitement : aucune fausse plante n'est créée pour
+  porter la note, et la trace n'entre pas dans l'historique opérateur purgé à 72 h ;
+- une **photo** a un propriétaire exclusif (`owner_kind`, deux paires de clés étrangères et des
+  `CHECK`) : jamais à la fois un événement et une observation d'espace ;
+- la **synthèse climatique** est agrégée en SQL sur des seaux alignés UTC
+  (`bucket = hour - hour % pas`, invariants au changement d'heure), avec des moyennes pondérées
+  `SUM(total) / SUM(valid_count)` — jamais une moyenne de moyennes horaires ; une période sans
+  agrégat est une lacune, pas un zéro ;
+- le sélecteur d'**interventions** reste une fenêtre bornée de 200, enrichie des interventions déjà
+  liées aux relevés affichés, avec recherche paginée : ne jamais charger tout le carnet dans un
+  `select` ;
+- le **backfill** n'accepte que des étapes strictement antérieures au début du stade courant.
+
+Ne pas copier naïvement un SQLite vivant en WAL : l'export utilise l'API de sauvegarde ; le ZIP
+réunit base, médias et manifeste SHA-256, et `scripts/restore-cultures.py [--bundle]` ne publie
+jamais que vers une copie isolée nouvelle. Les photos sont réencodées sans métadonnées et bornées
+en taille, dimensions, nombre et espace disque. La PWA garde au plus 20 pages du carnet et 40 photos
+consultées, datées, relues après **échec réseau** seulement ; aucun rappel ne déclenche de
+notification système et aucune mutation n'est mise en attente ou rejouée. La fixture Playwright du
+carnet démarre **un serveur par test** : l'espace 2 est exclusif et une occupation ouverte n'a pas
+de fin, donc deux specs ne peuvent pas partager une base. Les tests navigateur mutateurs sont
+désactivés sur toute cible `PHYTO_UI_BASE_URL` externe ; leur base locale est temporaire.
+Guide et contrat : `docs/operations/cultures.md`, `docs/reference/cultures-api.md`.
 
 ## GPIO conventions — read before touching any pin code
 

@@ -57,6 +57,7 @@ Le verrou est volontairement pris avant l'enregistrement des handlers de sortie 
 | Watchdog | `sd_notify` ou `/dev/watchdog` | `utils/watchdog.py` |
 | HTTP | Routage, pages, configuration, `/status` | `network/web/server.py`, `network/web/pages.py` |
 | Export | Protocole InfluxDB v1 | `network/web/influx_handler.py` |
+| Carnet de cultures | Magasin SQLite auxiliaire déclaratif, hors event loop | `utils/culture_store.py` et ses mixins, `model/culture*.py`, `network/web/cultures.py` |
 | Logs | Façade, rotation, flux SSE | `utils/pretty_console.py`, `utils/log_stream.py` |
 | Déploiement | Sauvegarde, mise à jour, contrôle et rollback | `scripts/deploy.sh` |
 
@@ -136,7 +137,13 @@ Le serveur est un `aiohttp` à routes explicites, sans analyse manuelle de requ�
 - `/console/stream` diffuse les logs par SSE ;
 - `/api/v1/state` expose l'état versionné, `/status` l'ancien format, `/health/live` et `/health/ready` les sondes ;
 - les actions destructrices sont des routes POST dédiées ;
-- `/monitor` n'est plus qu'une redirection de compatibilité.
+- `/monitor` n'est plus qu'une redirection de compatibilité ;
+- les pages du carnet de cultures (`/cultures`, `/cultures/solutions`, `/cultures/cycles`,
+  `/cultures/targets`, `/cultures/light`, `/cultures/equipment`, `/cultures/journal`) et leurs API
+  `/api/v1/cultures/…` sont **auxiliaires** : elles délèguent tout accès SQLite à un thread dédié,
+  n'écrivent ni configuration ni GPIO, et leur panne ne dégrade ni `control_healthy()` ni le
+  watchdog — voir le [guide du carnet](../operations/cultures.md) et son
+  [contrat API](../reference/cultures-api.md).
 
 Trois intergiciels encadrent chaque requête : en-têtes de sécurité et `no-store`, validation du `Host` (contre le DNS rebinding), puis jeton CSRF et contrôle d'`Origin` sur toute méthode mutante. Les assets statiques sont servis par une liste blanche exacte de chemins, ce qui supprime la question du confinement de répertoire. Le corps est plafonné à 64 Kio.
 

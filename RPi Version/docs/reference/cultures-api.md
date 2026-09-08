@@ -1,19 +1,53 @@
-# API du carnet de cultures (v1, livraisons 1 à 3)
+# API du carnet de cultures (v1, schéma 4)
+
+Ce document décrit l'état livré du carnet : les trois livraisons initiales (cultures et parcours,
+solutions et relevés, photos/rappels/cycles) et les lots A à H du plan de rattrapage, qui ajoutent
+le schéma 4, les vérifications corrigibles, les plages cibles, les repères d'éclairage, les
+affectations d'équipements et le journal transversal.
 
 Toutes les routes sont locales, dynamiques et `no-store`. Les POST exigent le jeton existant
-`X-CSRF-Token`, le Host autorisé et la même origine que le serveur. Corps JSON limité à 64 KiB.
+`X-CSRF-Token`, le Host autorisé et la même origine que le serveur. Corps JSON limité à 64 Kio.
 Les actions sont déclaratives, sans accès GPIO et sans écriture de configuration.
 
+Conventions communes à toutes les mutations : `request_id` obligatoire (idempotence par clé +
+empreinte du corps), `version` attendue de l'entité visée (une valeur périmée répond `409`),
+`confirm_date: true` exigé quand l'horloge n'est pas fiable, et aucune date future acceptée.
+
 ## Lecture
+
+Pages HTML (sans script ni style inline, CSP sans `unsafe-inline`) :
+
+| Page | Contenu |
+| --- | --- |
+| `GET /cultures`, `GET /cultures/{subject_id}` | Liste des espaces et fiche d'une culture |
+| `GET /cultures/solutions` | Réservoirs, saisies, journal, courbes, recettes et plages résolues |
+| `GET /cultures/cycles` | Comparaison de cycles, climat, vérifications, rappels, galerie, sauvegarde |
+| `GET /cultures/targets` | Plages cibles pH/EC et leur historique (lot E) |
+| `GET /cultures/light` | Repères d'éclairage, horaires configurés et état opérationnel (lot F) |
+| `GET /cultures/equipment` | Catalogue en lecture seule et affectations datées (lot G) |
+| `GET /cultures/journal` | Journal transversal et observations d'espace (lot H) |
+| `GET /cultures/photos/{photo_id}` | JPEG validé, `no-store` |
+
+API de lecture :
 
 | Requête | Contenu |
 | --- | --- |
 | `GET /api/v1/cultures?archives=0&offset=0` | Jusqu'à 40 cultures actives, total, occupation des deux espaces et catalogue des mères |
 | `GET /api/v1/cultures?archives=1&offset=0` | Jusqu'à 40 cultures archivées ; occupation indépendante de l'archivage |
-| `GET /api/v1/cultures/{id}?offset=0` | Fiche projetée, périodes, origines, descendants et 40 événements avec anciennes révisions |
-| `GET /api/v1/cultures/export?format=json` | Export `phyto-cultures`, version de schéma, date et toutes les tables |
+| `GET /api/v1/cultures/{id}?offset=0` | Fiche projetée, périodes avec `duration`, origines, descendants, étapes `backfill` admissibles et 40 événements avec anciennes révisions |
+| `GET /api/v1/cultures/solutions` | Journal des solutions, courbes, plages résolues et fenêtre d'interventions (voir « Solutions et relevés ») |
+| `GET /api/v1/cultures/cycles` | Synthèses de cycle, climat borné, détail horaire paginé, vérifications, rappels, photos |
+| `GET /api/v1/cultures/targets` | Plages cibles courantes filtrées, avec leurs révisions |
+| `GET /api/v1/cultures/light` | Repères, repère applicable, horaires configurés, état opérationnel et écart |
+| `GET /api/v1/cultures/equipment` | Catalogue courant, périodes d'affectation et résolution datée (`at`) |
+| `GET /api/v1/cultures/journal` | Chronologie transversale paginée et filtrable, `types` disponibles |
+| `GET /api/v1/cultures/export?format=json` | Export `phyto-cultures`, version de schéma (4), date et toutes les tables |
 | `GET /api/v1/cultures/export?format=csv` | Journal complet, révisions comprises, UTF-8 avec BOM |
 | `GET /api/v1/cultures/export?format=sqlite3` | Sauvegarde cohérente SQLite téléchargeable |
+| `GET /api/v1/cultures/solutions/export?format=csv` | Relevés et interventions du filtre, avec `ph_cible` / `ec_cible` |
+| `GET /api/v1/cultures/targets/export?format=csv` | Plages cibles elles-mêmes, bornes EC en mS/cm |
+| `GET /api/v1/cultures/journal/export?format=csv` | Entrées du filtre courant, une ligne par opération |
+| `GET /api/v1/cultures/bundle` | ZIP complet : SQLite cohérent, photos, manifeste SHA-256 |
 
 Les réponses comprennent le fuseau et la fiabilité de l'horloge. L'âge comporte `days`, `weeks`,
 `remaining_days`, `week`. Les occupations du détail contiennent des clés UTC de comparaison ;
@@ -161,7 +195,8 @@ Les accès ont un thread unique, une file de huit travaux maximum, des transacti
 `synchronous=FULL`. Une déconnexion HTTP ne signifie pas que la transaction a été annulée.
 Les clés d'idempotence sont conservées avec le carnet. Il n'y a aucune purge de 72 h.
 Une version de schéma inconnue est refusée sans recréer la base. Toute évolution future exige
-sauvegarde cohérente préalable et migration explicite, testée sur copie.
+sauvegarde cohérente préalable et migration explicite, testée sur copie. Les schémas 2, 3 et 4
+suivent tous cette règle ; l'état courant est décrit par « [Schéma 4 et migration](#schéma-4-et-migration) ».
 
 La restauration est une opération locale documentée dans `docs/operations/cultures.md` ; aucune
 route d'import ou d'écrasement de base n'est exposée. Le JSON est un export, pas un format
@@ -299,8 +334,9 @@ L'ouverture d'une base de version 1 crée une sauvegarde cohérente
 `cultures.sqlite3.before-v2.sqlite3` avant la migration transactionnelle. Si ce chemin existe déjà
 avec une base toujours en version 1, le carnet refuse de l'écraser : vérifier cette sauvegarde
 et résoudre la tentative précédente selon le guide. Une base de version 2 n'est pas rétrocompatible
-avec le code du jalon 1. Le script de restauration accepte des sauvegardes 1 ou 2 et produit
-uniquement une copie isolée ; une copie 1 est migrée lors de son ouverture par le nouveau code.
+avec le code du jalon 1. Le script de restauration accepte les sauvegardes de schéma 1 à 4 et
+produit uniquement une copie isolée ; une copie plus ancienne est migrée lors de son ouverture
+par le nouveau code.
 
 ## Cycles, photos et rappels — jalon 3 (schéma 3)
 
@@ -312,7 +348,7 @@ Les actions restent déclaratives et n'écrivent ni configuration ni GPIO.
 | --- | --- |
 | `GET /cultures/cycles` | Comparaison, climat, vérifications, rappels, galerie et sauvegarde |
 | `GET /api/v1/cultures/cycles` | Données correspondantes ; `subject` répétable (quatre maximum), `offset`, `reminder` pour retrouver sa page |
-| `POST /api/v1/cultures/cycles` | Rappel, suivi ou vérification déclarative |
+| `POST /api/v1/cultures/cycles` | Rappel, suivi de rappel, vérification déclarative, correction ou annulation de vérification (lot D) |
 | `POST /api/v1/cultures/photos` | Envoi binaire borné lié à une révision d'événement |
 | `GET /cultures/photos/{photo_id}` | JPEG validé, `no-store` |
 | `GET /api/v1/cultures/bundle` | ZIP complet : SQLite cohérent, photos, manifeste SHA-256 |
@@ -436,7 +472,7 @@ Le ZIP porte un manifeste `format=phyto-cultures-bundle`, `version=1`, `created_
 le même travail du thread propriétaire. La base est limitée à 128 Mio pour cet export.
 JSON et SQLite comprennent les références photo, mais seuls les ZIP incluent les images.
 Le script `restore-cultures.py --bundle` vérifie puis publie un dossier isolé ; la restauration
-SQLite seule accepte les schémas 1, 2 et 3, mais refuse une base qui référence des photos.
+SQLite seule accepte les schémas 1 à 4, mais refuse une base qui référence des photos.
 Voir le [guide de restauration](../operations/cultures.md#restaurer-une-sauvegarde-complète-sur-copie).
 
 La PWA conserve seulement les pages et photos déjà consultées, datées et bornées en cache,
@@ -774,6 +810,23 @@ Validateur `validate_space_events` (rejoué par `_cycle_validate` et donc par `r
 révisions 1..n sans trou par identifiant, `payload` JSON décodable et conforme, espace, genre
 et précision connus.
 
-Limite connue : le rattachement d'un relevé « avant renouvellement » saisi à l'instant exact
-du renouvellement suit, pour le filtre par sujet alimenté, la période ouverte à cet instant.
-La page des solutions reste la référence pour ce cas de bord.
+## Limites connues
+
+Ces limites sont assumées et documentées : elles ne sont ni des régressions ni des défauts à
+contourner par le client. Mesures faites hors matériel, sans qualification sur le Pi.
+
+| Sujet | Limite |
+| --- | --- |
+| Recherche d'interventions | La recherche est insensible à la casse mais **pas aux accents** ; en mode recherche (`interventions=<texte>`), les filtres du journal des solutions sont ignorés et la réponse ne contient que le bloc d'interventions |
+| Mémoire des relevés | `_solution_data` et les `measures` pH/EC des synthèses de cycle lisent encore toutes les entrées correspondantes en mémoire : seules les lectures climatiques sont bornées en SQL |
+| Détail horaire | `climate_detail` n'existe que pour une **sélection d'une seule culture** ; une comparaison de deux à quatre cycles n'affiche que les synthèses et leur granularité |
+| Dates futures | `stamp` refuse toute date future : aucune plage cible, aucun repère d'éclairage et aucune affectation ne peut être planifié à l'avance, seulement constaté |
+| Observations d'espace | `space` et `kind` ne se corrigent pas : une trace qui changerait de cible ne serait plus la même observation — annuler puis ressaisir |
+| Export du journal | `GET /api/v1/cultures/journal/export` exporte tout le filtre, sans plafond de lignes : un filtre large produit un CSV volumineux |
+| Table `requests` | Les clés d'idempotence ne sont **jamais** purgées ; leur volume croît avec le nombre de mutations |
+| Sujet alimenté à l'instant d'un renouvellement | Un relevé « avant renouvellement » saisi à l'instant exact du renouvellement suit, pour le filtre par sujet alimenté, la période ouverte à cet instant ; la page des solutions reste la référence pour ce cas de bord |
+| Résolution d'équipement d'une page | `GET /api/v1/cultures/equipment?at=…` renvoie dans `resolved` **toutes** les affectations couvrant cette date, tous équipements confondus ; le filtre `equipment` restreint `equipments`, pas `resolved`. La résolution par saisie (`items[].equipment` des solutions) reste, elle, propre à sa date effective |
+
+Volumétrie observée hors matériel avec 12 000 agrégats horaires : page des cycles 258 217 octets,
+JSON 178 966 octets, sous le plafond de cache de la PWA. Ces valeurs ne qualifient pas les
+performances sur le Raspberry Pi.

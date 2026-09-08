@@ -442,6 +442,30 @@ Validation de clôture du jalon 3, le 8 septembre 2026 après reprise :
 - Guide illustré, contrat API et procédure de sauvegarde mis à jour ; instructions miroirs
   synchronisées. Aucune intervention sur le Pi ni configuration machine modifiée.
 
+### Rattrapage après audit — écarts A à H (8 septembre 2026)
+
+L'audit du 8 septembre 2026 a relevé des écarts entre ce plan et les trois jalons livrés. Ils sont
+traités par le [plan de rattrapage](gestion_cultures_rattrapage_plan.md), dont les lots A à H sont
+**livrés** à cette date sur `feature/gestion-cultures`, sans déploiement sur le Pi et sans
+autorisation de déploiement : validations hors matériel uniquement.
+
+- [x] A — correction d'un relevé lié à une intervention ancienne, sans perte du lien (`2284074`).
+- [x] B — cycles longs consultables de bout en bout, synthèse bornée, détail horaire paginé et
+  pages PWA sous le plafond de cache (`1cdf87d`).
+- [x] C — complément rétrospectif des étapes connues d'un parcours repris (`e749c80`).
+- [x] Schéma 4, livré en une seule fois avant les lots D à H (`ca865d0`, `40a07db`).
+- [x] D — vérifications déclaratives corrigibles, annulables et versionnées (`f4a00cc`).
+- [x] E — plages cibles pH/EC facultatives, datées et historisées (`f51e619`).
+- [x] F — repères d'éclairage rapprochés des horaires réellement configurés (`8d7c9b5`).
+- [x] G — affectations d'équipements datées, avec résolution à la date d'un événement (`d40a243`).
+- [x] H — journal transversal filtrable et observations d'espace (`a7d2eab`).
+- [x] Fixture navigateur : un serveur de carnet par test, l'espace 2 étant exclusif (`d568ae2`).
+
+Les limites résiduelles sont consignées dans le tableau de traçabilité du plan de rattrapage et
+regroupées dans le [contrat API](../docs/reference/cultures-api.md#limites-connues). Volumétrie
+mesurée hors matériel avec 12 000 agrégats horaires : page des cycles 258 217 octets, JSON
+178 966 octets ; ces chiffres ne qualifient pas les performances sur le Raspberry Pi.
+
 ### Hors périmètre de ces jalons
 
 - Commande des équipements par stade, programmation automatique de transition, dosage automatique.

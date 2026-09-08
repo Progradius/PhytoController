@@ -1,11 +1,48 @@
-# Carnet de cultures — livraisons 1 à 3
+# Carnet de cultures — guide d'exploitation
 
 Le menu **Cultures** ouvre `/cultures`. Sur téléphone, il se trouve dans **Plus** ; le tableau
 de bord comporte aussi un résumé des deux espaces et un accès au carnet.
 
 Le carnet conserve les données sans purge automatique, indépendamment de l'historique technique
 de 72 h. Ses actions ne changent ni horaires, ni pompe, ni ventilation. Les réglages continuent
-de se faire dans **Configuration**. Les relevés pH/EC, solutions, arrosages et recettes sont disponibles dans **Solutions, relevés et arrosages**. Les photos, rappels et comparaisons sont accessibles dans **Cycles et rappels**.
+de se faire dans **Configuration**.
+
+Sept pages composent le carnet, toutes déclaratives :
+
+| Page | À quoi elle sert |
+| --- | --- |
+| **Cultures** (`/cultures`) | Mères, lots, parcours, journal d'une fiche |
+| **Solutions, relevés et arrosages** (`/cultures/solutions`) | Routine pH/EC, interventions, recettes, courbes |
+| **Cycles et rappels** (`/cultures/cycles`) | Comparaison, climat, vérifications, rappels, photos, sauvegarde |
+| **Plages cibles** (`/cultures/targets`) | Plages pH/EC de référence, facultatives et datées |
+| **Repères d'éclairage** (`/cultures/light`) | Repère déclaré face aux horaires réellement configurés |
+| **Équipements** (`/cultures/equipment`) | Quel équipement servait à quoi, et quand |
+| **Journal** (`/cultures/journal`) | Chronologie transversale et observations d'espace |
+
+## Deux parcours de reprise
+
+**Reprendre une culture déjà en cours.** Le carnet n'invente aucun passé, mais il sait le
+recevoir après coup :
+
+1. Créer le lot **à son stade réel** — par exemple directement en floraison dans l'espace 2 —
+   avec sa date d'origine, sa date de début de stade et sa date d'entrée dans l'espace
+   (« Commencer avec une culture existante » ci-dessous).
+2. Ouvrir sa fiche, section « Compléter le parcours passé », et ajouter les étapes connues :
+   germination ou enracinement, végétatif, puis le déplacement initial dans l'espace 1.
+3. Vérifier que le stade courant et son compteur n'ont pas bougé : le passé complété ne
+   déplace jamais le présent. L'attribution des solutions se recalcule sur les occupations
+   corrigées.
+
+**Corriger un carnet ancien.** Deux corrections fréquentes, toutes deux traçables :
+
+1. *Un relevé rattaché à une intervention ancienne* : ouvrir « Corriger cette saisie » dans le
+   journal des solutions, rectifier le pH ou la note seuls — le lien vers l'intervention est
+   conservé même si celle-ci est sortie de la fenêtre des 200 dernières. Pour une saisie
+   rétrospective, retrouver l'intervention avec le champ de recherche
+   (« Relevés liés à une intervention ancienne »).
+2. *Une vérification cochée par erreur, ou contredite par une étape ajoutée après coup* :
+   la corriger ou l'annuler avec un motif obligatoire depuis `/cultures/cycles`
+   (« Corriger ou annuler une vérification »). Rien n'est effacé : une révision est ajoutée.
 
 ## Commencer avec une culture existante
 
@@ -109,13 +146,20 @@ La section en bas de page concerne le carnet complet, archives et révisions com
 - JSON versionné : toutes les tables et relations, destiné à l'interopérabilité et au diagnostic.
 - SQLite : sauvegarde restaurable créée avec l'API de sauvegarde SQLite, cohérente avec le WAL.
 
-Le bouton **Télécharger la sauvegarde complète ZIP** inclut aussi les photos et un manifeste
-d’empreintes SHA-256. Une base SQLite seule ne contient pas les fichiers photo ; sa restauration
-est refusée si elle en référence. JSON et CSV restent des exports, sans import automatique.
+Le bouton **Télécharger la sauvegarde complète ZIP** inclut aussi **toutes** les photos — celles
+des événements de culture comme celles des observations d'espace — et un manifeste d’empreintes
+SHA-256. Une base SQLite seule ne contient pas les fichiers photo ; sa restauration est refusée si
+elle en référence. JSON et CSV restent des exports, sans import automatique.
 
 Conserver régulièrement une sauvegarde complète ZIP hors du Pi et impérativement avant une migration
 de schéma. Le fichier vivant est `param/cultures.sqlite3` avec ses annexes `-wal` et `-shm`.
 Git les ignore. Le script de déploiement ne remplace pas une sauvegarde du carnet.
+
+Le carnet crée en outre ses propres copies avant chaque migration :
+`cultures.sqlite3.before-v2.sqlite3`, `.before-v3.sqlite3` et `.before-v4.sqlite3`, une par version
+traversée. Ce sont des filets de sécurité **locaux**, pas des sauvegardes hors machine, et une
+copie déjà présente n'est jamais écrasée : voir
+[Lever une sauvegarde `.before-v4`](#lever-une-sauvegarde-before-v4-après-migration-interrompue).
 
 Exercice de restauration vers une copie **nouvelle**, avec des chemins explicitement choisis :
 
@@ -136,10 +180,14 @@ les annexes WAL d'une autre base. Le script fourni réalise uniquement la vérif
 ## Limites du périmètre livré
 
 Le suivi concerne des lots entiers. Il n'y a ni fractionnement, ni récolte partielle, ni classement
-des mères par performance. Les affectations matérielles confirmées restent fixes dans les vues ;
-le catalogue courant des équipements est copié dans chaque événement lors de sa saisie pour
-garder les noms/usages connus à ce moment. Cela ne reconstitue pas une affectation matérielle
-ancienne à partir d'une date d'intervention rétrospective.
+des mères par performance. Le catalogue courant des équipements est copié dans chaque saisie pour
+garder les noms et usages connus à ce moment ; depuis le lot G, une affectation datée déclarée
+dans `/cultures/equipment` prend le pas sur cette copie pour les dates qu'elle couvre. En dehors
+de ces deux sources, une association passée reste **inconnue** et le carnet le dit : il ne
+reconstitue jamais une affectation ancienne à partir du catalogue d'aujourd'hui.
+
+Rien n'est planifiable à l'avance : les dates futures sont refusées partout, y compris pour une
+plage cible, un repère d'éclairage ou une affectation. Le carnet enregistre ce qui a eu lieu.
 
 Une panne du carnet est signalée dans ses pages, mais ne modifie jamais la santé du contrôle
 ni le watchdog. Une corruption ou un schéma futur est conservé, puis refusé.
@@ -259,6 +307,9 @@ Le bouton **Exporter les plages cibles CSV** exporte les plages elles-mêmes ; l
 relevés gagne deux colonnes `ph_cible` et `ec_cible`, vides quand aucune plage ne s'applique.
 
 ## Migration du jalon 1 au jalon 2
+
+Les trois migrations se comportent de la même façon ; l'état courant est le **schéma 4**, décrit
+plus bas dans « [Migration vers le schéma 4](#migration-vers-le-schéma-4) ».
 
 La première ouverture d'une base de schéma 1 crée automatiquement
 `param/cultures.sqlite3.before-v2.sqlite3` par l'API SQLite, puis migre en une transaction.
@@ -445,7 +496,11 @@ Télécharger le ZIP et le conserver hors du Pi, puis choisir un dossier de dest
 ```
 
 L'outil contrôle le manifeste, les tailles, chemins, empreintes, références SQLite et images,
-puis crée `cultures.sqlite3` et `culture_media/` ensemble dans cette nouvelle destination.
+puis crée `cultures.sqlite3` et `culture_media/` ensemble dans cette nouvelle destination. Les
+photos d'observation d'espace suivent exactement le même chemin que celles des événements de
+culture : même archive, même manifeste, même restauration. Les schémas 1, 2, 3 et 4 sont acceptés ;
+une base de version 4 sans la vue `culture_journal` est un schéma partiel et non une base
+restaurable.
 Il refuse toute destination existante et le répertoire du carnet actif. Un arrêt pendant la
 publication peut laisser `.restauration-incomplete` : cette copie ne doit pas être utilisée ;
 conserver le diagnostic et recommencer vers un autre dossier neuf.
@@ -589,4 +644,6 @@ au lieu d'échouer. Hors ligne les formulaires sont désactivés : aucune observ
 attente ni rejouée.
 
 Les captures de ce guide proviennent de la base temporaire des tests navigateur ; elles ne
-montrent aucune donnée d'exploitation. Le jalon est validé hors matériel, sans déploiement Pi.
+montrent aucune donnée d'exploitation, et aucune n'a été ajoutée pour les pages les plus récentes.
+Le carnet — trois livraisons initiales et lots A à H du rattrapage — est validé **hors matériel**,
+sans déploiement sur le Pi et sans autorisation de déploiement.
