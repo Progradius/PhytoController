@@ -5,12 +5,13 @@ const {spawn} = require("node:child_process");
 const {once} = require("node:events");
 const AxeBuilder = require("@axe-core/playwright").default;
 
-// Chaque worker possède son carnet : une occupation en cours s'étend sans date
-// de fin et peut chevaucher les autres cycles, même si leurs débuts diffèrent.
+// Chaque test possède son carnet : l'espace 2 est exclusif et une occupation en
+// cours s'étend sans date de fin, donc deux scénarios ne peuvent pas partager une
+// base sans se disputer l'espace ni fausser les comptages du journal.
 const test = base.extend({
-  cultureBaseURL: [async ({}, use, workerInfo) => {
+  cultureBaseURL: [async ({}, use, testInfo) => {
     if (process.env.PHYTO_UI_BASE_URL) return use(process.env.PHYTO_UI_BASE_URL);
-    const port = 39123 + workerInfo.workerIndex;
+    const port = 39123 + testInfo.workerIndex;
     const url = `http://127.0.0.1:${port}`;
     const server = spawn(process.env.PHYTO_TEST_PYTHON || "python3", ["tests/ui_server.py"], {
       env: {...process.env, PHYTO_UI_TEST_PORT: String(port)}, stdio: ["ignore", "pipe", "pipe"],
@@ -31,7 +32,7 @@ const test = base.extend({
       server.kill("SIGTERM");
       await exited;
     }
-  }, {scope: "worker"}],
+  }, {scope: "test"}],
   baseURL: async ({cultureBaseURL}, use) => use(cultureBaseURL),
 });
 

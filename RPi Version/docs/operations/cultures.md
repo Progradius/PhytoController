@@ -223,6 +223,41 @@ Le bouton **Exporter les relevés et interventions CSV du filtre** produit des c
 unités explicites, préparation, cibles et notes. Il conserve une ligne par saisie commune,
 annulations comprises. Les anciennes révisions sont dans l'export complet JSON/SQLite.
 
+### Plages cibles pH et EC
+
+La page **Plages cibles** (`/cultures/targets`, lien depuis la fiche de culture) sert à noter les
+plages de référence que vous visez. Elles sont **facultatives** et purement déclaratives : elles
+n'ordonnent aucun dosage, ne modifient aucun réglage, ne déclenchent aucune alarme. Aucune plage
+n'est proposée par défaut : tant que rien n'est saisi, les relevés restent lisibles sans bande.
+
+Une plage vise **soit** une culture, **soit** un réservoir, et couvre une période de validité :
+une date de début obligatoire, une fin facultative. On peut saisir un pH seul, une EC seule ou
+les deux ; la virgule décimale est acceptée et l'EC peut être saisie en µS/cm, convertie en
+mS/cm à l'enregistrement (jamais de ppm). Un minimum supérieur à son maximum, une valeur non
+finie, une fin antérieure au début ou deux plages simultanées sur la même cible sont refusés
+sans rien écrire, la saisie restant à l'écran.
+
+Trois gestes tracés, chacun créant une version consultable dans **Versions précédentes** :
+**Corriger cette plage** (les bornes changent, la période reste), **Clore la validité** (la plage
+cesse de s'appliquer après la date choisie, sans effacer le passé) et **Annuler cette plage**
+(motif obligatoire ; elle sort de la lecture mais reste au carnet).
+
+Sur la page des solutions, chaque relevé affiche la plage applicable **à sa propre date**, avec
+son origine : cible directe du relevé, sujet alimenté par la solution, ou réservoir. Les courbes
+montrent la même chose sous forme de bandes de référence. Conséquences à connaître :
+
+- une plage n'est jamais appliquée rétroactivement : les mesures antérieures à son début restent
+  sans cible, et corriger une plage ne réécrit pas le contexte de la période précédente ;
+- deux périodes successives gardent chacune ses propres bornes ;
+- un lot déplacé de l'espace 1 vers l'espace 2 cesse de dépendre du bac de bouturage et reçoit la
+  plage du réservoir de l'espace 2 **à partir de son occupation réelle**, pas avant ;
+- un renouvellement de solution ne change pas la plage : les deux notions sont indépendantes ;
+- les bornes d'une seule source sont retenues en bloc — une cible pH ne se complète jamais avec
+  l'EC d'une autre plage.
+
+Le bouton **Exporter les plages cibles CSV** exporte les plages elles-mêmes ; l'export des
+relevés gagne deux colonnes `ph_cible` et `ec_cible`, vides quand aucune plage ne s'applique.
+
 ## Migration du jalon 1 au jalon 2
 
 La première ouverture d'une base de schéma 1 crée automatiquement
@@ -275,6 +310,71 @@ et de la ventilation commune. Elle s'ouvre lors du séchage si aucune vérificat
 Enregistrer la date, les cases vérifiées et une note conserve le stade et l'espace déclarés
 à cet instant. Les cases ne commandent aucun équipement et ne constituent pas une preuve
 électrique. La date du changement de stade peut être utilisée même si celui-ci est horodaté.
+
+### Corriger ou annuler une vérification
+
+Chaque vérification enregistrée apparaît en dessous du formulaire, avec sa date effective,
+sa date de saisie, sa révision et le **contexte enregistré au moment de la saisie** : culture,
+espace, stade et début de ce stade. Ce contexte est volontairement distinct du stade affiché
+aujourd'hui : il dit ce qui était déclaré ce jour-là, pas ce que le parcours dit maintenant.
+Les vérifications saisies avant le schéma 4 n'avaient pas de contexte enregistré ; la page
+l'indique par « contexte non enregistré » plutôt que d'en reconstituer un.
+
+Une case cochée par erreur se répare par **Corriger cette vérification** : rectifier les cases,
+la note et au besoin la date, puis saisir un **motif obligatoire**. Une vérification qui n'aurait
+jamais dû exister se retire par **Annuler cette vérification**, également avec un motif.
+Dans les deux cas, une révision est ajoutée : rien n'est effacé. Les versions antérieures
+restent lisibles sous **Historique de la vérification**, et une vérification annulée reste
+affichée, barrée, avec son motif. Une vérification annulée ne se corrige plus : en saisir une
+nouvelle. Corriger reste possible même après la progression du lot vers un stade suivant.
+
+Si un onglet resté ouvert enregistre une correction alors qu'une autre a déjà été faite,
+la réponse est un conflit : la saisie reste dans le formulaire et rien n'est écrit. Recharger
+la page, relire la révision courante, puis recommencer.
+
+Quand une étape passée est ajoutée ou corrigée après coup — un stade ou un déplacement daté
+avant une vérification déjà enregistrée — la vérification affiche un **conflit** : le carnet
+indique le stade et l'espace qu'il situe désormais à cette date, en regard de ceux déclarés.
+Rien n'est réécrit automatiquement, car le carnet ne peut pas savoir laquelle des deux
+déclarations est la bonne. Deux issues, toutes deux explicites : corriger la vérification
+(elle réenregistre le contexte réel à sa date) ou l'annuler avec son motif. Une vérification
+annulée n'affirme plus rien et ne peut donc plus être en conflit.
+
+## Affectations d'équipements datées
+
+`/cultures/equipment` répond à une seule question : **quel équipement servait à quoi, et quand ?**
+La page est déclarative. Elle ne modifie ni câblage, ni broche, ni horaire, ni réglage : les
+identifiants et les noms actuels restent ceux du catalogue de `/conf#equipment`, affichés ici en
+lecture seule.
+
+Déclarer une affectation demande l'équipement, un **usage** en texte libre (32 caractères), la
+portée — un espace, un réservoir, ou la serre entière — et une date de début. La fin est
+facultative : une affectation sans fin est celle qui court aujourd'hui.
+
+**Changement d'usage d'un équipement, par exemple `cyclic_2`.** Un équipement n'a qu'une seule
+affectation courante à un instant donné : deux périodes qui se recouvrent sont refusées, avec un
+message qui le dit. La marche à suivre est donc :
+
+1. ouvrir la période en cours et **Clore cette affectation** à la date du changement ;
+2. déclarer la nouvelle affectation avec le nouvel usage, à partir de cette même date.
+
+Une intervention rétrospective retrouve alors l'usage réellement en place à sa propre date.
+**Corriger cette affectation** crée une révision : les versions précédentes restent lisibles.
+**Annuler cette affectation** exige un motif, conserve l'historique et libère la fenêtre.
+
+Chaque intervention de `/cultures/solutions` affiche le contexte résolu à sa date :
+
+- « Affectation connue : … » — une période déclarée couvre cette date ;
+- « Contexte connu à la saisie du … » — aucune période ne couvre la date, mais la saisie portait
+  une copie du catalogue de l'époque ; la date affichée est celle de la **saisie** ;
+- « Association inconnue à cette date » — rien n'est connu, et l'interface le dit. Le carnet ne
+  retombe **jamais** sur le catalogue d'aujourd'hui : un nom actuel n'est pas une association
+  passée.
+
+Renommer un équipement dans `/conf#equipment` ne réécrit aucun libellé enregistré : chaque
+affectation garde le libellé copié au moment de sa saisie, indiqué sous chaque période. La
+migration vers le schéma 4 ne crée aucune affectation : les copies de catalogue déjà présentes
+dans les saisies restent des contextes de saisie, sans date de réaffectation inventée.
 
 ## Lire et comparer les cycles
 
@@ -366,6 +466,43 @@ préalable existante n'est jamais écrasée. Le schéma 3 ajoute photos, rappels
 agrégats ; les anciennes versions du code ne peuvent pas l'ouvrir. Sauvegarder le carnet complet
 avant tout retour arrière : restaurer une ancienne copie perdrait les saisies ultérieures.
 
+## Repères d'éclairage et état opérationnel
+
+La page `/cultures/light` (lien « Repères d’éclairage » du carnet) rassemble, pour chaque
+culture en place : le **stade déclaré**, le **repère applicable**, les **horaires réellement
+configurés** de la minuterie de son espace (espace 1 → éclairage 1, espace 2 → éclairage 2),
+l'activation de cette minuterie, l'**état opérationnel déjà publié** et l'**écart au repère**.
+
+Un repère est une information d'exploitation, pas une consigne : l'enregistrer, le corriger, le
+clore ou l'annuler **ne change aucun horaire, aucune sortie et aucune alarme**. Les horaires se
+modifient uniquement dans la configuration, par les liens « Ouvrir les réglages de l’éclairage »
+qui pointent vers `/conf#daily-timer-1` et `/conf#daily-timer-2`.
+
+Enregistrer un repère : ouvrir « Enregistrer un repère », choisir la portée (toutes les
+cultures, un espace ou une culture), éventuellement un stade, la durée d'éclairage par jour en
+minutes et la date de début. Les repères du plan de référence sont proposés à la saisie —
+18 h / 6 h en végétatif (1080 minutes) et 12 h / 12 h en floraison (720 minutes) — et ne sont
+enregistrés que si vous les validez. Le carnet ne crée aucun repère tout seul : sans repère
+saisi, la page affiche « aucun repère » et **aucun écart**, jamais une valeur standard supposée.
+
+Corriger, clore ou annuler un repère demande la version affichée et un motif ; chaque
+opération conserve les versions précédentes. Deux repères de même portée, même cible et même
+stade ne peuvent pas se chevaucher : la saisie est refusée sans rien écrire. Un repère de stade
+et un repère sans stade peuvent coexister sur la même période.
+
+Lecture de l'écart : la plage configurée est semi-ouverte, deux bornes identiques valent une
+plage **vide**, et une plage traversant minuit est comptée normalement — `19:00 → 07:00` fait
+12 h d'éclairage. L'écart est affiché du point de vue de la configuration, par exemple
+« −6 h d’éclairage configuré » pour un repère 18 h / 6 h face à 12 h configurées.
+
+La page rappelle enfin la ventilation commune aux deux espaces et les règles jour/nuit issues
+des réglages existants. **Un état relu sur une broche GPIO ne prouve pas le fonctionnement
+physique d'un équipement** : il indique le niveau appliqué, pas qu'une lampe éclaire ou qu'un
+ventilateur tourne. Une minuterie désactivée et un état opérationnel non publié sont affichés
+comme tels — « désactivée », « État opérationnel indisponible » — et jamais comme un arrêt
+constaté. Hors ligne, la page est consultable si elle a déjà été visitée : elle est datée, en
+lecture seule, les commandes de saisie sont désactivées et rien n'est mis en attente ni rejoué.
+
 ## Migration vers le schéma 4
 
 À l'ouverture d'un carnet de version 1, 2 ou 3, une copie cohérente
@@ -405,6 +542,51 @@ watchdog et `control_healthy()` reste vrai.
 Si l'étape 2 montre un carnet actif déjà en version 4, la migration avait abouti : il ne reste
 qu'à archiver la sauvegarde. Si `quick_check` n'est pas « ok », ne pas relancer le service :
 restaurer une sauvegarde vérifiée selon la procédure de restauration sur copie ci-dessus.
+
+## Journal transversal et observations d'espace
+
+`/cultures/journal` réunit sur une seule chronologie ce que les autres pages montrent séparément :
+origines, stades, déplacements, pertes, notes, récoltes, relevés, arrosages, renouvellements et
+observations d'espace. Trois filtres, cumulables : la **période** (« Depuis le » / « Jusqu'au »,
+le dernier jour étant compté en entier), la **cible** (une culture, un espace ou un réservoir)
+et le **type d'opération**. Les entrées vont de la plus récente à la plus ancienne, 40 par page.
+
+Une opération visant plusieurs cibles reste **une** entrée : un arrosage donné à trois pieds
+mères apparaît une seule fois et compte pour une opération, qu'on filtre sur l'une ou l'autre
+des mères. Chaque entrée porte ses liens — fiche de culture, relevés et solutions, photos — et
+ses **versions précédentes** lorsqu'elle a été corrigée. Après une saisie ou une correction, le
+journal rouvre directement la page qui contient l'entrée concernée, même si elle est loin dans
+la pagination.
+
+**Observer un espace.** Un espace se décrit sans passer par une plante : ouvrir « Enregistrer
+une observation d'espace », choisir l'espace, le genre (observation, maintenance, incident), la
+date et la note. Ces observations restent consultables même lorsque l'espace est vide, et elles
+sont **durables** : elles n'appartiennent pas à l'historique opérateur purgé à 72 h. Aucune
+plante fictive n'est créée pour porter la note et rien n'est commandé dans la serre.
+
+**Corriger ou annuler.** « Corriger ou annuler cette observation » rectifie la note et la date
+avec un **motif obligatoire**, ou coche « Annuler cette observation » pour la retirer de la
+lecture courante sans l'effacer. Chaque passage ajoute une révision, consultable sous « Versions
+précédentes ». L'espace et le genre ne se corrigent pas : une trace qui changerait de cible ne
+serait plus la même observation — annuler puis ressaisir. Un onglet resté ouvert qui enregistre
+une correction déjà faite ailleurs reçoit un conflit : la saisie reste dans le formulaire, rien
+n'est écrit, il suffit de recharger la page.
+
+**Photos.** Une observation accepte jusqu'à quatre photos, avec les mêmes règles que celles d'un
+événement de culture : 5 Mio par envoi, JPEG/PNG/WebP non animé, réencodage en JPEG de 1 600
+pixels maximum sans métadonnées, même budget disque et même réserve. Elles sont incluses dans la
+sauvegarde ZIP complète et restaurées par la même procédure sur copie isolée.
+
+**Export.** « Exporter ce filtre en CSV » reprend exactement les entrées affichées par le filtre
+courant, une ligne par opération, cibles sérialisées en JSON. Les textes libres y sont
+neutralisés contre l'injection de formules et ne sont jamais recopiés dans les journaux du
+contrôleur.
+
+**Hors ligne.** La page suit la règle du carnet : réseau d'abord, et une page datée n'est relue
+qu'après un échec réseau, en lecture seule. L'encart « Pages du carnet conservées hors ligne »
+liste les pages réellement gardées et leur date ; un lien vers une page jamais visitée l'indique
+au lieu d'échouer. Hors ligne les formulaires sont désactivés : aucune observation n'est mise en
+attente ni rejouée.
 
 Les captures de ce guide proviennent de la base temporaire des tests navigateur ; elles ne
 montrent aucune donnée d'exploitation. Le jalon est validé hors matériel, sans déploiement Pi.

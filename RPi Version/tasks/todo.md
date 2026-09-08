@@ -15,7 +15,8 @@ Baseline (8 septembre 2026, `58e97e6`) : 273 pytest, 92 Playwright, `git diff --
 - [x] Vérification phase 1 : 281 pytest, 107 Playwright sur 5 profils, pyflakes, octets nuls
 
 ## Phase 2 — schéma 4 puis lots D à H
-- [ ] Migration schéma 4 (une seule, sauvegarde `.before-v4.sqlite3`)
+- [x] Migration schéma 4 (une seule, sauvegarde `.before-v4.sqlite3`) — `ca865d0`, 287 pytest
+- [x] Pré-câblage partagé (scripts vides servis, motif service worker, liens de navigation)
 - [ ] Lot D — vérifications déclaratives corrigibles
 - [ ] Lot E — plages cibles pH/EC facultatives et historisées
 - [ ] Lot G — affectations d'équipements datées

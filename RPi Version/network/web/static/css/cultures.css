@@ -54,3 +54,43 @@
 .culture-offline-index ul { margin: .5rem 0 0; padding-left: 1.2rem; }
 .culture-offline-index li { overflow-wrap: anywhere; margin-block: .35rem; }
 .culture-unavailable { opacity: .75; text-decoration: line-through; cursor: not-allowed; }
+
+/* Lot F */
+.culture-light-card dl { margin: 0; display: grid; gap: .25rem .75rem; }
+.culture-light-card dt { font-weight: 600; }
+.culture-light-card dd { margin: 0 0 .5rem; overflow-wrap: anywhere; }
+.culture-unknown { font-style: italic; opacity: .85; }
+@media (min-width: 40rem) { .culture-light-card dl { grid-template-columns: minmax(9rem, auto) 1fr; } .culture-light-card dt { grid-column: 1; } .culture-light-card dd { grid-column: 2; } }
+
+/* Lot H */
+.culture-journal-entry { margin-block: .8rem; }
+.culture-journal-entry .card-meta { overflow-wrap: anywhere; }
+.culture-journal-entry .culture-links { flex-wrap: wrap; gap: .4rem; margin-block: .4rem; }
+.culture-journal-entry details { margin-block: .4rem; }
+.culture-journal-entry summary { cursor: pointer; min-height: 2.5rem; }
+[data-journal-filters] .culture-grid { gap: .6rem; }
+[data-journal-filters] select, [data-journal-filters] input { max-width: 100%; }
+
+/* Lot D */
+.culture-checklist { margin-block: .6rem; }
+.culture-checklist h3 { margin: 0 0 .3rem; overflow-wrap: anywhere; }
+.culture-checklist summary { cursor: pointer; font-weight: 600; min-height: 2.5rem; }
+.culture-checklist .culture-warning { overflow-wrap: anywhere; }
+.culture-checklist-cancelled h3 { text-decoration: line-through; }
+
+/* Lot G */
+.equipment-window { margin-block: .8rem; padding-left: .6rem; border-left: 2px solid currentColor; }
+.equipment-window h4 { margin: 0 0 .3rem; overflow-wrap: anywhere; }
+.equipment-window summary { cursor: pointer; min-height: 2.5rem; }
+.equipment-form select, .equipment-form input { max-width: 100%; }
+[data-equipment-resolved] { overflow-wrap: anywhere; font-weight: 600; }
+
+/* Lot E */
+.target-form summary, .target-item summary { cursor: pointer; min-height: 2.5rem; }
+.target-form select, .target-form input { max-width: 100%; }
+.target-item { overflow-wrap: anywhere; }
+.target-filter { align-items: end; }
+/* Bande de référence : repère de lecture discret, jamais un seuil d'alarme. */
+.solution-target-band { fill: currentColor; opacity: .12; }
+.solution-target-edge { stroke: currentColor; stroke-dasharray: 4 4; opacity: .45; fill: none; }
+.solution-target { font-weight: 600; }

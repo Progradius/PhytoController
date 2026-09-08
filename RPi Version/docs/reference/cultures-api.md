@@ -500,20 +500,280 @@ partiel, pas une base restaurable. Les validateurs de chaque lot sont rejoués �
 
 ### Lot D — vérifications
 
-À compléter par le lot D : révisions, motif, annulation et conflit avec une correction de parcours.
+Les vérifications sont versionnées (`PRIMARY KEY(id, revision)`) : la ligne courante d'une
+vérification est sa révision maximale, exactement comme les rappels et les événements.
+Aucune case ne commande d'équipement ; les trois liens de la page ouvrent les réglages existants.
+
+Deux opérations s'ajoutent à `checklist` sur `POST /api/v1/cultures/cycles` :
+
+| Opération | Champs | Effet |
+| --- | --- | --- |
+| `checklist_correct` | `request_id`, `id`, `version`, `checks`, `note`, `reason`, `effective_at` facultatif | Nouvelle révision non annulée |
+| `checklist_cancel` | `request_id`, `id`, `version`, `reason` | Nouvelle révision `cancelled=1` |
+
+`version` est la **révision courante** de la vérification, pas la version du parcours :
+une valeur différente, ou d'un autre type qu'un entier, répond `409` (`CultureConflict`).
+`reason` est obligatoire (1 à 500 caractères) : une correction sans motif ne se relit pas.
+Une annulation n'accepte que son motif et une vérification annulée n'est plus révisable ;
+elle reste restituée avec son drapeau, son motif et toutes ses révisions antérieures.
+L'idempotence par `request_id` est celle de `_aux_transaction` : rejouer la même clé rend le
+même résultat sans créer de deuxième révision. Réponse : `saved`, `id`, `revision`.
+
+Une correction réenregistre le contexte réel à sa date effective (`space`, `stage`,
+`stage_at`, `stage_precision`, `subject_version`) ; contrairement à une saisie neuve elle
+n'exige pas que la date suive le début du stade courant — sinon une case cochée par erreur
+deviendrait incorrigible dès que le lot progresse. Une date antérieure à l'origine reste refusée.
+
+Chaque entrée rendue par `GET /api/v1/cultures/cycles` porte `revisions` (versions
+antérieures, croissantes) et le contexte enregistré à la saisie, distinct du stade affiché
+aujourd'hui. Les lignes migrées du schéma 3 ont `stage_at`, `stage_precision` et
+`subject_version` à `NULL` : la page affiche « contexte non enregistré ».
+
+Le conflit avec une correction rétrospective du parcours est **dérivé à la lecture**, jamais
+stocké : le magasin rejoue `project()` et compare `(space, stage)` de la vérification au
+contexte réel à sa date effective.
+
+```json
+{"conflict": {"expected_stage": "vegetatif", "expected_space": "space_2",
+              "recorded_stage": "germination", "recorded_space": "space_1"},
+ "conflict_unknown": false}
+```
+
+`conflict_unknown: true` remplace le verdict quand `subject_version` est nul ou quand la date
+précède la première période : aucun rapprochement n'est possible et rien n'est inventé.
+Une vérification annulée n'affirme plus rien, donc ne peut pas être en conflit. Rien n'est
+réécrit automatiquement : l'opérateur lève le conflit par une correction ou une annulation.
+
+`_validate_checklists` (rejoué par `restore_copy`) exige des révisions `1..n` sans trou ni
+doublon par `id`, des cases et un drapeau d'annulation dans `{0, 1}`, des précisions parmi
+`date`, `approximative` et `instant`, et interdit qu'une révision annulée soit suivie d'une
+révision active. Toutes les révisions, annulations comprises, figurent dans l'export JSON.
 
 ### Lot E — plages cibles
 
-À compléter par le lot E : saisie, résolution du contexte et affichage des plages pH/EC.
+Plages de référence **facultatives** pour la lecture des relevés. Elles ne commandent rien : ni
+dosage, ni consigne, ni alarme de contrôle. Aucune plage par défaut n'existe, ni en base ni à
+l'affichage : une mesure sans plage applicable est restituée sans bande de référence.
+
+`GET /cultures/targets` — page de saisie et d'historique.
+`GET /api/v1/cultures/targets?target=&scope=&offset=` — révisions courantes filtrées (`target` :
+identifiant de culture ou de réservoir ; `scope` : `subject` ou `reservoir`), 40 par page, chaque
+plage portant ses `revisions` antérieures.
+`POST /api/v1/cultures/targets` — deux opérations, idempotentes par `request_id` :
+
+- `operation: "target"` — création (sans `id`) ou correction (`id` + `version`, qui doit être la
+  révision courante, sinon **409**). Champs : `target`, `label`, `stage`, `ph_min`, `ph_max`,
+  `ec_min`, `ec_max`, `ec_unit` (`mS/cm` par défaut, `µS/cm` converti à l'écriture), `start_at`,
+  `start_precision`, `end_at`, `end_precision`, `note`, `reason`.
+- `operation: "target_action"` — `action: "end"` (clôture de validité : `end_at`,
+  `end_precision`) ou `action: "cancel"` (annulation, `reason` obligatoire).
+
+`GET /api/v1/cultures/targets/export?format=csv` — export dédié des plages ; en-têtes
+`ec_min_mS_cm` / `ec_max_mS_cm`, neutralisation CSV identique aux autres exports.
+
+Validation : au moins une borne renseignée (une plage pH seule ou EC seule est légitime), virgule
+décimale acceptée, NaN et infini refusés, `min <= max`, `end_sort_at > start_sort_at`. Une
+correction ne remet jamais en vigueur une plage annulée. Deux plages courantes non annulées de
+même cible ne peuvent pas se chevaucher : la transaction est refusée, rien n'est écrit.
+
+**Règle de résolution du contexte** (`model.culture_targets.resolve_targets`, pure). Pour une
+mesure `E` de clé `T = E.sort_at`, on retient les plages dont la révision courante n'est pas
+annulée et dont la fenêtre couvre `T` (`start_sort_at <= T < COALESCE(end_sort_at, '9999')`),
+dans cet ordre de **priorité stricte** :
+
+1. `scope='subject'` pour un `subject_id` figurant dans `E.targets` (cibles directes) ;
+2. `scope='subject'` pour un `subject_id` figurant dans `E.fed_subjects` (sujet alimenté par la
+   solution à cette date, via `solution_links`) ;
+3. `scope='reservoir'` pour `E.reservoir_id`.
+
+- **Aucune rétroactivité** : c'est la fenêtre contenant `T` qui décide, jamais la plage courante
+  du jour. Une mesure antérieure à toute plage n'a pas de cible.
+- **Changement d'espace ou de solution** : la résolution se refait mesure par mesure. Un lot
+  déplacé de `space_1` vers `space_2` cesse de recevoir la plage de `cuttings_1` et reçoit celle
+  de `reservoir_2` à partir de l'instant de l'occupation, parce que `fed_subjects` est reconstruit
+  sur les occupations réelles. Un renouvellement ne change pas la plage : elle est indépendante
+  des périodes de solution.
+- **Sans fusion** : la source retenue fournit ses quatre bornes ou rien. Un `ph_*` d'une source
+  n'est jamais combiné avec un `ec_*` d'une autre — cela produirait une cible que personne n'a
+  saisie. Quand plusieurs plages d'une même source s'appliquent (arrosage commun à deux mères
+  ayant chacune la sienne), la plage commencée le plus tard est retenue et le champ `multiple`
+  le signale ; les fenêtres n'interdisent le chevauchement que pour une même cible.
+- `stage` est **informatif** : il n'entre pas dans la résolution, pour qu'une correction
+  rétrospective de stade ne change pas l'applicabilité d'une plage passée.
+
+Restitution : `GET /api/v1/cultures/solutions` attache à chaque relevé son champ `target`
+(`{ph_min, ph_max, ec_min, ec_max, source, source_label, id, label, stage, multiple, …}`) ou
+`null`, et fournit `chart_targets` : les bandes de référence des courbes, dérivées des plages
+réellement résolues point par point. Une bande n'est jamais prolongée sur une période sans cible.
+Un agrégat journalier ne porte une plage que si toutes ses mesures partagent la même. L'export
+`GET /api/v1/cultures/solutions/export` gagne deux colonnes `ph_cible` et `ec_cible`, résolues à
+la date de chaque relevé et vides en l'absence de cible (bornes EC en mS/cm).
 
 ### Lot F — repères d'éclairage
 
-À compléter par le lot F : repères informatifs et écart aux horaires configurés.
+Repères d'exploitation **informatifs** : les enregistrer, les corriger, les clore ou les
+annuler ne modifie ni `param.json`, ni une sortie, ni la régulation, et ne crée aucune alarme.
+La page rapproche le repère des horaires **déjà configurés** en les lisant dans la
+configuration distribuée (`server.config.daily_timer1/2`), sans nouveau calcul de régulation
+ni acquisition matérielle.
+
+| Requête | Contenu |
+| --- | --- |
+| `GET /cultures/light` | Page des repères, des horaires configurés et de l'état opérationnel |
+| `GET /api/v1/cultures/light?scope=&target=&stage=` | Repères (200 au plus) avec révisions, cultures en place, repère applicable, horaires configurés, état opérationnel, écart |
+| `POST /api/v1/cultures/light` | `light` (saisie ou correction), `light_close` (clôture), `light_cancel` (annulation) |
+
+Un repère porte une portée `global`, `space` ou `subject`, un `stage` facultatif, un couple
+`on_minutes` / `off_minutes` dont la somme vaut exactement **1440**, une fenêtre
+`start_at`/`end_at` avec leur `precision`, une note et un motif. Conventions : `18/6` →
+`1080/360`, `12/12` → `720/720`. Ces deux valeurs sont des **préremplissages de formulaire** ;
+la base naît vide et aucun repère standard n'est supposé.
+
+```json
+{
+  "operation": "light",
+  "request_id": "identifiant-unique-de-la-saisie",
+  "scope": "space",
+  "space": "space_2",
+  "stage": "floraison",
+  "label": "Floraison 12/12",
+  "on_minutes": 720,
+  "off_minutes": 720,
+  "start_at": "2026-08-01",
+  "start_precision": "date"
+}
+```
+
+Correction, clôture et annulation reprennent `id`, la `version` attendue (la révision
+courante) et un `reason` obligatoire ; une version périmée renvoie **409**. Chaque écriture
+crée une révision `revision + 1` et conserve les précédentes. L'idempotence passe par la table
+`requests` existante (`request_id` + empreinte), comme les autres mutations du carnet.
+
+Résolution du repère applicable à une date : `subject` > `space` > `global` ; à portée égale un
+repère dont le `stage` est renseigné l'emporte sur un repère sans stade, et il ne s'applique
+qu'au stade déclaré. Fenêtres semi-ouvertes. **Aucun repère résolu ⇒ aucun écart affiché.**
+
+Invariants revalidés avant chaque commit et rejoués par `restore_copy` : révisions `1..n` sans
+trou, `on_minutes + off_minutes = 1440`, `end_sort_at > start_sort_at`, et fenêtres non
+chevauchantes par `(portée, cible, stade)`. Un chevauchement est refusé sans rien écrire.
+
+L'écart est calculé par `compare_light` sur les minutes d'éclairage : la plage configurée est
+semi-ouverte, deux bornes égales valent **0 minute** (plage vide) et une plage traversant
+minuit est comptée modulo 24 h — `19:00 → 07:00` vaut 720 minutes. L'écart est signé du point
+de vue de la configuration et reste une information, avec un lien vers `/conf#daily-timer-N`.
+La page présente aussi l'activation de chaque minuterie, la ventilation commune et les règles
+jour/nuit issues des réglages existants, ainsi que l'état opérationnel déjà publié par les
+boucles métier. Un état relu sur une broche GPIO ne prouve pas le fonctionnement physique d'un
+équipement ; une publication absente est présentée comme **indisponible**, jamais comme un arrêt.
 
 ### Lot G — affectations d'équipements
 
-À compléter par le lot G : périodes de validité et provenance du contexte d'un événement.
+Le catalogue `param/equipment_metadata.json` reste la **source de vérité** des identifiants et
+des noms actuels ; le carnet n'y touche jamais et ne modifie ni câblage, ni broche, ni réglage.
+Il n'ajoute que l'association métier historique, dans `culture_equipment_links`.
+
+`GET /api/v1/cultures/equipment[?at=<date>][&equipment=<id>]` — catalogue courant en lecture
+seule (`equipments[].current_name`, `current_usage`, `zone`, `out_of_service`), périodes
+d'affectation par équipement avec leurs `revisions`, et, si `at` est fourni, la résolution
+datée dans `resolved`. `at` est une date ISO (ou un instant avec fuseau) ; une date future est
+refusée comme partout ailleurs dans le carnet.
+
+`POST /api/v1/cultures/equipment` — quatre opérations, toutes idempotentes par `request_id` et
+transactionnelles :
+
+| `operation` | Champs | Effet |
+| --- | --- | --- |
+| `link` | `equipment_id`, `usage` (≤ 32 caractères), `scope` (`space`/`reservoir`/`greenhouse`), `space` ou `reservoir_id` selon la portée, `start_at`, `start_precision`, `end_at` facultatif, `source`, `note` | Nouvelle affectation en révision 1 |
+| `correct` | `id`, `version`, mêmes champs (les champs omis conservent leur valeur) | Nouvelle révision |
+| `close` | `id`, `version`, `end_at`, `end_precision` | Ferme la fenêtre ouverte |
+| `cancel` | `id`, `version`, `reason` | Annule la période **sans** l'effacer |
+
+`display_name` est la copie du libellé connu **à la saisie** : il n'est recopié du catalogue que
+pour une affectation neuve ou un changement d'équipement, jamais rafraîchi par une correction ni
+par un renommage ultérieur. Un `version` obsolète répond 409, une contradiction 400.
+
+**Résolution d'un contexte à une date** (`model/culture_equipment.resolve_equipment`, pure ;
+`CultureStore._equipment_context_at` pour les autres lots) — cascade stricte, fenêtres
+semi-ouvertes `[début ; fin[` :
+
+1. affectation courante non annulée couvrant la date → `provenance='link'`, avec la révision et
+   la date de saisie de l'affectation ;
+2. sinon, `equipment_context` porté par la saisie elle-même → `provenance='snapshot'`, présenté
+   comme « contexte connu à la saisie du … » avec la date de **saisie**, jamais une date
+   d'affectation ;
+3. sinon → `provenance='unknown'`, « association inconnue à cette date ». Il n'y a **jamais** de
+   repli sur le catalogue courant : un nom d'aujourd'hui n'est pas une association d'hier.
+
+La migration 3 → 4 ne crée **aucune** ligne : les anciennes copies de catalogue restent des
+contextes de saisie et ne deviennent pas des affectations datées.
+
+Invariant rejoué par `_validate_equipment` et par `restore_copy` : révisions 1..n sans trou,
+`equipment_id` dans `EQUIPMENT_IDS`, portée et cible cohérentes, fin postérieure au début, et
+**deux affectations courantes non annulées du même équipement ne se recouvrent pas**. Un
+équipement à deux usages successifs — le cas de `cyclic_2` — se saisit donc en fermant la
+première période avant d'ouvrir la seconde.
+
+La page `/cultures/equipment` expose le catalogue en lecture seule, la résolution d'une date et
+les périodes corrigeables. Chaque intervention de `/cultures/solutions` affiche le contexte
+résolu à sa propre date effective (`items[].equipment` dans `GET /api/v1/cultures/solutions`) ;
+l'export CSV des relevés est inchangé.
 
 ### Lot H — journal et observations d'espace
 
-À compléter par le lot H : pagination filtrable du journal et observations d'espace avec photos.
+Le journal transversal est la **vue** `culture_journal`, projection en `UNION ALL` des
+événements de culture, des saisies de solution et des observations d'espace, **une ligne par
+opération**. Les cibles sont jointes à la demande (`solution_targets`, `solution_links`) : un
+arrosage de trois pieds mères reste une entrée et compte pour 1 dans les totaux. La vue est
+exclue de `_export` — ses trois sources y figurent déjà.
+
+`GET /api/v1/cultures/journal` — filtres facultatifs `start`, `end` (dates ISO ; la borne
+haute est calendaire et exclusive, donc le dernier jour reste entier, heures comprises),
+`target` (identifiant de culture, `space_1`/`space_2`, ou réservoir) et `type`
+(`<source>:<genre>`, par exemple `event:note`, `solution:water`, `space_event:incident` ;
+catalogue complet dans la réponse sous `types`). Pagination `offset` par 40, tri total
+`(sort_at DESC, ordinal DESC, source, entry_id)` appliqué en SQL avec `LIMIT/OFFSET` et un
+`COUNT(*)` séparé ; `focus=<identifiant d'opération>` renvoie directement le décalage de la
+page contenant cette opération. Le filtre par cible passe par des `EXISTS` : la ligne reste
+unique quel que soit le nombre de cibles satisfaisant le filtre. Seule la page renvoyée est
+enrichie (libellés, cibles nommées, `link` vers la fiche ou les relevés, `photos`,
+`revisions` des versions précédentes).
+
+`POST /api/v1/cultures/journal` — observations d'espace, avec `request_id` obligatoire
+(idempotence) et `confirm_date` si l'horloge n'est pas synchronisée.
+
+```jsonc
+{"request_id": "…", "operation": "space_event", "space": "space_2",
+ "kind": "observation",            // observation | maintenance | incident
+ "effective_at": "2026-09-01", "precision": "date", "note": "Bac vide désinfecté"}
+{"request_id": "…", "operation": "correct", "id": "…", "version": 2,
+ "note": "…", "effective_at": "2026-09-01", "reason": "Précision apportée",
+ "cancelled": false}               // true annule en conservant la trace
+```
+
+La cible est **explicite** : aucune fausse plante n'est créée pour porter la note, et une
+observation ne rejoint pas l'historique opérateur purgé à 72 h. `space` et `kind` ne se
+corrigent pas (annuler puis ressaisir) : déplacer la cible d'une trace réécrirait l'histoire.
+Une `version` erronée répond `409`, une clé de requête réutilisée avec un contenu différent
+également. Une observation entièrement annulée reste légitime.
+
+`POST /api/v1/cultures/journal/photos` — corps binaire et métadonnées
+`X-Culture-Metadata` identiques aux photos de culture, avec `space_event_id` et
+`space_event_revision` à la place de `subject_id`/`event_id`. Même voie d'écriture
+(`media_add`), mêmes plafonds : 4 photos par observation, 5 Mio par envoi, réencodage JPEG
+1 600 px sans métadonnées, budget `MAX_MEDIA_BYTES` et réserve `MIN_FREE_BYTES`. La table
+`culture_media` porte deux paires de clés étrangères mutuellement exclusives
+(`owner_kind`) ; ces photos sont incluses dans la sauvegarde ZIP et restaurées par
+`restore_bundle`. Une photo ne peut jamais appartenir à la fois à un événement et à une
+observation.
+
+`GET /api/v1/cultures/journal/export?format=csv` — export du filtre courant : une ligne par
+opération, colonne `cibles` sérialisée en JSON (jamais une ligne par cible), textes libres
+neutralisés contre l'injection de formules (`= + - @ TAB CR` préfixés par `'`).
+
+Validateur `validate_space_events` (rejoué par `_cycle_validate` et donc par `restore_copy`) :
+révisions 1..n sans trou par identifiant, `payload` JSON décodable et conforme, espace, genre
+et précision connus.
+
+Limite connue : le rattachement d'un relevé « avant renouvellement » saisi à l'instant exact
+du renouvellement suit, pour le filtre par sujet alimenté, la période ouverte à cet instant.
+La page des solutions reste la référence pour ce cas de bord.
