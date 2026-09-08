@@ -169,3 +169,47 @@ async def test_fiche_porte_l_entete_la_triade_et_ses_ancres(web_context):
         assert f'id="event-{event["id"]}"' in page
     assert "Aucune photo pour cette culture." in page
     assert "<script>" not in page
+
+
+async def test_creation_propose_les_deux_situations_et_ses_stades(web_context):
+    from model.culture import creation_stages, first_stage
+    client, *_ = web_context
+    page = await (await client.get("/cultures")).text()
+    # Les deux entrées sont un choix explicite, coché par défaut sur « Je démarre ».
+    assert '<input type="radio" name="situation" value="new" checked> Je démarre une culture' in page
+    assert '<input type="radio" name="situation" value="ongoing"> Elle est déjà en cours' in page
+    assert page.count('name="situation"') == 4
+    # Regroupement identité/origine puis situation actuelle, et frise avant validation.
+    assert page.count("<legend>Identité et origine</legend>") == 2
+    assert page.count("<legend>Situation actuelle</legend>") == 2
+    assert page.count("<ol data-creation-summary></ol>") == 2
+    # La frise n'est pas une annonce : elle se relit, elle ne se fait pas lire à chaque frappe.
+    recap = page[page.index('class="culture-creation-summary"'):]
+    assert "aria-live" not in recap[:recap.index("</section>")]
+    # Stades et premier stade du parcours : rendus depuis les règles pures, pas devinés.
+    assert f'data-first-stage="{first_stage("mother", None)}"' in page
+    assert f'data-first-stage="{first_stage("lot", "seed")}"' in page
+    assert f'data-stages-mother="{",".join(creation_stages("mother", None))}"' in page
+    assert f'data-stages-seed="{",".join(creation_stages("lot", "seed"))}"' in page
+    assert f'data-stages-cutting="{",".join(creation_stages("lot", "cutting")) }"' in page
+    assert f'data-first-stage-cutting="{first_stage("lot", "cutting")}"' in page
+    # Le lot propose l'union des deux parcours ; le script n'en masque que les absents.
+    lot = page[page.index('id="creer-lot"'):]
+    options = lot[lot.index('<select name="stage">'):]
+    options = options[:options.index("</select>")]
+    rendered = [part.split('"')[0] for part in options.split('<option value="')[1:]]
+    assert rendered == ["germination", "enracinement", "vegetatif", "floraison", "sechage"]
+    assert set(rendered) == set(creation_stages("lot", "seed")) | set(creation_stages("lot", "cutting"))
+    assert "<script>" not in page
+
+
+async def test_changement_de_stade_rend_exactement_les_options_pures(web_context):
+    from model.culture import stage_options
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Lot stades"), headers=headers)).json()
+    page = await (await client.get("/cultures/" + saved["subject_id"])).text()
+    detail = await (await client.get("/api/v1/cultures/" + saved["subject_id"])).json()
+    select = page[page.index('<select name="stage">'):]
+    rendered = [line.split('"')[0] for line in select[:select.index("</select>")].split('<option value="')[1:]]
+    assert rendered == detail["stage_options"] == stage_options(detail["subject"])

@@ -14,6 +14,10 @@ import pytest
 from model.culture import (KINDS, STAGES, allowed_actions, creation_stages, fiche_actions,
                            first_stage, stage_options)
 
+CREATION = {"mother": {"first": first_stage("mother", None), "stages": creation_stages("mother", None)},
+            "seed": {"first": first_stage("lot", "seed"), "stages": creation_stages("lot", "seed")},
+            "cutting": {"first": first_stage("lot", "cutting"), "stages": creation_stages("lot", "cutting")}}
+
 EVENT_FORM = re.compile(r'data-culture-event data-kind="([a-z]+)"')
 # La triade d'en-tête : le relevé est un lien, l'observation un formulaire dédié, et le
 # contextuel un `<details id="action-…">`. Aucun de ces trois n'est deviné par le gabarit.
@@ -44,13 +48,17 @@ def render(item):
     from network.web.pages import render_template
     overview = {"timezone": "Europe/Paris", "today": "2026-09-07", "clock_reliable": True,
                 "mothers": [], "occupants": [], "items": [], "offset": 0, "total": 0}
+    # `stage_options` est désormais transmis par la vue : le gabarit n'a plus sa table de
+    # rangs, l'équivalence porte donc sur la liste rendue par le magasin.
     detail = {"subject": item, "events": [], "total": 0, "offset": 0, "photos": [],
               "descendants": [], "backfill": {"stages": [], "spaces": [], "before": None},
-              "reminders": EMPTY_BUCKETS, "media": [], "actions": fiche_actions(item)}
+              "reminders": EMPTY_BUCKETS, "media": [], "actions": fiche_actions(item),
+              "stage_options": stage_options(item),
+              "stage_options_full": stage_options(item, current=True)}
     return render_template("cultures.html", page_title=item["name"], current_page="cultures",
                            csrf_token="jeton", overview=overview, detail=detail, error=None,
                            archives=False, stages=STAGES, spaces={"space_1": "Espace 1", "space_2": "Espace 2"},
-                           event_kinds=KINDS, lighting=[])
+                           event_kinds=KINDS, creation=CREATION, lighting=[])
 
 
 MATRIX = [subject(kind, stage, space, archived, origin_type)

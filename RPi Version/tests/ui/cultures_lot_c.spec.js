@@ -15,6 +15,7 @@ test("reprise en floraison : étapes et occupation passées complétées", async
   const details = page.locator("details.culture-create").filter({hasText: "Créer un lot"});
   await details.locator("summary").click();
   const form = details.locator("form");
+  await form.getByRole("radio", {name: "Elle est déjà en cours"}).check();
   await form.getByLabel("Nom", {exact: true}).fill(name);
   await form.getByLabel("Origine des semences").fill("Semences reprise");
   await form.locator('[name="origin_count"]').fill("6");

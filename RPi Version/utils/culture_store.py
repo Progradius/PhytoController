@@ -299,6 +299,8 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                 # Stades proposables pour une progression : la règle reste dans le modèle pur,
                 # le gabarit n'a plus de rang de stade à connaître.
                 "stage_options": stage_options(subject),
+                # Correction d'un stade déjà saisi : tout le parcours redevient proposable.
+                "stage_options_full": stage_options(subject, current=True),
                 "descendants": [{"id": s["id"], "name": s["name"]} for s in subjects
                                 if any(o["mother_id"] == subject_id for o in s["origins"])]}
 

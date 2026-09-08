@@ -129,3 +129,14 @@ details.culture-primary-action > summary { font-weight: 700; }
 [tabindex="-1"]:target, [tabindex="-1"]:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
 [tabindex="-1"]:target { background: var(--surface-alt, var(--bg)); }
 .culture-added { margin: 0 0 .4rem; font-weight: 700; }
+
+/* Lot 2 (W5) : création et reprise. Les deux entrées sont lues avant tout le reste, les
+   champs sont regroupés, et la frise récapitule la saisie sans la réordonner. */
+.culture-create fieldset { min-width: 0; padding: .75rem; margin: 0; display: grid; gap: .85rem; }
+.culture-create legend { font-weight: 700; padding-inline: .35rem; }
+.culture-situation label { align-items: center; min-height: 44px; }
+.culture-creation-summary { margin-block: .5rem; }
+.culture-creation-summary h3 { margin: 0 0 .4rem; font-size: 1rem; }
+.culture-creation-summary ol { margin: 0; padding-left: 1.3rem; }
+.culture-creation-summary li { margin-block: .3rem; overflow-wrap: anywhere; }
+.culture-creation-summary ol:empty { display: none; }

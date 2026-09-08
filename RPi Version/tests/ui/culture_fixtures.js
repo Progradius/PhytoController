@@ -41,7 +41,11 @@ test.beforeEach(async () => {
   test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Aucune création de culture sur une cible externe.");
 });
 
+// Trois dates saisies à la main = une culture déjà en cours. Le mode « Je démarre une
+// culture » ne demande que la date d'origine et replie les deux autres, qu'il recopie :
+// la reprise est donc choisie explicitement avant de les remplir.
 const dates = async form => {
+  await form.getByRole("radio", {name: "Elle est déjà en cours"}).check();
   for (const name of ["origin_at", "space_at", "stage_at"]) await form.locator(`[name="${name}"]`).fill("2026-08-01");
 };
 const createMother = async (page, name) => {

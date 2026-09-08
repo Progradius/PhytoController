@@ -120,16 +120,29 @@
       input.type = select.value === "instant" ? "datetime-local" : "date";
       input.value = select.value === "instant" ? (previous.length === 10 ? `${previous}T12:00` : previous) : previous.slice(0, 10);
     }));
+    // Stades acceptés et premier stade du parcours : lus sur le formulaire, jamais
+    // recalculés ici. Le serveur les a rendus par type d'origine (`data-stages-*`,
+    // `data-first-stage-*`) depuis les règles pures ; ce script ne fait que masquer ce qui
+    // n'appartient pas au type choisi. Dupliquer la règle « semis / bouture » dans le
+    // navigateur, comme auparavant, c'était deux vérités à maintenir.
+    const creationSpec = () => {
+      const type = form.elements.origin_type?.value || form.dataset.kind || "";
+      const suffix = type.charAt(0).toUpperCase() + type.slice(1);
+      return {stages: (form.dataset[`stages${suffix}`] || "").split(",").filter(Boolean),
+              first: form.dataset[`firstStage${suffix}`] || form.dataset.firstStage || ""};
+    };
     const syncOrigins = () => {
       const cutting = form.elements.origin_type?.value === "cutting";
       form.querySelectorAll("[data-seed]").forEach(el => { el.hidden = cutting; el.querySelector("input").required = !cutting; });
       form.querySelectorAll("[data-cutting]").forEach(el => { el.hidden = !cutting; el.querySelector("select").required = cutting; });
       const stage = form.elements.stage;
-      if (stage && form.elements.origin_type) {
+      if (stage && form.dataset.firstStage) {
+        const spec = creationSpec();
         for (const option of stage.options) {
-          option.disabled = cutting ? option.value === "germination" : option.value === "enracinement";
+          option.disabled = !spec.stages.includes(option.value);
+          option.hidden = option.disabled;
         }
-        if (stage.selectedOptions[0]?.disabled) stage.value = cutting ? "enracinement" : "germination";
+        if (stage.selectedOptions[0]?.disabled && spec.first) stage.value = spec.first;
       }
     };
     form.elements.origin_type?.addEventListener("change", syncOrigins);
@@ -151,6 +164,93 @@
       }
     });
     syncOrigins();
+
+    // --- Création : « Je démarre une culture » ou « Elle est déjà en cours » ---
+    // Le formulaire complet reste la vérité : sans script tout est visible et la saisie est
+    // celle d'avant. Le mode « Je démarre » ne fait que replier ce qu'une seule date suffit
+    // à déduire — le premier stade du parcours, sa date et celle de l'entrée dans l'espace.
+    // Rien n'est inventé : une date d'origine vide recopie du vide.
+    if (form.hasAttribute("data-culture-create")) {
+      const summary = form.querySelector("[data-creation-summary]");
+      const derived = ["[data-creation-stage]", "[data-creation-stage-date]",
+                       "[data-creation-space-date]", "[data-creation-note]"]
+        .map(selector => form.querySelector(selector)).filter(Boolean);
+      const starting = () => form.elements.situation?.value === "new";
+
+      // Libellés de la frise : ceux des <option> rendues par le serveur, jamais une table
+      // de correspondance recopiée ici.
+      const optionLabel = (control) => control?.selectedOptions?.[0]?.textContent.trim() || "";
+      const dateText = (name) => {
+        const raw = form.elements[name]?.value || "";
+        if (!raw) return "date non renseignée";
+        const shown = raw.length === 10 ? raw.split("-").reverse().join("/") : new Date(raw).toLocaleString("fr-FR");
+        const precision = optionLabel(form.elements[`${name}_precision`]);
+        return precision ? `${shown} (${precision.toLowerCase()})` : shown;
+      };
+      // Ordre de la frise = ordre du formulaire. Un stade daté avant l'origine s'y lit tel
+      // quel : réordonner en silence cacherait précisément la saisie à corriger.
+      const buildSummary = () => {
+        if (!summary) return;
+        const lines = [`Origine — ${dateText("origin_at")}`,
+                       `${optionLabel(form.elements.stage) || "Stade"} — ${dateText("stage_at")}`,
+                       `${optionLabel(form.elements.space) || "Espace"} — ${dateText("space_at")}`];
+        const rows = Array.from(form.querySelectorAll(".culture-origin"));
+        if (rows.length) {
+          const cutting = form.elements.origin_type?.value === "cutting";
+          let total = 0;
+          const origins = rows.map(row => {
+            const count = Number(row.querySelector('[name="origin_count"]')?.value || 0);
+            if (Number.isFinite(count)) total += count;
+            // « semis » est invariable ; « bouture » s'accorde.
+            const noun = cutting ? (count > 1 ? "boutures" : "bouture") : "semis";
+            const mother = row.querySelector('[name="mother_id"]');
+            const label = cutting
+              ? (mother?.value ? optionLabel(mother) : "")
+              : (row.querySelector('[name="origin_label"]')?.value.trim() || "");
+            return label ? `${count} ${noun} · ${label}` : `${count} ${noun}, origine non renseignée`;
+          });
+          lines.push(`Effectif total — ${total} plante${total > 1 ? "s" : ""}`, ...origins);
+        }
+        summary.replaceChildren(...lines.map(text => {
+          const item = document.createElement("li");
+          item.textContent = text;
+          return item;
+        }));
+      };
+      // Recopie de la date d'origine : uniquement en mode « Je démarre », précision et type
+      // de champ compris, pour que la reprise ne se retrouve jamais avec une date déduite.
+      const copyOrigin = () => {
+        if (!starting()) return;
+        const origin = form.elements.origin_at, originPrecision = form.elements.origin_at_precision;
+        for (const name of ["stage_at", "space_at"]) {
+          const target = form.elements[name], precision = form.elements[`${name}_precision`];
+          if (!target || !origin) continue;
+          if (precision && originPrecision) {
+            precision.value = originPrecision.value;
+            target.type = precision.value === "instant" ? "datetime-local" : "date";
+          }
+          target.value = origin.value;
+        }
+      };
+      const applyMode = () => {
+        const start = starting();
+        for (const block of derived) block.hidden = start;
+        const stage = form.elements.stage, first = creationSpec().first;
+        if (start && stage && first) stage.value = first;
+        copyOrigin();
+        buildSummary();
+      };
+      form.querySelectorAll('[name="situation"]').forEach(radio => radio.addEventListener("change", applyMode));
+      form.elements.origin_at?.addEventListener("input", copyOrigin);
+      form.elements.origin_at_precision?.addEventListener("change", copyOrigin);
+      form.addEventListener("input", buildSummary);
+      form.addEventListener("change", buildSummary);
+      // Ajout ou retrait d'une origine : leurs gestionnaires sont enregistrés plus haut, la
+      // frise se reconstruit donc sur un formulaire déjà à jour.
+      form.addEventListener("click", buildSummary);
+      applyMode();
+    }
+
     form.addEventListener("submit", async event => {
       event.preventDefault();
       let command;
