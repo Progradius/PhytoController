@@ -2,7 +2,12 @@
 
 Date : 7 septembre 2026.
 Statut : besoin validé avec l'exploitant ; livraisons 1 à 3 implémentées sur
-`feature/gestion-cultures`, vérifiées hors matériel, non déployées. Jalon 3 finalisé le 8 septembre 2026.
+`feature/gestion-cultures`, vérifiées hors matériel, non déployées. Clôture initiale du jalon 3
+consignée le 8 septembre 2026 ; l’audit suivant a identifié des corrections et compléments
+nécessaires avant la clôture fonctionnelle du plan. Voir le
+[plan de rattrapage après audit](gestion_cultures_rattrapage_plan.md).
+Les cases ci-dessous retracent les livraisons initiales ; les écarts encore ouverts sont
+suivis dans ce plan de rattrapage.
 Ce document ne constitue pas une autorisation de déploiement.
 
 ## 1. Objectif et décisions validées

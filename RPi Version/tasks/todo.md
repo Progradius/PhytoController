@@ -1,3 +1,37 @@
+# Suivi — rattrapage du carnet de cultures (plan `gestion_cultures_rattrapage_plan.md`)
+
+Orchestration : agents Opus 5 par lot, vérification et commits par l'orchestrateur.
+Baseline (8 septembre 2026, `58e97e6`) : 273 pytest, 92 Playwright, `git diff --check` propre.
+
+## Phase 0 — préparation
+- [x] Fixture Playwright partagée `tests/ui/culture_fixtures.js` (un spec par lot, sans conflit)
+- [x] Commit du plan de rattrapage et de la préparation
+- [ ] Conception du schéma 4 (migrations lots D à H) avant toute évolution de schéma
+
+## Phase 1 — lots sans évolution de schéma (parallèle)
+- [ ] Lot A — correction de relevés liés à une intervention ancienne
+- [ ] Lot B — cycles longs, agrégation bornée en magasin, PWA bornée
+- [ ] Lot C — étapes rétrospectives d'un parcours repris
+
+## Phase 2 — schéma 4 puis lots D à H
+- [ ] Migration schéma 4 (une seule, sauvegarde `.before-v4.sqlite3`)
+- [ ] Lot D — vérifications déclaratives corrigibles
+- [ ] Lot E — plages cibles pH/EC facultatives et historisées
+- [ ] Lot G — affectations d'équipements datées
+- [ ] Lot F — repères d'éclairage et état opérationnel
+- [ ] Lot H — journal transversal et observations d'espace
+
+## Phase 3 — clôture (lot I)
+- [ ] Suite pytest complète, Playwright complète (5 profils), pyflakes, octets nuls
+- [ ] Migration 1/2/3 → 4, interruption, refus d'écriture, schéma futur, corruption
+- [ ] Sauvegarde/restauration ZIP sur copie isolée avec données anciennes et nouvelles
+- [ ] Documentation (guide, contrat API, sauvegarde, roadmap, plan de référence), CLAUDE.md = AGENTS.md
+- [ ] Tableau de traçabilité du plan (commit, tests, limites) par lot
+
+## Revue
+(à compléter à la clôture)
+
+
 # TODO — Déploiement et armement de la qualité des capteurs
 
 **État au 1er septembre 2026 à 19:44 UTC** : correctif de figement **déployé au commit
