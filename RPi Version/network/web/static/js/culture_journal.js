@@ -11,7 +11,14 @@
     query.delete("focus");
     link.search = query.toString();
   });
+  // Socle partagé : identifiants de champs et restitution des refus au champ concerné.
+  const forms = window.PhytoCultureForms;
+  const refuser = (form, output, message, result) => {
+    if (forms) forms.showError(form, {...result, error: message});
+    else output.textContent = message;
+  };
   document.querySelectorAll("[data-journal-form], [data-journal-photo]").forEach(form => {
+    forms?.register(form);
     let busy = false, previous = null, key = identifier();
     const get = name => form.elements[name]?.value || "";
     form.addEventListener("submit", async event => {
@@ -22,6 +29,7 @@
         output.textContent = "Hors ligne : saisie conservée dans cette page, aucun envoi en attente.";
         return;
       }
+      forms?.clearErrors(form);
       try {
         const photo = form.hasAttribute("data-journal-photo");
         const command = {confirm_date: form.elements.confirm_date?.checked || false};
@@ -53,7 +61,12 @@
             body: photo ? body : JSON.stringify(command), signal: controller.signal});
         } finally { clearTimeout(timeout); }
         const result = await response.json().catch(() => ({error: "Requête refusée. Vérifier la connexion et la taille de l’envoi."}));
-        if (!response.ok) throw new Error(`${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir la version actuelle dans un nouvel onglet." : ""}`);
+        if (!response.ok) {
+          refuser(form, output,
+            `${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir la version actuelle dans un nouvel onglet." : ""}`,
+            result);
+          return;
+        }
         output.textContent = "Enregistré. Actualisation…";
         // Les filtres restent ceux de la page ; seul le repère d'opération est ajouté pour
         // retrouver l'entrée à travers la pagination.

@@ -66,4 +66,4 @@
 </article>{% else %}<p>Aucune plage cible pour ce filtre. Les relevés restent lisibles sans bande de référence.</p>{% endfor %}
 <nav class="culture-links" aria-label="Pagination des plages cibles">{% if data.offset %}<a data-targets-offset="{{ [0,data.offset-40]|max }}" href="?offset={{ [0,data.offset-40]|max }}">Précédentes</a>{% endif %}{% if data.offset+40 < data.total %}<a data-targets-offset="{{ data.offset+40 }}" href="?offset={{ data.offset+40 }}">Suivantes</a>{% endif %}</nav></section>
 {% endif %}{% endblock %}
-{% block page_scripts %}<script src="/static/js/culture_targets.js?v={{ asset_versions.culture_targets }}" defer></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/culture_forms.js?v={{ asset_versions.culture_forms }}" defer></script><script src="/static/js/culture_targets.js?v={{ asset_versions.culture_targets }}" defer></script>{% endblock %}

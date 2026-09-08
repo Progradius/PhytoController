@@ -18,8 +18,15 @@
   }
   // Une valeur vide reste vide : une borne absente n'est jamais convertie en zéro.
   const decimal = value => (value.trim() === "" ? null : value.trim());
+  // Socle partagé : identifiants de champs et restitution des refus au champ concerné.
+  const forms = window.PhytoCultureForms;
+  const refuser = (form, output, message, result) => {
+    if (forms) forms.showError(form, {...result, error: message});
+    else output.textContent = message;
+  };
   document.querySelectorAll("[data-target-form]").forEach(form => {
     const output = form.querySelector("output");
+    forms?.register(form);
     const get = name => form.elements[name]?.value || "";
     let busy = false, previous = null, key = requestId();
     form.addEventListener("submit", async event => {
@@ -30,6 +37,7 @@
         return;
       }
       const button = form.querySelector('[type="submit"]');
+      forms?.clearErrors(form);
       try {
         const command = {operation: form.dataset.operation, confirm_date: form.elements.confirm_date?.checked || false};
         if (form.dataset.id) Object.assign(command, {id: form.dataset.id, version: Number(form.dataset.version)});
@@ -57,7 +65,12 @@
         } finally { clearTimeout(timeout); }
         const result = await response.json().catch(() => ({error: "Requête refusée. Vérifier la connexion."}));
         // Les champs restent renseignés en cas de refus : la saisie n'est jamais perdue.
-        if (!response.ok) throw new Error(`${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir cette page dans un nouvel onglet pour consulter la version actuelle." : ""}`);
+        if (!response.ok) {
+          refuser(form, output,
+            `${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir cette page dans un nouvel onglet pour consulter la version actuelle." : ""}`,
+            result);
+          return;
+        }
         output.textContent = "Enregistré. Ouverture de la plage…";
         const next = new URL(location.href);
         next.searchParams.delete("offset");

@@ -4,7 +4,14 @@
   // commande d'équipement, aucune mutation mise en attente et aucun rejeu hors ligne.
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
   const identifier = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), n => n.toString(16).padStart(2, "0")).join("");
+  // Socle partagé : identifiants de champs et restitution des refus au champ concerné.
+  const forms = window.PhytoCultureForms;
+  const refuser = (form, output, message, result) => {
+    if (forms) forms.showError(form, {...result, error: message});
+    else output.textContent = message;
+  };
   document.querySelectorAll("[data-equipment-form]").forEach(form => {
+    forms?.register(form);
     let busy = false, previous = null, key = identifier();
     const get = name => form.elements[name]?.value.trim() || "";
     form.addEventListener("submit", async event => {
@@ -15,6 +22,7 @@
         output.textContent = "Hors ligne : saisie conservée dans cette page, aucun envoi en attente.";
         return;
       }
+      forms?.clearErrors(form);
       try {
         const operation = form.dataset.operation;
         const command = {operation, confirm_date: form.elements.confirm_date?.checked || false};
@@ -45,7 +53,12 @@
             body: JSON.stringify(command), signal: controller.signal});
         } finally { clearTimeout(timeout); }
         const result = await response.json().catch(() => ({error: "Requête refusée. Vérifier la connexion."}));
-        if (!response.ok) throw new Error(`${result.error} Saisie conservée.${response.status === 409 ? " Actualiser la page dans un nouvel onglet." : ""}`);
+        if (!response.ok) {
+          refuser(form, output,
+            `${result.error} Saisie conservée.${response.status === 409 ? " Actualiser la page dans un nouvel onglet." : ""}`,
+            result);
+          return;
+        }
         output.textContent = "Enregistré. Actualisation…";
         location.hash = `equipement-${result.equipment_id}`;
         location.reload();

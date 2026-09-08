@@ -1243,3 +1243,36 @@ async def test_page_systeme_laisse_une_url_inerte_et_detecte_l_echec(web_context
     # Un retour ne s'annonce qu'après disparition puis deux réponses de suite.
     assert "REQUIRED_ALIVE = 2" in script
     assert "disappeared" in script
+
+
+async def test_socle_de_formulaires_du_carnet_est_servi_et_precache(web_context):
+    client, *_ = web_context
+    response = await client.get("/static/js/culture_forms.js")
+    assert response.status == 200
+    assert response.content_type == "application/javascript"
+    script = await response.text()
+    # Script classique exposant un global : la CSP interdit `type=module` inline et tout script en ligne.
+    assert "window.PhytoCultureForms" in script
+    assert "export " not in script
+
+    worker = await (await client.get("/service-worker.js")).text()
+    assert "/static/js/culture_forms.js?v=" in worker
+
+
+async def test_gabarits_du_carnet_chargent_le_socle_avant_leur_script(web_context):
+    client, *_ = web_context
+    for path, page_script in (
+        ("/cultures/targets", "culture_targets.js"),
+        ("/cultures/light", "culture_light.js"),
+        ("/cultures/equipment", "culture_equipment.js"),
+        ("/cultures/journal", "culture_journal.js"),
+    ):
+        response = await client.get(path)
+        assert response.status == 200
+        page = await response.text()
+        # L'ordre compte : le global doit exister quand le script de page s'exécute.
+        assert page.index("/static/js/culture_forms.js") < page.index(f"/static/js/{page_script}")
+        assert "<script>" not in page
+        policy = response.headers["Content-Security-Policy"]
+        assert "script-src 'self'" in policy
+        assert "unsafe-inline" not in policy

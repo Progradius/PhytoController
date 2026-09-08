@@ -75,6 +75,7 @@ def _asset_versions() -> dict[str, str]:
         "culture_light": STATIC_DIR / "js" / "culture_light.js",
         "culture_equipment": STATIC_DIR / "js" / "culture_equipment.js",
         "culture_journal": STATIC_DIR / "js" / "culture_journal.js",
+        "culture_forms": STATIC_DIR / "js" / "culture_forms.js",
         "cultures": STATIC_DIR / "js" / "cultures.js",
         "cultures_style": STATIC_DIR / "css" / "cultures.css",
         "pwa": STATIC_DIR / "js" / "pwa.js",

@@ -67,4 +67,4 @@
 <label>Observation<textarea name="note" maxlength="4000" required></textarea></label>
 {{ confirm() }}<button class="button" type="submit">Enregistrer l’observation</button><output role="status" aria-live="polite"></output></form></details></section>
 {% endif %}{% endblock %}
-{% block page_scripts %}<script src="/static/js/culture_journal.js?v={{ asset_versions.culture_journal }}" defer></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/culture_forms.js?v={{ asset_versions.culture_forms }}" defer></script><script src="/static/js/culture_journal.js?v={{ asset_versions.culture_journal }}" defer></script>{% endblock %}

@@ -11,7 +11,15 @@
     return rest ? `${hours} h ${String(rest).padStart(2, "0")}` : `${hours} h`;
   };
 
+  // Socle partagé : identifiants de champs et restitution des refus au champ concerné.
+  const forms = window.PhytoCultureForms;
+  const refuser = (form, output, message, result) => {
+    if (forms) forms.showError(form, {...result, error: message});
+    else output.textContent = message;
+  };
+
   document.querySelectorAll("[data-light-form]").forEach(form => {
+    forms?.register(form);
     const minutes = form.querySelector("[data-light-minutes]");
     const stage = form.querySelector("[data-light-stage]");
     const preview = form.querySelector("[data-light-preview]");
@@ -47,6 +55,7 @@
         output.textContent = "Hors ligne : saisie conservée dans cette page, aucun envoi en attente.";
         return;
       }
+      forms?.clearErrors(form);
       try {
         const command = {operation: form.dataset.operation, confirm_date: form.elements.confirm_date?.checked || false};
         if (form.dataset.id) Object.assign(command, {id: form.dataset.id, version: Number(form.dataset.version)});
@@ -71,7 +80,12 @@
             body: JSON.stringify(command), signal: controller.signal});
         } finally { clearTimeout(timeout); }
         const result = await response.json().catch(() => ({error: "Requête refusée. Vérifier la connexion."}));
-        if (!response.ok) throw new Error(`${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir la page actuelle dans un nouvel onglet." : ""}`);
+        if (!response.ok) {
+          refuser(form, output,
+            `${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir la page actuelle dans un nouvel onglet." : ""}`,
+            result);
+          return;
+        }
         output.textContent = "Enregistré. Actualisation…";
         const next = new URL(location.href);
         next.hash = `repere-${result.id}`;
