@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from model.culture import CultureConflict, CultureError, SPACES, STAGES, stamp, text_value
 from model.culture_cycle import (CLIMATE_PAGE, MAX_SUMMARY_POINTS, REMINDER_STATES,
                                  climate_granularity, climate_point, climate_span, planned_date,
-                                 reminder_values, trusted_value)
+                                 reminder_buckets, reminder_values, trusted_value)
 from model.culture_solution import RESERVOIRS
 from utils.culture_checklist_store import CHECKLIST_OPERATIONS
 
@@ -52,21 +52,33 @@ class CycleStoreMixin:
                     raise CultureConflict("Cette clé appartient à une autre saisie.")
                 return json.loads(previous["result"])
             if not self.reliable() and command.get("confirm_date") is not True:
-                raise CultureError("Horloge non fiable : vérifier puis confirmer explicitement la date.")
+                raise CultureError("Horloge non fiable : vérifier puis confirmer explicitement la date.", "confirm_date")
             result = work()
             self._db.execute("INSERT INTO requests VALUES (?,?,?)", (key, fingerprint, json.dumps(result)))
         return result
 
-    def _reminders(self, target=None):
+    def _reminders(self, target=None, *, revisions=True, states=None):
+        """Rappels courants, éventuellement filtrés, avec leurs seaux de classement.
+
+        Le classement lui-même est pur (`reminder_buckets`) : le magasin ne fait plus que
+        lire les lignes et reporter les seaux sur elles. `revisions=False` supprime la
+        requête par rappel, inutile pour l'accueil qui n'affiche aucun historique.
+        """
         sql = "SELECT r.* FROM reminders r WHERE revision=(SELECT MAX(v.revision) FROM reminders v WHERE v.id=r.id)"
         rows = [dict(r) for r in self._db.execute(sql + " ORDER BY due_date,id")]
         if target:
             rows = [r for r in rows if target in (r["subject_id"], r["reservoir_id"])]
+        if states is not None:
+            rows = [r for r in rows if r["state"] in states]
         today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
+        buckets = reminder_buckets(rows, today, self.zone)
+        overdue = {(r["id"], r["revision"]) for r in buckets["overdue"]}
+        due_today = {(r["id"], r["revision"]) for r in buckets["due_today"]}
         for row in rows:
-            row["overdue"] = row["state"] in ("planned", "postponed") and row["due_date"] < today
-            row["due_today"] = row["state"] in ("planned", "postponed") and row["due_date"] == today
-            row["revisions"] = [dict(r) for r in self._db.execute("SELECT * FROM reminders WHERE id=? AND revision<? ORDER BY revision", (row["id"], row["revision"]))]
+            row["overdue"] = (row["id"], row["revision"]) in overdue
+            row["due_today"] = (row["id"], row["revision"]) in due_today
+            if revisions:
+                row["revisions"] = [dict(r) for r in self._db.execute("SELECT * FROM reminders WHERE id=? AND revision<? ORDER BY revision", (row["id"], row["revision"]))]
         return rows
 
     def _cycle_mutate(self, command):

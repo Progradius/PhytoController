@@ -74,13 +74,13 @@ class JournalStoreMixin:
                 raise CultureError("L'espace et le genre d'une observation ne se corrigent pas ; annuler puis ressaisir.")
             effective = command.get("effective_at", old["effective_at"] if old else None)
             precision = command.get("precision", old["precision"] if old else "date")
-            sort_at = stamp(effective, precision, self.zone, now)[0]
+            sort_at = stamp(effective, precision, self.zone, now, field="effective_at")[0]
             previous = json.loads(old["payload"])["note"] if old is not None else None
             payload = space_event_payload(kind, {"note": command.get("note", previous)})
             cancelled = command.get("cancelled", False)
             if type(cancelled) is not bool:
                 raise CultureError("Annulation : booléen attendu.")
-            reason = text_value(command.get("reason", ""), "Motif", 500, operation == "correct")
+            reason = text_value(command.get("reason", ""), "Motif", 500, operation == "correct", field="reason")
             self._db.execute(
                 f"INSERT INTO space_events ({','.join(SPACE_EVENT_COLUMNS)})"
                 f" VALUES ({','.join('?' for _ in SPACE_EVENT_COLUMNS)})",

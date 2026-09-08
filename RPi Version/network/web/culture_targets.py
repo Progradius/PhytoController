@@ -10,6 +10,7 @@ from aiohttp import web
 
 from model.culture import CultureConflict, CultureError, STAGES
 from model.culture_solution import RESERVOIRS
+from network.web.cultures import error_response
 from network.web.pages import render_template
 from utils.culture_store import CultureUnavailable
 
@@ -50,9 +51,9 @@ class TargetsViews:
         try:
             return web.json_response(await self.payload(request))
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def mutate(self, request):
         try:
@@ -60,11 +61,11 @@ class TargetsViews:
         except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"error": "JSON invalide."}, status=400)
         except CultureConflict as exc:
-            return web.json_response({"error": str(exc)}, status=409)
+            return error_response(exc, 409)
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def export(self, request):
         if request.query.get("format", "csv") != "csv":

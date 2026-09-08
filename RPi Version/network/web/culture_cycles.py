@@ -10,6 +10,7 @@ from aiohttp import web
 from model.culture import CultureConflict, CultureError, SPACES, STAGES
 from model.culture_cycle import CHECKLIST, MAX_PHOTO_BYTES, REMINDER_STATES
 from model.culture_solution import RESERVOIRS
+from network.web.cultures import error_response
 from network.web.pages import render_template
 from utils.culture_store import CultureUnavailable
 
@@ -71,9 +72,9 @@ class CycleViews:
         try:
             return web.json_response(await self.payload(request))
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def mutate(self, request):
         try:
@@ -81,11 +82,11 @@ class CycleViews:
         except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"error": "JSON invalide."}, status=400)
         except CultureConflict as exc:
-            return web.json_response({"error": str(exc)}, status=409)
+            return error_response(exc, 409)
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def upload(self, request):
         # Corps binaire dédié : aucun relèvement de la limite JSON globale de 64 Kio.
@@ -109,11 +110,11 @@ class CycleViews:
         except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"error": "Métadonnées de photo invalides."}, status=400)
         except CultureConflict as exc:
-            return web.json_response({"error": str(exc)}, status=409)
+            return error_response(exc, 409)
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
         except asyncio.TimeoutError:
             raise web.HTTPRequestTimeout(text="Envoi de photo trop lent ; aucune photo confirmée.") from None
 

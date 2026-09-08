@@ -16,8 +16,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from model.culture import (SPACES, CultureConflict, CultureError, backfill_stages, event_payload,
-                           integer, project, stamp, text_value, validate_spaces)
+from model.culture import (SPACES, STAGES, CultureConflict, CultureError, backfill_stages,
+                           creation_stages, event_payload, fiche_actions, integer, project, stamp,
+                           text_value, validate_spaces)
+from model.culture_cycle import reminder_buckets
+from model.culture_journal import TODAY_JOURNAL
 
 from model.culture_solution import RESERVOIRS
 from utils.culture_solution_store import SolutionStoreMixin, SOLUTION_SCHEMA, SOLUTION_TABLES
@@ -28,7 +31,7 @@ from utils.culture_checklist_store import ChecklistStoreMixin
 from utils.culture_targets_store import TargetsStoreMixin
 from utils.culture_light_store import LightStoreMixin
 from utils.culture_equipment_store import EquipmentStoreMixin
-from utils.culture_journal_store import JournalStoreMixin
+from utils.culture_journal_store import JOURNAL_ORDER, JournalStoreMixin
 from utils.culture_schema_v4 import SCHEMA4_SQL, V4_TABLES
 
 SCHEMA_VERSION = 4
@@ -217,18 +220,58 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                         [o for o in origins if o["subject_id"] == s["id"]], now, self.zone, reliable)
                 for s in self._db.execute("SELECT * FROM subjects ORDER BY rowid DESC")]
 
-    def _overview(self, archived=False, offset=0):
+    def _reminder_view(self, row, names):
+        """Rappel réduit à ce qu'une carte affiche, cible déjà résolue.
+
+        Le nom est repris des sujets **déjà projetés** ou du catalogue de réservoirs : le
+        bloc « Aujourd'hui » ne doit pas coûter une projection ni une requête de plus.
+        """
+        if row["reservoir_id"]:
+            target = {"kind": "reservoir", "id": row["reservoir_id"],
+                      "name": RESERVOIRS[row["reservoir_id"]][0] if row["reservoir_id"] in RESERVOIRS
+                      else row["reservoir_id"]}
+        else:
+            target = {"kind": "culture", "id": row["subject_id"],
+                      "name": names.get(row["subject_id"], row["subject_id"])}
+        return {"id": row["id"], "revision": row["revision"], "title": row["title"],
+                "due_date": row["due_date"], "state": row["state"],
+                "interval_days": row["interval_days"], "completed_at": row["completed_at"],
+                "target": target}
+
+    def _reminder_view_buckets(self, rows, names, today):
+        buckets = reminder_buckets(rows, today, self.zone)
+        return {name: [self._reminder_view(row, names) for row in bucket]
+                for name, bucket in buckets.items()}
+
+    def _agenda(self, subjects, today):
+        """Bloc « Aujourd'hui » : rappels classés et dernières opérations, sans projection neuve."""
+        names = {s["id"]: s["name"] for s in subjects}
+        buckets = self._reminder_view_buckets(self._reminders(revisions=False), names, today)
+        # Une ligne de plus que la borne : elle ne sert qu'à savoir s'il en reste.
+        rows = self._db.execute(f"SELECT j.* FROM culture_journal j ORDER BY {JOURNAL_ORDER} LIMIT ?",
+                                (TODAY_JOURNAL + 1,)).fetchall()
+        return {"reminders": {"overdue": buckets["overdue"], "due_today": buckets["due_today"],
+                              "upcoming_count": len(buckets["upcoming"]),
+                              "done_today": buckets["done_today"]},
+                "journal": self._journal_enrich(rows[:TODAY_JOURNAL]),
+                "journal_truncated": len(rows) > TODAY_JOURNAL}
+
+    def _overview(self, archived=False, offset=0, agenda=False):
         subjects = self._projections()
         readings = self._latest_solution_readings()
         for subject in subjects:
             subject["latest_reading"] = readings.get(subject["id"])
         selected = [s for s in subjects if s["archived"] == archived]
-        return {"available": True, "timezone": self.zone, "clock_reliable": self.reliable(),
-                "today": self.now().astimezone(ZoneInfo(self.zone)).date().isoformat(),
-                "items": selected[offset:offset + 40], "total": len(selected), "offset": offset,
-                "occupants": [s for s in subjects if s["space"]],
-                "mothers": [{"id": s["id"], "name": s["name"], "archived": s["archived"]}
-                            for s in subjects if s["kind"] == "mother"]}
+        today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
+        overview = {"available": True, "timezone": self.zone, "clock_reliable": self.reliable(),
+                    "today": today,
+                    "items": selected[offset:offset + 40], "total": len(selected), "offset": offset,
+                    "occupants": [s for s in subjects if s["space"]],
+                    "mothers": [{"id": s["id"], "name": s["name"], "archived": s["archived"]}
+                                for s in subjects if s["kind"] == "mother"]}
+        if agenda:
+            overview["agenda"] = self._agenda(subjects, today)
+        return overview
 
     def _detail(self, subject_id, offset=0):
         subjects = self._projections()
@@ -239,19 +282,27 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         versions = self._events(subject_id, revisions=True)
         for event in events:
             event["revisions"] = [v for v in versions if v["id"] == event["id"] and v["revision"] < event["revision"]]
+        names = {s["id"]: s["name"] for s in subjects}
+        today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
         return {"subject": subject, "events": events[offset:offset + 40], "total": len(events),
                 "offset": offset, "timezone": self.zone, "clock_reliable": self.reliable(),
                 "backfill": {"stages": backfill_stages(subject),
                              "spaces": ["space_1"] if subject["kind"] == "mother" else list(SPACES),
                              "before": subject.get("stage_at")},
                 "photos": self._media_for_events([e["id"] for e in events[offset:offset + 40]]),
+                # Rappels du seul sujet, classés comme sur l'accueil : la fiche montre ce qui
+                # est en retard ou dû aujourd'hui sans rouvrir la page des cycles.
+                "reminders": self._reminder_view_buckets(
+                    self._reminders(subject_id, revisions=False), names, today),
+                "media": self._media_list(subject_id),
+                "actions": fiche_actions(subject),
                 "descendants": [{"id": s["id"], "name": s["name"]} for s in subjects
                                 if any(o["mother_id"] == subject_id for o in s["origins"])]}
 
     def _insert_event(self, subject_id, kind, raw, now, *, event_id=None, revision=1):
         precision = raw.get("precision", "date")
         effective = raw.get("effective_at")
-        key, _local = stamp(effective, precision, self.zone, now)
+        key, _local = stamp(effective, precision, self.zone, now, field="effective_at")
         data = event_payload(kind, raw.get("payload", {}))
         if kind == "create":
             subject = self._db.execute("SELECT * FROM subjects WHERE id=?", (subject_id,)).fetchone()
@@ -261,8 +312,8 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         if kind == "harvest":
             if not data["drying_at"]:
                 data.update(drying_at=effective, drying_precision=precision)
-            if stamp(data["drying_at"], data["drying_precision"], self.zone, now)[0] < key:
-                raise CultureError("Le séchage ne peut pas commencer avant la coupe.")
+            if stamp(data["drying_at"], data["drying_precision"], self.zone, now, field="drying_at")[0] < key:
+                raise CultureError("Le séchage ne peut pas commencer avant la coupe.", "drying_at")
         cancelled = raw.get("cancelled", False)
         if not isinstance(cancelled, bool):
             raise CultureError("Annulation : booléen attendu.")
@@ -275,8 +326,10 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
           (event_id, subject_id, revision, kind, effective, precision, key, now.isoformat(),
            int(self.reliable()), json.dumps(data, ensure_ascii=False, allow_nan=False), int(cancelled),
-           text_value(raw.get("reason", ""), "Motif", 500, False), self._equipment_context))
-        return event_id
+           text_value(raw.get("reason", ""), "Motif", 500, False, field="reason"), self._equipment_context))
+        # L'identité complète de la ligne écrite : l'appelant peut renvoyer une ancre et une
+        # photo peut être rattachée à cette révision précise, sans relire le journal.
+        return {"id": event_id, "revision": revision}
 
     def _mutate(self, command, equipment=None):
         if not isinstance(command, dict):
@@ -301,9 +354,10 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                     raise CultureConflict("Cette clé appartient à une autre saisie.")
                 return json.loads(previous["result"])
             if not self.reliable() and command.get("confirm_date") is not True:
-                raise CultureError("Horloge non fiable : vérifier les dates puis confirmer explicitement.")
+                raise CultureError("Horloge non fiable : vérifier les dates puis confirmer explicitement.", "confirm_date")
             operation = command.get("operation")
             now = self.now()
+            inserted = None
             if operation == "create":
                 subject_id = self._create(command, now)
             elif operation in ("event", "correct", "backfill"):
@@ -319,14 +373,14 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                     old = next((e for e in self._events(subject_id) if e["id"] == command.get("event_id")), None)
                     if old is None:
                         raise CultureError("Événement introuvable.")
-                    self._insert_event(subject_id, old["kind"], command, now,
-                                       event_id=old["id"], revision=old["revision"] + 1)
+                    inserted = self._insert_event(subject_id, old["kind"], command, now,
+                                                  event_id=old["id"], revision=old["revision"] + 1)
                 elif operation == "backfill":
                     self._backfill(subject_id, command, now)
                 else:
                     if command.get("kind") == "create":
                         raise CultureError("Origine déjà enregistrée.")
-                    self._insert_event(subject_id, command.get("kind"), command, now)
+                    inserted = self._insert_event(subject_id, command.get("kind"), command, now)
                 self._db.execute("UPDATE subjects SET version=version+1 WHERE id=?", (subject_id,))
             else:
                 raise CultureError("Opération inconnue.")
@@ -336,6 +390,12 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
             self._solution_rebuild(projections)
             result = {"subject_id": subject_id, "saved": True,
                       "version": next(s["version"] for s in projections if s["id"] == subject_id)}
+            if inserted is not None:
+                # Une entrée unique et identifiable : l'interface peut y renvoyer et y
+                # rattacher une photo. Une création ou une reprise en écrit plusieurs et
+                # n'en désigne aucune ; un backfill non plus.
+                result["event_id"] = inserted["id"]
+                result["event_revision"] = inserted["revision"]
             self._db.execute("INSERT INTO requests VALUES (?,?,?)", (key, fingerprint, json.dumps(result)))
         return result
 
@@ -370,26 +430,68 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                 raise CultureError("Ce stade n'est pas une étape antérieure manquante de ce parcours.")
             if kind == "move" and payload.get("space") not in spaces:
                 raise CultureError("Espace inconnu pour cette culture.")
-            if stamp(step.get("effective_at"), step.get("precision", "date"), self.zone, now)[0] >= limit:
+            if stamp(step.get("effective_at"), step.get("precision", "date"), self.zone, now,
+                     field="effective_at")[0] >= limit:
                 raise CultureError("Une étape passée doit précéder le début du stade courant.")
             self._insert_event(subject_id, kind, step, now)
 
-    def _create(self, command, now):
+    def _prevalidate_create(self, command, now):
+        """Contrôles purs de la création, **dans l'ordre du formulaire**.
+
+        Les insertions qui suivent gardent leur ordre métier — le déplacement précède le
+        stade et la récolte —, mais cet ordre-là n'est pas celui que l'opérateur voit. Sans
+        cette passe, une commande cumulant deux fautes signalerait la plus tardive à
+        l'écran : le champ désigné serait plus bas que le premier vraiment fautif.
+        Aucun accès à la base ici : l'existence d'une mère reste vérifiée par
+        `_write_origins`, à sa place, après tous les contrôles de forme.
+        """
         kind = command.get("kind")
         origin_type = command.get("origin_type", "mother" if kind == "mother" else "seed")
+        text_value(command.get("name"), "Nom", field="name")
+        text_value(command.get("variety", ""), "Variété", required=False, field="variety")
         if kind not in ("mother", "lot") or origin_type not in (("mother",) if kind == "mother" else ("seed", "cutting")):
-            raise CultureError("Type de culture ou d'origine invalide.")
+            raise CultureError("Type de culture ou d'origine invalide.", "origin_type")
+        origins = command.get("origins", [])
+        if not isinstance(origins, list) or len(origins) > 50 or (kind == "lot" and not origins) or (kind == "mother" and origins):
+            raise CultureError("Renseigner les origines du lot (50 maximum).")
+        for position, origin in enumerate(origins):
+            if not isinstance(origin, dict):
+                raise CultureError("Origine invalide.")
+            mother = origin.get("mother_id") or None
+            if mother is not None:
+                mother = text_value(mother, "Identifiant de la mère", field="mother_id", index=position)
+            if (origin_type == "cutting" and not mother) or (origin_type == "seed" and mother):
+                raise CultureError("Les boutures nécessitent une mère ; les semis une origine de semences.",
+                                   "mother_id", position)
+            text_value(origin.get("label", ""), "Origine", required=not mother,
+                       field="origin_label", index=position)
+            integer(origin.get("count"), field="origin_count", index=position)
+        stamp(command.get("origin_at"), command.get("origin_precision", "date"), self.zone, now, field="origin_at")
+        stage = command.get("stage", "maintien" if kind == "mother" else "vegetatif")
+        if not isinstance(stage, str) or stage not in STAGES:
+            raise CultureError("Stade inconnu.", "stage")
+        if stage not in creation_stages(kind, origin_type):
+            # Messages inchangés : ce sont ceux que la projection produirait de toute façon.
+            raise CultureError("Un pied mère possède une seule période de maintien." if kind == "mother"
+                               else "Les stades doivent progresser dans l'ordre du parcours.", "stage")
+        stamp(command.get("stage_at"), command.get("stage_precision", "date"), self.zone, now, field="stage_at")
+        space = command.get("space", "space_1")
+        if not isinstance(space, str) or space not in SPACES:
+            raise CultureError("Espace inconnu.", "space")
+        stamp(command.get("space_at"), command.get("space_precision", "date"), self.zone, now, field="space_at")
+        return kind, origin_type, origins, stage, space
+
+    def _create(self, command, now):
+        kind, origin_type, origins, stage, space = self._prevalidate_create(command, now)
         subject_id = str(uuid.uuid4())
         self._db.execute("INSERT INTO subjects VALUES (?,?,?,?,?,1)",
-                         (subject_id, kind, text_value(command.get("name"), "Nom"),
-                          text_value(command.get("variety", ""), "Variété", required=False), origin_type))
-        self._write_origins(subject_id, origin_type, kind, command.get("origins", []))
+                         (subject_id, kind, text_value(command.get("name"), "Nom", field="name"),
+                          text_value(command.get("variety", ""), "Variété", required=False, field="variety"), origin_type))
+        self._write_origins(subject_id, origin_type, kind, origins)
         self._insert_event(subject_id, "create", {"effective_at": command.get("origin_at"),
                            "precision": command.get("origin_precision", "date")}, now)
-        space = command.get("space", "space_1")
         self._insert_event(subject_id, "move", {"effective_at": command.get("space_at"),
                            "precision": command.get("space_precision", "date"), "payload": {"space": space}}, now)
-        stage = command.get("stage", "maintien" if kind == "mother" else "vegetatif")
         self._insert_event(subject_id, "harvest" if stage == "sechage" else "stage", {
             "effective_at": command.get("stage_at"), "precision": command.get("stage_precision", "date"),
             "payload": {} if stage == "sechage" else {"stage": stage}}, now)
@@ -402,18 +504,19 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         self._db.execute("DELETE FROM origins WHERE subject_id=?", (subject_id,))
         seen = set()
         ids = set()
-        for origin in origins:
+        for position, origin in enumerate(origins):
             if not isinstance(origin, dict):
                 raise CultureError("Origine invalide.")
             mother = origin.get("mother_id") or None
             if mother is not None:
-                mother = text_value(mother, "Identifiant de la mère")
+                mother = text_value(mother, "Identifiant de la mère", field="mother_id", index=position)
             if (origin_type == "cutting" and not mother) or (origin_type == "seed" and mother):
-                raise CultureError("Les boutures nécessitent une mère ; les semis une origine de semences.")
+                raise CultureError("Les boutures nécessitent une mère ; les semis une origine de semences.",
+                                   "mother_id", position)
             if mother:
                 row = self._db.execute("SELECT kind FROM subjects WHERE id=?", (mother,)).fetchone()
                 if not row or row[0] != "mother" or mother in seen:
-                    raise CultureError("Mère inconnue ou dupliquée.")
+                    raise CultureError("Mère inconnue ou dupliquée.", "mother_id", position)
                 seen.add(mother)
             origin_id = origin.get("id") or str(uuid.uuid4())
             if not isinstance(origin_id, str) or origin_id in ids or (origin.get("id") and origin_id not in old_ids):
@@ -421,7 +524,9 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
             ids.add(origin_id)
             self._db.execute("INSERT INTO origins VALUES (?,?,?,?,?)", (
                 origin_id, subject_id, mother,
-                text_value(origin.get("label", ""), "Origine", required=not mother), integer(origin.get("count"))))
+                text_value(origin.get("label", ""), "Origine", required=not mother,
+                           field="origin_label", index=position),
+                integer(origin.get("count"), field="origin_count", index=position)))
 
     def _validate_origins(self, subjects):
         index = {s["id"]: s for s in subjects}

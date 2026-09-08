@@ -175,7 +175,7 @@ class SolutionStoreMixin:
                     raise CultureConflict("Cette clé appartient à une autre saisie.")
                 return json.loads(previous["result"])
             if not self.reliable() and command.get("confirm_date") is not True:
-                raise CultureError("Horloge non fiable : vérifier et confirmer la date.")
+                raise CultureError("Horloge non fiable : vérifier et confirmer la date.", "confirm_date")
             operation = command.get("operation")
             if operation not in ("recipe", "entry", "correct"):
                 raise CultureError("Opération attendue : recipe, entry ou correct.")
@@ -199,12 +199,13 @@ class SolutionStoreMixin:
                 identifier = str(uuid.uuid4())
             now = self.now()
             if operation == "recipe":
-                volume = number(command.get("volume_l"), "Volume de référence (L)", minimum=0.001, required=True)
+                volume = number(command.get("volume_l"), "Volume de référence (L)", minimum=0.001,
+                                required=True, field="volume_l")
                 recipe_ingredients = ingredients(command.get("ingredients", []))
                 if not recipe_ingredients:
                     raise CultureError("Une recette nécessite au moins un produit.")
                 self._db.execute("INSERT INTO recipes VALUES (?,?,?,?,?,?)", (identifier, revision,
-                    text_value(command.get("name"), "Nom de recette"), volume,
+                    text_value(command.get("name"), "Nom de recette", field="name"), volume,
                     json.dumps(recipe_ingredients, ensure_ascii=False), now.isoformat()))
             else:
                 if old is not None:
@@ -214,18 +215,18 @@ class SolutionStoreMixin:
                                **command}
                 kind = command.get("kind")
                 if not isinstance(kind, str) or kind not in SOLUTION_KINDS or (old and old["kind"] != kind):
-                    raise CultureError("Type d’intervention invalide ou modifié.")
+                    raise CultureError("Type d’intervention invalide ou modifié.", "kind")
                 reservoir = command.get("reservoir_id") or None
                 if reservoir is not None and (not isinstance(reservoir, str) or reservoir not in RESERVOIRS):
                     raise CultureError("Réservoir inconnu.")
                 targets = command.get("targets", [])
                 if not isinstance(targets, list) or len(targets) > 50 or any(not isinstance(t, str) for t in targets) or len(set(targets)) != len(targets):
-                    raise CultureError("Cibles invalides ou dupliquées (50 maximum).")
+                    raise CultureError("Cibles invalides ou dupliquées (50 maximum).", "target")
                 if (reservoir and targets) or (not reservoir and not targets) or (kind == "water" and reservoir) or (kind not in ("reading", "water") and not reservoir):
                     raise CultureError("Choisir un réservoir, ou les cultures pour un relevé/arrosage manuel.")
                 subjects = {s["id"]: s for s in self._projections()}
                 if any(t not in subjects for t in targets) or (len(targets) > 1 and any(subjects[t]["kind"] != "mother" for t in targets)):
-                    raise CultureError("Choisir une culture ou plusieurs pieds mères.")
+                    raise CultureError("Choisir une culture ou plusieurs pieds mères.", "target")
                 values = measurements(command)
                 if kind == "reading" and values["ph"] is None and values["ec"] is None:
                     raise CultureError("Renseigner au moins le pH ou l’EC.")
@@ -235,12 +236,12 @@ class SolutionStoreMixin:
                 recipe_revision = command.get("recipe_revision") if recipe_id else None
                 frozen = ingredients(command.get("ingredients", []))
                 if recipe_id:
-                    recipe_id = text_value(recipe_id, "Recette")
+                    recipe_id = text_value(recipe_id, "Recette", field="recipe_id")
                     if type(recipe_revision) is not int:
-                        raise CultureError("Version de recette obligatoire.")
+                        raise CultureError("Version de recette obligatoire.", "recipe_id")
                     recipe = self._db.execute("SELECT * FROM recipes WHERE id=? AND revision=?", (recipe_id, recipe_revision)).fetchone()
                     if recipe is None or not values["volume_l"]:
-                        raise CultureError("Recette inconnue ou volume de préparation manquant.")
+                        raise CultureError("Recette inconnue ou volume de préparation manquant.", "recipe_id")
                     expected = ingredients(json.loads(recipe["ingredients"]), values["volume_l"] / recipe["volume_l"])
                     if frozen != expected:
                         raise CultureConflict("Les quantités doivent correspondre à l’aperçu de cette version de recette.")
@@ -256,7 +257,7 @@ class SolutionStoreMixin:
                     raise CultureError("Utiliser un relevé distinct pour une mesure avant intervention.")
                 effective = command.get("effective_at")
                 precision = command.get("precision", "date")
-                sort_at = stamp(effective, precision, self.zone, now)[0]
+                sort_at = stamp(effective, precision, self.zone, now, field="effective_at")[0]
                 cancelled = command.get("cancelled", False)
                 if type(cancelled) is not bool:
                     raise CultureError("Annulation : booléen attendu.")
@@ -266,7 +267,7 @@ class SolutionStoreMixin:
                 row = {"id": identifier, "revision": revision, "kind": kind, "reservoir_id": reservoir,
                        "effective_at": effective, "precision": precision, "sort_at": sort_at, "recorded_at": now.isoformat(),
                        "clock_reliable": int(self.reliable()), "cancelled": int(cancelled),
-                       "reason": text_value(command.get("reason", ""), "Motif", 500, False),
+                       "reason": text_value(command.get("reason", ""), "Motif", 500, False, field="reason"),
                        "note": text_value(command.get("note", ""), "Note", 4000, False), **values,
                        "intervention_id": intervention_id, "recipe_id": recipe_id, "recipe_revision": recipe_revision,
                        "ingredients": json.dumps(frozen, ensure_ascii=False),

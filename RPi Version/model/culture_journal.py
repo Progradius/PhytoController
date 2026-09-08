@@ -28,6 +28,10 @@ JOURNAL_TYPES.update({f"solution:{key}": f"Solution · {label}" for key, label i
 JOURNAL_TYPES.update({f"space_event:{key}": f"Espace · {label}" for key, label in SPACE_EVENT_KINDS.items()})
 JOURNAL_FILTERS = ("start", "end", "target", "type")
 JOURNAL_PAGE = 40
+# Bloc « Aujourd'hui » de l'accueil : un rappel des toutes dernières opérations, pas une
+# seconde page de journal. Au-delà, l'accueil renvoie au journal complet plutôt que de
+# grossir une page dont le rôle est de montrer la prochaine action.
+TODAY_JOURNAL = 5
 # Quatre photos par observation, comme pour un événement de culture : le lot H réutilise
 # les plafonds existants au lieu d'en inventer de nouveaux.
 MAX_SPACE_PHOTOS = 4

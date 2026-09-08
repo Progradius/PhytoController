@@ -12,6 +12,7 @@ from aiohttp import web
 
 from model.culture import CultureConflict, CultureError
 from network.web.culture_cycles import CycleViews
+from network.web.cultures import error_response
 from network.web.pages import render_template
 from utils.culture_store import CultureUnavailable
 
@@ -56,9 +57,9 @@ class JournalViews:
         try:
             return web.json_response(await self.payload(request))
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def mutate(self, request):
         try:
@@ -66,11 +67,11 @@ class JournalViews:
         except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"error": "JSON invalide."}, status=400)
         except CultureConflict as exc:
-            return web.json_response({"error": str(exc)}, status=409)
+            return error_response(exc, 409)
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def upload(self, request):
         """Photo d'observation d'espace : même chemin borné que les photos de culture.

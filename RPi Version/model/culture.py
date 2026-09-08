@@ -18,32 +18,43 @@ SPACES = {"space_1": "Espace 1", "space_2": "Espace 2"}
 
 
 class CultureError(ValueError):
-    """Erreur métier présentable sans contenu de l'utilisateur."""
+    """Erreur métier présentable sans contenu de l'utilisateur.
+
+    `field` porte l'attribut `name` du contrôle fautif, `index` son rang 0-based parmi
+    les contrôles de même nom (origines, produits). L'interface peut ainsi rattacher le
+    message au champ sans le deviner ; une erreur non rattachable reste sans champ, ce
+    qui est une information et non un défaut.
+    """
+
+    def __init__(self, message, field=None, index=None):
+        super().__init__(message)
+        self.field = field
+        self.index = index
 
 
 class CultureConflict(CultureError):
     pass
 
 
-def text_value(value, label, maximum=120, required=True):
+def text_value(value, label, maximum=120, required=True, *, field=None, index=None):
     if not isinstance(value, str) or len(value.strip()) > maximum:
-        raise CultureError(f"{label} : texte invalide ou trop long (maximum {maximum}).")
+        raise CultureError(f"{label} : texte invalide ou trop long (maximum {maximum}).", field, index)
     value = value.strip()
     if required and not value:
-        raise CultureError(f"{label} obligatoire.")
+        raise CultureError(f"{label} obligatoire.", field, index)
     return value
 
 
-def integer(value, minimum=1, maximum=10000):
+def integer(value, minimum=1, maximum=10000, *, field=None, index=None):
     if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
-        raise CultureError(f"Effectif entier attendu, de {minimum} à {maximum}.")
+        raise CultureError(f"Effectif entier attendu, de {minimum} à {maximum}.", field, index)
     return value
 
 
-def stamp(value, precision, zone, now):
+def stamp(value, precision, zone, now, *, field=None, index=None):
     """Une date seule reste une date ; sa clé de tri n'est pas une heure déclarée."""
     if precision not in ("date", "approximative", "instant") or not isinstance(value, str):
-        raise CultureError("Date ou précision invalide.")
+        raise CultureError("Date ou précision invalide.", field, index)
     try:
         tz = ZoneInfo(zone)
         if precision == "instant":
@@ -51,7 +62,7 @@ def stamp(value, precision, zone, now):
             if parsed.tzinfo is None:
                 raise ValueError()
             if parsed > now:
-                raise CultureError("Une date effective ne peut pas être future.")
+                raise CultureError("Une date effective ne peut pas être future.", field, index)
             key = parsed.astimezone(timezone.utc).isoformat()
             local = parsed.astimezone(tz).date()
             return key, local.isoformat()
@@ -59,13 +70,13 @@ def stamp(value, precision, zone, now):
         if local.isoformat() != value:
             raise ValueError()
         if local > now.astimezone(tz).date():
-            raise CultureError("Une date effective ne peut pas être future.")
+            raise CultureError("Une date effective ne peut pas être future.", field, index)
         key = datetime.combine(local, datetime.min.time(), tz).astimezone(timezone.utc).isoformat()
         return key, local.isoformat()
     except (ValueError, TypeError, OverflowError) as exc:
         if isinstance(exc, CultureError):
             raise
-        raise CultureError("Date invalide ; utiliser une date ISO ou un instant avec fuseau.") from None
+        raise CultureError("Date invalide ; utiliser une date ISO ou un instant avec fuseau.", field, index) from None
 
 
 def event_payload(kind, raw):
@@ -90,15 +101,15 @@ def event_payload(kind, raw):
         result["drying_precision"] = raw.get("drying_precision", "date")
     if kind == "stage":
         if not isinstance(raw.get("stage"), str) or raw.get("stage") not in STAGES:
-            raise CultureError("Stade inconnu.")
+            raise CultureError("Stade inconnu.", "stage")
         result["stage"] = raw["stage"]
     if kind == "move":
         if not isinstance(raw.get("space"), str) or raw.get("space") not in SPACES:
-            raise CultureError("Espace inconnu.")
+            raise CultureError("Espace inconnu.", "space")
         result["space"] = raw["space"]
     if kind == "loss":
-        result["count"] = integer(raw.get("count"))
-        result["origin_id"] = text_value(raw.get("origin_id", ""), "Origine", required=False)
+        result["count"] = integer(raw.get("count"), field="count")
+        result["origin_id"] = text_value(raw.get("origin_id", ""), "Origine", required=False, field="origin_id")
     if kind == "finish":
         release = raw.get("release", False)
         if not isinstance(release, bool):
@@ -107,7 +118,7 @@ def event_payload(kind, raw):
         weight = raw.get("weight_g")
         if weight is not None:
             if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(weight) or not 0 <= weight <= 1000000:
-                raise CultureError("Poids sec invalide (grammes).")
+                raise CultureError("Poids sec invalide (grammes).", "weight_g")
         result["weight_g"] = weight
         result["lessons"] = text_value(raw.get("lessons", ""), "Enseignements", 4000, False)
         breakdown = raw.get("origin_weights", [])
@@ -115,13 +126,13 @@ def event_payload(kind, raw):
             raise CultureError("Bilan par origine : 50 lignes maximum.")
         seen = set()
         result["origin_weights"] = []
-        for item in breakdown:
+        for position, item in enumerate(breakdown):
             if not isinstance(item, dict) or set(item) != {"origin_id", "weight_g"}:
                 raise CultureError("Détail de récolte invalide.")
             origin_id = text_value(item["origin_id"], "Origine")
             value = item["weight_g"]
             if origin_id in seen or isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1000000:
-                raise CultureError("Poids par origine invalide ou origine dupliquée.")
+                raise CultureError("Poids par origine invalide ou origine dupliquée.", "origin_weight", position)
             seen.add(origin_id)
             result["origin_weights"].append({"origin_id": origin_id, "weight_g": value})
         if weight is not None and sum(item["weight_g"] for item in result["origin_weights"]) > weight + 0.000001:
@@ -148,6 +159,107 @@ def backfill_stages(subject):
         return []
     known = {period["stage"] for period in subject["periods"]}
     return [stage for stage in path[:path.index(subject["stage"])] if stage not in known]
+
+
+# Rangs du parcours utilisés par la liste des stades proposables : germination et
+# enracinement sont deux entrées du même rang (une seule des deux existe par lot) et
+# `maintien` reste au rang d'entrée, hors parcours des lots.
+STAGE_RANKS = {"germination": 0, "enracinement": 0, "vegetatif": 1, "floraison": 2,
+               "sechage": 3, "maintien": 0}
+
+
+def allowed_actions(subject):
+    """Opérations proposables sur une fiche, dans l'ordre de `KINDS`.
+
+    Règle unique et testée par équivalence avec le gabarit : une action absente d'ici ne
+    doit jamais apparaître dans une page, et réciproquement. Une culture archivée ne garde
+    que la note, l'identité et, si son espace est encore occupé, la libération.
+    """
+    kind, stage, space = subject["kind"], subject.get("stage"), subject.get("space")
+    archived = bool(subject.get("archived"))
+    actions = []
+    for name in KINDS:
+        if name == "create":
+            continue
+        if name in ("note", "identity"):
+            allowed = True
+        elif not archived and ((kind == "mother" and name == "archive") or (kind == "lot" and (
+                (name in ("stage", "move", "loss", "harvest") and stage != "sechage"
+                 and not (name == "stage" and stage == "floraison")
+                 and not (name == "harvest" and space != "space_2"))
+                or (name == "finish" and stage == "sechage")))):
+            allowed = True
+        else:
+            allowed = name == "release" and archived and bool(space)
+        if allowed:
+            actions.append(name)
+    return actions
+
+
+def stage_options(subject, current=None):
+    """Stades proposables, dans l'ordre de `STAGES`.
+
+    Un stade déjà saisi (`current`, mode correction) rouvre la liste entière du parcours :
+    corriger une saisie n'est pas progresser, et interdire le retour en arrière rendrait
+    une erreur de stade irréparable. Le séchage n'est jamais proposé ici — il commence par
+    une récolte — et l'entrée du parcours non retenue par l'origine reste exclue.
+    """
+    kind, stage = subject["kind"], subject.get("stage")
+    excluded = "germination" if subject.get("origin_type") == "cutting" else "enracinement"
+    options = []
+    for key in STAGES:
+        if kind == "mother":
+            if key == "maintien":
+                options.append(key)
+        elif kind == "lot" and key not in ("maintien", "sechage") and key != excluded and (
+                current or STAGE_RANKS[key] > STAGE_RANKS.get(stage, -1)):
+            options.append(key)
+    return options
+
+
+def first_stage(kind, origin_type):
+    """Premier stade du parcours : `maintien` pour un pied mère, sinon semis ou bouture."""
+    if kind == "mother":
+        return "maintien"
+    return "enracinement" if origin_type == "cutting" else "germination"
+
+
+def creation_stages(kind, origin_type):
+    """Stades acceptés à la création d'une fiche.
+
+    Plus large que `stage_options` d'un cran : une reprise peut déclarer une culture déjà
+    en séchage, ce que le parcours autorise et que refuser rendrait insaisissable.
+    """
+    if kind == "mother":
+        return ["maintien"]
+    return [first_stage(kind, origin_type), "vegetatif", "floraison", "sechage"]
+
+
+def fiche_actions(subject):
+    """Triade d'en-tête de la fiche et repli des autres opérations.
+
+    `reading` et `observation` ne sont pas des types d'événement : le premier est un lien
+    vers la saisie de relevé, le second réunit la note et sa photo. Au plus une action
+    contextuelle les rejoint — celle que l'état du parcours rend évidente — et `other`
+    reçoit tout le reste, sans jamais répéter la note ni l'action promue.
+    """
+    allowed = allowed_actions(subject)
+    stage, space = subject.get("stage"), subject.get("space")
+    promoted = None
+    if subject.get("archived"):
+        promoted = "release" if space else None
+    elif subject["kind"] == "mother":
+        promoted = "archive"
+    elif stage in ("germination", "enracinement", "vegetatif"):
+        promoted = "stage"
+    elif stage == "floraison":
+        promoted = "harvest" if space == "space_2" else "move"
+    elif stage == "sechage":
+        promoted = "finish"
+    if promoted not in allowed:
+        promoted = None
+    return {"primary": ["reading", "observation"] + ([promoted] if promoted else []),
+            "other": [name for name in allowed if name != "note" and name != promoted]}
 
 
 def project(subject, events, origins, now, zone, reliable):

@@ -13,6 +13,24 @@ from utils.culture_store import CultureStore, CultureUnavailable
 from utils.time_reliability import time_reliability
 
 
+def error_response(exc, status):
+    """Réponse d'erreur unique de tout le carnet.
+
+    `error` reste premier et inchangé ; `field` et `index` ne sont ajoutés que lorsque
+    l'erreur désigne un contrôle précis. Une indisponibilité (503) n'en porte jamais :
+    aucun champ n'est en cause, et en inventer un ferait chercher une faute de saisie
+    là où c'est le carnet qui est absent.
+    """
+    payload = {"error": str(exc)}
+    field = getattr(exc, "field", None)
+    if field:
+        payload["field"] = field
+        index = getattr(exc, "index", None)
+        if index is not None:
+            payload["index"] = index
+    return web.json_response(payload, status=status)
+
+
 class CultureViews:
     def __init__(self, server, store=None):
         self.server = server
@@ -54,7 +72,9 @@ class CultureViews:
 
     async def overview(self, request):
         try:
-            return web.json_response(await self.store.call("overview", request.query.get("archives") == "1", self.offset(request)))
+            return web.json_response(await self.store.call(
+                "overview", request.query.get("archives") == "1", self.offset(request),
+                request.query.get("agenda") == "1"))
         except CultureUnavailable as exc:
             return web.json_response({"available": False, "error": str(exc)}, status=503)
 
@@ -62,9 +82,9 @@ class CultureViews:
         try:
             return web.json_response(await self.store.call("detail", request.match_info["subject_id"], self.offset(request)))
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=404)
+            return error_response(exc, 404)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def mutate(self, request):
         try:
@@ -74,11 +94,11 @@ class CultureViews:
         except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"error": "JSON invalide."}, status=400)
         except CultureConflict as exc:
-            return web.json_response({"error": str(exc)}, status=409)
+            return error_response(exc, 409)
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def export(self, request):
         format_name = request.query.get("format", "json")
@@ -105,8 +125,11 @@ class CultureViews:
         offset = self.offset(request)
         detail, overview, error = None, None, None
         status = 200
+        # Le bloc « Aujourd'hui » n'a de sens que sur l'accueil des cultures actives : une
+        # fiche a le sien, et les archives n'ont ni rappel ni prochaine action.
+        agenda = not subject_id and not archived
         try:
-            overview = await self.store.call("overview", archived, 0 if subject_id else offset)
+            overview = await self.store.call("overview", archived, 0 if subject_id else offset, agenda)
             if subject_id:
                 detail = await self.store.call("detail", subject_id, offset)
         except CultureError as exc:
@@ -146,9 +169,9 @@ class CultureViews:
                                                            self.offset(request), False, request.query.get("entry"),
                                                            search, search_offset))
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def solution_mutate(self, request):
         try:
@@ -157,11 +180,11 @@ class CultureViews:
         except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"error": "JSON invalide."}, status=400)
         except CultureConflict as exc:
-            return web.json_response({"error": str(exc)}, status=409)
+            return error_response(exc, 409)
         except CultureError as exc:
-            return web.json_response({"error": str(exc)}, status=400)
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
-            return web.json_response({"error": str(exc)}, status=503)
+            return error_response(exc, 503)
 
     async def solution_export(self, request):
         try:

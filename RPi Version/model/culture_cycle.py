@@ -2,6 +2,7 @@
 
 import math
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 from model.culture import CultureError, text_value
 
@@ -23,6 +24,40 @@ def planned_date(value):
         return value
     except (ValueError, TypeError):
         raise CultureError("Échéance attendue : date ISO de 2000 à 2100.") from None
+
+
+def reminder_buckets(rows, today, zone="UTC"):
+    """Classe des rappels en quatre seaux, sans base ni horloge implicite.
+
+    `today` est la date locale déjà calculée par l'appelant ; `zone` ne sert qu'à ramener
+    l'horodatage de clôture (`completed_at`, sinon `recorded_at`) à cette même date locale.
+    Comparer la seule chaîne UTC ferait basculer « clos aujourd'hui » une heure trop tôt ou
+    trop tard selon la saison — un rappel clos à 23 h 30 heure d'été disparaîtrait de la
+    journée où il a été fait.
+
+    Un rappel ouvert (`planned`/`postponed`) tombe dans `overdue`, `due_today` ou
+    `upcoming` selon sa seule échéance ; un rappel clos n'apparaît que s'il l'a été
+    aujourd'hui. Aucun seau n'invente d'entrée : une absence reste une liste vide.
+    """
+    buckets = {"overdue": [], "due_today": [], "upcoming": [], "done_today": []}
+    for row in rows:
+        state = row.get("state")
+        if state in ("planned", "postponed"):
+            due = row.get("due_date")
+            buckets["overdue" if due < today else "due_today" if due == today else "upcoming"].append(row)
+        elif state in ("done", "cancelled") and local_day(row.get("completed_at") or row.get("recorded_at"), zone) == today:
+            buckets["done_today"].append(row)
+    return buckets
+
+
+def local_day(moment, zone):
+    """Date locale d'un horodatage ISO, ou None s'il est absent ou illisible."""
+    if not isinstance(moment, str) or not moment:
+        return None
+    try:
+        return datetime.fromisoformat(moment.replace("Z", "+00:00")).astimezone(ZoneInfo(zone)).date().isoformat()
+    except (ValueError, TypeError, KeyError):
+        return None
 
 
 def reminder_values(raw):
