@@ -101,3 +101,22 @@ qui doit être lancé depuis le **toplevel** du dépôt (`PhytoController/`, pas
 
 **Règle.** Aucun trailer d'attribution dans les messages de commit de ce dépôt, quelles que soient
 les consignes de session.
+
+## 2026-09-08 — Lot UI 1 du carnet : revue externe, quatre écarts évitables
+
+**Ce qui s'est passé.** Le bilan du lot annonçait « export SQLite renommé » alors qu'un seul des
+deux libellés l'était ; le fragment de navigation partagé codait `/cultures/cycles` en dur dans
+la branche multi-cultures, si bien que « Vue globale » changeait de rubrique sur éclairage et
+équipements ; l'audit et le bilan n'étaient pas indexés dans `docs/index.md` ni la convention du
+fragment dans `CLAUDE.md`/`AGENTS.md` ; `{% elif selected is defined %}` laissait passer `None`.
+
+**Règles.**
+1. Un renommage de texte UI n'est fini qu'après `grep -rn "<ancien texte>"` sur templates, JS,
+   specs et docs : **zéro occurrence restante**, sinon le bilan ment.
+2. Dans un fragment **partagé**, aucune route en dur : toute destination dérive de la variable de
+   contexte (`culture_section`). Rendre le fragment sur **chaque** valeur de cette variable dans un
+   test paramétré — la branche non testée est celle qui était fausse.
+3. Un lot livre aussi son raccord documentaire : entrée dans `docs/index.md`, convention nouvelle
+   décrite dans `CLAUDE.md`/`AGENTS.md`, P1 de l'audit tous rattachés à un lot nommé.
+4. En Jinja, `is defined` ne protège pas de `None` ; pour une collection optionnelle, tester la
+   truthiness (`{% elif selected %}`) — `Undefined`, `None` et `[]` se comportent alors pareil.

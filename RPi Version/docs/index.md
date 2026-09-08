@@ -90,6 +90,8 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Checklist de changement sûr](development/safe-change-checklist.md)
 - [Stratégie de vérification](development/verification.md)
 - [Validation matérielle des sorties](development/hardware-validation.md)
+- [Audit UI/UX du carnet de cultures, constats et lots](development/audit-ui-cultures-2026-09-08.md)
+- [Carnet de cultures, bilan du lot UI 1](development/cultures-ui-lot-1-2026-09-08.md)
 - [Décisions d'architecture](decisions/README.md)
 - [Registre vivant des risques](risk-register.md)
 - [Roadmap consolidée](roadmap.md)

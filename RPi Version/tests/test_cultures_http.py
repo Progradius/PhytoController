@@ -19,6 +19,26 @@ def test_dates_lisibles_sans_ambiguite_au_changement_heure(value, expected):
     assert env.filters["culture_date"](value, "Europe/Paris") == expected
 
 
+@pytest.mark.parametrize("section", ["cycles", "light", "equipment"])
+def test_navigation_vue_globale_reste_dans_la_rubrique_en_selection_multiple(section):
+    from network.web.pages import env
+    html = env.get_template("culture_navigation.html").render(
+        culture_section=section, selected=["lot-a", "lot-b"])
+    assert f'<a href="/cultures/{section}">Vue globale</a>' in html
+    assert html.count('aria-current="page"') == 1
+    if section == "cycles":
+        assert "2 cultures sélectionnées pour la comparaison" in html
+    else:
+        assert "Contexte de retour : 2 cultures" in html and "comparaison" not in html
+
+
+@pytest.mark.parametrize("context", [{"selected": None}, {"culture_subjects": None}, {}])
+def test_navigation_tolere_une_selection_absente_ou_none(context):
+    from network.web.pages import env
+    html = env.get_template("culture_navigation.html").render(culture_section="cycles", **context)
+    assert html.count('aria-current="page"') == 1 and "culture-context" not in html
+
+
 async def test_carnet_http_securite_et_absence_effet_controle(web_context, monkeypatch):
     client, server, config, sensors, supervisor = web_context
     original = config.current.to_json()

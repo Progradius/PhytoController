@@ -195,7 +195,7 @@ Références : [WCAG 2.2, taille minimale des cibles](https://www.w3.org/WAI/WCA
 | Lot | Résultat attendu | Taille relative | Validation de sortie |
 | --- | --- | --- | --- |
 | 1 — Cohérence et défauts | Navigation commune, contexte conservé, valeurs personnalisées préservées, textes simplifiés, lecture avant création, graduations lisibles. | Moyenne | Parcours fiche → relevé → cycles → retour avec même contexte ; correction de stade sans changement de durée implicite ; captures mobile et plein jour. |
-| 2 — Parcours quotidiens | Accueil Aujourd'hui, fiche complète, saisie guidée, création/reprise et observation/photo cohérentes. | Grande | Réaliser les tâches quotidiennes sans chercher une rubrique technique ; tester états vide, renseigné, archivé et conflit. |
+| 2 — Parcours quotidiens | Accueil Aujourd'hui, fiche complète, saisie guidée, création/reprise et observation/photo cohérentes ; erreurs associées aux champs (résumé, `aria-invalid`, `aria-describedby`, focus vers le premier problème). | Grande | Réaliser les tâches quotidiennes sans chercher une rubrique technique ; tester états vide, renseigné, archivé et conflit. |
 | 3 — Assistance contextuelle | Suggestions expliquées, prévalidation, échéances, détection de saisies ressemblantes, transitions accompagnées. | Grande | Règles pures testées ; aucun automatisme silencieux ; suggestions obsolètes retirées après changement de données ; validation serveur finale. |
 | 4 — Analyse et confort | Comparaison alignée, courbes tactiles, galerie, bilan et recherche. | Moyenne à grande | Utilisation clavier/tactile, données lacunaires et longues périodes ; requêtes bornées et temps de rendu sur Pi. |
 

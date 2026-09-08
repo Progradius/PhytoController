@@ -2,11 +2,12 @@
 {% set nav = namespace(subjects=[], target='', name='', kind='') %}
 {% if detail is defined and detail %}
   {% set nav.subjects = [detail.subject.id] %}{% set nav.name = detail.subject.name %}
-{% elif selected is defined %}
+{% elif selected %}
   {% set nav.subjects = selected %}
-{% elif culture_subjects is defined %}
+{% elif culture_subjects %}
   {% set nav.subjects = culture_subjects %}
 {% endif %}
+{# `selected` / `culture_subjects` absents, None ou vides se traitent tous comme « aucune sélection ». #}
 {% if filters is defined and filters.get('target') %}
   {% set nav.target = filters['target'] %}
   {% if data %}{% for item in data.subjects if item.id == nav.target %}{% set nav.subjects = [item.id] %}{% set nav.name = item.name %}{% endfor %}{% endif %}
@@ -32,5 +33,5 @@
 </nav>
 {% if nav.subjects|length == 1 %}
 <div class="culture-context"><span>{{ 'Contexte de retour' if culture_section in ('light','equipment') else 'Culture sélectionnée' }} : <a data-culture-page href="/cultures/{{ nav.target|urlencode }}">{{ nav.name or 'Retour à la fiche' }}</a></span><a href="/cultures{{ '/' ~ culture_section if culture_section else '' }}">Vue globale</a></div>
-{% elif nav.subjects %}<p class="culture-context">{{ nav.subjects|length }} cultures sélectionnées pour la comparaison. <a href="/cultures/cycles">Vue globale</a></p>
-{% elif nav.target %}<p class="culture-context">Cible sélectionnée : {{ nav.name or nav.target }}. <a href="/cultures/{{ culture_section }}">Vue globale</a></p>{% endif %}
+{% elif nav.subjects %}<p class="culture-context">{% if culture_section in ('light','equipment') %}Contexte de retour : {{ nav.subjects|length }} cultures.{% else %}{{ nav.subjects|length }} cultures sélectionnées pour la comparaison.{% endif %} <a href="/cultures{{ '/' ~ culture_section if culture_section else '' }}">Vue globale</a></p>
+{% elif nav.target %}<p class="culture-context">Cible sélectionnée : {{ nav.name or nav.target }}. <a href="/cultures{{ '/' ~ culture_section if culture_section else '' }}">Vue globale</a></p>{% endif %}

@@ -31,6 +31,17 @@ Baseline (8 septembre 2026, `58e97e6`) : 273 pytest, 92 Playwright, `git diff --
 - [x] Documentation (guide, contrat API, sauvegarde, roadmap, plan de référence), CLAUDE.md = AGENTS.md
 - [x] Tableau de traçabilité du plan (commit, tests, limites) par lot
 
+## Lot UI 1 (audit UI/UX) — corrections après revue externe du 8 septembre 2026
+- [x] A — « Vue globale » multi-cultures reste dans la rubrique courante ; libellé « Contexte de retour » sur
+      éclairage/équipements ; test paramétré sur `cycles`/`light`/`equipment`
+- [x] B — « Base SQLite seule (sans photos) » aussi sur l'accueil du carnet (`cultures.html`)
+- [x] C — audit et bilan indexés dans `docs/index.md` ; convention `culture_navigation.html` + `culture_section`
+      dans `CLAUDE.md`/`AGENTS.md` (diff vide)
+- [x] D — fragment tolérant à `selected=None` / `culture_subjects=None`, testé
+- [x] P1 « erreurs associées aux champs » rattaché au lot 2 dans le tableau des lots de l'audit
+- [x] pytest complet : 363 verts ; revue indépendante Opus des corrections
+- [x] Playwright carnet (lots B, C, D, F, H) relancé après corrections : 31 réussis, 24 exclusions de profil
+
 ## Revue
 - Organisation : un agent Opus par lot, sur des fichiers disjoints, avec un brief commun ; l'orchestrateur a
   vérifié chaque rendu (suite complète, diffs des fichiers partagés, invariants) avant de committer.

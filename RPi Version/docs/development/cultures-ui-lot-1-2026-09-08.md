@@ -29,9 +29,20 @@ commande d’équipement ou donnée de production n’est modifiée.
 - Les textes d’introduction sont raccourcis et l’export SQLite est nommé
   « Base SQLite seule (sans photos) ».
 
-La refonte « Aujourd’hui », les formulaires guidés, les suggestions, les erreurs
-associées aux champs, les points de courbe interactifs et la galerie restent dans
-les lots suivants de l’audit.
+La refonte « Aujourd’hui », les formulaires guidés et les erreurs associées aux
+champs relèvent du lot 2 ; les suggestions du lot 3 ; les points de courbe
+interactifs et la galerie du lot 4.
+
+## Corrections après revue du lot
+
+- « Vue globale » en sélection multi-cultures pointait toujours vers `/cultures/cycles` ;
+  il reste désormais dans la rubrique courante, et le libellé des pages éclairage et
+  équipements parle de contexte de retour, pas de comparaison. Un test Python rend le
+  fragment sur les trois rubriques concernées.
+- L’export SQLite est nommé « Base SQLite seule (sans photos) » aussi sur l’accueil du carnet.
+- Le fragment tolère `selected=None` ou `culture_subjects=None`.
+- Audit et bilan sont indexés dans `docs/index.md` ; `CLAUDE.md`/`AGENTS.md` décrivent
+  la convention `culture_navigation.html` + `culture_section`.
 
 ## Validation
 

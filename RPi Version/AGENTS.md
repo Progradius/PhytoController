@@ -243,7 +243,12 @@ mixins par domaine : `culture_solution_store`, `culture_cycle_store`, `culture_m
 modèle pur + sa vue ; ne pas rapatrier de règle métier dans `culture_store.py`.
 `network/web/cultures.py` monte les pages `/cultures`, `/cultures/solutions`, `/cultures/cycles`,
 `/cultures/targets`, `/cultures/light`, `/cultures/equipment`, `/cultures/journal` et leurs API
-`/api/v1/cultures/…`. Tout y est **déclaratif** : jamais un accès GPIO, une modification de
+`/api/v1/cultures/…`. Chaque page du carnet inclut le fragment partagé
+`templates/culture_navigation.html` en lui passant `culture_section` (`''`, `solutions`, `cycles`,
+`targets`, `light`, `equipment`, `journal`) : c'est lui qui rend les sept rubriques, `aria-current`,
+le contexte conservé (`detail`, `selected`, `culture_subjects`, `filters.target`) et le lien
+« Vue globale », qui reste toujours dans la rubrique courante. Une nouvelle page ne réinvente pas
+sa navigation. Tout y est **déclaratif** : jamais un accès GPIO, une modification de
 `param.json`, un override, un changement du watchdog ni une nouvelle acquisition capteur, et jamais
 de SQLite dans l'event loop (`CultureStore.call(...)`). Une erreur, une corruption ou un schéma
 inconnu conserve la base et rend le carnet indisponible **sans** dégrader `control_healthy()` ni le
