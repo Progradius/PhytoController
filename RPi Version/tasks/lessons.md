@@ -120,3 +120,28 @@ fragment dans `CLAUDE.md`/`AGENTS.md` ; `{% elif selected is defined %}` laissai
    décrite dans `CLAUDE.md`/`AGENTS.md`, P1 de l'audit tous rattachés à un lot nommé.
 4. En Jinja, `is defined` ne protège pas de `None` ; pour une collection optionnelle, tester la
    truthiness (`{% elif selected %}`) — `Undefined`, `None` et `[]` se comportent alors pareil.
+
+## 2026-09-08 — Lot UI 2 du carnet : trois écarts vus par le challenge et la revue, pas par les lots
+
+**Ce qui s'est passé.** (1) La conception nommait le bloc de synthèse `today`, clé qui existait déjà
+dans `overview` comme chaîne de date, lue cinq fois par le gabarit : le challenge de conception l'a
+trouvé avant le premier commit. (2) Le socle d'erreurs a déplacé les refus de l'`<output>` vers un
+résumé `role=alert` ; sept specs Playwright lisaient l'ancien canal et ont cassé lot après lot, l'agent
+du lot solutions ayant qualifié de « préexistant » un échec qu'il venait de provoquer (vérifié en
+remisant ses seuls fichiers, pas en revenant au commit d'avant le lot parallèle). (3) La revue
+indépendante a trouvé qu'un formulaire créé par le lot (`reminder_action` sur l'accueil) n'adoptait
+pas le socle que la doc du même lot déclarait « unique », et qu'un `index` d'erreur serveur était
+compté sur une liste filtrée côté client.
+
+**Règles.**
+1. Avant d'ajouter une clé à un contexte partagé (`overview`, `detail`), `grep -n "\.<clé>\b"` dans
+   les gabarits et le JS : une clé homonyme existante est un écrasement silencieux.
+2. Quand un lot change le **canal** d'un message (élément, attribut, page), `grep` les specs et tests
+   sur l'ancien canal (`locator("output")`) fait partie du livrable ; la liste des specs à adapter
+   se décide au moment du contrat, pas quand elles cassent.
+3. « Préexistant » se prouve contre le dernier commit **antérieur aux lots parallèles**, pas en
+   remisant ses propres fichiers : un lot voisin déjà commité fait partie de l'arbre.
+4. Une convention écrite dans `CLAUDE.md` (« socle unique ») s'accompagne d'un `grep` négatif qui
+   la vérifie (`grep -L PhytoCultureForms static/js/culture_*.js`), sinon la doc ment dès le lot.
+5. Un `index` renvoyé par le serveur désigne un rang dans la **liste reçue** ; si le client filtre
+   avant l'envoi, il doit garder la table rang envoyé → rang DOM et la traduire au retour.

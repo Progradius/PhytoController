@@ -42,6 +42,36 @@ Baseline (8 septembre 2026, `58e97e6`) : 273 pytest, 92 Playwright, `git diff --
 - [x] pytest complet : 363 verts ; revue indépendante Opus des corrections
 - [x] Playwright carnet (lots B, C, D, F, H) relancé après corrections : 31 réussis, 24 exclusions de profil
 
+## Lot UI 2 (audit UI/UX) — parcours quotidiens (plan `~/.claude/plans/lucky-seeking-thacker.md`)
+Conception Opus challengée (10 objections) avant exécution ; agents Opus 5 par lot sur fichiers disjoints,
+orchestrateur garant (contrats, pytest, Playwright, diffs, revue indépendante, commits). Référence : 363 pytest.
+- [x] W1 backend — `CultureError(field, index)`, `error_response`, `allowed_actions`/`stage_options`/
+      `first_stage`/`creation_stages`/`fiche_actions` purs (équivalence avec le gabarit sur 126 états),
+      `reminder_buckets(rows, today, zone)`, `agenda` dans `_overview`, `reminders`/`media`/`actions` dans
+      `_detail`, `event_id` dans `mutate`, prévalidation `_create` (`62e29e7`, 589 pytest)
+- [x] W2 socle — `static/js/culture_forms.js` (register/submitJson/submitBinary/showError/clearErrors/status),
+      4 points d'enregistrement, adoption minimale dans targets/light/equipment/journal (`6e73b67`)
+- [x] W3 accueil « Aujourd'hui » (rappels actionnables), fiche (en-tête, triade, ancres, photos, bilan),
+      observation + photo en un parcours, échec partiel (595 pytest ; specs cultures/C/D vertes)
+- [x] W4 intentions visibles sur solutions, `?kind=…#saisie`, relevé depuis la fiche sans ressaisir la cible
+      (`9365ee6`) — specs A/E/G et « panne réseau » lisent `.culture-form-errors` (correction orchestrateur)
+- [x] Orchestrateur : `detail.stage_options` et contexte `creation` (premier stade, stades acceptés) exposés
+      depuis le modèle pur, écart signalé par W3
+- [x] W5 création « Je démarre » / « déjà en cours », frise, fixture Playwright mise à jour (`b2eca0f`,
+      597 pytest) — `stage_options_full` exposé et spec du lot C ajustée par l'orchestrateur
+- [x] W6a contrat API, guide « journée type », index, CLAUDE.md = AGENTS.md (`4030858`)
+- [x] W6b spec Playwright `tests/ui/cultures_ui_lot_2.spec.js` (10 scénarios, 5 profils) ; bilan
+      `docs/development/cultures-ui-lot-2-2026-09-08.md`
+- [x] Revue indépendante Opus du diff `2597e8f..HEAD` : 0 bloquant de sécurité, 8 importants (B1–B8) et
+      2 écarts de la spec (rappel hors écran à 393 px, 409 dans l'output) — tous corrigés par un agent dédié,
+      doc réalignée
+- [x] Vérification de sortie : 601 pytest ; Playwright carnet un worker par profil : bureau 36, mobile 31,
+      étroit 26, paysage 24, PWA 10, 0 échec ; 42 captures (7 états × 3 largeurs × 2 thèmes) dans le
+      scratchpad de session ; `git diff --check`, CLAUDE.md = AGENTS.md, schéma 4 et `param/` intacts,
+      aucun inline, aucun SQLite hors magasin, pyflakes propre
+- Hors lot, à consigner : `.gitattributes`/`.gitignore` à la racine étaient déjà modifiés avant le lot et
+  ne sont pas commités ici. Leçons : `tasks/lessons.md` (section du 8 septembre 2026, lot UI 2).
+
 ## Revue
 - Organisation : un agent Opus par lot, sur des fichiers disjoints, avec un brief commun ; l'orchestrateur a
   vérifié chaque rendu (suite complète, diffs des fichiers partagés, invariants) avant de committer.
