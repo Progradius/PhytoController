@@ -104,3 +104,28 @@
 .culture-new-entry > summary, .culture-filters > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: list-item; align-content: center; }
 .solution-filter, .target-filter { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); align-items: end; }
 .solution-chart svg { display: block; }
+
+/* Lot 2 : accueil « Aujourd'hui », en-tête de fiche, retour sur l'entrée visée. */
+.culture-shortcuts { gap: .5rem; }
+.culture-shortcuts .button { min-height: 44px; display: inline-flex; align-items: center; }
+.culture-reminder { margin-block: .6rem; overflow-wrap: anywhere; }
+.culture-reminder h4 { margin: 0 0 .3rem; }
+.culture-reminder p { margin-block: .3rem; }
+.culture-search { margin-block: .8rem; }
+.culture-search label { display: flex; flex-direction: column; gap: .4rem; }
+.culture-search input { width: 100%; max-width: 24rem; box-sizing: border-box; }
+.culture-head { margin-block: 1rem; padding-left: .6rem; border-left: 3px solid currentColor; }
+.culture-head h1 { margin: 0 0 .3rem; overflow-wrap: anywhere; }
+.culture-head-meta { margin: 0 0 .3rem; overflow-wrap: anywhere; }
+.culture-badge { margin: 0; font-weight: 700; }
+.culture-primary-action { min-height: 44px; }
+details.culture-primary-action > summary { font-weight: 700; }
+.culture-checks { margin: .4rem 0; padding-left: 1.2rem; }
+.culture-checks li { margin-block: .35rem; }
+.culture-photo-preview img { max-width: min(100%, 18rem); height: auto; border-radius: .5rem; }
+.culture-trace .card-meta { overflow-wrap: anywhere; }
+/* Cible d'un retour après enregistrement : jamais une couleur seule, le libellé
+   « Entrée ajoutée » est révélé au même moment et le focus s'y pose. */
+[tabindex="-1"]:target, [tabindex="-1"]:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
+[tabindex="-1"]:target { background: var(--surface-alt, var(--bg)); }
+.culture-added { margin: 0 0 .4rem; font-weight: 700; }

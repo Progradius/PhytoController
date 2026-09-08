@@ -7,7 +7,8 @@ import json
 from aiohttp import web
 
 from model.culture_solution import SOLUTION_KINDS
-from model.culture import CultureConflict, CultureError, KINDS, SPACES, STAGES
+from model.culture import (CultureConflict, CultureError, KINDS, SPACES, STAGES, creation_stages,
+                           first_stage)
 from network.web.pages import render_template
 from utils.culture_store import CultureStore, CultureUnavailable
 from utils.time_reliability import time_reliability
@@ -141,6 +142,14 @@ class CultureViews:
             current_page="cultures", csrf_token=self.server.csrf_token,
             overview=overview, detail=detail, error=error, archives=archived,
             stages=STAGES, spaces=SPACES, event_kinds=KINDS,
+            # Stades de départ et stades acceptés à la création, par type et origine : le
+            # formulaire les lit en attributs de données, le script ne décide de rien.
+            creation={"mother": {"first": first_stage("mother", None),
+                                 "stages": creation_stages("mother", None)},
+                      "seed": {"first": first_stage("lot", "seed"),
+                               "stages": creation_stages("lot", "seed")},
+                      "cutting": {"first": first_stage("lot", "cutting"),
+                                  "stages": creation_stages("lot", "cutting")}},
             # Lecture de la configuration distribuée, aucune relecture ou écriture disque.
             lighting=[self.server.config.daily_timer1, self.server.config.daily_timer2],
         ), status)

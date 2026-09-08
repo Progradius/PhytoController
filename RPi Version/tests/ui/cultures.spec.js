@@ -23,10 +23,11 @@ test("lot multi-mères, carnet et correction sur téléphone et bureau", async (
   await expect(page.getByText("8 plantes restantes · 8 au départ")).toBeVisible();
   await expect(page.getByText("Enracinement · J", {exact: false})).toBeVisible();
   const lotUrl = page.url();
-  const note = page.locator('form[data-culture-event][data-kind="note"]');
+  // Lot UI 2 : la note et sa photo sont un seul parcours, promu dans la triade d'en-tête.
+  const note = page.locator("form[data-culture-observation]");
   await note.locator("..").locator("summary").click();
-  await note.getByLabel("Note", {exact: true}).fill("Observation du lot\nFeuilles suivies");
-  await note.getByRole("button", {name: "Note", exact: true}).click();
+  await note.getByLabel("Observation", {exact: true}).fill("Observation du lot\nFeuilles suivies");
+  await note.getByRole("button", {name: "Enregistrer l’observation", exact: true}).click();
   await expect(page.locator(".culture-journal .culture-note")).toContainText("Observation du lot");
   const correction = page.locator('form[data-culture-correct][data-kind="note"]');
   await correction.locator("..").locator("summary").click();
@@ -49,9 +50,9 @@ test("lot multi-mères, carnet et correction sur téléphone et bureau", async (
 test("un échec conserve la note et la nouvelle tentative garde sa clé", async ({page}, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Une vérification réseau suffit.");
   await createMother(page, `Mère réseau ${Date.now()}`);
-  const note = page.locator('form[data-culture-event][data-kind="note"]');
+  const note = page.locator("form[data-culture-observation]");
   await note.locator("..").locator("summary").click();
-  await note.getByLabel("Note", {exact: true}).fill("Ne pas perdre cette note");
+  await note.getByLabel("Observation", {exact: true}).fill("Ne pas perdre cette note");
   const bodies = [];
   await page.route("**/api/v1/cultures", async route => {
     if (route.request().method() !== "POST") return route.continue();
@@ -59,10 +60,12 @@ test("un échec conserve la note et la nouvelle tentative garde sa clé", async 
     if (bodies.length === 1) return route.abort();
     return route.continue();
   });
-  await note.getByRole("button", {name: "Note", exact: true}).click();
-  await expect(note.locator("output")).toContainText("Saisie conservée");
-  await expect(note.getByLabel("Note", {exact: true})).toHaveValue("Ne pas perdre cette note");
-  await note.getByRole("button", {name: "Note", exact: true}).click();
+  const send = () => note.getByRole("button", {name: "Enregistrer l’observation", exact: true}).click();
+  await send();
+  // Le refus est désormais porté par le résumé d'erreur du socle commun, pas par l'état.
+  await expect(note.locator(".culture-form-errors")).toContainText("Saisie conservée");
+  await expect(note.getByLabel("Observation", {exact: true})).toHaveValue("Ne pas perdre cette note");
+  await send();
   await expect(page.locator(".culture-journal .culture-note")).toHaveText("Ne pas perdre cette note");
   expect(bodies[0].request_id).toBe(bodies[1].request_id);
 });
@@ -95,7 +98,13 @@ test("semis, correction d’effectif, transfert, récolte et libération", async
   await expect(page.getByText("9 plantes restantes · 9 au départ")).toBeVisible();
   const perform = async (kind, date, fill) => {
     const action = page.locator(`form[data-culture-event][data-kind="${kind}"]`);
-    await action.locator("..").locator(":scope > summary").click();
+    // Lot UI 2 : une opération non promue dans la triade est repliée sous « Autres
+    // opérations ». Ouvrir tous les replis qui la portent, pas seulement le sien.
+    await action.evaluate(el => {
+      for (let node = el.parentElement; node; node = node.parentElement) {
+        if (node.tagName === "DETAILS") node.open = true;
+      }
+    });
     await action.locator('[name="effective_at"]').fill(date);
     if (fill) await fill(action);
     const response = page.waitForResponse(r => r.url().endsWith("/api/v1/cultures") && r.request().method() === "POST");
@@ -188,7 +197,7 @@ test("solutions : panne réseau, conservation des champs et idempotence", async 
     return route.continue();
   });
   await form.getByRole("button", {name: "Enregistrer la saisie"}).click();
-  await expect(form.locator("output")).toContainText("Saisie conservée");
+  await expect(form.locator(".culture-form-errors")).toContainText("Saisie conservée");
   await expect(form.getByLabel("Volume (L)", {exact: true})).toHaveValue("5");
   await form.getByRole("button", {name: "Enregistrer la saisie"}).click();
   await expect(page.locator(".solution-journal")).toHaveCount(1);

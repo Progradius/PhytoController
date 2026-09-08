@@ -57,7 +57,10 @@
         if (!response.ok) throw new Error(`${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir la fiche actuelle dans un nouvel onglet." : ""}`);
         output.textContent = "Enregistré. Actualisation…";
         const next = new URL(location.href);
-        if (!photo && command.operation.startsWith("reminder")) {
+        if (!photo && command.operation.startsWith("reminder") && form.dataset.cycleReturn === "agenda") {
+          // Accueil : ni pagination ni sélection à rétablir, seule l'ancre du rappel change.
+          next.hash = `reminder-${result.id}`;
+        } else if (!photo && command.operation.startsWith("reminder")) {
           next.searchParams.delete("offset");
           next.searchParams.set("reminder", result.id);
           if (command.operation === "reminder") {

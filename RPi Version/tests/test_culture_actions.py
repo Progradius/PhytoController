@@ -1,9 +1,10 @@
-"""Équivalence entre les règles pures d'action et le gabarit rendu (lot UI 2, W1).
+"""Équivalence entre les règles pures d'action et le gabarit rendu (lot UI 2, W1 puis W3).
 
-Ce fichier est écrit **avant** que le lot W3 touche `templates/cultures.html` : il fige
-l'équivalence entre `allowed_actions`/`stage_options` et ce que le gabarit actuel rend
-réellement. Lorsque W3 remplacera la condition en ligne par un appel aux fonctions pures,
-c'est ce test qui prouvera qu'aucune action n'a été gagnée ni perdue au passage.
+Écrit **avant** que W3 touche `templates/cultures.html`, ce fichier a figé l'équivalence
+entre `allowed_actions`/`stage_options` et ce que le gabarit rendait alors. W3 a remplacé
+la condition en ligne par `detail.actions` : l'extraction suit désormais le nouveau
+balisage — triade d'en-tête, repli « Autres opérations » et formulaire d'observation —
+sans que la matrice ne perde une seule combinaison.
 """
 
 import re
@@ -14,6 +15,9 @@ from model.culture import (KINDS, STAGES, allowed_actions, creation_stages, fich
                            first_stage, stage_options)
 
 EVENT_FORM = re.compile(r'data-culture-event data-kind="([a-z]+)"')
+# La triade d'en-tête : le relevé est un lien, l'observation un formulaire dédié, et le
+# contextuel un `<details id="action-…">`. Aucun de ces trois n'est deviné par le gabarit.
+PRIMARY_ACTION = re.compile(r'id="action-([a-z]+)"')
 # Le seul <select name="stage"> de la page ; les listes de précision de date portent aussi
 # des <option>, il faut donc borner l'extraction au sélecteur de stade lui-même.
 STAGE_SELECT = re.compile(r'<select name="stage">(.*?)</select>', re.S)
@@ -33,12 +37,16 @@ def subject(kind="lot", stage="vegetatif", space="space_1", archived=False, orig
             "latest_reading": None}
 
 
+EMPTY_BUCKETS = {"overdue": [], "due_today": [], "upcoming": [], "done_today": []}
+
+
 def render(item):
     from network.web.pages import render_template
     overview = {"timezone": "Europe/Paris", "today": "2026-09-07", "clock_reliable": True,
                 "mothers": [], "occupants": [], "items": [], "offset": 0, "total": 0}
     detail = {"subject": item, "events": [], "total": 0, "offset": 0, "photos": [],
-              "descendants": [], "backfill": {"stages": [], "spaces": [], "before": None}}
+              "descendants": [], "backfill": {"stages": [], "spaces": [], "before": None},
+              "reminders": EMPTY_BUCKETS, "media": [], "actions": fiche_actions(item)}
     return render_template("cultures.html", page_title=item["name"], current_page="cultures",
                            csrf_token="jeton", overview=overview, detail=detail, error=None,
                            archives=False, stages=STAGES, spaces={"space_1": "Espace 1", "space_2": "Espace 2"},
@@ -56,7 +64,17 @@ MATRIX = [subject(kind, stage, space, archived, origin_type)
                          f"{item['origin_type']}-{item['stage']}-{item['space']}-{int(item['archived'])}")
 def test_actions_pures_equivalentes_au_gabarit(item):
     html = render(item)
-    assert EVENT_FORM.findall(html) == allowed_actions(item)
+    actions = fiche_actions(item)
+    promoted = [name for name in actions["primary"] if name not in ("reading", "observation")]
+    # Le contextuel promu vient en premier, puis le repli : ensemble ils rendent exactement
+    # les formulaires d'événement, et la note reste portée par le seul formulaire
+    # d'observation. Rien n'est gagné ni perdu par rapport aux règles pures.
+    assert EVENT_FORM.findall(html) == promoted + actions["other"]
+    assert PRIMARY_ACTION.findall(html) == promoted
+    assert html.count("data-culture-observation") == 1
+    assert set(EVENT_FORM.findall(html)) | {"note"} == set(allowed_actions(item))
+    assert ('<a class="button culture-primary-action" href="/cultures/solutions?target='
+            f'{item["id"]}&amp;kind=reading#saisie">Relevé</a>') in html
 
 
 @pytest.mark.parametrize("item", [item for item in MATRIX if "stage" in allowed_actions(item)],

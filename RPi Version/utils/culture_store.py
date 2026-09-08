@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 from model.culture import (SPACES, STAGES, CultureConflict, CultureError, backfill_stages,
                            creation_stages, event_payload, fiche_actions, integer, project, stamp,
-                           text_value, validate_spaces)
+                           stage_options, text_value, validate_spaces)
 from model.culture_cycle import reminder_buckets
 from model.culture_journal import TODAY_JOURNAL
 
@@ -296,6 +296,9 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                     self._reminders(subject_id, revisions=False), names, today),
                 "media": self._media_list(subject_id),
                 "actions": fiche_actions(subject),
+                # Stades proposables pour une progression : la règle reste dans le modèle pur,
+                # le gabarit n'a plus de rang de stade à connaître.
+                "stage_options": stage_options(subject),
                 "descendants": [{"id": s["id"], "name": s["name"]} for s in subjects
                                 if any(o["mother_id"] == subject_id for o in s["origins"])]}
 

@@ -1,6 +1,8 @@
 (() => {
   "use strict";
-  const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+  // Ce script est aussi chargé par le tableau de bord, où aucun formulaire du carnet
+  // n'existe : le socle partagé n'y est pas nécessaire et son absence ne doit rien casser.
+  const forms = window.PhytoCultureForms;
   const zoneNotice = document.querySelector("[data-device-timezone]");
   if (zoneNotice) zoneNotice.textContent = `Heures précises : fuseau de cet appareil (${Intl.DateTimeFormat().resolvedOptions().timeZone}). Les dates seules ne sont pas converties.`;
   const preview = document.querySelector("[data-culture-preview]");
@@ -39,8 +41,7 @@
     }
   };
   if (preview) { refreshPreview(); setInterval(refreshPreview, 60000); window.addEventListener("focus", refreshPreview); }
-  // Fonctionne aussi sur HTTP LAN, où randomUUID n'est pas toujours exposé.
-  const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), n => n.toString(16).padStart(2, "0")).join("");
+
   const stamp = (form, name) => {
     const input = form.elements[name];
     const value = input.value;
@@ -78,7 +79,35 @@
     }
     return data;
   };
+
+  // Un conflit de version n'est pas une faute de saisie : la saisie reste dans le
+  // formulaire et l'opérateur ouvre la fiche à jour dans un autre onglet.
+  const showConflict = (form, message) => {
+    forms.status(form, `${message} Votre saisie reste dans ce formulaire. `);
+    const output = form.querySelector("output");
+    const link = document.createElement("a");
+    link.href = location.href; link.target = "_blank"; link.rel = "noopener";
+    link.textContent = "Ouvrir la fiche actualisée";
+    output?.append(link);
+  };
+
+  // Destination après un enregistrement : l'entrée créée quand le serveur la nomme,
+  // la fiche seule sinon (création, reprise, étape passée n'en désignent aucune).
+  // Quand seule l'ancre change, `assign` ne recharge rien : la fiche resterait celle
+  // d'avant l'enregistrement, avec la nouvelle entrée absente et les compteurs périmés.
+  const openEntry = (subjectId, eventId) => {
+    const target = new URL(`/cultures/${encodeURIComponent(subjectId)}`, location.href);
+    if (eventId) target.hash = `event-${encodeURIComponent(eventId)}`;
+    if (target.pathname === location.pathname && target.search === location.search) {
+      location.hash = target.hash;
+      location.reload();
+    } else {
+      location.assign(target.href);
+    }
+  };
+
   document.querySelectorAll("[data-culture-create], [data-culture-event], [data-culture-correct], [data-culture-backfill]").forEach(form => {
+    forms.register(form);
     form.querySelectorAll("input[data-instant]").forEach(input => {
       const d = new Date(input.dataset.instant);
       input.step = "any";
@@ -112,6 +141,9 @@
       row.querySelector('input[name="origin_count"]').value = "1";
       row.querySelector("select").value = "";
       list.append(row); syncOrigins();
+      // Les contrôles clonés n'ont pas encore d'identifiant : sans ce rappel, une erreur
+      // portant sur la deuxième origine ne trouverait aucun champ à désigner.
+      forms.register(form);
     });
     form.addEventListener("click", event => {
       if (event.target.closest("[data-remove-origin]") && form.querySelectorAll(".culture-origin").length > 1) {
@@ -119,17 +151,10 @@
       }
     });
     syncOrigins();
-    let previousBody = null;
-    let key = requestId();
-    let busy = false;
     form.addEventListener("submit", async event => {
       event.preventDefault();
-      if (busy) return;
-      const output = form.querySelector("output");
-      const button = form.querySelector('[type="submit"]');
-      if (!navigator.onLine || document.body.classList.contains("is-offline")) { output.textContent = "Hors ligne : saisie conservée dans cette page, aucun envoi mis en attente."; return; }
+      let command;
       try {
-        let command;
         if (form.hasAttribute("data-culture-create")) {
           const origin = stamp(form, "origin_at"), stage = stamp(form, "stage_at"), space = stamp(form, "space_at");
           command = {operation: "create", kind: form.dataset.kind, name: form.elements.name.value,
@@ -161,31 +186,164 @@
             cancelled: form.elements.cancelled?.checked || false, reason: form.elements.reason.value});
         }
         command.confirm_date = form.elements.confirm_date?.checked || false;
-        const body = JSON.stringify(command);
-        if (previousBody !== null && previousBody !== body) key = requestId();
-        previousBody = body;
-        command.request_id = key;
-        busy = true; button.disabled = true; output.textContent = "Enregistrement…";
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-        let response;
-        try {
-          response = await fetch("/api/v1/cultures", {method: "POST", headers: {"Content-Type": "application/json", "X-CSRF-Token": csrf}, body: JSON.stringify(command), signal: controller.signal});
-        } finally { clearTimeout(timeout); }
-        const result = await response.json().catch(() => ({error: "Requête refusée ; vérifier la connexion et actualiser le jeton si nécessaire."}));
-        if (!response.ok) {
-          if (response.status === 409) {
-            output.textContent = `${result.error} Votre saisie reste dans ce formulaire. `;
-            const link = document.createElement("a"); link.href = location.href; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Ouvrir la fiche actualisée"; output.append(link);
-            return;
-          }
-          throw new Error(result.error);
-        }
-        output.textContent = "Enregistré. Ouverture de la fiche…";
-        location.assign(`/cultures/${encodeURIComponent(result.subject_id)}`);
       } catch (error) {
-        output.textContent = error.name === "AbortError" || error instanceof TypeError ? "Réponse non reçue. Saisie conservée : réessayez sans la modifier pour vérifier le même enregistrement." : error.message;
-      } finally { busy = false; button.disabled = false; }
+        forms.showError(form, {error: error.message});
+        return;
+      }
+      forms.status(form, "Enregistrement…");
+      const result = await forms.submitJson(form, "/api/v1/cultures", command);
+      if (result.offline || result.busy) return;
+      if (!result.ok) {
+        if (result.status === 409) showConflict(form, result.data.error);
+        else forms.showError(form, result.data);
+        return;
+      }
+      forms.status(form, "Enregistré. Ouverture de la fiche…");
+      openEntry(result.data.subject_id, result.data.event_id);
     });
   });
+
+  // --- Observation et photo en un seul parcours -----------------------------
+  // Deux requêtes séquentielles : l'observation d'abord, la photo ensuite et
+  // seulement si l'entrée existe. Un refus de photo ne peut donc jamais effacer une
+  // observation déjà enregistrée ; il ne reste plus qu'à réessayer la photo.
+  document.querySelectorAll("[data-culture-observation]").forEach(form => {
+    forms.register(form);
+    const file = form.elements.photo;
+    const preview = form.querySelector("[data-observation-preview]");
+    const button = form.querySelector('[type="submit"]');
+    let objectUrl = null;
+    const clearPreview = () => {
+      if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+      preview.replaceChildren();
+      preview.hidden = true;
+    };
+    file?.addEventListener("change", () => {
+      clearPreview();
+      const chosen = file.files[0];
+      if (!chosen) return;
+      objectUrl = URL.createObjectURL(chosen);
+      const image = document.createElement("img");
+      image.src = objectUrl;
+      image.alt = "Aperçu local de la photo choisie, avant tout envoi.";
+      preview.append(image);
+      preview.hidden = false;
+    });
+    const lockObservation = () => {
+      for (const name of ["note", "effective_at", "effective_at_precision"]) {
+        const control = form.elements[name];
+        if (control) control.disabled = true;
+      }
+      button.textContent = "Réessayer la photo";
+    };
+    const sendPhoto = async (chosen) => {
+      forms.status(form, "Envoi de la photo…");
+      const result = await forms.submitBinary(form, "/api/v1/cultures/photos", chosen, {
+        subject_id: form.dataset.subject, event_id: form.dataset.eventId,
+        event_revision: Number(form.dataset.eventRevision),
+        caption: form.elements.caption?.value || "",
+        confirm_date: form.elements.confirm_date?.checked || false});
+      if (result.offline || result.busy) return false;
+      if (!result.ok) {
+        lockObservation();
+        forms.showError(form, {error: `L’observation est enregistrée ; la photo n’a pas été acceptée : ${result.data.error}`});
+        return false;
+      }
+      return true;
+    };
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const chosen = file?.files[0] || null;
+      if (chosen && chosen.size > 5 * 1024 * 1024) {
+        forms.showError(form, {error: "Choisir une photo de 5 Mio maximum.", field: "photo"});
+        return;
+      }
+      // Reprise après un refus de photo : l'entrée existe déjà, seule la photo repart.
+      if (form.dataset.eventId) {
+        if (!chosen) {
+          forms.showError(form, {error: "Choisir une photo à envoyer, ou recharger la fiche.", field: "photo"});
+          return;
+        }
+        if (await sendPhoto(chosen)) openEntry(form.dataset.subject, form.dataset.eventId);
+        return;
+      }
+      let effective;
+      try {
+        effective = stamp(form, "effective_at");
+      } catch (error) {
+        forms.showError(form, {error: error.message});
+        return;
+      }
+      forms.status(form, "Enregistrement de l’observation…");
+      const result = await forms.submitJson(form, "/api/v1/cultures", {
+        operation: "event", subject_id: form.dataset.subject, version: Number(form.dataset.version),
+        kind: "note", effective_at: effective.value, precision: effective.precision,
+        payload: {note: form.elements.note.value},
+        confirm_date: form.elements.confirm_date?.checked || false});
+      if (result.offline || result.busy) return;
+      if (!result.ok) {
+        if (result.status === 409) showConflict(form, result.data.error);
+        else forms.showError(form, result.data);
+        return;
+      }
+      const saved = result.data;
+      // Sans identifiant d'entrée, aucune ancre honnête et aucune photo rattachable.
+      if (!saved.event_id) { openEntry(saved.subject_id, null); return; }
+      form.dataset.eventId = saved.event_id;
+      form.dataset.eventRevision = saved.event_revision;
+      if (chosen && !(await sendPhoto(chosen))) return;
+      clearPreview();
+      openEntry(saved.subject_id, saved.event_id);
+    });
+  });
+
+  // --- Accueil : report d'un rappel, filtre local ---------------------------
+  // Le champ de nouvelle échéance ne concerne que « Reporter ». Il reste visible sans
+  // JavaScript : seul ce script le replie, et le rouvre au choix de l'action.
+  document.querySelectorAll("[data-reminder-action]").forEach(select => {
+    const zone = select.form?.querySelector("[data-reminder-postpone]");
+    if (!zone) return;
+    const sync = () => { zone.hidden = select.value !== "postponed"; };
+    select.addEventListener("change", sync);
+    sync();
+  });
+
+  const searchBlock = document.querySelector("[data-culture-search-block]");
+  const search = document.querySelector("[data-culture-search]");
+  if (searchBlock && search) {
+    // Filtre purement local sur les cartes déjà rendues : aucune requête, et la page
+    // reste complète pour un navigateur sans script (le bloc est alors resté masqué).
+    searchBlock.hidden = false;
+    const cards = Array.from(document.querySelectorAll("[data-culture-item]"));
+    const count = document.querySelector("[data-culture-search-count]");
+    search.addEventListener("input", () => {
+      const needle = search.value.trim().toLowerCase();
+      let shown = 0;
+      for (const card of cards) {
+        const match = !needle || card.dataset.cultureItem.toLowerCase().includes(needle);
+        card.hidden = !match;
+        if (match) shown += 1;
+      }
+      count.textContent = needle ? `${shown} culture(s) affichée(s) sur ${cards.length} de cette page.` : "";
+    });
+  }
+
+  // --- Retour sur l'entrée ou le rappel visé --------------------------------
+  // L'élément focalisé est la confirmation : pas d'annonce supplémentaire, mais ses
+  // replis sont ouverts pour qu'il ne reçoive jamais le focus en restant invisible.
+  const focusTarget = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    if (!id) return;
+    const target = document.getElementById(id);
+    if (!target || target.tabIndex !== -1) return;
+    for (let node = target; node && node !== document.body; node = node.parentElement) {
+      if (node.tagName === "DETAILS") node.open = true;
+      if (node.hasAttribute("hidden")) node.hidden = false;
+    }
+    target.querySelector(":scope > .culture-added")?.removeAttribute("hidden");
+    target.focus({preventScroll: true});
+    target.scrollIntoView({block: "center"});
+  };
+  focusTarget();
+  window.addEventListener("hashchange", focusTarget);
 })();

@@ -113,3 +113,59 @@ async def test_panne_carnet_ne_degrade_pas_controle(web_context, monkeypatch):
     assert (await client.get("/api/v1/cultures")).status == 503
     assert (await client.get("/")).status == 200
     assert (await client.get("/health/ready")).status == 200
+
+
+async def test_accueil_vide_propose_la_premiere_culture_sans_inventer_de_zero(web_context):
+    client, *_ = web_context
+    page = await (await client.get("/cultures")).text()
+    assert 'id="agenda"' in page and "Ajouter ma première culture" in page
+    # Un carnet vide n'a rien à compter : aucune ligne ne doit annoncer un total nul.
+    assert "Aucun rappel en cours dans le carnet." in page
+    assert "Aucune opération enregistrée pour l’instant." in page
+    assert "0 à venir" not in page and "0 culture" not in page
+    assert "<script>" not in page
+
+
+async def test_accueil_montre_le_rappel_en_retard_et_son_suivi(web_context):
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Lot agenda"), headers=headers)).json()
+    reminder = {"request_id": str(uuid.uuid4()), "operation": "reminder", "title": "Rincer le bac",
+                "target": saved["subject_id"], "due_date": "2020-01-01", "interval_days": 0, "note": ""}
+    created = await (await client.post("/api/v1/cultures/cycles", json=reminder, headers=headers)).json()
+    page = await (await client.get("/cultures")).text()
+    assert f'id="reminder-{created["id"]}"' in page and "tabindex=\"-1\"" in page
+    assert "En retard" in page and "Rincer le bac" in page
+    # Le suivi part de l'accueil et y revient : même opération que sur les cycles, retour distinct.
+    assert 'data-operation="reminder_action"' in page and 'data-cycle-return="agenda"' in page
+    assert 'data-reminder-postpone' in page
+    # L'agenda précède l'occupation des espaces : c'est la première chose lue.
+    assert page.index('id="agenda"') < page.index('aria-label="Occupation des espaces"')
+
+
+async def test_archives_sans_agenda_ni_occupation_en_tete(web_context):
+    client, *_ = web_context
+    page = await (await client.get("/cultures?archives=1")).text()
+    assert 'id="agenda"' not in page
+    assert 'aria-label="Occupation des espaces"' not in page
+    assert "<h1>Archives</h1>" in page and "Aucune archive." in page
+
+
+async def test_fiche_porte_l_entete_la_triade_et_ses_ancres(web_context):
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Lot fiche"), headers=headers)).json()
+    subject_id = saved["subject_id"]
+    page = await (await client.get("/cultures/" + subject_id)).text()
+    assert '<header class="culture-head">' in page and "<h1>Lot fiche</h1>" in page
+    assert "8 plantes restantes · 8 au départ" in page and "Espace 1 · En cours" in page
+    # Le relevé est un lien contextualisé, jamais un formulaire de plus sur la fiche.
+    assert f'href="/cultures/solutions?target={subject_id}&amp;kind=reading#saisie"' in page
+    assert "data-culture-observation" in page and 'id="observation"' in page
+    assert 'id="synthese"' in page and 'id="releves"' in page and 'id="photos"' in page and 'id="bilan"' in page
+    detail = await (await client.get("/api/v1/cultures/" + subject_id)).json()
+    assert detail["events"], "la création écrit au moins une entrée"
+    for event in detail["events"]:
+        assert f'id="event-{event["id"]}"' in page
+    assert "Aucune photo pour cette culture." in page
+    assert "<script>" not in page

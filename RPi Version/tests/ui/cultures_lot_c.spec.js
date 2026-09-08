@@ -58,7 +58,8 @@ test("reprise en floraison : étapes et occupation passées complétées", async
   // Chronologie impossible : refus sans écriture ni navigation, la saisie reste dans le formulaire.
   const refused = await backfill("stage", CURRENT, f => f.locator('[name="stage"]').selectOption("germination"));
   expect(refused.answer.status()).toBe(400);
-  await expect(refused.entry.locator("output")).toContainText("précéder");
+  // Lot UI 2 : un refus s'affiche dans le résumé d'erreur du socle commun, pas dans l'état.
+  await expect(refused.entry.locator(".culture-form-errors")).toContainText("précéder");
   await expect(refused.entry.locator('[name="effective_at"]')).toHaveValue(CURRENT);
   await expect(page.locator("article.card", {hasText: "Parcours"}).locator("ol li")).toHaveCount(2);
 
