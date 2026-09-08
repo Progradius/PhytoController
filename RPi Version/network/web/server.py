@@ -584,6 +584,10 @@ class Server:
         app.on_cleanup.append(self.cultures.close)
         app.router.add_get("/static/js/culture_cycles.js", self._culture_cycles_js)
         app.router.add_get("/static/js/culture_solutions.js", self._culture_solutions_js)
+        app.router.add_get("/static/js/culture_targets.js", self._culture_targets_js)
+        app.router.add_get("/static/js/culture_light.js", self._culture_light_js)
+        app.router.add_get("/static/js/culture_equipment.js", self._culture_equipment_js)
+        app.router.add_get("/static/js/culture_journal.js", self._culture_journal_js)
         app.router.add_get("/static/js/cultures.js", self._cultures_js)
         app.router.add_get("/static/css/cultures.css", self._cultures_css)
         return app
@@ -2027,6 +2031,10 @@ class Server:
             f"/static/js/cultures.js?v={ASSET_VERSIONS['cultures']}",
             f"/static/js/culture_solutions.js?v={ASSET_VERSIONS['culture_solutions']}",
             f"/static/js/culture_cycles.js?v={ASSET_VERSIONS['culture_cycles']}",
+            f"/static/js/culture_targets.js?v={ASSET_VERSIONS['culture_targets']}",
+            f"/static/js/culture_light.js?v={ASSET_VERSIONS['culture_light']}",
+            f"/static/js/culture_equipment.js?v={ASSET_VERSIONS['culture_equipment']}",
+            f"/static/js/culture_journal.js?v={ASSET_VERSIONS['culture_journal']}",
             f"/static/fonts/visitor1.ttf?v={ASSET_VERSIONS['font']}",
             f"/favicon.svg?v={ASSET_VERSIONS['favicon']}",
             f"/static/equipment-icons.svg?v={ASSET_VERSIONS['equipment_icons']}",
@@ -2062,6 +2070,10 @@ class Server:
     async def _culture_cycles_js(self, request): return await self._asset("js/culture_cycles.js", "application/javascript")
 
     async def _culture_solutions_js(self, request): return await self._asset("js/culture_solutions.js", "application/javascript")
+    async def _culture_targets_js(self, request): return await self._asset("js/culture_targets.js", "application/javascript")
+    async def _culture_light_js(self, request): return await self._asset("js/culture_light.js", "application/javascript")
+    async def _culture_equipment_js(self, request): return await self._asset("js/culture_equipment.js", "application/javascript")
+    async def _culture_journal_js(self, request): return await self._asset("js/culture_journal.js", "application/javascript")
 
     async def _cultures_js(self, request): return await self._asset("js/cultures.js", "application/javascript")
     async def _cultures_css(self, request): return await self._asset("css/cultures.css", "text/css")

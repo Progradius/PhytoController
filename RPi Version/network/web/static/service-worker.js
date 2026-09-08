@@ -127,7 +127,7 @@ self.addEventListener("fetch", (event) => {
   if (/^\/cultures\/photos\/[0-9a-f-]{36}$/.test(url.pathname)) {
     event.respondWith(cultureFallback(request, true)); return;
   }
-  if (request.mode === "navigate" && /^\/cultures(?:\/(?:cycles|solutions|[0-9a-f-]{36}))?$/.test(url.pathname)) {
+  if (request.mode === "navigate" && /^\/cultures(?:\/(?:cycles|solutions|targets|light|equipment|journal|[0-9a-f-]{36}))?$/.test(url.pathname)) {
     event.respondWith(cultureFallback(request)); return;
   }
   if (request.mode === "navigate") {
