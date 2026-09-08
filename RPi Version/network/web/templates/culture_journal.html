@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
+{% macro confirm() %}{% if data and not data.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié la date malgré l’horloge non synchronisée.</label>{% endif %}{% endmacro %}
+{% macro query(extra={}) %}{% set parts = [] %}{% for key in ('start','end','target','type') %}{% if filters.get(key) %}{% set _ = parts.append(key ~ '=' ~ filters[key]|urlencode) %}{% endif %}{% endfor %}{% for key,value in extra.items() %}{% set _ = parts.append(key ~ '=' ~ value|string|urlencode) %}{% endfor %}{{ '?' ~ parts|join('&') if parts else '' }}{% endmacro %}
+{% block content %}
+<h1>Journal du carnet</h1>
+<nav class="culture-links" aria-label="Carnet"><a data-culture-page href="/cultures">Cultures et archives</a><a data-culture-page href="/cultures/solutions">Solutions et relevés</a><a data-culture-page href="/cultures/cycles">Cycles et rappels</a><a href="#observation">Observer un espace</a></nav>
+{% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% endif %}
+<p>Le journal réunit les opérations du carnet — origines, stades, déplacements, pertes, notes, récoltes, relevés, arrosages et observations d’espace — sur une seule chronologie. Une opération visant plusieurs cibles reste <strong>une</strong> entrée : un arrosage de trois pieds mères y compte pour une opération, jamais pour trois. Les observations d’espace sont durables : elles ne rejoignent pas l’historique opérateur purgé à 72 h.</p>
+<details class="card culture-offline-index"><summary>Pages du carnet conservées hors ligne</summary><p>Le carnet reste réseau d’abord : une page datée n’est relue qu’après un échec réseau, en lecture seule. Seules les pages réellement visitées sont conservées, dans la limite existante de 20 pages du carnet. Aucune saisie du journal n’est mise en attente ni rejouée.</p><div data-culture-offline-index><p>Liste indisponible dans ce navigateur.</p></div></details>
+<section class="card culture-section"><h2>Filtrer le journal</h2>
+<form method="get" class="culture-form" data-journal-filters>
+<div class="culture-grid">
+<label>Depuis le<input type="date" name="start" value="{{ filters.get('start','') }}"></label>
+<label>Jusqu’au<input type="date" name="end" value="{{ filters.get('end','') }}"></label>
+<label>Cible<select name="target"><option value="">Toutes les cibles</option>
+{% if data %}<optgroup label="Espaces">{% for key,label in data.spaces.items() %}<option value="{{ key }}"{% if filters.get('target') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</optgroup>
+<optgroup label="Réservoirs">{% for key,label in data.reservoirs.items() %}<option value="{{ key }}"{% if filters.get('target') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</optgroup>
+<optgroup label="Cultures">{% for subject in data.subjects %}<option value="{{ subject.id }}"{% if filters.get('target') == subject.id %} selected{% endif %}>{{ subject.name }}</option>{% endfor %}</optgroup>
+{% elif filters.get('target') %}<option value="{{ filters['target'] }}" selected>Cible conservée</option>{% endif %}</select></label>
+<label>Type d’opération<select name="type"><option value="">Tous les types</option>
+{% if data %}{% for key,label in data.types.items() %}<option value="{{ key }}"{% if filters.get('type') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+{% elif filters.get('type') %}<option value="{{ filters['type'] }}" selected>Type conservé</option>{% endif %}</select></label>
+</div>
+<button class="button" type="submit">Afficher le journal</button>
+<a class="button button-secondary" href="/cultures/journal">Retirer les filtres</a></form>
+{% if data %}<p><a href="/api/v1/cultures/journal/export{{ query() }}">Exporter ce filtre en CSV</a> · les textes libres y sont neutralisés contre l’injection de formules.</p>{% endif %}</section>
+{% if data %}
+<section id="observation" class="culture-section"><h2>Observer un espace</h2>
+<p>Une observation vise l’espace lui-même : elle ne crée aucune plante et ne modifie aucun réglage. Elle reste consultable même lorsque l’espace est vide.</p>
+<details class="card"><summary>Enregistrer une observation d’espace</summary>
+<form class="culture-form" data-journal-form data-operation="space_event">
+<label>Espace observé<select name="space" required>{% for key,label in data.spaces.items() %}<option value="{{ key }}"{% if filters.get('target') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Genre<select name="kind" required>{% for key,label in data.kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+<label>Date effective<input type="date" name="effective_at" value="{{ data.today }}" required></label>
+<label>Précision de la date<select name="precision">{% for key,label in (('date','Date connue'),('approximative','Date approximative')) %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+<label>Observation<textarea name="note" maxlength="4000" required></textarea></label>
+{{ confirm() }}<button class="button" type="submit">Enregistrer l’observation</button><output role="status" aria-live="polite"></output></form></details></section>
+<section class="culture-section"><h2>Opérations du carnet</h2>
+<p>{{ data.total }} opération(s) pour ce filtre · page à partir de l’opération {{ data.offset + 1 if data.total else 0 }}.</p>
+{% for item in data['items'] %}<article class="card culture-journal-entry" id="entry-{{ item.entry_id }}">
+<div class="section-heading"><h3>{{ item.type_label }}{{ ' · annulée' if item.cancelled else '' }}</h3><span>{{ item.effective_at|culture_date(data.timezone) }}{{ ' (approximatif)' if item.precision == 'approximative' else '' }}</span></div>
+<p class="card-meta">{{ item.target_label }} · version {{ item.revision }} · saisie le {{ item.recorded_at|culture_date(data.timezone) }}</p>
+{% if item.note %}<p class="culture-note">{{ item.note }}</p>{% endif %}
+{% if item.reason %}<p class="culture-note">Motif : {{ item.reason }}</p>{% endif %}
+{% if item.measures and (item.measures.ph is not none or item.measures.ec is not none or item.measures.volume_l is not none) %}<p>{% if item.measures.ph is not none %}pH {{ item.measures.ph }}{% endif %}{% if item.measures.ec is not none %} · EC {{ item.measures.ec }} mS/cm{% endif %}{% if item.measures.volume_l is not none %} · {{ item.measures.volume_l }} L{% endif %}</p>{% endif %}
+<div class="culture-links"><a href="{{ item.link }}">Ouvrir la fiche liée</a>{% for target in item.targets if target.kind == 'subject' %}<a href="/cultures/{{ target.id }}">{{ target.name }}</a>{% endfor %}{% if item.source == 'solution' %}<a href="/cultures/solutions?entry={{ item.entry_id }}">Relevés et solutions</a>{% endif %}{% if item.photos %}<a href="#entry-{{ item.entry_id }}">{{ item.photos|length }} photo(s)</a>{% endif %}</div>
+{% if item.photos %}<div class="culture-grid">{% for photo in item.photos %}<figure class="culture-photo"><a href="/cultures/photos/{{ photo.id }}"><img src="/cultures/photos/{{ photo.id }}" alt="{{ photo.caption or 'Photo du carnet' }}" width="{{ photo.width }}" height="{{ photo.height }}" loading="lazy"></a><figcaption>{{ photo.caption }} · {{ photo.recorded_at|culture_date(data.timezone) }}</figcaption></figure>{% endfor %}</div>{% endif %}
+{% if item.revisions %}<details><summary>Versions précédentes ({{ item.revisions|length }})</summary>{% for old in item.revisions %}<p>Version {{ old.revision }} · {{ old.recorded_at|culture_date(data.timezone) }}{{ ' · annulée' if old.cancelled else '' }}{% if old.reason %} · motif : {{ old.reason }}{% endif %}</p>{% if old.note %}<p class="culture-note">{{ old.note }}</p>{% endif %}{% endfor %}</details>{% endif %}
+{% if item.source == 'space_event' and item.editable %}
+<details><summary>Corriger ou annuler cette observation</summary>
+<form class="culture-form" data-journal-form data-operation="correct" data-id="{{ item.entry_id }}" data-version="{{ item.revision }}">
+<label>Observation corrigée<textarea name="note" maxlength="4000" required>{{ item.note }}</textarea></label>
+<label>Date effective<input type="date" name="effective_at" value="{{ item.effective_at }}" required></label>
+<label>Motif de la correction<input name="reason" maxlength="500" required></label>
+<label class="culture-confirm"><input type="checkbox" name="cancelled"> Annuler cette observation (elle reste tracée)</label>
+{{ confirm() }}<button class="button" type="submit">Enregistrer la correction</button><output role="status" aria-live="polite"></output></form></details>
+<details><summary>Ajouter une photo à cette observation</summary>
+<p>Quatre photos maximum par observation, 5 Mio par envoi, JPEG/PNG/WebP non animé. Les photos sont réencodées en JPEG de 1 600 pixels maximum, sans métadonnées.</p>
+<form class="culture-form" data-journal-photo data-id="{{ item.entry_id }}" data-version="{{ item.revision }}">
+<label>Photo<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required></label>
+<label>Légende<input name="caption" maxlength="500"></label>
+{{ confirm() }}<button class="button" type="submit">Envoyer la photo</button><output role="status" aria-live="polite"></output></form></details>{% endif %}
+</article>{% else %}<p>Aucune opération pour ce filtre. Les observations d’un espace vide restent visibles en choisissant cet espace comme cible.</p>{% endfor %}
+<nav class="culture-links" aria-label="Pagination du journal">{% if data.offset %}<a data-journal-offset="{{ [0,data.offset-data.page]|max }}" href="{{ query({'offset': [0,data.offset-data.page]|max}) }}">Opérations plus récentes</a>{% endif %}{% if data.offset + data.page < data.total %}<a data-journal-offset="{{ data.offset+data.page }}" href="{{ query({'offset': data.offset+data.page}) }}">Opérations plus anciennes</a>{% endif %}</nav></section>
+{% endif %}{% endblock %}
+{% block page_scripts %}<script src="/static/js/culture_journal.js?v={{ asset_versions.culture_journal }}" defer></script>{% endblock %}
