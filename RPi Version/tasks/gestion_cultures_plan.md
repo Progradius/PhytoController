@@ -1,8 +1,8 @@
 # Plan — Gestion des cultures et carnet d'exploitation
 
 Date : 7 septembre 2026.
-Statut : besoin validé avec l'exploitant ; première livraison implémentée sur
-`feature/gestion-cultures`, vérifiée hors matériel, non déployée. Jalons 2 et 3 à réaliser.
+Statut : besoin validé avec l'exploitant ; livraisons 1 et 2 implémentées sur
+`feature/gestion-cultures`, vérifiées hors matériel, non déployées. Jalon 3 à réaliser.
 Ce document ne constitue pas une autorisation de déploiement.
 
 ## 1. Objectif et décisions validées
@@ -385,14 +385,30 @@ aucune modification des horaires/configurations/GPIO provoquée par les actions 
 
 ### Jalon 2 — Solutions, relevés et interventions structurées
 
-- [ ] Réservoirs, périodes de solution, préparations et liens temporels aux cultures.
-- [ ] Saisie rapide pH/EC, température/volume facultatifs et unités explicites.
-- [ ] Arrosage de plusieurs mères, renouvellements, appoints et corrections avant/après.
-- [ ] Recettes réutilisables avec ingrédients figés dans les préparations enregistrées.
-- [ ] Courbes annotées, filtres et exports tabulaires.
+- [x] Réservoirs, périodes de solution, préparations et liens temporels aux cultures.
+- [x] Saisie rapide pH/EC, température/volume facultatifs et unités explicites.
+- [x] Arrosage de plusieurs mères, renouvellements, appoints et corrections avant/après.
+- [x] Recettes réutilisables avec ingrédients figés dans les préparations enregistrées.
+- [x] Courbes annotées, filtres et exports tabulaires.
 
 Sortie : une routine quotidienne complète remplace le carnet papier ; les courbes restent
 interprétables après renouvellement, correction rétrospective et changement de lot.
+
+Validation hors matériel du jalon 2 (8 septembre 2026) :
+
+- `.venv/bin/python -m pytest -q` : 260 tests réussis ; avertissements Pydantic/aiohttp existants.
+- Recettes figées, arrosage multi-mères sans multiplication des volumes, normalisation EC,
+  corrections et annulations transactionnelles, liens temporels coupés à la récolte.
+- Migration 1 → 2 avec sauvegarde préalable, simulation de migration interrompue, stockage
+  refusant les écritures, restauration sur copie et conservation des révisions.
+- Courbes du filtre complet, agrégats journaliers par cible et solution après 1 000 entrées,
+  pagination indépendante, CSV neutralisant les formules de tableur.
+- Suite Playwright complète : 89 tests réussis, 31 exclusions prévues, avec
+  `PHYTO_TEST_PYTHON=.venv/bin/python npx playwright test --workers=1 --timeout=60000`.
+- Parcours Playwright du jalon 2 validés sur bureau, téléphone étroit, téléphone et paysage ;
+  contrôles d’accessibilité, pannes réseau, idempotence et absence de rejouement hors ligne.
+- Référence visuelle du tableau de bord actualisée pour les raccourcis « Saisir un relevé ».
+- Syntaxe JavaScript, `git diff --check` et miroirs `AGENTS.md`/`CLAUDE.md` vérifiés.
 
 ### Jalon 3 — Photos, rappels et synthèses de cycle
 

@@ -232,7 +232,7 @@ to `PuppetMaster`.
   boucle de contrôle ou dans l'event loop. Les annotations de `/actions/history/notes` sont des événements
   auxiliaires sans effet sur la régulation ; leur texte ne doit jamais être recopié dans les logs.
 
-## Carnet de cultures (livraison 1)
+## Carnet de cultures (livraisons 1 et 2)
 
 `model/culture.py` contient les règles pures ; `utils/culture_store.py` est le seul écrivain de
 `param/cultures.sqlite3`, dans un thread auxiliaire borné. `network/web/cultures.py` expose `/cultures`
@@ -243,8 +243,14 @@ ou un schéma incompatible conserve la base et rend le carnet indisponible, sans
 du contrôle. Les mutations revalident tout le parcours et l'occupation de l'espace 2 avant commit.
 Ne pas copier naïvement un SQLite vivant en WAL : l'export utilise l'API de sauvegarde ;
 `scripts/restore-cultures.py` restaure seulement vers une nouvelle copie isolée. Guide et contrat :
-`docs/operations/cultures.md`, `docs/reference/cultures-api.md`. Photos, solutions structurées et
-rappels appartiennent aux jalons suivants. Les tests navigateur mutateurs du carnet sont désactivés
+`docs/operations/cultures.md`, `docs/reference/cultures-api.md`. `model/culture_solution.py` et `utils/culture_solution_store.py` ajoutent les solutions structurées
+au même écrivain SQLite (schéma 2, sauvegarde `.before-v2.sqlite3` avant migration). Les renouvellements
+et intersections occupation/solution sont reconstruits dans chaque transaction, y compris après
+correction d’un parcours ; l’alimentation s’arrête à la coupe. Les arrosages multi-mères gardent
+un volume total unique et les préparations une copie figée des ingrédients. Les recettes sont
+versionnées. `/cultures/solutions` propose les saisies, corrections, filtres, courbes et CSV ;
+les agrégats journaliers ne mélangent jamais cibles et périodes de solution. Photos et rappels
+appartiennent au jalon 3. Les tests navigateur mutateurs du carnet sont désactivés
 sur toute cible `PHYTO_UI_BASE_URL` externe ; leur base locale de test est temporaire.
 
 ## GPIO conventions — read before touching any pin code

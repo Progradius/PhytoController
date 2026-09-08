@@ -582,6 +582,7 @@ class Server:
         ])
         app.add_routes(self.cultures.routes())
         app.on_cleanup.append(self.cultures.close)
+        app.router.add_get("/static/js/culture_solutions.js", self._culture_solutions_js)
         app.router.add_get("/static/js/cultures.js", self._cultures_js)
         app.router.add_get("/static/css/cultures.css", self._cultures_css)
         return app
@@ -2053,6 +2054,8 @@ class Server:
     async def _pwa_js(self, request): return await self._asset("js/pwa.js", "application/javascript")
     async def _theme_js(self, request): return await self._asset("js/theme.js", "application/javascript")
     async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
+    async def _culture_solutions_js(self, request): return await self._asset("js/culture_solutions.js", "application/javascript")
+
     async def _cultures_js(self, request): return await self._asset("js/cultures.js", "application/javascript")
     async def _cultures_css(self, request): return await self._asset("css/cultures.css", "text/css")
     async def _config_js(self, request): return await self._asset("js/config.js", "application/javascript")

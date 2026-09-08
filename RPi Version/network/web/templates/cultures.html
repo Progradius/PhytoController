@@ -33,6 +33,7 @@
 {% if kind == 'finish' %}<label>Poids sec total (g, facultatif)<input name="weight_g" type="text" inputmode="decimal" value="{{ payload.weight_g if payload.weight_g is defined and payload.weight_g is not none else '' }}"></label><label class="culture-confirm"><input name="release" type="checkbox"{% if payload.release %} checked{% endif %}> Libérer aussi l’espace : le lot a été retiré.</label>{% endif %}
 {% endmacro %}
 {% block content %}
+<nav class="culture-links" aria-label="Carnet quotidien"><a href="/cultures/solutions{% if detail %}?target={{ detail.subject.id }}{% endif %}">Solutions, relevés et arrosages</a></nav>
 <section class="hero compact"><div><p class="eyebrow">Carnet durable</p><h1>{{ detail.subject.name if detail else 'Cultures' }}</h1><p class="hero-copy">Origines, parcours et observations. Les stades servent au suivi ; les horaires se règlent séparément.</p></div><div class="culture-links"><a href="/cultures">Cultures actives</a><a href="/cultures?archives=1">Archives</a><a href="/conf">Réglages des équipements</a></div></section>
 {% if error %}<article class="card"><h2>Carnet indisponible</h2><p role="alert">{{ error }}</p><p>Le contrôle de la serre reste indépendant du carnet.</p><a href="/cultures">Réessayer</a></article>{% endif %}
 {% if overview and not overview.clock_reliable %}<p class="culture-warning" role="status">Horloge non synchronisée : compteurs à vérifier. Vérifiez explicitement les dates avant toute saisie.</p>{% endif %}

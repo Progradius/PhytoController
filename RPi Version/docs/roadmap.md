@@ -221,8 +221,9 @@ mères individuelles, lots multi-origines, effectifs, stades et occupation daté
 journal corrigible et durable, archives, export et sauvegarde/restauration sur copie.
 Les stades sont déclaratifs ; aucune commande matérielle ni dépendance du contrôle envers SQLite.
 Voir le [plan détaillé](../tasks/gestion_cultures_plan.md), le [guide](operations/cultures.md)
-et le [contrat API](reference/cultures-api.md). Les solutions/pH/EC/recettes constituent le jalon 2 ;
-photos, rappels et synthèses durables le jalon 3. Ce chantier ne clôt aucun risque matériel ci-dessus.
+et le [contrat API](reference/cultures-api.md). Le jalon 2 est implémenté sur la même branche : solutions et préparations datées, pH/EC,
+arrosages partagés, recettes versionnées, corrections, courbes et export CSV filtré ;
+les photos, rappels et synthèses durables constituent le jalon 3. Ce chantier ne clôt aucun risque matériel ci-dessus.
 
 
 ```text

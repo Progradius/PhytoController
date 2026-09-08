@@ -1,0 +1,172 @@
+(() => {
+  "use strict";
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+  const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), n => n.toString(16).padStart(2, "0")).join("");
+  const decimal = value => {
+    if (!value.trim()) return null;
+    const result = Number(value.replace(",", "."));
+    if (!Number.isFinite(result)) throw new Error("Nombre invalide ; la virgule décimale est acceptée.");
+    return result;
+  };
+  const params = new URLSearchParams(location.search);
+  document.querySelectorAll("[data-solution-offset]").forEach(link => {
+    const query = new URLSearchParams(params); query.set("offset", link.dataset.solutionOffset); link.search = query.toString();
+  });
+  const exportLink = document.querySelector("[data-solution-export]");
+  if (exportLink) { const query = new URLSearchParams(params); query.delete("offset"); exportLink.search = query.toString(); }
+  document.querySelectorAll("[data-measure-age]").forEach(el => {
+    const days = Math.max(0, Math.floor((Date.now() - Date.parse(el.dataset.measureAge)) / 86400000));
+    el.textContent = `· il y a environ ${days} jour(s)`;
+  });
+  document.querySelectorAll(".solution-form").forEach(form => {
+    const get = name => form.elements[name]?.value || "";
+    const output = form.querySelector("output");
+    const products = () => Array.from(form.querySelectorAll("[data-product]"), row => ({product: row.querySelector('[name="product"]').value,
+      quantity: decimal(row.querySelector('[name="quantity"]').value), unit: row.querySelector('[name="unit"]').value})).filter(p => p.product.trim() || p.quantity !== null);
+    const effective = form.elements.effective_at;
+    if (effective?.dataset.instant) {
+      const d = new Date(effective.dataset.instant);
+      effective.step = "any";
+      effective.value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 23);
+      effective.dataset.rendered = effective.value;
+    }
+    form.elements.precision?.addEventListener("change", () => {
+      const old = effective.value;
+      effective.type = get("precision") === "instant" ? "datetime-local" : "date";
+      effective.value = get("precision") === "instant" ? (old.length === 10 ? `${old}T12:00` : old) : old.slice(0, 10);
+    });
+    const preview = () => {
+      const recipe = form.elements.recipe_id?.selectedOptions[0];
+      const check = form.elements.confirm_recipe;
+      if (!check) return;
+      check.checked = false;
+      check.required = Boolean(recipe?.value);
+      form.querySelector("[data-recipe-confirm]").hidden = !recipe?.value;
+      form.querySelector("[data-products]").hidden = Boolean(recipe?.value);
+      const node = form.querySelector("[data-recipe-preview]");
+      node.textContent = "";
+      if (!recipe?.value) return;
+      try {
+        const volume = decimal(get("volume_l"));
+        node.textContent = volume > 0 ? JSON.parse(recipe.dataset.ingredients).map(p => `${p.product} : ${Number((p.quantity * (volume / Number(recipe.dataset.volume))).toPrecision(12))} ${p.unit}`).join(" · ") : "Renseigner un volume positif pour calculer les quantités.";
+      } catch (error) { node.textContent = error.message; }
+    };
+    const sync = () => {
+      if (!form.elements.kind) return;
+      const kind = get("kind"), target = form.elements.target.selectedOptions[0];
+      const preparation = !["reading", "topup"].includes(kind);
+      form.querySelector("[data-preparation]").hidden = !preparation;
+      form.querySelector("[data-mothers]").hidden = !["reading", "water"].includes(kind) || target?.dataset.subjectKind !== "mother";
+      if (["renewal", "topup"].includes(kind)) form.elements.volume_l.closest("details").open = true;
+      if (preparation) form.querySelector("[data-preparation]").open = true;
+      if (!preparation && form.elements.recipe_id.value) { form.elements.recipe_id.value = ""; preview(); }
+      form.elements.volume_l.required = ["renewal", "topup"].includes(kind);
+    };
+    form.elements.kind?.addEventListener("change", sync);
+    form.elements.target?.addEventListener("change", sync);
+    form.elements.recipe_id?.addEventListener("change", preview);
+    form.elements.volume_l?.addEventListener("input", preview);
+    form.querySelector("[data-add-product]").addEventListener("click", () => {
+      const list = form.querySelector("[data-product-list]");
+      if (list.children.length >= 40) return;
+      const row = list.firstElementChild.cloneNode(true);
+      row.querySelectorAll("input").forEach(input => { input.value = ""; }); list.append(row);
+    });
+    form.addEventListener("click", event => {
+      const button = event.target.closest("[data-remove-product]");
+      if (button && form.querySelectorAll("[data-product]").length > 1) button.closest("[data-product]").remove();
+      else if (button) button.closest("[data-product]").querySelectorAll("input").forEach(input => { input.value = ""; });
+    });
+    sync();
+    let busy = false, previous = null, key = requestId();
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (busy) return;
+      if (!navigator.onLine || document.body.classList.contains("is-offline")) { output.textContent = "Hors ligne : saisie conservée dans cette page ; aucun envoi mis en attente."; return; }
+      const button = form.querySelector('[type="submit"]');
+      try {
+        let command = {operation: form.hasAttribute("data-solution-recipe") ? "recipe" : form.dataset.id ? "correct" : "entry",
+          confirm_date: form.elements.confirm_date?.checked || false};
+        if (form.dataset.id) Object.assign(command, {id: form.dataset.id, version: Number(form.dataset.version)});
+        if (command.operation === "recipe") Object.assign(command, {name: get("name"), volume_l: decimal(get("volume_l")), ingredients: products()});
+        else {
+          const selected = form.elements.target.selectedOptions[0];
+          const reservoir = selected.hasAttribute("data-reservoir");
+          const targets = reservoir ? [] : [get("target")];
+          if (!form.querySelector("[data-mothers]").hidden) form.querySelectorAll('[name="mother"]:checked').forEach(input => { if (!targets.includes(input.value)) targets.push(input.value); });
+          Object.assign(command, {kind: get("kind"), reservoir_id: reservoir ? get("target") : null, targets,
+            effective_at: get("precision") === "instant" ? (effective.dataset.rendered === effective.value ? effective.dataset.instant : new Date(effective.value).toISOString()) : effective.value,
+            precision: get("precision"), ph: decimal(get("ph")), ec: decimal(get("ec")), ec_unit: get("ec_unit"),
+            temperature_c: decimal(get("temperature_c")), volume_l: decimal(get("volume_l")), context: get("context"),
+            intervention_id: get("intervention_id") || null, compensation: get("compensation"), note: get("note"),
+            ingredients: form.querySelector("[data-preparation]").hidden ? [] : products()});
+          const recipe = form.elements.recipe_id.selectedOptions[0];
+          if (recipe.value) {
+            if (!form.elements.confirm_recipe.checked) throw new Error("Vérifier les quantités avant validation.");
+            Object.assign(command, {recipe_id: recipe.value, recipe_revision: Number(recipe.dataset.revision),
+              ingredients: JSON.parse(recipe.dataset.ingredients).map(p => ({...p, quantity: p.quantity * (command.volume_l / Number(recipe.dataset.volume))}))});
+          }
+          if (form.dataset.id) Object.assign(command, {cancelled: form.elements.cancelled.checked, reason: get("reason")});
+        }
+        const body = JSON.stringify(command);
+        if (previous !== null && previous !== body) key = requestId();
+        previous = body; command.request_id = key;
+        busy = true; button.disabled = true; output.textContent = "Enregistrement…";
+        const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 15000);
+        let response;
+        try { response = await fetch("/api/v1/cultures/solutions", {method: "POST", headers: {"Content-Type": "application/json", "X-CSRF-Token": csrf}, body: JSON.stringify(command), signal: controller.signal}); }
+        finally { clearTimeout(timeout); }
+        const result = await response.json().catch(() => ({error: "Requête refusée. Vérifier la connexion."}));
+        if (!response.ok) throw new Error(`${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir cette page dans un nouvel onglet pour consulter la version actuelle." : ""}`);
+        output.textContent = "Enregistré. Ouverture de l’entrée…";
+        const next = new URL(location.href); next.searchParams.delete("offset"); next.searchParams.delete("entry"); next.searchParams.delete("kind");
+        next.searchParams.delete("start"); next.searchParams.delete("end");
+        if (command.operation !== "recipe") next.searchParams.set("target", command.reservoir_id || command.targets[0]);
+        next.hash = command.operation === "recipe" ? "recettes" : `entry-${result.id}`;
+        // L'entrée peut être rétrospective ; la page serveur choisit sa pagination.
+        if (command.operation !== "recipe") next.searchParams.set("entry", result.id);
+        if (next.pathname === location.pathname && next.search === location.search) {
+          location.hash = next.hash; location.reload();
+        } else location.assign(next.href);
+      } catch (error) {
+        output.textContent = error.name === "AbortError" || error instanceof TypeError ? "Réponse non reçue. Saisie conservée : réessayez sans modification pour vérifier le même enregistrement." : error.message;
+      } finally { busy = false; button.disabled = false; }
+    });
+  });
+  const charts = document.querySelector("[data-solution-charts]");
+  const points = JSON.parse(charts?.dataset.chart || "[]");
+  const stages = JSON.parse(charts?.dataset.stages || "[]");
+  const svgNode = (name, attributes, text) => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+    Object.entries(attributes).forEach(([key, value]) => el.setAttribute(key, String(value)));
+    if (text !== undefined) el.textContent = text; return el;
+  };
+  document.querySelectorAll("svg[data-metric]").forEach(svg => {
+    const metric = svg.dataset.metric, measured = points.filter(p => p[metric] !== null);
+    if (!measured.length) { svg.append(svgNode("text", {x: 30, y: 100}, "Aucune mesure sur cette page")); return; }
+    const times = points.map(p => Date.parse(p.at)), low = Math.min(...times), high = Math.max(...times);
+    const values = measured.flatMap(p => [p[metric + "_min"] ?? p[metric], p[metric + "_max"] ?? p[metric]]), min = Math.min(...values), max = Math.max(...values);
+    const x = p => 60 + 480 * (high === low ? 0.5 : (Date.parse(p.at) - low) / (high - low));
+    const y = p => 160 - 115 * (max === min ? 0.5 : (p[metric] - min) / (max - min));
+    svg.append(svgNode("path", {d: "M60 25V170H550", class: "solution-axis"}));
+    svg.append(svgNode("text", {x: 4, y: 45}, max.toFixed(2)), svgNode("text", {x: 4, y: 160}, min.toFixed(2)));
+    const date = value => new Date(value).toLocaleDateString("fr-FR", {day: "2-digit", month: "2-digit"});
+    svg.append(svgNode("text", {x: 60, y: 205}, date(low)), svgNode("text", {x: 495, y: 205}, date(high)));
+    points.filter(p => p.annotations.length).forEach(p => {
+      const line = svgNode("path", {d: `M${x(p)} 25V170`, class: p.annotations.includes("Renouvellement") ? "solution-renewal" : "solution-marker"});
+      line.append(svgNode("title", {}, `${p.annotations.join(", ")} · ${p.at}`));
+      svg.append(line);
+    });
+    stages.forEach(p => {
+      const line = svgNode("path", {d: `M${x(p)} 25V170`, class: "solution-stage"});
+      line.append(svgNode("title", {}, `${p.label} · ${p.at}`)); svg.append(line);
+    });
+    measured.forEach(p => {
+      if (p[metric + "_count"]) {
+        svg.append(svgNode("path", {d: `M${x(p)} ${y({...p, [metric]: p[metric + "_min"]})}V${y({...p, [metric]: p[metric + "_max"]})}`, class: "solution-range"}));
+      }
+      const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: "solution-dot"});
+      dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
+    });
+  });
+})();

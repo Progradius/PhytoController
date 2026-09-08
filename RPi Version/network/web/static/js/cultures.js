@@ -21,7 +21,15 @@
           const p = document.createElement("p"), link = document.createElement("a");
           link.href = `/cultures/${encodeURIComponent(item.id)}`; link.textContent = item.name;
           p.append(link, ` · ${item.stage_label}${item.age ? ` · J${item.age.days} (${item.age.weeks} sem. + ${item.age.remaining_days} j)` : ""}${item.archived ? " · à libérer" : ""}`); card.append(p);
+          if (item.latest_reading) {
+            const reading = item.latest_reading, measure = document.createElement("p");
+            const d = reading.effective_at.length === 10 ? reading.effective_at.split("-").reverse().join("/") : new Date(reading.effective_at).toLocaleString("fr-FR");
+            measure.textContent = `Dernier relevé : ${d} · pH ${reading.ph ?? "—"} · EC ${reading.ec ?? "—"} mS/cm`;
+            card.append(measure);
+          }
         }
+        const quick = document.createElement("a"); quick.href = `/cultures/solutions?target=${id === "space_1" ? "cuttings_1" : "reservoir_2"}`;
+        quick.textContent = "Saisir un relevé"; card.append(quick);
         preview.append(card);
       }
       previewTime.textContent = `Carnet actualisé à ${new Date().toLocaleTimeString("fr-FR")}${data.clock_reliable ? "" : " · horloge non synchronisée, compteurs à vérifier"}`;

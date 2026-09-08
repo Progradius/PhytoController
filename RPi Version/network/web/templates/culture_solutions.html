@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% macro ingredients_fields(items=[]) %}
+<fieldset data-products><legend>Produits et quantités</legend><div data-product-list>
+{% for item in items or [{}] %}<div class="culture-origin" data-product>
+<label>Produit<input name="product" maxlength="120" value="{{ item.get('product','') }}"></label>
+<label>Quantité<input name="quantity" inputmode="decimal" value="{{ item.get('quantity','') }}"></label>
+<label>Unité du produit<select name="unit">{% for unit in ('mL','g','L','mg') %}<option{% if item.get('unit') == unit %} selected{% endif %}>{{ unit }}</option>{% endfor %}</select></label>
+<button type="button" class="button button-secondary" data-remove-product>Retirer le produit</button></div>{% endfor %}
+</div><button type="button" class="button button-secondary" data-add-product>Ajouter un produit</button></fieldset>
+{% endmacro %}
+{% macro submit(label='Enregistrer') %}
+{% if not data.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié la date malgré l’horloge non synchronisée.</label>{% endif %}
+<button type="submit" class="button">{{ label }}</button><output role="status" aria-live="polite"></output>
+{% endmacro %}
+{% macro entry_form(entry={}) %}
+<form class="culture-form solution-form" data-solution-entry{% if entry %} data-id="{{ entry.id }}" data-version="{{ entry.revision }}"{% endif %}>
+<label>Action<select name="kind"{% if entry %} disabled{% endif %}>{% for key,label in kinds.items() %}<option value="{{ key }}"{% if entry.get('kind','reading') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Cible<select name="target" required><option value="">Choisir une cible</option>
+{% for reservoir in data.reservoirs %}<option value="{{ reservoir.id }}" data-reservoir{% if entry.get('reservoir_id',filters.get('target')) == reservoir.id %} selected{% endif %}>{{ reservoir.name }}</option>{% endfor %}
+{% for subject in data.subjects %}<option value="{{ subject.id }}" data-subject-kind="{{ subject.kind }}"{% if (entry.get('targets') and entry.targets[0] == subject.id) or (not entry and filters.get('target') == subject.id) %} selected{% endif %}>{{ subject.name }}{{ ' (archivée)' if subject.archived else '' }}</option>{% endfor %}</select></label>
+<details data-mothers><summary>Autres mères pour un arrosage ou relevé commun</summary><p>Le volume est celui du mélange partagé ; il n’est pas multiplié par le nombre de mères.</p>
+{% for subject in data.subjects if subject.kind == 'mother' %}<label class="culture-confirm"><input type="checkbox" name="mother" value="{{ subject.id }}"{% if subject.id in entry.get('targets',[])[1:] %} checked{% endif %}>{{ subject.name }}</label>{% endfor %}</details>
+<label>Date effective<input name="effective_at" type="{{ 'datetime-local' if entry.get('precision') == 'instant' else 'date' }}" value="{{ entry.get('effective_at',data.today) }}"{% if entry.get('precision') == 'instant' %} data-instant="{{ entry.effective_at }}"{% endif %} required></label>
+<label>Précision de la date<select name="precision">{% for key,label in (('date','Date connue'),('instant','Date et heure connues'),('approximative','Date approximative')) %}<option value="{{ key }}"{% if entry.get('precision','date') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<div class="culture-grid">
+<label>pH<input name="ph" inputmode="decimal" value="{{ entry.ph if entry and entry.ph is not none else '' }}"></label>
+<label>EC<input name="ec" inputmode="decimal" value="{{ entry.ec if entry and entry.ec is not none else '' }}"></label>
+<label>Unité EC<select name="ec_unit"><option>mS/cm</option><option>µS/cm</option></select></label></div>
+<details{% if entry %} open{% endif %}><summary>Température, volume, contexte et note</summary>
+<label>Température de solution (°C)<input name="temperature_c" inputmode="decimal" value="{{ entry.temperature_c if entry and entry.temperature_c is not none else '' }}"></label>
+<label>Volume (L)<input name="volume_l" inputmode="decimal" value="{{ entry.volume_l if entry and entry.volume_l is not none else '' }}"></label>
+<p class="card-meta">Volume total préparé, ajouté ou distribué selon l’action ; pour un relevé, volume observé dans le bac.</p>
+<label>Contexte du relevé<select name="context">{% for key,label in (('independent','Indépendant'),('before','Avant intervention'),('after','Après intervention')) %}<option value="{{ key }}"{% if entry.get('context') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Intervention associée<select name="intervention_id"><option value="">Sans lien</option>{% for intervention in data.interventions %}<option value="{{ intervention.id }}"{% if entry.get('intervention_id') == intervention.id %} selected{% endif %}>{{ kinds[intervention.kind] }} · {{ intervention.effective_at|culture_date(data.timezone) }} · {{ intervention.id[:8] }}</option>{% endfor %}</select></label>
+<label>Compensation de température par l’instrument<select name="compensation">{% for key,label in (('unknown','Non renseignée'),('yes','Oui'),('no','Non')) %}<option value="{{ key }}"{% if entry.get('compensation') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Note<textarea name="note" maxlength="4000">{{ entry.get('note','') }}</textarea></label></details>
+<details data-preparation{% if entry and entry.ingredients %} open{% endif %}><summary>Préparation et recette</summary>
+<label>Recette<select name="recipe_id"><option value="">Saisie libre / ingrédients conservés</option>{% for recipe in data.recipes %}<option value="{{ recipe.id }}" data-revision="{{ recipe.revision }}" data-volume="{{ recipe.volume_l }}" data-ingredients="{{ recipe.ingredients|tojson|forceescape }}">{{ recipe.name }} · version {{ recipe.revision }} · {{ recipe.volume_l }} L</option>{% endfor %}</select></label>
+<p>Renseignez le volume ci-dessus puis vérifiez les quantités calculées. Les ingrédients enregistrés restent figés.</p>
+{{ ingredients_fields(entry.get('ingredients',[])) }}
+<p data-recipe-preview role="status"></p><label class="culture-confirm" data-recipe-confirm hidden><input type="checkbox" name="confirm_recipe"> J’ai vérifié les quantités affichées.</label></details>
+{% if entry %}<label>Motif de correction<input name="reason" maxlength="500"></label><label class="culture-confirm"><input name="cancelled" type="checkbox"{% if entry.cancelled %} checked{% endif %}> Annuler cette entrée</label>{% endif %}
+{{ submit('Enregistrer la correction' if entry else 'Enregistrer la saisie') }}
+</form>
+{% endmacro %}
+{% macro recipe_form(recipe={}) %}
+<form class="culture-form solution-form" data-solution-recipe{% if recipe %} data-id="{{ recipe.id }}" data-version="{{ recipe.revision }}"{% endif %}>
+<label>Nom de recette<input name="name" value="{{ recipe.get('name','') }}" maxlength="120" required></label>
+<label>Volume de référence (L)<input name="volume_l" inputmode="decimal" value="{{ recipe.get('volume_l','') }}" required></label>
+{{ ingredients_fields(recipe.get('ingredients',[])) }}{{ submit('Enregistrer la recette') }}</form>
+{% endmacro %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
+{% block content %}
+<h1>Solutions et relevés</h1><nav class="culture-links" aria-label="Navigation du carnet"><a href="/cultures">Cultures et parcours</a><a href="#recettes">Recettes</a><a href="#journal-solutions">Journal et courbes</a></nav>
+<p>Carnet déclaratif. Une saisie ne modifie aucun équipement ni réglage.</p>
+{% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
+{% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates et les âges affichés.</p>{% endif %}
+<section class="culture-grid" aria-label="Solutions présentes">{% for reservoir in data.reservoirs %}<article class="card"><h2><a href="?target={{ reservoir.id }}">{{ reservoir.name }}</a></h2>
+{% for period in data.periods if period.reservoir_id == reservoir.id and not period.end_at %}<p>Solution depuis le {{ period.preparation.effective_at|culture_date(data.timezone) }} · {{ period.age.days }} jours</p><p><a href="?target={{ reservoir.id }}&entry={{ period.id }}#entry-{{ period.id }}">Préparation : {{ period.preparation.volume_l }} L</a></p>{% for link in data.links if link.period_id == period.id and not link.end_at %}{% for subject in data.subjects if subject.id == link.subject_id %}<p>Alimente <a href="/cultures/{{ subject.id }}">{{ subject.name }}</a> depuis le {{ link.start_at|culture_date(data.timezone) }}</p>{% endfor %}{% endfor %}{% else %}<p>Aucune solution déclarée. Enregistrer un renouvellement pour reprendre le suivi.</p>{% endfor %}</article>{% endfor %}</section>
+<section class="culture-section card"><h2>Saisie rapide</h2>
+{% if data.latest %}<p>Dernier relevé du filtre : {{ data.latest.effective_at|culture_date(data.timezone) }} · pH {{ data.latest.ph if data.latest.ph is not none else '—' }} · EC {{ data.latest.ec if data.latest.ec is not none else '—' }} mS/cm <span data-measure-age="{{ data.latest.sort_at }}"></span></p>{% else %}<p>Aucun relevé pour ce filtre.</p>{% endif %}
+<p class="card-meta">Les mesures sont volontairement vides. Virgule décimale acceptée ; EC normalisée en mS/cm. Une date seule ne précise pas l’ordre des interventions dans la journée.</p>
+{{ entry_form() }}</section>
+<section id="journal-solutions" class="culture-section"><h2>Journal et courbes</h2>
+<form method="get" class="culture-form solution-filter"><label>Filtrer la cible<select name="target"><option value="">Toutes les cibles</option>{% for item in data.reservoirs + data.subjects %}<option value="{{ item.id }}"{% if filters.get('target') == item.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+<label>Filtrer le type<select name="kind"><option value="">Tous les types</option>{% for key,label in kinds.items() %}<option value="{{ key }}"{% if filters.get('kind') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Du<input type="date" name="start" value="{{ filters.get('start','') }}"></label><label>Au<input type="date" name="end" value="{{ filters.get('end','') }}"></label><button class="button" type="submit">Filtrer</button></form>
+<p>{{ data.total }} entrées. Les courbes couvrent tout le filtre, indépendamment de la pagination du journal, sans relier les lacunes.
+{% if data.chart_aggregated %}Plus de 1 000 entrées : moyennes journalières, étendues min/max et nombres de mesures, séparés par cible et période de solution.{% else %}Chaque point est une mesure enregistrée.{% endif %}
+{% if data.chart_truncated %}Affichage limité aux 2 000 derniers groupes journaliers ; réduire la période ou exporter toutes les données.{% endif %}</p>
+<div class="culture-grid" data-solution-charts data-chart="{{ data.chart|tojson|forceescape }}" data-stages="{{ data.stages|tojson|forceescape }}">{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %}<figure class="card solution-chart"><figcaption>{{ label }}</figcaption><svg viewBox="0 0 600 220" role="img" aria-label="Points mesurés : {{ label }}" data-metric="{{ metric }}"></svg></figure>{% endfor %}</div>
+<details class="card"><summary>Repères des interventions et stades</summary><ul>{% for point in data.chart if point.annotations %}<li>{{ point.at|culture_date(data.timezone) }} · {{ point.annotations|join(', ') }} · {{ point.target }}</li>{% endfor %}{% for stage in data.stages %}<li>{{ stage.at|culture_date(data.timezone) }} · {{ stage.label }}</li>{% endfor %}</ul></details>
+<div class="culture-links"><a data-solution-export href="/api/v1/cultures/solutions/export">Exporter les relevés et interventions CSV du filtre</a><a href="/api/v1/cultures/export?format=sqlite3">Sauvegarde complète SQLite</a></div>
+{% for entry in data["items"] %}<article class="card culture-journal solution-journal" id="entry-{{ entry.id }}" data-point="{{ {'ph':entry.ph,'ec':entry.ec,'at':entry.sort_at,'cancelled':entry.cancelled,'kind':entry.kind,'period':entry.period_id,'target':entry.reservoir_id or entry.targets|join(','),'label':kinds[entry.kind],'number':loop.index}|tojson|forceescape }}">
+<h3>{{ loop.index }}. {{ kinds[entry.kind] }}{{ ' · annulé' if entry.cancelled else '' }}</h3><p>{{ entry.effective_at|culture_date(data.timezone) }}{{ ' (approximative)' if entry.precision == 'approximative' else '' }} · référence {{ entry.id[:8] }}</p>
+<p>{% for reservoir in data.reservoirs if reservoir.id == entry.reservoir_id %}{{ reservoir.name }}{% endfor %}{% for subject in data.subjects if subject.id in entry.targets or subject.id in entry.fed_subjects %} · <a href="/cultures/{{ subject.id }}">{{ subject.name }}</a>{% endfor %}</p>
+<p>pH {{ entry.ph if entry.ph is not none else '—' }} · EC {{ entry.ec if entry.ec is not none else '—' }} mS/cm · {{ entry.temperature_c if entry.temperature_c is not none else '—' }} °C · {{ entry.volume_l if entry.volume_l is not none else '—' }} L{{ ' partagés (total unique)' if entry.targets|length > 1 else '' }}</p>
+<p>{{ {'independent':'Mesure indépendante','before':'Avant intervention','after':'Après intervention'}[entry.context] }}{% if entry.intervention_id %} · <a href="#entry-{{ entry.intervention_id }}">{{ entry.intervention_id[:8] }}</a>{% endif %} · Compensation : {{ {'unknown':'non renseignée','yes':'oui','no':'non'}[entry.compensation] }}</p>
+{% if entry.period_id %}<p class="card-meta">Période de solution {{ entry.period_id[:8] }}</p>{% endif %}
+<ul>{% for ingredient in entry.ingredients %}<li>{{ ingredient.product }} : {{ ingredient.quantity }} {{ ingredient.unit }}</li>{% endfor %}</ul><p class="culture-note">{{ entry.note }}</p>
+<p class="card-meta">Saisi le {{ entry.recorded_at|culture_date(data.timezone) }} · version {{ entry.revision }}{{ ' · horloge non synchronisée' if not entry.clock_reliable else '' }}</p>{% if entry.reason %}<p>Motif : {{ entry.reason }}</p>{% endif %}
+<details><summary>Corriger cette saisie</summary>{{ entry_form(entry) }}</details>
+{% if entry.revisions %}<details><summary>Versions précédentes ({{ entry.revisions|length }})</summary>{% for old in entry.revisions %}<p>Version {{ old.revision }} · {{ old.effective_at|culture_date(data.timezone) }} · pH {{ old.ph }} · EC {{ old.ec }} mS/cm · {{ old.volume_l }} L{{ ' · annulée' if old.cancelled else '' }}</p><p class="culture-note">{{ old.note }}</p><ul>{% for item in old.ingredients %}<li>{{ item.product }} : {{ item.quantity }} {{ item.unit }}</li>{% endfor %}</ul>{% endfor %}</details>{% endif %}</article>{% else %}<p>Aucune entrée pour ce filtre.</p>{% endfor %}
+<nav class="culture-links" aria-label="Pagination des relevés">{% if data.offset %}<a data-solution-offset="{{ [0,data.offset-40]|max }}" href="?offset={{ [0,data.offset-40]|max }}">Plus récentes</a>{% endif %}{% if data.offset+40 < data.total %}<a data-solution-offset="{{ data.offset+40 }}" href="?offset={{ data.offset+40 }}">Plus anciennes</a>{% endif %}</nav></section>
+<section id="recettes" class="culture-section"><h2>Recettes réutilisables</h2><p>Une nouvelle version ne modifie jamais les préparations passées. Aucune conversion masse/volume ni recommandation de dosage.</p><details class="card"><summary>Créer une recette</summary>{{ recipe_form() }}</details>
+{% for recipe in data.recipes %}<details class="card culture-journal"><summary>{{ recipe.name }} · version {{ recipe.revision }}</summary>{{ recipe_form(recipe) }}</details>{% endfor %}</section>
+{% endif %}{% endblock %}
+{% block page_scripts %}<script src="/static/js/culture_solutions.js?v={{ asset_versions.culture_solutions }}" defer></script>{% endblock %}

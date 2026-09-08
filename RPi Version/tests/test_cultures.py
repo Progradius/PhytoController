@@ -116,7 +116,7 @@ async def test_export_restauration_et_redemarrage(cultures, tmp_path):
     lot = await cultures.call("mutate", create())
     await event(cultures, lot, "note", "2026-08-02", {"note": "=HYPERLINK(\"x\")\nTexte, français"})
     exported = await cultures.call("export")
-    assert exported["schema_version"] == 1
+    assert exported["schema_version"] == 2
     assert "Texte, français" in await cultures.call("csv")
     backup = tmp_path / "download.sqlite3"
     backup.write_bytes(await cultures.call("backup"))

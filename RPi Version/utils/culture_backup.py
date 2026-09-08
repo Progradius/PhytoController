@@ -23,7 +23,7 @@ def restore_copy(source: Path, destination: Path) -> None:
     db.row_factory = sqlite3.Row
     try:
         db.execute("PRAGMA trusted_schema=OFF")
-        if db.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+        if db.execute("PRAGMA user_version").fetchone()[0] not in (1, SCHEMA_VERSION):
             raise CultureUnavailable("Version de sauvegarde incompatible.")
         if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok" or db.execute("PRAGMA foreign_key_check").fetchone():
             raise CultureUnavailable("Intégrité de la sauvegarde invalide.")
@@ -33,6 +33,8 @@ def restore_copy(source: Path, destination: Path) -> None:
         projections = checker._projections()
         validate_spaces(projections)
         checker._validate_origins(projections)
+        if db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION:
+            checker._solution_rebuild(projections, validate_only=True)
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".culture-restore-", dir=destination.parent) as temporary:
             staged = Path(temporary) / "cultures.sqlite3"

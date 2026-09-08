@@ -7,6 +7,7 @@ import csv
 import hashlib
 import io
 import json
+import os
 import sqlite3
 import tempfile
 import uuid
@@ -18,15 +19,18 @@ from zoneinfo import ZoneInfo
 from model.culture import (CultureConflict, CultureError, event_payload, integer, project,
                            stamp, text_value, validate_spaces)
 
-SCHEMA_VERSION = 1
-TABLES = ("settings", "subjects", "origins", "events", "requests")
+from model.culture_solution import RESERVOIRS
+from utils.culture_solution_store import SolutionStoreMixin, SOLUTION_SCHEMA, SOLUTION_TABLES
+
+SCHEMA_VERSION = 2
+TABLES = ("settings", "subjects", "origins", "events", "requests") + SOLUTION_TABLES
 
 
 class CultureUnavailable(RuntimeError):
     pass
 
 
-class CultureStore:
+class CultureStore(SolutionStoreMixin):
     FILE = Path(__file__).resolve().parents[1] / "param" / "cultures.sqlite3"
 
     def __init__(self, path=None, *, now=None, reliable=None, zone="Europe/Paris"):
@@ -71,7 +75,7 @@ class CultureStore:
             if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise CultureUnavailable("Carnet corrompu conservé sur disque ; restaurer une sauvegarde.")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version != SCHEMA_VERSION and (version != 0 or existed):
+            if version not in (1, SCHEMA_VERSION) and (version != 0 or existed):
                 raise CultureUnavailable("Schéma du carnet incompatible ; données conservées.")
             db.execute("PRAGMA foreign_keys=ON")
             db.execute("PRAGMA journal_mode=WAL")
@@ -102,6 +106,36 @@ class CultureStore:
                 """)
                 db.execute("INSERT INTO settings VALUES ('timezone',?)", (self.zone,))
                 db.commit()
+            if version in (0, 1):
+                if version == 1:
+                    # Sauvegarde cohérente avant toute migration, sans copier le WAL vivant.
+                    backup_path = self.path.with_name(self.path.name + ".before-v2.sqlite3")
+                    if backup_path.exists():
+                        raise CultureUnavailable("Sauvegarde avant migration déjà présente ; vérifier cette copie avant de réessayer.")
+                    with tempfile.TemporaryDirectory(dir=self.path.parent, prefix=".culture-migrate-") as directory:
+                        temporary = Path(directory) / "backup.sqlite3"
+                        backup = sqlite3.connect(str(temporary))
+                        try:
+                            db.backup(backup)
+                        finally:
+                            backup.close()
+                        temporary.chmod(0o600)
+                        with temporary.open("rb") as source:
+                            os.fsync(source.fileno())
+                        os.link(temporary, backup_path)
+                        descriptor = os.open(str(self.path.parent), os.O_RDONLY)
+                        try:
+                            os.fsync(descriptor)
+                        finally:
+                            os.close(descriptor)
+                try:
+                    db.executescript("BEGIN IMMEDIATE;" + SOLUTION_SCHEMA)
+                    db.executemany("INSERT INTO reservoirs VALUES (?,?,?)", [(key, *value) for key, value in RESERVOIRS.items()])
+                    db.execute("PRAGMA user_version=2")
+                    db.commit()
+                except BaseException:
+                    db.rollback()
+                    raise
             setting = db.execute("SELECT value FROM settings WHERE key='timezone'").fetchone()
             if setting is None:
                 raise CultureUnavailable("Fuseau du carnet manquant ; données conservées.")
@@ -142,6 +176,9 @@ class CultureStore:
 
     def _overview(self, archived=False, offset=0):
         subjects = self._projections()
+        readings = self._latest_solution_readings()
+        for subject in subjects:
+            subject["latest_reading"] = readings.get(subject["id"])
         selected = [s for s in subjects if s["archived"] == archived]
         return {"available": True, "timezone": self.zone, "clock_reliable": self.reliable(),
                 "today": self.now().astimezone(ZoneInfo(self.zone)).date().isoformat(),
@@ -247,6 +284,7 @@ class CultureStore:
             projections = self._projections()
             validate_spaces(projections)
             self._validate_origins(projections)
+            self._solution_rebuild(projections)
             result = {"subject_id": subject_id, "saved": True,
                       "version": next(s["version"] for s in projections if s["id"] == subject_id)}
             self._db.execute("INSERT INTO requests VALUES (?,?,?)", (key, fingerprint, json.dumps(result)))

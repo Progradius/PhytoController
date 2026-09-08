@@ -18,3 +18,16 @@
 .culture-grid summary { cursor: pointer; font-weight: 600; min-height: 2.5rem; }
 .culture-form [hidden] { display: none; }
 .culture-journal details { margin-top: .75rem; }
+.solution-form details > label { margin-block: .7rem; }
+.solution-form fieldset { min-width: 0; }
+.solution-chart { margin: 0; min-width: 0; }
+.solution-chart svg { width: 100%; height: auto; color: var(--text); }
+.solution-chart text { fill: currentColor; font: 14px sans-serif; }
+.solution-axis { fill: none; stroke: currentColor; }
+.solution-dot { fill: var(--text); }
+.solution-marker { stroke: currentColor; stroke-dasharray: 2 5; opacity: .5; }
+.solution-renewal { stroke: currentColor; stroke-dasharray: 8 4; }
+.solution-form summary { cursor: pointer; min-height: 2.5rem; }
+
+.solution-stage { stroke: currentColor; stroke-dasharray: 12 3 2 3; opacity: .5; }
+.solution-range { stroke: currentColor; stroke-width: 2; }

@@ -1,12 +1,11 @@
-# Carnet de cultures — première livraison
+# Carnet de cultures — livraisons 1 et 2
 
 Le menu **Cultures** ouvre `/cultures`. Sur téléphone, il se trouve dans **Plus** ; le tableau
 de bord comporte aussi un résumé des deux espaces et un accès au carnet.
 
 Le carnet conserve les données sans purge automatique, indépendamment de l'historique technique
 de 72 h. Ses actions ne changent ni horaires, ni pompe, ni ventilation. Les réglages continuent
-de se faire dans **Configuration**. Les relevés pH/EC structurés, recettes, photos et rappels
-appartiennent aux livraisons suivantes ; les observations peuvent déjà être notées en texte.
+de se faire dans **Configuration**. Les relevés pH/EC, solutions, arrosages et recettes sont disponibles dans **Solutions, relevés et arrosages**. Les photos et rappels appartiennent au jalon 3.
 
 ## Commencer avec une culture existante
 
@@ -106,7 +105,7 @@ actuel et de ses annexes sous un nom de sauvegarde, puis faire installer explici
 vérifiée avec le propriétaire approprié. Ne jamais écraser un fichier SQLite ouvert ni lui laisser
 les annexes WAL d'une autre base. Le script fourni réalise uniquement la vérification sur copie.
 
-## Limites de la première livraison
+## Limites du périmètre livré
 
 Le suivi concerne des lots entiers. Il n'y a ni fractionnement, ni récolte partielle, ni classement
 des mères par performance. Les affectations matérielles confirmées restent fixes dans les vues ;
@@ -116,3 +115,81 @@ ancienne à partir d'une date d'intervention rétrospective.
 
 Une panne du carnet est signalée dans ses pages, mais ne modifie jamais la santé du contrôle
 ni le watchdog. Une corruption ou un schéma futur est conservé, puis refusé.
+
+
+## Routine quotidienne : solutions et relevés
+
+Depuis une fiche de culture, **Solutions, relevés et arrosages** ouvre le carnet filtré sur cette
+culture. Depuis le tableau de bord, **Saisir un relevé** préremplit le réservoir de l'espace.
+La page `/cultures/solutions` présente les deux bacs, la date et l'âge de leur solution,
+les cultures alimentées, une saisie rapide, puis le journal, les courbes et les recettes.
+
+Pour reprendre une solution déjà en service, choisir **Renouvellement**, sa date connue ou
+approximative et son volume. Les produits sont facultatifs si le mélange initial est inconnu.
+Cela ouvre la période suivie : il n'est pas nécessaire d'attendre le prochain changement d'eau.
+
+Pour un relevé quotidien, choisir la cible et saisir **pH et/ou EC**. Les dernières valeurs restent
+à côté avec leur date et un âge indicatif, mais les champs sont vides. La virgule est acceptée.
+Choisir mS/cm ou µS/cm selon l'instrument ; le carnet stocke l'EC en mS/cm. Les ppm/TDS ne sont
+pas convertis. Température de solution, volume observé, compensation par l'instrument et note
+sont facultatifs. Plusieurs relevés par jour et les saisies rétrospectives sont possibles.
+
+Pour renouveler, faire un appoint, ajouter des nutriments ou corriger le pH, sélectionner l'action.
+Un renouvellement commence une nouvelle période ; les autres interventions conservent la solution.
+Le volume d'un appoint est le volume **ajouté**, celui d'un renouvellement le volume **préparé**.
+Les mesures saisies avec l'intervention peuvent être marquées **Après intervention**. Pour suivre
+l'avant/après, enregistrer aussi un relevé distinct et choisir l'intervention associée.
+Deux renouvellements le même jour nécessitent une heure pour les distinguer.
+
+Pour arroser les mères, choisir **Arrosage**, la première mère, puis déplier **Autres mères**.
+Renseigner le volume total distribué si connu. Ce volume reste commun : le carnet n'affirme pas
+que chaque mère a reçu ce total. Le bac de bouturage n'attribue jamais automatiquement ses
+mesures aux mères, qui sont arrosées manuellement.
+
+## Réutiliser une recette
+
+Dans **Recettes réutilisables**, créer un nom, un volume de référence et les produits avec leurs
+quantités et unités. Lors d'une préparation, choisir cette recette et renseigner le volume prévu.
+Le carnet affiche les quantités proportionnelles ; vérifier puis cocher la confirmation avant
+l'enregistrement. Une modification de recette crée une nouvelle version. Les anciennes
+préparations gardent leurs ingrédients, doses et unités ; aucune conversion masse/volume n'est faite.
+
+## Lire et corriger l'historique des solutions
+
+Les filtres portent sur la cible, le type et la période. Les courbes pH et EC sont séparées,
+avec le même axe temporel, des points sans interpolation et les repères d'interventions/stades.
+Les ruptures de renouvellement restent explicites. Au-delà de 1 000 entrées filtrées, les moyennes
+journalières affichent leur étendue min/max et leur nombre de mesures, séparément pour chaque
+solution et cible. Les détails sont accessibles au survol et dans le journal ; les repères ont
+une liste textuelle. L'affichage est limité à 2 000 groupes récents, avec indication visible ;
+réduire la période ou exporter pour aller au-delà. Aucune donnée n'est purgée par cette limite.
+
+**Corriger cette saisie** permet de modifier date, mesures, ingrédients ou d'annuler une erreur.
+L'ancienne révision reste consultable. Une correction incompatible avec un relevé avant/après
+est refusée entièrement ; corriger d'abord les liens concernés. Les associations aux lots sont
+recalculées à partir de leur occupation effective. Après la coupe, les mesures de solution
+n'apparaissent plus comme alimentation du lot en séchage. Un nouveau lot ne récupère pas les
+relevés de son prédécesseur, même lorsque la solution n'a pas été renouvelée entre les deux.
+
+Après succès, la page ouvre l'entrée, même rétrospective. En cas d'échec, garder la page ouverte
+et réessayer sans modifier la saisie pour vérifier le même enregistrement. La reconnexion ne
+rejoue rien. Les courbes sont descriptives et ne proposent aucun diagnostic ou dosage.
+
+Le bouton **Exporter les relevés et interventions CSV du filtre** produit des colonnes avec
+unités explicites, préparation, cibles et notes. Il conserve une ligne par saisie commune,
+annulations comprises. Les anciennes révisions sont dans l'export complet JSON/SQLite.
+
+## Migration du jalon 1 au jalon 2
+
+La première ouverture d'une base de schéma 1 crée automatiquement
+`param/cultures.sqlite3.before-v2.sqlite3` par l'API SQLite, puis migre en une transaction.
+Cette copie est ignorée par Git, comme le carnet actif ; en conserver une copie hors du Pi.
+Une sauvegarde préalable déjà présente n'est jamais écrasée. Si une tentative a été interrompue
+et que la base est encore en version 1, faire vérifier/restaurer cette sauvegarde vers une copie
+isolée avec le script ci-dessus, conserver les fichiers de diagnostic, puis résoudre la tentative
+avant de relancer l'ouverture. Aucun fichier corrompu n'est remplacé par une base vide.
+
+Le code du jalon 1 refuse une base de version 2. Un retour arrière du code nécessite donc une
+restauration **explicite et supervisée** de la sauvegarde antérieure et perdrait les saisies du
+jalon 2 absentes de cette copie. Exporter/sauvegarder d'abord le carnet actuel. Aucun déploiement
+ou remplacement du carnet de production n'est effectué par les validations automatisées.
