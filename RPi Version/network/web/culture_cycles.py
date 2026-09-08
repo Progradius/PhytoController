@@ -35,8 +35,24 @@ class CycleViews:
                 web.get("/cultures/photos/{photo_id}", self.photo),
                 web.get("/api/v1/cultures/bundle", self.bundle)]
 
+    @staticmethod
+    def bounded(request, name, limit):
+        """Pagination climatique bornée : aucune requête ne peut demander un décalage arbitraire."""
+        raw = request.query.get(name)
+        if raw is None:
+            return None
+        try:
+            value = int(raw)
+            if not 0 <= value <= limit:
+                raise ValueError()
+            return value
+        except ValueError:
+            raise web.HTTPBadRequest(text="Pagination invalide.") from None
+
     async def payload(self, request):
-        return await self.store.call("cycle_data", request.query.getall("subject", []), self.views.offset(request), request.query.get("reminder"))
+        return await self.store.call("cycle_data", request.query.getall("subject", []), self.views.offset(request),
+                                     request.query.get("reminder"), self.bounded(request, "climate_offset", 10 ** 7) or 0,
+                                     self.bounded(request, "climate_at", 4102444800))
 
     async def page(self, request):
         data, error, status = None, None, 200

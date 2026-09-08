@@ -7,7 +7,9 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from model.culture import CultureConflict, CultureError, STAGES, stamp, text_value
-from model.culture_cycle import CHECKLIST, REMINDER_STATES, planned_date, reminder_values, trusted_value
+from model.culture_cycle import (CHECKLIST, CLIMATE_PAGE, MAX_SUMMARY_POINTS, REMINDER_STATES,
+                                 climate_granularity, climate_point, climate_span, planned_date,
+                                 reminder_values, trusted_value)
 from model.culture_solution import RESERVOIRS
 
 CYCLE_TABLES = ("reminders", "culture_checklists", "climate_hours", "climate_minutes", "culture_media")
@@ -180,7 +182,64 @@ class CycleStoreMixin:
             self._db.execute("DELETE FROM climate_minutes WHERE minute<?", (minute - 7 * 24 * 60,))
         return {"saved": True}
 
-    def _cycle_data(self, selected=None, offset=0, focus=None):
+    def _climate_summary(self, start_hour, end_hour):
+        """Synthèse bornée couvrant tout le cycle : agrégation groupée en SQL, jamais en mémoire."""
+        seconds, label = climate_granularity(start_hour, end_hour)
+        rows = self._db.execute(
+            """SELECT sensor, MAX(label) AS label, MAX(unit) AS unit, hour/?*? AS bucket,
+               MIN(minimum) AS minimum, MAX(maximum) AS maximum, SUM(total) AS total,
+               SUM(valid_count) AS valid_count, SUM(observed_count) AS observed_count,
+               COUNT(*) AS hours FROM climate_hours WHERE hour>=? AND hour<=?
+               GROUP BY sensor, bucket ORDER BY bucket, sensor LIMIT ?""",
+            (seconds, seconds, start_hour, end_hour, MAX_SUMMARY_POINTS + 1)).fetchall()
+        truncated = len(rows) > MAX_SUMMARY_POINTS
+        rows = rows[:MAX_SUMMARY_POINTS]
+        sensors, found = {}, {}
+        for row in rows:
+            sensors.setdefault(row["sensor"], (row["label"], row["unit"]))
+            found[(row["sensor"], row["bucket"])] = row
+        buckets = range(start_hour // seconds * seconds, end_hour // seconds * seconds + 1, seconds)
+        # Les seaux sans agrégat sont restitués comme lacunes explicites, jamais comme des zéros.
+        complete = not truncated and len(buckets) * max(len(sensors), 1) <= MAX_SUMMARY_POINTS
+        points, gaps = [], 0
+        for bucket in buckets:
+            span = climate_span(bucket, seconds, start_hour, end_hour)
+            for sensor, (name, unit) in sensors.items():
+                row = found.get((sensor, bucket))
+                if row is None:
+                    gaps += 1
+                    if not complete:
+                        continue
+                points.append(climate_point(sensor, name, unit, bucket, span, row))
+        return {"granularity_seconds": seconds, "granularity_label": label, "points": points,
+                "bucket_count": len(buckets), "sensor_count": len(sensors), "gap_count": gaps,
+                "gaps_shown": complete, "truncated": truncated, "start": start_hour, "end": end_hour,
+                "start_at": datetime.fromtimestamp(start_hour, timezone.utc).isoformat(),
+                "end_at": datetime.fromtimestamp(end_hour, timezone.utc).isoformat()}
+
+    def _climate_detail(self, start_hour, end_hour, offset=0, climate_at=None):
+        """Détail horaire paginé en SQL : aucune lecture de tout l'historique pour tronquer ensuite."""
+        total = self._db.execute("SELECT COUNT(*) FROM climate_hours WHERE hour>=? AND hour<=?",
+                                 (start_hour, end_hour)).fetchone()[0]
+        if climate_at is not None:
+            wanted = min(max(int(climate_at), start_hour), end_hour + 1)
+            position = self._db.execute("SELECT COUNT(*) FROM climate_hours WHERE hour>=? AND hour<?",
+                                        (start_hour, wanted)).fetchone()[0]
+            offset = position
+        offset = max(0, min(int(offset), max(total - 1, 0))) // CLIMATE_PAGE * CLIMATE_PAGE
+        rows = []
+        for row in self._db.execute("SELECT * FROM climate_hours WHERE hour>=? AND hour<=? ORDER BY hour,sensor LIMIT ? OFFSET ?",
+                                    (start_hour, end_hour, CLIMATE_PAGE, offset)):
+            point = dict(row)
+            point["mean"] = point["total"] / point["valid_count"] if point["valid_count"] else None
+            point["coverage"] = point["valid_count"] / 60
+            point["at"] = datetime.fromtimestamp(point["hour"], timezone.utc).isoformat()
+            rows.append(point)
+        return {"rows": rows, "total": total, "offset": offset, "page": CLIMATE_PAGE,
+                "previous": offset - CLIMATE_PAGE if offset else None,
+                "next": offset + CLIMATE_PAGE if offset + CLIMATE_PAGE < total else None}
+
+    def _cycle_data(self, selected=None, offset=0, focus=None, climate_offset=0, climate_at=None):
         selected = selected or []
         if not isinstance(selected, list) or len(selected) > 4 or any(not isinstance(s, str) for s in selected):
             raise CultureError("Comparer au maximum quatre cultures.")
@@ -195,14 +254,12 @@ class CycleStoreMixin:
             end = stamp(subject["stage_end"], "date" if len(subject["stage_end"]) == 10 else "instant", self.zone, self.now())[0] if subject.get("stage_end") else self.now().isoformat()
             start_epoch = int(datetime.fromisoformat(start).timestamp())
             end_epoch = int(datetime.fromisoformat(end).timestamp())
-            climate = []
-            for row in self._db.execute("SELECT * FROM climate_hours WHERE hour>=? AND hour<=? ORDER BY hour,sensor", (start_epoch // 3600 * 3600, end_epoch)):
-                point = dict(row)
-                point["mean"] = point["total"] / point["valid_count"] if point["valid_count"] else None
-                point["coverage"] = point["valid_count"] / 60
-                point["at"] = datetime.fromtimestamp(point["hour"], timezone.utc).isoformat()
-                climate.append(point)
-            climate_truncated = len(climate) > 10000
+            start_hour = start_epoch // 3600 * 3600
+            end_hour = end_epoch // 3600 * 3600
+            climate = self._climate_summary(start_hour, end_hour)
+            # Le détail horaire n'est paginé que sur une sélection unique : une comparaison
+            # de cycles reste bornée à des synthèses dont la granularité est affichée.
+            detail = self._climate_detail(start_hour, end_hour, climate_offset, climate_at) if len(chosen) == 1 else None
             readings = [e for e in self._solution_data({"target": subject["id"]}, export=True) if not e["cancelled"]]
             measures = {}
             for metric in ("ph", "ec"):
@@ -210,7 +267,7 @@ class CycleStoreMixin:
                 measures[metric] = {"count": len(values), "minimum": min(values) if values else None,
                                     "maximum": max(values) if values else None,
                                     "mean": sum(values) / len(values) if values else None}
-            summaries.append({"subject": subject, "climate": climate[-10000:], "climate_truncated": climate_truncated,
+            summaries.append({"subject": subject, "climate": climate, "climate_detail": detail,
                               "measures": measures, "periods": subject["periods"],
                               "checklists": [dict(r) for r in self._db.execute("SELECT * FROM culture_checklists WHERE subject_id=? ORDER BY recorded_at DESC", (subject["id"],))]})
         target = selected[0] if len(selected) == 1 else None

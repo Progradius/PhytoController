@@ -5,6 +5,10 @@
   document.querySelectorAll("[data-cycle-offset]").forEach(link => {
     const query = new URLSearchParams(location.search); query.set("offset", link.dataset.cycleOffset); link.search = query.toString();
   });
+  document.querySelectorAll("[data-climate-offset]").forEach(link => {
+    const query = new URLSearchParams(location.search); query.set("climate_offset", link.dataset.climateOffset);
+    query.delete("climate_at"); link.search = query.toString();
+  });
   document.querySelectorAll("[data-cycle-form], [data-photo-form]").forEach(form => {
     let busy = false, previous = null, key = identifier();
     const get = name => form.elements[name]?.value || "";
@@ -72,11 +76,13 @@
   };
   document.querySelectorAll("[data-climate-chart]").forEach(container => {
     const points = JSON.parse(container.dataset.climateChart), sensors = [...new Set(points.map(p => p.sensor))];
+    const granularity = container.dataset.climateGranularity || "période";
     if (!sensors.length) { const p = document.createElement("p"); p.textContent = "Aucune synthèse climatique disponible pour ce cycle."; container.append(p); }
     for (const sensor of sensors) {
       const all = points.filter(p => p.sensor === sensor), valid = all.filter(p => p.mean !== null);
       const figure = document.createElement("figure"), caption = document.createElement("figcaption"); figure.className = "card solution-chart";
-      caption.textContent = `${all[0].label} (${all[0].unit}) · commun à la serre`;
+      const missing = all.filter(p => p.missing);
+      caption.textContent = `${all[0].label} (${all[0].unit}) · commun à la serre · synthèse par ${granularity} · ${valid.length} période(s) avec valeur fiable, ${missing.length} lacune(s) sur ${all.length}`;
       const svg = node("svg", {viewBox: "0 0 600 240", role: "img", "aria-label": caption.textContent}); figure.append(caption, svg); container.append(figure);
       if (!valid.length) { svg.append(node("text", {x: 30, y: 100}, "Aucune valeur fiable")); continue; }
       const start = Math.min(...all.map(p => p.hour)), end = Math.max(...all.map(p => p.hour));
@@ -89,8 +95,61 @@
       for (const p of valid) {
         const line = node("path", {d: `M${x(p)} ${y(p.minimum)}V${y(p.maximum)}`, class: "solution-range"});
         const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot"});
-        dot.append(node("title", {}, `${p.at} : ${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables, couverture ${(p.coverage*100).toFixed(0)} %`)); svg.append(line, dot);
+        dot.append(node("title", {}, `${p.at} : ${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables sur ${p.span_hours} h de période, couverture ${(p.coverage*100).toFixed(0)} %`)); svg.append(line, dot);
+      }
+      // Une période sans agrégat reste une lacune signalée, jamais une valeur nulle tracée.
+      for (const p of missing) {
+        const tick = node("path", {d: `M${x(p)} 185V193`, class: "climate-gap"});
+        tick.append(node("title", {}, `${p.at} : aucun agrégat sur ${p.span_hours} h de période`)); svg.append(tick);
       }
     }
   });
+  // Consultation hors ligne : inventaire daté des pages du carnet réellement conservées.
+  // Aucune requête n'est émise ici et aucune mutation n'est rejouée.
+  const offlineSnapshot = document.querySelector('meta[name="phyto-offline-snapshot"]');
+  const inventory = async () => {
+    const entries = [];
+    if (!("caches" in window)) return null;
+    try {
+      for (const name of await caches.keys()) {
+        if (!name.startsWith("phyto-cultures-")) continue;
+        const cache = await caches.open(name);
+        for (const request of await cache.keys()) {
+          const response = await cache.match(request.url);
+          entries.push({url: request.url, at: Number(response?.headers.get("X-Phyto-Cached-At")) || 0});
+        }
+      }
+    } catch (_error) { return null; }
+    return entries;
+  };
+  const label = url => {
+    const target = new URL(url);
+    const page = target.pathname === "/cultures/cycles" ? "Cycles et rappels" : target.pathname === "/cultures/solutions" ? "Solutions et relevés" : target.pathname === "/cultures" ? "Cultures et archives" : "Fiche de culture";
+    const detail = target.searchParams.get("climate_offset");
+    return detail === null ? page : `${page} · détail horaire à partir de l’agrégat ${Number(detail) + 1}`;
+  };
+  const container = document.querySelector("[data-culture-offline-index]");
+  if (container) (async () => {
+    const entries = await inventory();
+    container.textContent = "";
+    if (entries === null) { const p = document.createElement("p"); p.textContent = "Inventaire hors ligne indisponible dans ce navigateur."; container.append(p); return; }
+    if (!entries.length) { const p = document.createElement("p"); p.textContent = "Aucune page du carnet n’est conservée hors ligne pour l’instant."; container.append(p); return; }
+    const list = document.createElement("ul");
+    for (const entry of entries.sort((a, b) => b.at - a.at)) {
+      const item = document.createElement("li"), link = document.createElement("a");
+      link.href = entry.url; link.textContent = label(entry.url);
+      item.append(link, document.createTextNode(` · conservée le ${entry.at ? new Date(entry.at).toLocaleString("fr-FR") : "date inconnue"}`));
+      list.append(item);
+    }
+    container.append(list);
+    if (!offlineSnapshot) return;
+    const known = new Set(entries.map(entry => entry.url));
+    document.querySelectorAll("[data-climate-offset], [data-cycle-offset], [data-culture-page]").forEach(link => {
+      if (known.has(link.href.split("#")[0])) return;
+      link.setAttribute("aria-disabled", "true");
+      link.classList.add("culture-unavailable");
+      link.append(document.createTextNode(" · non conservé hors ligne"));
+      link.addEventListener("click", event => { event.preventDefault(); });
+    });
+  })();
 })();
