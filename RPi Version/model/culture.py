@@ -73,7 +73,7 @@ def event_payload(kind, raw):
         raise CultureError("Type d'événement invalide.")
     fields = {"create": {"origins"}, "stage": {"stage"}, "move": {"space"},
               "loss": {"count", "origin_id", "note"}, "note": {"note"},
-              "harvest": {"note", "drying_at", "drying_precision"}, "finish": {"note", "weight_g", "release"},
+              "harvest": {"note", "drying_at", "drying_precision"}, "finish": {"note", "weight_g", "release", "lessons", "origin_weights"},
               "release": set(), "archive": {"note"}, "identity": {"name", "variety"}}
     if set(raw) - fields[kind]:
         raise CultureError("Champ d'événement inconnu.")
@@ -109,6 +109,23 @@ def event_payload(kind, raw):
             if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not math.isfinite(weight) or not 0 <= weight <= 1000000:
                 raise CultureError("Poids sec invalide (grammes).")
         result["weight_g"] = weight
+        result["lessons"] = text_value(raw.get("lessons", ""), "Enseignements", 4000, False)
+        breakdown = raw.get("origin_weights", [])
+        if not isinstance(breakdown, list) or len(breakdown) > 50:
+            raise CultureError("Bilan par origine : 50 lignes maximum.")
+        seen = set()
+        result["origin_weights"] = []
+        for item in breakdown:
+            if not isinstance(item, dict) or set(item) != {"origin_id", "weight_g"}:
+                raise CultureError("Détail de récolte invalide.")
+            origin_id = text_value(item["origin_id"], "Origine")
+            value = item["weight_g"]
+            if origin_id in seen or isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1000000:
+                raise CultureError("Poids par origine invalide ou origine dupliquée.")
+            seen.add(origin_id)
+            result["origin_weights"].append({"origin_id": origin_id, "weight_g": value})
+        if weight is not None and sum(item["weight_g"] for item in result["origin_weights"]) > weight + 0.000001:
+            raise CultureError("Le détail par origine dépasse le poids total.")
     return result
 
 
@@ -187,6 +204,8 @@ def project(subject, events, origins, now, zone, reliable):
                 raise CultureError("La fin du séchage précède son début.")
             if kind == "archive" and subject["kind"] != "mother":
                 raise CultureError("Terminer le séchage pour archiver ce lot.")
+            if kind == "finish" and any(item["origin_id"] not in {o["id"] for o in origins} for item in data.get("origin_weights", [])):
+                raise CultureError("Origine du bilan inconnue ; corriger la récolte avant de modifier ses origines.")
             current.update(archived=True, stage_end=at, balance=data)
             if current["periods"]:
                 current["periods"][-1]["end"] = at

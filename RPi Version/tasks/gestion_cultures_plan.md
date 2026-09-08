@@ -1,8 +1,8 @@
 # Plan — Gestion des cultures et carnet d'exploitation
 
 Date : 7 septembre 2026.
-Statut : besoin validé avec l'exploitant ; livraisons 1 et 2 implémentées sur
-`feature/gestion-cultures`, vérifiées hors matériel, non déployées. Jalon 3 à réaliser.
+Statut : besoin validé avec l'exploitant ; livraisons 1 à 3 implémentées sur
+`feature/gestion-cultures`, vérifiées hors matériel, non déployées. Jalon 3 finalisé le 8 septembre 2026.
 Ce document ne constitue pas une autorisation de déploiement.
 
 ## 1. Objectif et décisions validées
@@ -412,15 +412,30 @@ Validation hors matériel du jalon 2 (8 septembre 2026) :
 
 ### Jalon 3 — Photos, rappels et synthèses de cycle
 
-- [ ] Photos bornées, validation, gestion du disque, sauvegarde et restauration des médias.
-- [ ] Rappels dans l'application, récurrences, report et accomplissement explicites.
-- [ ] Listes de vérification de stade, sans commandes embarquées ni nouvelles alarmes de contrôle.
-- [ ] Agrégats climatiques durables depuis snapshots existants, qualité et couverture visibles.
-- [ ] Bilan enrichi et comparaison simple entre cycles, consultation PWA en lecture seule.
-- [ ] Guide d'exploitation illustré, export complet et exercice de restauration sur copie.
+- [x] Photos bornées, validation, gestion du disque, sauvegarde et restauration des médias.
+- [x] Rappels dans l'application, récurrences, report et accomplissement explicites.
+- [x] Listes de vérification de stade, sans commandes embarquées ni nouvelles alarmes de contrôle.
+- [x] Agrégats climatiques durables depuis snapshots existants, qualité et couverture visibles.
+- [x] Bilan enrichi et comparaison simple entre cycles, consultation PWA en lecture seule.
+- [x] Guide d'exploitation illustré, export complet et exercice de restauration sur copie.
 
 Sortie : cycle consultable de bout en bout avec contexte, pièces jointes et bilan ; interruptions
 réseau, stockage et redémarrages ne produisent ni perte silencieuse ni action matérielle.
+
+Validation de clôture du jalon 3, le 8 septembre 2026 après reprise :
+
+- Suite Python complète : 273 tests réussis, 62 avertissements de dépréciation Pydantic/aiohttp.
+- Suite navigateur : 130 cas, 90 réussites, 38 exclusions prévues et deux échecs de sélecteur
+  sur le volet de fin de séchage. Sélecteur corrigé, puis les deux parcours bureau/téléphone
+  relancés avec succès : les 92 cas applicables ont été validés.
+- Photos et rappels sur bureau/320 px, accessibilité axe, PWA datée sans rejeu de POST,
+  références visuelles du tableau de bord et de l'historique vérifiées.
+- Restauration ZIP sur nouvelle copie : comparaison de toutes les tables et d'une photo,
+  refus d'archives altérées, incomplètes ou à chemin extérieur ; outil CLI également exercé.
+- Vérification datée le jour d'un changement de stade horodaté corrigée et testée.
+- Publication de la restauration synchronisée avant retrait du marqueur d'incomplétude.
+- Guide illustré, contrat API et procédure de sauvegarde mis à jour ; instructions miroirs
+  synchronisées. Aucune intervention sur le Pi ni configuration machine modifiée.
 
 ### Hors périmètre de ces jalons
 

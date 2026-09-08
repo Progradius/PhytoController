@@ -13,6 +13,7 @@ from tests.test_http_server import CSRF_TOKEN, web_context
 from utils.culture_backup import restore_copy
 from utils.culture_store import CultureStore, CultureUnavailable
 from utils.culture_solution_store import SOLUTION_TABLES
+from utils.culture_cycle_store import CYCLE_TABLES
 
 
 def entry(kind="renewal", day="2026-08-01", **extra):
@@ -154,7 +155,7 @@ async def test_migration_v1_sauvegarde_et_schema_futur(cultures, tmp_path):
     source = cultures.path
     await cultures.close()
     with sqlite3.connect(source) as db:
-        for table in reversed(SOLUTION_TABLES):
+        for table in reversed(SOLUTION_TABLES + CYCLE_TABLES):
             db.execute(f"DROP TABLE {table}")
         db.execute("PRAGMA user_version=1")
     assert (await cultures.call("detail", lot["subject_id"]))["subject"]["initial_count"] == 8
@@ -236,7 +237,7 @@ async def test_migration_interrompue_ne_publie_pas_un_schema_partiel(cultures):
     path = cultures.path
     await cultures.close()
     with sqlite3.connect(path) as db:
-        for table in reversed(SOLUTION_TABLES):
+        for table in reversed(SOLUTION_TABLES + CYCLE_TABLES):
             db.execute(f"DROP TABLE {table}")
         db.execute("CREATE TABLE recipes (incompatible TEXT)")
         db.execute("PRAGMA user_version=1")

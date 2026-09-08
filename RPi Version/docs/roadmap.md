@@ -223,7 +223,9 @@ Les stades sont déclaratifs ; aucune commande matérielle ni dépendance du con
 Voir le [plan détaillé](../tasks/gestion_cultures_plan.md), le [guide](operations/cultures.md)
 et le [contrat API](reference/cultures-api.md). Le jalon 2 est implémenté sur la même branche : solutions et préparations datées, pH/EC,
 arrosages partagés, recettes versionnées, corrections, courbes et export CSV filtré ;
-les photos, rappels et synthèses durables constituent le jalon 3. Ce chantier ne clôt aucun risque matériel ci-dessus.
+le jalon 3 ajoute photos bornées, rappels, vérifications déclaratives, synthèses climatiques
+durables, bilan enrichi, comparaison, consultation PWA et sauvegarde ZIP restaurable sur copie.
+Les trois jalons sont implémentés et vérifiés hors matériel, sans déploiement Pi. Ce chantier ne clôt aucun risque matériel ci-dessus.
 
 
 ```text

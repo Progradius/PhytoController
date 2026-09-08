@@ -232,7 +232,7 @@ to `PuppetMaster`.
   boucle de contrôle ou dans l'event loop. Les annotations de `/actions/history/notes` sont des événements
   auxiliaires sans effet sur la régulation ; leur texte ne doit jamais être recopié dans les logs.
 
-## Carnet de cultures (livraisons 1 et 2)
+## Carnet de cultures (livraisons 1 à 3)
 
 `model/culture.py` contient les règles pures ; `utils/culture_store.py` est le seul écrivain de
 `param/cultures.sqlite3`, dans un thread auxiliaire borné. `network/web/cultures.py` expose `/cultures`
@@ -249,8 +249,15 @@ et intersections occupation/solution sont reconstruits dans chaque transaction, 
 correction d’un parcours ; l’alimentation s’arrête à la coupe. Les arrosages multi-mères gardent
 un volume total unique et les préparations une copie figée des ingrédients. Les recettes sont
 versionnées. `/cultures/solutions` propose les saisies, corrections, filtres, courbes et CSV ;
-les agrégats journaliers ne mélangent jamais cibles et périodes de solution. Photos et rappels
-appartiennent au jalon 3. Les tests navigateur mutateurs du carnet sont désactivés
+les agrégats journaliers ne mélangent jamais cibles et périodes de solution. Le schéma 3 ajoute photos dans `param/culture_media/`, rappels versionnés, vérifications
+déclaratives et agrégats horaires durables (`CultureService`, snapshots existants uniquement,
+`gates_watchdog=False`). Seules les valeurs normales alimentent les agrégats ; les absences
+ne deviennent jamais des zéros. Les migrations conservent une copie `.before-v3.sqlite3`.
+La sauvegarde ZIP inclut base et médias avec manifeste ; `restore-cultures.py --bundle` ne
+publie qu’un nouveau dossier isolé. Les photos sont réencodées sans métadonnées et bornées
+en taille, dimensions, nombre et espace disque. La PWA garde au plus 20 pages du carnet et
+40 photos consultées, datées, relues après échec réseau seulement ; aucun rappel ne déclenche
+de notification système et aucune mutation n’est rejouée. Les tests navigateur mutateurs du carnet sont désactivés
 sur toute cible `PHYTO_UI_BASE_URL` externe ; leur base locale de test est temporaire.
 
 ## GPIO conventions — read before touching any pin code

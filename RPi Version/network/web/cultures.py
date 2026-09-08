@@ -19,7 +19,8 @@ class CultureViews:
         self.store = store or CultureStore(reliable=lambda: time_reliability().state == "synchronized")
 
     def routes(self):
-        return [web.get("/cultures/solutions", self.solutions_page),
+        from network.web.culture_cycles import CycleViews
+        return CycleViews(self).routes() + [web.get("/cultures/solutions", self.solutions_page),
                 web.get("/api/v1/cultures/solutions", self.solutions),
                 web.post("/api/v1/cultures/solutions", self.solution_mutate),
                 web.get("/api/v1/cultures/solutions/export", self.solution_export),

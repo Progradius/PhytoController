@@ -3,8 +3,9 @@
 ## Carnet de cultures
 
 `param/cultures.sqlite3` et ses annexes sont locaux et ignorés par Git. Les données n'ont pas
-la rétention de 72 h de l'historique technique. Utiliser le téléchargement de sauvegarde SQLite
-depuis `/cultures` : l'API SQLite produit une copie cohérente malgré le WAL. La procédure et
+la rétention de 72 h de l'historique technique. Utiliser la sauvegarde complète ZIP depuis `/cultures/cycles` : elle inclut la copie SQLite
+cohérente malgré le WAL, les fichiers `param/culture_media/` et leur manifeste SHA-256.
+Une sauvegarde SQLite seule ne suffit plus dès qu’une photo est enregistrée. La procédure et
 l'outil de restauration sur copie sont décrits dans [le guide du carnet](cultures.md#export-et-sauvegarde).
 Prévoir cette sauvegarde hors Pi avant toute migration du carnet ; le script de déploiement
 ne la réalise pas automatiquement.

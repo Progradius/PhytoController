@@ -6,17 +6,18 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from utils.culture_backup import restore_copy
+from utils.culture_backup import restore_bundle, restore_copy
 from utils.pretty_console import error, success
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("source", type=Path, help="Sauvegarde SQLite téléchargée")
+    parser.add_argument("source", type=Path, help="Sauvegarde SQLite ou ZIP complet téléchargé")
     parser.add_argument("destination", type=Path, help="Nouvelle copie isolée, non existante")
+    parser.add_argument("--bundle", action="store_true", help="Restaurer le ZIP vers un nouveau dossier avec ses photos")
     args = parser.parse_args()
     try:
-        restore_copy(args.source, args.destination)
+        (restore_bundle if args.bundle else restore_copy)(args.source, args.destination)
     except Exception as exc:
         error(f"Restauration du carnet refusée ({type(exc).__name__}). Vérifier les chemins, l'intégrité et la version.", name="cultures")
         return 1

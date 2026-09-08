@@ -31,3 +31,9 @@
 
 .solution-stage { stroke: currentColor; stroke-dasharray: 12 3 2 3; opacity: .5; }
 .solution-range { stroke: currentColor; stroke-width: 2; }
+.culture-photo { margin: 0; overflow-wrap: anywhere; }
+.culture-photo img { display: block; max-width: 100%; height: auto; border-radius: .5rem; }
+.culture-photo figcaption { margin-block: .6rem; }
+.culture-table-scroll { overflow-x: auto; max-width: 100%; }
+.culture-table-scroll th, .culture-table-scroll td { padding: .5rem; text-align: left; }
+.culture-form select[multiple] { min-height: 8rem; }

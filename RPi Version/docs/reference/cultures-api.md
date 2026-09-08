@@ -1,4 +1,4 @@
-# API du carnet de cultures (v1, livraisons 1 et 2)
+# API du carnet de cultures (v1, livraisons 1 à 3)
 
 Toutes les routes sont locales, dynamiques et `no-store`. Les POST exigent le jeton existant
 `X-CSRF-Token`, le Host autorisé et la même origine que le serveur. Corps JSON limité à 64 KiB.
@@ -225,3 +225,104 @@ avec une base toujours en version 1, le carnet refuse de l'écraser : vérifier 
 et résoudre la tentative précédente selon le guide. Une base de version 2 n'est pas rétrocompatible
 avec le code du jalon 1. Le script de restauration accepte des sauvegardes 1 ou 2 et produit
 uniquement une copie isolée ; une copie 1 est migrée lors de son ouverture par le nouveau code.
+
+## Cycles, photos et rappels — jalon 3 (schéma 3)
+
+Toutes les mutations gardent CSRF, origine, idempotence et confirmation explicite de date si
+l'horloge est incertaine. Les codes 400, 409 et 503 suivent les contrats précédents.
+Les actions restent déclaratives et n'écrivent ni configuration ni GPIO.
+
+| Route | Contenu |
+| --- | --- |
+| `GET /cultures/cycles` | Comparaison, climat, vérifications, rappels, galerie et sauvegarde |
+| `GET /api/v1/cultures/cycles` | Données correspondantes ; `subject` répétable (quatre maximum), `offset`, `reminder` pour retrouver sa page |
+| `POST /api/v1/cultures/cycles` | Rappel, suivi ou vérification déclarative |
+| `POST /api/v1/cultures/photos` | Envoi binaire borné lié à une révision d'événement |
+| `GET /cultures/photos/{photo_id}` | JPEG validé, `no-store` |
+| `GET /api/v1/cultures/bundle` | ZIP complet : SQLite cohérent, photos, manifeste SHA-256 |
+
+La réponse cycles contient `subjects`, `summaries`, `reminders`, `reminder_total`, `offset`,
+`media`, `storage`, `today`, `timezone` et `clock_reliable`. Une seule culture sélectionnée filtre
+ses rappels/photos ; sinon leur vue est globale. Les rappels sont paginés par 40, les actifs avant
+les clos, et incluent leurs anciennes `revisions`. La galerie montre au plus 100 photos récentes.
+Le détail de culture inclut les photos de tous les événements de sa page de journal, même anciens.
+
+### Rappels
+
+Création ou édition avec `operation=reminder`, `request_id`, `target` (UUID de culture ou
+`reservoir_2`/`cuttings_1`), `title` (160 caractères), `due_date` (date ISO, 2000–2100),
+`interval_days` (entier 0–366), `note` (4 000 caractères maximum). Une édition ajoute `id`
+et `version`, conserve les versions antérieures et refuse un rappel déjà clos.
+
+Suivi avec `operation=reminder_action`, `request_id`, `id`, `version`, `action` parmi
+`done`, `postponed`, `cancelled`, et une note facultative. Pour `postponed`, `due_date`
+est obligatoire et strictement ultérieure à l'ancienne échéance. Pour `done`, une récurrence
+positive crée atomiquement une occurrence fille calculée depuis le jour local d'accomplissement,
+avec `parent_id`. Aucun rattrapage automatique des occurrences manquées.
+
+Réponse : `saved`, `id`, `version`, `next_id` (UUID de l'occurrence suivante ou `null`).
+Un rappel déjà clos refuse une autre action, sauf répétition de la même clé d'idempotence.
+Il n'existe aucune notification système de carnet.
+
+### Vérifications et bilan
+
+`operation=checklist` reçoit `request_id`, `subject_id`, `version` du lot courant,
+`effective_at` (date sans heure), `checks` contenant exactement les trois booléens
+`lighting`, `pump`, `ventilation`, et `note` facultative. Le lot doit être actif ; la date
+ne peut précéder le jour local du début de son stade courant. La saisie conserve l'espace,
+le stade et les cases sans modifier la version du parcours. Réponse : `saved`, `id`.
+
+L'événement existant `finish` accepte dans son `payload` les champs supplémentaires `lessons`
+(4 000 caractères) et `origin_weights` (liste `{origin_id, weight_g}`). Les origines doivent
+appartenir au lot, sans doublon ; leur somme ne dépasse pas `weight_g` total lorsqu'il est saisi.
+Les anciennes révisions du bilan restent consultables.
+
+### Envoi et conservation des photos
+
+Le corps est binaire `application/octet-stream`, avec le jeton CSRF habituel et
+`X-Culture-Metadata` contenant un objet JSON encodé comme `encodeURIComponent(JSON.stringify(...))` :
+`request_id`, `subject_id`, `event_id`, `event_revision`, `caption` facultative (500 caractères),
+`confirm_date` si nécessaire. L'événement doit appartenir à la culture et ne pas être annulé.
+Une révision dépassée reçoit 409. L'empreinte des octets reçus participe à l'idempotence.
+Réponse : `saved`, `id` de photo, `subject_id`.
+
+La limite de 5 Mio est vérifiée même sans `Content-Length` ; réception limitée à 30 secondes,
+métadonnées à 7 000 caractères. La limite JSON globale reste 64 Kio. Erreurs spécifiques :
+413 (taille), 415 (type de corps), 408 (réception trop lente), 400 (photo invalide).
+
+JPEG/PNG/WebP seulement, sans animation, au plus 20 millions de pixels et 8 192 pixels par côté.
+Après décodage et orientation, un JPEG RGB de 1 600 pixels maximum est réencodé sans métadonnées.
+Quatre images par événement toutes révisions confondues, 5 000 images et 256 Mio au total,
+avec réserve disque de 128 Mio. Pas de suppression silencieuse des images référencées.
+Les fichiers internes orphelins de plus de 24 h sont nettoyés par lots d'au plus 40 à l'ajout.
+
+### Synthèses, migration et restauration
+
+`CultureService` lit un snapshot par minute, avec traitement dans le thread du magasin.
+Les statistiques horaires utilisent exclusivement les valeurs finies, activées, de qualité
+`normal` ; le snapshot applique déjà la fraîcheur. Les données absentes/dégradées n'alimentent
+pas les valeurs numériques. `valid_count`, `observed_count` et `coverage=valid_count/60`
+explicitent la couverture. Les zéros fiables comptent. Aucune acquisition matérielle supplémentaire.
+L'horloge non fiable suspend les ajouts ; les minutes répétées sont dédoublonnées.
+
+Chaque synthèse contient `subject`, `periods`, `measures` pH/EC, `checklists`, `climate` et
+`climate_truncated`. Le climat est commun à la serre ; les heures de bord ne sont pas découpées
+à la minute du cycle. Au plus 10 000 derniers points sont rendus par culture, sans purge des
+agrégats antérieurs. Les données purgées de l'historique technique ne sont pas reconstituées.
+
+Le schéma 3 ajoute `reminders`, `culture_checklists`, `climate_hours`, `climate_minutes`,
+`culture_media`. Les migrations 1 → 2 → 3 sont successives, chaque migration d'une base existante
+ayant sa sauvegarde exclusive `.before-v2.sqlite3` ou `.before-v3.sqlite3`.
+
+Le ZIP porte un manifeste `format=phyto-cultures-bundle`, `version=1`, `created_at`,
+`files` associant chaque chemin à `size` et `sha256`. La base et les médias sont exportés dans
+le même travail du thread propriétaire. La base est limitée à 128 Mio pour cet export.
+JSON et SQLite comprennent les références photo, mais seuls les ZIP incluent les images.
+Le script `restore-cultures.py --bundle` vérifie puis publie un dossier isolé ; la restauration
+SQLite seule accepte les schémas 1, 2 et 3, mais refuse une base qui référence des photos.
+Voir le [guide de restauration](../operations/cultures.md#restaurer-une-sauvegarde-complète-sur-copie).
+
+La PWA conserve seulement les pages et photos déjà consultées, datées et bornées en cache,
+après succès réseau. Un échec de transport autorise leur lecture seule ; une réponse HTTP
+d'erreur ne présente pas silencieusement une ancienne page comme actuelle. Les API restent
+hors cache et aucune mutation n'est stockée ou rejouée.

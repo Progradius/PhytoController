@@ -51,7 +51,7 @@
 {% endmacro %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% block content %}
-<h1>Solutions et relevés</h1><nav class="culture-links" aria-label="Navigation du carnet"><a href="/cultures">Cultures et parcours</a><a href="#recettes">Recettes</a><a href="#journal-solutions">Journal et courbes</a></nav>
+<h1>Solutions et relevés</h1><nav class="culture-links" aria-label="Navigation du carnet"><a href="/cultures">Cultures et parcours</a><a href="/cultures/cycles">Cycles et rappels</a><a href="#recettes">Recettes</a><a href="#journal-solutions">Journal et courbes</a></nav>
 <p>Carnet déclaratif. Une saisie ne modifie aucun équipement ni réglage.</p>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates et les âges affichés.</p>{% endif %}

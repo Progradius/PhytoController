@@ -10,6 +10,8 @@
   let lastContactAt = null;
   let connectionState = "unknown";
   let degradedDetail = "";
+  const cachedCultureDocument = document.querySelector('meta[name="phyto-offline-snapshot"]');
+  const cultureSnapshotAt = Number(cachedCultureDocument?.content) || null;
   let offlineAtBoot = false;
   let contactedThisPage = false;
   let deferredInstallPrompt = null;
@@ -178,6 +180,7 @@
   };
 
   const markServerContact = async (receivedAt = Date.now()) => {
+    if (cachedCultureDocument) { window.location.reload(); return; }
     const wasUnavailable = connectionState === "offline" || connectionState === "degraded";
     const wasOffline = connectionState === "offline";
     contactedThisPage = true;
@@ -203,6 +206,7 @@
   };
 
   const markServerDegraded = (detail = "") => {
+    if (cachedCultureDocument) return;
     const changed = connectionState !== "degraded" || degradedDetail !== detail;
     contactedThisPage = true;
     connectionState = "degraded";
@@ -488,7 +492,7 @@
   const initialize = async () => {
     configureSecureNotice();
     configureInstallation();
-    lastContactAt = await getPreference("lastContactAt", null);
+    lastContactAt = cultureSnapshotAt || await getPreference("lastContactAt", null);
     notificationEnabled = await getPreference("notificationsEnabled", false);
     alarmSeen = await getPreference("alarmSeen", {});
     alarmSeenInitialized = await getPreference("alarmSeenInitialized", false);
@@ -522,5 +526,9 @@
     });
   };
 
+  if (cachedCultureDocument) {
+    lastContactAt = cultureSnapshotAt; offlineAtBoot = true; connectionState = "offline";
+    updateConnectionBanner();
+  }
   initialize();
 })();

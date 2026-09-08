@@ -22,15 +22,18 @@ from model.culture import (CultureConflict, CultureError, event_payload, integer
 from model.culture_solution import RESERVOIRS
 from utils.culture_solution_store import SolutionStoreMixin, SOLUTION_SCHEMA, SOLUTION_TABLES
 
-SCHEMA_VERSION = 2
-TABLES = ("settings", "subjects", "origins", "events", "requests") + SOLUTION_TABLES
+from utils.culture_cycle_store import CycleStoreMixin, CYCLE_SCHEMA, CYCLE_TABLES
+from utils.culture_media_store import MediaStoreMixin
+
+SCHEMA_VERSION = 3
+TABLES = ("settings", "subjects", "origins", "events", "requests") + SOLUTION_TABLES + CYCLE_TABLES
 
 
 class CultureUnavailable(RuntimeError):
     pass
 
 
-class CultureStore(SolutionStoreMixin):
+class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
     FILE = Path(__file__).resolve().parents[1] / "param" / "cultures.sqlite3"
 
     def __init__(self, path=None, *, now=None, reliable=None, zone="Europe/Paris"):
@@ -75,7 +78,7 @@ class CultureStore(SolutionStoreMixin):
             if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise CultureUnavailable("Carnet corrompu conservé sur disque ; restaurer une sauvegarde.")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (1, SCHEMA_VERSION) and (version != 0 or existed):
+            if version not in (1, 2, SCHEMA_VERSION) and (version != 0 or existed):
                 raise CultureUnavailable("Schéma du carnet incompatible ; données conservées.")
             db.execute("PRAGMA foreign_keys=ON")
             db.execute("PRAGMA journal_mode=WAL")
@@ -108,30 +111,21 @@ class CultureStore(SolutionStoreMixin):
                 db.commit()
             if version in (0, 1):
                 if version == 1:
-                    # Sauvegarde cohérente avant toute migration, sans copier le WAL vivant.
-                    backup_path = self.path.with_name(self.path.name + ".before-v2.sqlite3")
-                    if backup_path.exists():
-                        raise CultureUnavailable("Sauvegarde avant migration déjà présente ; vérifier cette copie avant de réessayer.")
-                    with tempfile.TemporaryDirectory(dir=self.path.parent, prefix=".culture-migrate-") as directory:
-                        temporary = Path(directory) / "backup.sqlite3"
-                        backup = sqlite3.connect(str(temporary))
-                        try:
-                            db.backup(backup)
-                        finally:
-                            backup.close()
-                        temporary.chmod(0o600)
-                        with temporary.open("rb") as source:
-                            os.fsync(source.fileno())
-                        os.link(temporary, backup_path)
-                        descriptor = os.open(str(self.path.parent), os.O_RDONLY)
-                        try:
-                            os.fsync(descriptor)
-                        finally:
-                            os.close(descriptor)
+                    self._migration_backup(db, 2)
                 try:
                     db.executescript("BEGIN IMMEDIATE;" + SOLUTION_SCHEMA)
                     db.executemany("INSERT INTO reservoirs VALUES (?,?,?)", [(key, *value) for key, value in RESERVOIRS.items()])
                     db.execute("PRAGMA user_version=2")
+                    db.commit()
+                except BaseException:
+                    db.rollback()
+                    raise
+            if version in (0, 1, 2):
+                if version in (1, 2):
+                    self._migration_backup(db, 3)
+                try:
+                    db.executescript("BEGIN IMMEDIATE;" + CYCLE_SCHEMA)
+                    db.execute("PRAGMA user_version=3")
                     db.commit()
                 except BaseException:
                     db.rollback()
@@ -148,6 +142,27 @@ class CultureStore(SolutionStoreMixin):
         except BaseException:
             db.close()
             raise
+
+    def _migration_backup(self, db, target_version):
+        backup_path = self.path.with_name(self.path.name + f".before-v{target_version}.sqlite3")
+        if backup_path.exists():
+            raise CultureUnavailable("Sauvegarde avant migration déjà présente ; vérifier cette copie avant de réessayer.")
+        with tempfile.TemporaryDirectory(dir=self.path.parent, prefix=".culture-migrate-") as directory:
+            temporary = Path(directory) / "backup.sqlite3"
+            backup = sqlite3.connect(str(temporary))
+            try:
+                db.backup(backup)
+            finally:
+                backup.close()
+            temporary.chmod(0o600)
+            with temporary.open("rb") as source:
+                os.fsync(source.fileno())
+            os.link(temporary, backup_path)
+            descriptor = os.open(str(self.path.parent), os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
 
     def _events(self, subject_id=None, revisions=False):
         sql = "SELECT e.*, (SELECT MIN(v.sequence) FROM events v WHERE v.id=e.id) AS logical_sequence FROM events e WHERE 1=1"
@@ -198,6 +213,7 @@ class CultureStore(SolutionStoreMixin):
             event["revisions"] = [v for v in versions if v["id"] == event["id"] and v["revision"] < event["revision"]]
         return {"subject": subject, "events": events[offset:offset + 40], "total": len(events),
                 "offset": offset, "timezone": self.zone, "clock_reliable": self.reliable(),
+                "photos": self._media_for_events([e["id"] for e in events[offset:offset + 40]]),
                 "descendants": [{"id": s["id"], "name": s["name"]} for s in subjects
                                 if any(o["mother_id"] == subject_id for o in s["origins"])]}
 

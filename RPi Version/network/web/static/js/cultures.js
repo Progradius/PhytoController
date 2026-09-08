@@ -68,11 +68,17 @@
       const raw = get("weight_g").trim();
       const weight = raw ? Number(raw.replace(",", ".")) : null;
       if (weight !== null && !Number.isFinite(weight)) throw new Error("Poids sec invalide.");
-      Object.assign(data, {weight_g: weight, release: form.elements.release.checked});
+      Object.assign(data, {weight_g: weight, release: form.elements.release.checked, lessons: get("lessons"),
+        origin_weights: Array.from(form.querySelectorAll("[data-origin-weight]"))
+          .filter(input => input.value.trim()).map(input => {
+            const value = Number(input.value.replace(",", "."));
+            if (!Number.isFinite(value)) throw new Error("Poids par origine invalide.");
+            return {origin_id: input.dataset.originWeight, weight_g: value};
+          })});
     }
     return data;
   };
-  document.querySelectorAll(".culture-form").forEach(form => {
+  document.querySelectorAll("[data-culture-create], [data-culture-event], [data-culture-correct]").forEach(form => {
     form.querySelectorAll("input[data-instant]").forEach(input => {
       const d = new Date(input.dataset.instant);
       input.step = "any";

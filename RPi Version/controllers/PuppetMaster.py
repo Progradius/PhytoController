@@ -21,6 +21,7 @@ from utils import watchdog
 from param.config import AppConfig
 from utils.operational_state import publish
 from utils.time_reliability import monitor_time_reliability
+from controllers.CultureService import CultureService
 from controllers.OperatorService import OperatorService
 from param.config_store import shared_config
 from param.equipment_metadata import EquipmentMetadataStore
@@ -270,6 +271,9 @@ class PuppetMaster:
             operator_service=self.operator_service,
             equipment_store=self.equipment_store,
         )
+        culture_service = CultureService(server.cultures.store, self.sensor_handler)
+        sup.register("culture_service", culture_service.run, max_silence=300,
+                     domain="cultures", gates_watchdog=False)
         sup.register("http_server", server.run, max_silence=None,
                      domain="http", gates_watchdog=False)
 

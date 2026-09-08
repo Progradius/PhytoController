@@ -147,7 +147,7 @@ test("semis, correction d’effectif, transfert, récolte et libération", async
   await expect(page.getByText("9 plantes restantes · 9 au départ")).toBeVisible();
   const perform = async (kind, date, fill) => {
     const action = page.locator(`form[data-culture-event][data-kind="${kind}"]`);
-    await action.locator("..").locator("summary").click();
+    await action.locator("..").locator(":scope > summary").click();
     await action.locator('[name="effective_at"]').fill(date);
     if (fill) await fill(action);
     const response = page.waitForResponse(r => r.url().endsWith("/api/v1/cultures") && r.request().method() === "POST");
@@ -248,4 +248,82 @@ test("solutions : panne réseau, conservation des champs et idempotence", async 
   await expect(form.locator("output")).toContainText("Hors ligne");
   await page.context().setOffline(false);
   expect(bodies).toHaveLength(2);
+});
+
+test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau", async ({page}, testInfo) => {
+  test.skip(!["desktop-chromium", "mobile-etroit"].includes(testInfo.project.name), "Deux formats pour le parcours complet.");
+  test.setTimeout(60000);
+  const mother = await createMother(page, `Mère carnet ${testInfo.project.name}`);
+  const photoForm = page.locator("[data-photo-form]").first();
+  await photoForm.locator("..").locator("summary").click();
+  await photoForm.getByLabel("Légende", {exact: true}).fill("Image de test du carnet");
+  await photoForm.getByLabel("Photo", {exact: true}).setInputFiles({name: "faux.jpg", mimeType: "image/jpeg", buffer: Buffer.from("<svg></svg>")});
+  await photoForm.getByRole("button", {name: "Enregistrer la photo"}).click();
+  await expect(photoForm.locator("output")).toContainText("Photo invalide");
+  await expect(photoForm.getByLabel("Légende", {exact: true})).toHaveValue("Image de test du carnet");
+  // Image synthétique issue de la page de test ; aucune photo de l'exploitation.
+  const photo = await page.screenshot({type: "jpeg", clip: {x: 0, y: 0, width: 250, height: 150}});
+  await photoForm.getByLabel("Photo", {exact: true}).setInputFiles({name: "photo-test.jpg", mimeType: "image/jpeg", buffer: photo});
+  await photoForm.getByRole("button", {name: "Enregistrer la photo"}).click();
+  await expect(page.getByRole("img", {name: "Image de test du carnet"})).toBeVisible();
+  await page.goto(`/cultures/cycles?subject=${mother}`);
+  await page.getByText("Créer un rappel", {exact: true}).click();
+  const form = page.locator('[data-cycle-form][data-operation="reminder"]').first();
+  await form.getByLabel("Rappel", {exact: true}).fill("Contrôler le carnet");
+  await form.getByLabel("Échéance", {exact: true}).fill("2026-09-10");
+  await form.getByLabel("Récurrence en jours (0 = ponctuel)").fill("2");
+  await form.getByRole("button", {name: "Enregistrer le rappel"}).click();
+  await expect(page.getByRole("heading", {name: "Contrôler le carnet"})).toBeVisible();
+  const action = page.locator('[data-operation="reminder_action"]').first();
+  await action.getByRole("combobox", {name: "Action sur le rappel"}).selectOption("postponed");
+  await action.getByLabel("Nouvelle échéance (pour reporter)").fill("2026-09-12");
+  await action.getByRole("button", {name: "Enregistrer le suivi"}).click();
+  await expect(page.getByText("Reporté · échéance 12/09/2026")).toBeVisible();
+  await action.getByRole("button", {name: "Enregistrer le suivi"}).click();
+  await expect(page.getByRole("heading", {name: "Contrôler le carnet"})).toHaveCount(2);
+  await expect(page.getByText("Aucune synthèse climatique disponible pour ce cycle.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await page.screenshot({path: `/tmp/phyto-cycles-${testInfo.project.name}.png`, fullPage: true});
+  await page.locator("#rappels").screenshot({path: `/tmp/phyto-reminders-${testInfo.project.name}.png`});
+});
+
+test("cycles : PWA datée en lecture seule et aucune mutation rejouée", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "pwa-chromium", "Le service worker est réservé au profil PWA.");
+  test.setTimeout(60000);
+  const mother = await createMother(page, "Mère PWA carnet");
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.goto(`/cultures/cycles?subject=${mother}`);
+  await page.getByText("Créer un rappel", {exact: true}).click();
+  const form = page.locator('[data-cycle-form][data-operation="reminder"]').first();
+  await form.getByLabel("Rappel", {exact: true}).fill("Rappel PWA");
+  await form.getByLabel("Échéance", {exact: true}).fill("2026-09-10");
+  await form.getByRole("button", {name: "Enregistrer le rappel"}).click();
+  await expect(page.getByRole("heading", {name: "Rappel PWA"})).toBeVisible();
+  await expect.poll(() => page.evaluate(async () => {
+    const names = await caches.keys();
+    for (const name of names.filter(n => n.startsWith("phyto-cultures-"))) {
+      if (await (await caches.open(name)).match(location.href.split("#")[0])) return true;
+    }
+    return false;
+  })).toBe(true);
+  let posts = 0;
+  page.on("request", request => { if (request.method() === "POST") posts++; });
+  await page.context().setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", {name: "Rappel PWA"})).toBeVisible();
+  await expect(page.locator("#pwa-connection-banner")).toContainText("lecture seule");
+  await expect(page.locator('meta[name="phyto-offline-snapshot"]')).toHaveCount(1);
+  await expect(page.getByRole("button", {name: "Enregistrer le suivi"})).toBeDisabled();
+  const cachedApis = await page.evaluate(async () => {
+    const urls = [];
+    for (const name of await caches.keys()) for (const key of await (await caches.open(name)).keys()) urls.push(new URL(key.url).pathname);
+    return urls.filter(path => path.startsWith("/api/") || path.startsWith("/actions/"));
+  });
+  expect(cachedApis).toEqual([]);
+  await page.context().setOffline(false);
+  await page.reload();
+  await expect(page.locator('meta[name="phyto-offline-snapshot"]')).toHaveCount(0);
+  await expect(page.getByRole("button", {name: "Enregistrer le suivi"})).toBeEnabled();
+  expect(posts).toBe(0);
 });

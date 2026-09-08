@@ -2,6 +2,8 @@
 
 const CACHE_VERSION = "__PHYTO_CACHE_VERSION__";
 const ASSET_CACHE = `phyto-assets-${CACHE_VERSION}`;
+const CULTURE_CACHE = `phyto-cultures-${CACHE_VERSION}`;
+const MEDIA_CACHE = `phyto-culture-media-${CACHE_VERSION}`;
 const PAGE_CACHE = `phyto-pages-${CACHE_VERSION}`;
 const PRECACHE_URLS = __PHYTO_PRECACHE_URLS__;
 
@@ -34,7 +36,9 @@ self.addEventListener("activate", (event) => {
     await Promise.all(names
       .filter((name) => (
         (name.startsWith("phyto-assets-") && name !== ASSET_CACHE) ||
-        (name.startsWith("phyto-pages-") && name !== PAGE_CACHE)
+        (name.startsWith("phyto-pages-") && name !== PAGE_CACHE) ||
+        (name.startsWith("phyto-cultures-") && name !== CULTURE_CACHE) ||
+        (name.startsWith("phyto-culture-media-") && name !== MEDIA_CACHE)
       ))
       .map((name) => caches.delete(name)));
     await self.clients.claim();
@@ -69,6 +73,39 @@ const navigationFallback = async (request, cacheable) => {
   }
 };
 
+
+// Le carnet reste réseau d'abord. Seul un échec de transport permet de relire une page datée.
+const cultureFallback = async (request, photo = false) => {
+  let cache = null;
+  try { cache = await caches.open(photo ? MEDIA_CACHE : CULTURE_CACHE); } catch (_error) { /* Le stockage ne bloque pas le réseau. */ }
+  try {
+    const response = await fetch(request);
+    if (response.ok && cache) {
+      try {
+      const copy = response.clone();
+      const bytes = await copy.arrayBuffer();
+      if (bytes.byteLength <= 4 * 1024 * 1024) {
+        const headers = new Headers(response.headers);
+        headers.delete("Content-Encoding"); headers.delete("Content-Length");
+        headers.set("X-Phyto-Cached-At", String(Date.now()));
+        await cache.delete(request.url);
+        await cache.put(request.url, new Response(bytes, {status: response.status, headers}));
+        const keys = await cache.keys();
+        for (const key of keys.slice(0, Math.max(0, keys.length - (photo ? 40 : 20)))) await cache.delete(key);
+      }
+      } catch (_error) { /* Une réponse réseau réussie reste prioritaire sur un cache saturé. */ }
+    }
+    return response;
+  } catch (_error) {
+    const cached = cache ? await cache.match(request.url) : null;
+    if (!cached) return photo ? Response.error() : (await caches.match("/offline")) || Response.error();
+    if (photo) return cached;
+    const at = Number(cached.headers.get("X-Phyto-Cached-At")) || 0;
+    const html = (await cached.text()).replace("</head>", `<meta name="phyto-offline-snapshot" content="${at}"></head>`);
+    return new Response(html, {status: 200, headers: cached.headers});
+  }
+};
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -87,6 +124,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (/^\/cultures\/photos\/[0-9a-f-]{36}$/.test(url.pathname)) {
+    event.respondWith(cultureFallback(request, true)); return;
+  }
+  if (request.mode === "navigate" && /^\/cultures(?:\/(?:cycles|solutions|[0-9a-f-]{36}))?$/.test(url.pathname)) {
+    event.respondWith(cultureFallback(request)); return;
+  }
   if (request.mode === "navigate") {
     const cacheable = (
       url.search === "" &&

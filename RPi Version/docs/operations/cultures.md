@@ -1,11 +1,11 @@
-# Carnet de cultures — livraisons 1 et 2
+# Carnet de cultures — livraisons 1 à 3
 
 Le menu **Cultures** ouvre `/cultures`. Sur téléphone, il se trouve dans **Plus** ; le tableau
 de bord comporte aussi un résumé des deux espaces et un accès au carnet.
 
 Le carnet conserve les données sans purge automatique, indépendamment de l'historique technique
 de 72 h. Ses actions ne changent ni horaires, ni pompe, ni ventilation. Les réglages continuent
-de se faire dans **Configuration**. Les relevés pH/EC, solutions, arrosages et recettes sont disponibles dans **Solutions, relevés et arrosages**. Les photos et rappels appartiennent au jalon 3.
+de se faire dans **Configuration**. Les relevés pH/EC, solutions, arrosages et recettes sont disponibles dans **Solutions, relevés et arrosages**. Les photos, rappels et comparaisons sont accessibles dans **Cycles et rappels**.
 
 ## Commencer avec une culture existante
 
@@ -72,10 +72,11 @@ Si une réponse réseau est perdue, réessayer **sans changer les champs** : la 
 permet de retrouver l'enregistrement au lieu de le dupliquer. Ne pas fermer la page contenant
 une saisie non confirmée. Aucun formulaire n'est enregistré ou envoyé automatiquement hors ligne.
 
-Le carnet de cette livraison ne dispose pas encore de snapshots PWA pour ses fiches. Une page
-déjà ouverte peut rester visible après une coupure, mais elle est ancienne ; la bannière PWA
-et la désactivation des formulaires s'appliquent. Recharger après reconnexion pour actualiser
-les fiches et les compteurs. Le résumé du tableau se rafraîchit chaque minute quand il est visible.
+Dans la PWA, les pages du carnet déjà consultées peuvent être relues après un échec réseau,
+avec leur date de capture et une bannière de lecture seule. Le cache est borné à 20 pages et
+40 photos consultées, avec 4 Mio maximum par réponse ; leur disponibilité hors ligne dépend
+du stockage du navigateur. Les formulaires restent désactivés et aucune commande n'est rejouée.
+Recharger après reconnexion pour actualiser les fiches et les compteurs. Le résumé du tableau se rafraîchit chaque minute quand il est visible.
 
 ## Export et sauvegarde
 
@@ -85,7 +86,11 @@ La section en bas de page concerne le carnet complet, archives et révisions com
 - JSON versionné : toutes les tables et relations, destiné à l'interopérabilité et au diagnostic.
 - SQLite : sauvegarde restaurable créée avec l'API de sauvegarde SQLite, cohérente avec le WAL.
 
-Conserver régulièrement une sauvegarde SQLite hors du Pi et impérativement avant une migration
+Le bouton **Télécharger la sauvegarde complète ZIP** inclut aussi les photos et un manifeste
+d’empreintes SHA-256. Une base SQLite seule ne contient pas les fichiers photo ; sa restauration
+est refusée si elle en référence. JSON et CSV restent des exports, sans import automatique.
+
+Conserver régulièrement une sauvegarde complète ZIP hors du Pi et impérativement avant une migration
 de schéma. Le fichier vivant est `param/cultures.sqlite3` avec ses annexes `-wal` et `-shm`.
 Git les ignore. Le script de déploiement ne remplace pas une sauvegarde du carnet.
 
@@ -193,3 +198,96 @@ Le code du jalon 1 refuse une base de version 2. Un retour arrière du code néc
 restauration **explicite et supervisée** de la sauvegarde antérieure et perdrait les saisies du
 jalon 2 absentes de cette copie. Exporter/sauvegarder d'abord le carnet actuel. Aucun déploiement
 ou remplacement du carnet de production n'est effectué par les validations automatisées.
+
+
+## Photos d'un événement
+
+Sur la fiche d'une mère ou d'un lot, ouvrir l'ajout de photo sous l'événement concerné,
+choisir le fichier, ajouter une légende facultative puis enregistrer. La photo reste liée à
+la révision de cet événement ; corriger le journal n'efface pas l'image passée. Le journal
+paginé donne accès aux photos anciennes, même au-delà des 100 images de la galerie des cycles.
+
+Les formats acceptés sont JPEG, PNG et WebP non animés : 5 Mio par envoi, 20 mégapixels et
+8 192 pixels par côté au maximum, quatre photos par événement. Le serveur vérifie le contenu,
+redresse l'orientation puis crée un JPEG de 1 600 pixels maximum sans métadonnées incorporées.
+Le fichier original n'est pas conservé. Les légendes restent dans le carnet et ses exports.
+
+Le budget global est de 256 Mio et 5 000 photos avec une réserve disque de 128 Mio.
+En cas de refus, aucune ancienne photo n'est supprimée pour faire de la place. L'état du stockage
+est visible en bas de **Cycles et rappels**. Une réponse perdue ne prouve pas un échec : garder
+le fichier et les champs sélectionnés puis réessayer la même saisie pour éviter un doublon.
+
+## Rappels et vérifications
+
+Dans `/cultures/cycles`, ouvrir **Créer un rappel**, choisir la culture ou le réservoir,
+le titre et l'échéance. Une récurrence de zéro signifie ponctuel ; sinon saisir de 1 à 366 jours.
+Les états sont **Prévu**, **Reporté**, **Fait** et **Annulé**, avec historique des changements.
+Un report exige une échéance ultérieure. Marquer un rappel récurrent fait crée une seule
+prochaine occurrence, calculée depuis la date réelle d'accomplissement. Annuler ne crée rien.
+
+![Rappels sur écran étroit, avec données de démonstration](../images/cultures-jalon3-rappels-mobile.png)
+
+Les rappels s'affichent dans cette page ; ils ne produisent aucune notification système.
+Un rappel clos reste consultable. Une nouvelle tentative identique ne crée pas de deuxième
+occurrence ; une modification depuis un onglet périmé reçoit un conflit.
+
+Pour un lot sélectionné, la liste des équipements renvoie aux réglages existants de son espace
+et de la ventilation commune. Elle s'ouvre lors du séchage si aucune vérification n'existe.
+Enregistrer la date, les cases vérifiées et une note conserve le stade et l'espace déclarés
+à cet instant. Les cases ne commandent aucun équipement et ne constituent pas une preuve
+électrique. La date du changement de stade peut être utilisée même si celui-ci est horodaté.
+
+## Lire et comparer les cycles
+
+Sélectionner jusqu'à quatre cultures dans **Comparer les cycles**, puis afficher les cycles.
+La vue rassemble parcours datés, effectifs, bilan, statistiques pH/EC et climat commun à la serre.
+Le bilan de fin de séchage accepte des enseignements pour le prochain cycle et des poids secs
+facultatifs par origine ; leur somme ne peut pas dépasser le total lorsqu'il est renseigné.
+Les mesures détaillées restent accessibles dans les solutions contextualisées.
+
+![Comparaison et accès au carnet sur bureau, données de démonstration](../images/cultures-jalon3-cycles-bureau.png)
+
+Le service de culture prélève chaque minute une copie des acquisitions existantes, sans lire
+les capteurs. Seules les valeurs activées, finies et de qualité normale contribuent au minimum,
+maximum et à la moyenne. Une absence ou une mesure dégradée compte comme une minute observée
+sans valeur fiable ; zéro reste une vraie valeur. Le statut du snapshot inclut sa fraîcheur.
+
+Les agrégats horaires survivent à la purge de l'historique technique et aux redémarrages.
+La couverture est le nombre de minutes fiables divisé par 60, y compris pour une heure partielle.
+Les heures au bord d'un cycle peuvent inclure des minutes extérieures à celui-ci. L'interface
+limite l'affichage aux 10 000 derniers points horaires par culture ; la sauvegarde conserve tout.
+Aucune donnée antérieure à l'activation n'est reconstituée. Une horloge non fiable suspend la
+synthèse. Les courbes restent descriptives, sans dosage ni diagnostic causal automatique.
+
+## Restaurer une sauvegarde complète sur copie
+
+Télécharger le ZIP et le conserver hors du Pi, puis choisir un dossier de destination inexistant :
+
+```bash
+.venv/bin/python scripts/restore-cultures.py --bundle /tmp/cultures-complet.zip /tmp/carnet-verifie
+```
+
+L'outil contrôle le manifeste, les tailles, chemins, empreintes, références SQLite et images,
+puis crée `cultures.sqlite3` et `culture_media/` ensemble dans cette nouvelle destination.
+Il refuse toute destination existante et le répertoire du carnet actif. Un arrêt pendant la
+publication peut laisser `.restauration-incomplete` : cette copie ne doit pas être utilisée ;
+conserver le diagnostic et recommencer vers un autre dossier neuf.
+
+L'exercice automatisé `test_photos_idempotence_limite_evenement_et_sauvegarde` crée quatre photos,
+exporte un ZIP, restaure une copie, la rouvre et compare toutes les tables ainsi que les octets
+d'une photo. Il exécute aussi l'outil en ligne de commande sur une seconde destination.
+Les archives altérées, incomplètes et contenant un chemin extérieur sont refusées.
+Cela vérifie la restauration sur copie ; le remplacement du carnet actif reste une opération
+supervisée selon la procédure précédente, avec la base **et** son répertoire de médias.
+
+## Migration vers le jalon 3
+
+À l'ouverture d'un carnet de version 2, une copie cohérente
+`cultures.sqlite3.before-v3.sqlite3` est créée avant la migration transactionnelle en schéma 3.
+Depuis la version 1, les deux migrations et leurs sauvegardes sont successives. Une sauvegarde
+préalable existante n'est jamais écrasée. Le schéma 3 ajoute photos, rappels, vérifications et
+agrégats ; les anciennes versions du code ne peuvent pas l'ouvrir. Sauvegarder le carnet complet
+avant tout retour arrière : restaurer une ancienne copie perdrait les saisies ultérieures.
+
+Les captures de ce guide proviennent de la base temporaire des tests navigateur ; elles ne
+montrent aucune donnée d'exploitation. Le jalon est validé hors matériel, sans déploiement Pi.
