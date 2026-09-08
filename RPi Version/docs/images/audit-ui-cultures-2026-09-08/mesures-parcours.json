@@ -1,0 +1,346 @@
+{
+  "subject": "18794278-b82b-4563-8c49-44d51887a7f7",
+  "detailAxe": [],
+  "contextBefore": "18794278-b82b-4563-8c49-44d51887a7f7",
+  "cyclesURL": "http://127.0.0.1:38123/cultures/cycles",
+  "cyclesSelected": [],
+  "lightMinutesBefore": "960",
+  "lightMinutesAfter": "720",
+  "pages": [
+    {
+      "name": "detail",
+      "width": 393,
+      "height": 3409,
+      "headings": [
+        {
+          "text": "Lot A — suivi de septembre",
+          "y": 255
+        },
+        {
+          "text": "Parcours",
+          "y": 983
+        },
+        {
+          "text": "Ajouter au carnet",
+          "y": 1131
+        },
+        {
+          "text": "Compléter le parcours passé",
+          "y": 1620
+        },
+        {
+          "text": "Journal et corrections",
+          "y": 1964
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "detail",
+      "width": 1440,
+      "height": 2492,
+      "headings": [
+        {
+          "text": "Lot A — suivi de septembre",
+          "y": 210
+        },
+        {
+          "text": "Parcours",
+          "y": 453
+        },
+        {
+          "text": "Ajouter au carnet",
+          "y": 770
+        },
+        {
+          "text": "Compléter le parcours passé",
+          "y": 1024
+        },
+        {
+          "text": "Journal et corrections",
+          "y": 1218
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "solutions",
+      "width": 393,
+      "height": 4600,
+      "headings": [
+        {
+          "text": "Solutions et relevés",
+          "y": 91
+        },
+        {
+          "text": "Réservoir de l’espace 2",
+          "y": 309
+        },
+        {
+          "text": "Bac de bouturage de l’espace 1",
+          "y": 456
+        },
+        {
+          "text": "Saisie rapide",
+          "y": 610
+        },
+        {
+          "text": "Journal et courbes",
+          "y": 1612
+        },
+        {
+          "text": "Recettes réutilisables",
+          "y": 4227
+        }
+      ],
+      "chartText": [
+        {
+          "text": "6.40",
+          "height": 9
+        },
+        {
+          "text": "6.10",
+          "height": 9
+        },
+        {
+          "text": "06/09",
+          "height": 9
+        },
+        {
+          "text": "08/09",
+          "height": 9
+        }
+      ],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "solutions",
+      "width": 1440,
+      "height": 3677,
+      "headings": [
+        {
+          "text": "Solutions et relevés",
+          "y": 128
+        },
+        {
+          "text": "Réservoir de l’espace 2",
+          "y": 318
+        },
+        {
+          "text": "Bac de bouturage de l’espace 1",
+          "y": 318
+        },
+        {
+          "text": "Saisie rapide",
+          "y": 471
+        },
+        {
+          "text": "Journal et courbes",
+          "y": 1215
+        },
+        {
+          "text": "Recettes réutilisables",
+          "y": 3360
+        }
+      ],
+      "chartText": [
+        {
+          "text": "6.40",
+          "height": 16
+        },
+        {
+          "text": "6.10",
+          "height": 16
+        },
+        {
+          "text": "06/09",
+          "height": 16
+        },
+        {
+          "text": "08/09",
+          "height": 16
+        }
+      ],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "cycles",
+      "width": 393,
+      "height": 3484,
+      "headings": [
+        {
+          "text": "Cycles et rappels",
+          "y": 91
+        },
+        {
+          "text": "Comparer les cycles",
+          "y": 417
+        },
+        {
+          "text": "Lot A — suivi de septembre",
+          "y": 770
+        },
+        {
+          "text": "Climat commun à la serre · Lot A — suivi de septembre",
+          "y": 1260
+        },
+        {
+          "text": "Rappels dans le carnet",
+          "y": 1936
+        },
+        {
+          "text": "Photos et sauvegarde complète",
+          "y": 2768
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "cycles",
+      "width": 1440,
+      "height": 2852,
+      "headings": [
+        {
+          "text": "Cycles et rappels",
+          "y": 128
+        },
+        {
+          "text": "Comparer les cycles",
+          "y": 412
+        },
+        {
+          "text": "Lot A — suivi de septembre",
+          "y": 789
+        },
+        {
+          "text": "Climat commun à la serre · Lot A — suivi de septembre",
+          "y": 1222
+        },
+        {
+          "text": "Rappels dans le carnet",
+          "y": 1610
+        },
+        {
+          "text": "Photos et sauvegarde complète",
+          "y": 2402
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "journal",
+      "width": 393,
+      "height": 3683,
+      "headings": [
+        {
+          "text": "Journal du carnet",
+          "y": 91
+        },
+        {
+          "text": "Filtrer le journal",
+          "y": 590
+        },
+        {
+          "text": "Observer un espace",
+          "y": 1232
+        },
+        {
+          "text": "Opérations du carnet",
+          "y": 1461
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "journal",
+      "width": 1440,
+      "height": 2561,
+      "headings": [
+        {
+          "text": "Journal du carnet",
+          "y": 128
+        },
+        {
+          "text": "Filtrer le journal",
+          "y": 462
+        },
+        {
+          "text": "Observer un espace",
+          "y": 893
+        },
+        {
+          "text": "Opérations du carnet",
+          "y": 1072
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "archives",
+      "width": 393,
+      "height": 1519,
+      "headings": [
+        {
+          "text": "Cultures",
+          "y": 255
+        },
+        {
+          "text": "Espace 1",
+          "y": 650
+        },
+        {
+          "text": "Espace 2",
+          "y": 843
+        },
+        {
+          "text": "Archives",
+          "y": 1156
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    },
+    {
+      "name": "archives",
+      "width": 1440,
+      "height": 1124,
+      "headings": [
+        {
+          "text": "Cultures",
+          "y": 210
+        },
+        {
+          "text": "Espace 1",
+          "y": 478
+        },
+        {
+          "text": "Espace 2",
+          "y": 478
+        },
+        {
+          "text": "Archives",
+          "y": 767
+        }
+      ],
+      "chartText": [],
+      "overflow": 0,
+      "axe": []
+    }
+  ],
+  "daylightAxe": []
+}

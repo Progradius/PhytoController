@@ -1,0 +1,885 @@
+{
+  "rows": [
+    {
+      "route": "cultures",
+      "width": 1440,
+      "height": 1142,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Cultures",
+          "y": 210
+        },
+        {
+          "text": "Espace 1",
+          "y": 478
+        },
+        {
+          "text": "Espace 2",
+          "y": 478
+        },
+        {
+          "text": "Lots et pieds mères",
+          "y": 676
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Régler l’éclairage 1",
+          "h": 22
+        },
+        {
+          "text": "Régler l’éclairage 2",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/solutions",
+      "width": 1440,
+      "height": 2568,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Solutions et relevés",
+          "y": 128
+        },
+        {
+          "text": "Réservoir de l’espace 2",
+          "y": 318
+        },
+        {
+          "text": "Bac de bouturage de l’espace 1",
+          "y": 318
+        },
+        {
+          "text": "Saisie rapide",
+          "y": 471
+        },
+        {
+          "text": "Journal et courbes",
+          "y": 1215
+        },
+        {
+          "text": "Recettes réutilisables",
+          "y": 2251
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "plages cibles",
+          "h": 18
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/cycles",
+      "width": 1440,
+      "height": 1461,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Cycles et rappels",
+          "y": 128
+        },
+        {
+          "text": "Comparer les cycles",
+          "y": 412
+        },
+        {
+          "text": "Rappels dans le carnet",
+          "y": 767
+        },
+        {
+          "text": "Photos et sauvegarde complète",
+          "y": 1010
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Cycles et rappels",
+          "h": 22
+        },
+        {
+          "text": "Solutions et relevés",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/targets",
+      "width": 1440,
+      "height": 2123,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Plages cibles pH et EC",
+          "y": 128
+        },
+        {
+          "text": "Enregistrer une plage cible",
+          "y": 351
+        },
+        {
+          "text": "Plages enregistrées",
+          "y": 1553
+        }
+      ],
+      "smallTargets": [],
+      "violations": []
+    },
+    {
+      "route": "cultures/light",
+      "width": 1440,
+      "height": 1660,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Repères d’éclairage",
+          "y": 128
+        },
+        {
+          "text": "Horaires configurés et état opérationnel par espace",
+          "y": 428
+        },
+        {
+          "text": "Cultures en place, repère applicable et horaires configurés",
+          "y": 746
+        },
+        {
+          "text": "Ventilation commune et règles jour/nuit",
+          "y": 854
+        },
+        {
+          "text": "Repères enregistrés",
+          "y": 1053
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Ouvrir les réglages de l’éclairage 1",
+          "h": 22
+        },
+        {
+          "text": "Ouvrir les réglages de l’éclairage 2",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/equipment",
+      "width": 1440,
+      "height": 2340,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Affectations d’équipements",
+          "y": 128
+        },
+        {
+          "text": "Catalogue courant, en lecture seule",
+          "y": 351
+        },
+        {
+          "text": "Contexte connu à une date",
+          "y": 831
+        },
+        {
+          "text": "Périodes d’affectation par équipement",
+          "y": 1128
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "la configuration des équipements",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/journal",
+      "width": 1440,
+      "height": 1359,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Journal du carnet",
+          "y": 128
+        },
+        {
+          "text": "Filtrer le journal",
+          "y": 462
+        },
+        {
+          "text": "Observer un espace",
+          "y": 893
+        },
+        {
+          "text": "Opérations du carnet",
+          "y": 1072
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Journal du carnet",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Cycles et rappels",
+          "h": 22
+        },
+        {
+          "text": "Solutions et relevés",
+          "h": 22
+        },
+        {
+          "text": "Exporter ce filtre en CSV",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures",
+      "width": 393,
+      "height": 1640,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Cultures",
+          "y": 255
+        },
+        {
+          "text": "Espace 1",
+          "y": 650
+        },
+        {
+          "text": "Espace 2",
+          "y": 843
+        },
+        {
+          "text": "Lots et pieds mères",
+          "y": 1064
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Régler l’éclairage 1",
+          "h": 22
+        },
+        {
+          "text": "Régler l’éclairage 2",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/solutions",
+      "width": 393,
+      "height": 3237,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Solutions et relevés",
+          "y": 91
+        },
+        {
+          "text": "Réservoir de l’espace 2",
+          "y": 309
+        },
+        {
+          "text": "Bac de bouturage de l’espace 1",
+          "y": 456
+        },
+        {
+          "text": "Saisie rapide",
+          "y": 610
+        },
+        {
+          "text": "Journal et courbes",
+          "y": 1587
+        },
+        {
+          "text": "Recettes réutilisables",
+          "y": 2864
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "plages cibles",
+          "h": 18
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/cycles",
+      "width": 393,
+      "height": 1764,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Cycles et rappels",
+          "y": 91
+        },
+        {
+          "text": "Comparer les cycles",
+          "y": 417
+        },
+        {
+          "text": "Rappels dans le carnet",
+          "y": 753
+        },
+        {
+          "text": "Photos et sauvegarde complète",
+          "y": 1048
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Cycles et rappels",
+          "h": 22
+        },
+        {
+          "text": "Solutions et relevés",
+          "h": 22
+        },
+        {
+          "text": "Cultures et archives",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/targets",
+      "width": 393,
+      "height": 2683,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Plages cibles pH et EC",
+          "y": 91
+        },
+        {
+          "text": "Enregistrer une plage cible",
+          "y": 391
+        },
+        {
+          "text": "Plages enregistrées",
+          "y": 2030
+        }
+      ],
+      "smallTargets": [],
+      "violations": []
+    },
+    {
+      "route": "cultures/light",
+      "width": 393,
+      "height": 2732,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Repères d’éclairage",
+          "y": 91
+        },
+        {
+          "text": "Horaires configurés et état opérationnel par espace",
+          "y": 573
+        },
+        {
+          "text": "Cultures en place, repère applicable et horaires configurés",
+          "y": 1421
+        },
+        {
+          "text": "Ventilation commune et règles jour/nuit",
+          "y": 1592
+        },
+        {
+          "text": "Repères enregistrés",
+          "y": 1969
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Ouvrir les réglages de l’éclairage 1",
+          "h": 22
+        },
+        {
+          "text": "Ouvrir les réglages de l’éclairage 2",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/equipment",
+      "width": 393,
+      "height": 3350,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Affectations d’équipements",
+          "y": 91
+        },
+        {
+          "text": "Catalogue courant, en lecture seule",
+          "y": 495
+        },
+        {
+          "text": "Contexte connu à une date",
+          "y": 1274
+        },
+        {
+          "text": "Périodes d’affectation par équipement",
+          "y": 1628
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/journal",
+      "width": 393,
+      "height": 1841,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Journal du carnet",
+          "y": 91
+        },
+        {
+          "text": "Filtrer le journal",
+          "y": 590
+        },
+        {
+          "text": "Observer un espace",
+          "y": 1232
+        },
+        {
+          "text": "Opérations du carnet",
+          "y": 1461
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Journal du carnet",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Cycles et rappels",
+          "h": 22
+        },
+        {
+          "text": "Solutions et relevés",
+          "h": 22
+        },
+        {
+          "text": "Cultures et archives",
+          "h": 22
+        },
+        {
+          "text": "Exporter ce filtre en CSV",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures",
+      "width": 320,
+      "height": 1789,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Cultures",
+          "y": 295
+        },
+        {
+          "text": "Espace 1",
+          "y": 733
+        },
+        {
+          "text": "Espace 2",
+          "y": 946
+        },
+        {
+          "text": "Lots et pieds mères",
+          "y": 1188
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Régler l’éclairage 1",
+          "h": 22
+        },
+        {
+          "text": "Régler l’éclairage 2",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/solutions",
+      "width": 320,
+      "height": 3391,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Solutions et relevés",
+          "y": 91
+        },
+        {
+          "text": "Réservoir de l’espace 2",
+          "y": 309
+        },
+        {
+          "text": "Bac de bouturage de l’espace 1",
+          "y": 481
+        },
+        {
+          "text": "Saisie rapide",
+          "y": 685
+        },
+        {
+          "text": "Journal et courbes",
+          "y": 1672
+        },
+        {
+          "text": "Recettes réutilisables",
+          "y": 2993
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "plages cibles",
+          "h": 18
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/cycles",
+      "width": 320,
+      "height": 2054,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Cycles et rappels",
+          "y": 91
+        },
+        {
+          "text": "Comparer les cycles",
+          "y": 507
+        },
+        {
+          "text": "Rappels dans le carnet",
+          "y": 868
+        },
+        {
+          "text": "Photos et sauvegarde complète",
+          "y": 1213
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Cycles et rappels",
+          "h": 22
+        },
+        {
+          "text": "Solutions et relevés",
+          "h": 22
+        },
+        {
+          "text": "Cultures et archives",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/targets",
+      "width": 320,
+      "height": 2903,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Plages cibles pH et EC",
+          "y": 91
+        },
+        {
+          "text": "Enregistrer une plage cible",
+          "y": 495
+        },
+        {
+          "text": "Plages enregistrées",
+          "y": 2201
+        }
+      ],
+      "smallTargets": [],
+      "violations": []
+    },
+    {
+      "route": "cultures/light",
+      "width": 320,
+      "height": 2988,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Repères d’éclairage",
+          "y": 91
+        },
+        {
+          "text": "Horaires configurés et état opérationnel par espace",
+          "y": 688
+        },
+        {
+          "text": "Cultures en place, repère applicable et horaires configurés",
+          "y": 1537
+        },
+        {
+          "text": "Ventilation commune et règles jour/nuit",
+          "y": 1733
+        },
+        {
+          "text": "Repères enregistrés",
+          "y": 2200
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Ouvrir les réglages de l’éclairage 1",
+          "h": 22
+        },
+        {
+          "text": "Ouvrir les réglages de l’éclairage 2",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/equipment",
+      "width": 320,
+      "height": 3913,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Affectations d’équipements",
+          "y": 91
+        },
+        {
+          "text": "Catalogue courant, en lecture seule",
+          "y": 585
+        },
+        {
+          "text": "Contexte connu à une date",
+          "y": 1414
+        },
+        {
+          "text": "Périodes d’affectation par équipement",
+          "y": 1843
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        },
+        {
+          "text": "0 période(s)",
+          "h": 22
+        }
+      ],
+      "violations": []
+    },
+    {
+      "route": "cultures/journal",
+      "width": 320,
+      "height": 2006,
+      "overflow": 0,
+      "headings": [
+        {
+          "text": "Journal du carnet",
+          "y": 91
+        },
+        {
+          "text": "Filtrer le journal",
+          "y": 705
+        },
+        {
+          "text": "Observer un espace",
+          "y": 1347
+        },
+        {
+          "text": "Opérations du carnet",
+          "y": 1601
+        }
+      ],
+      "smallTargets": [
+        {
+          "text": "Journal du carnet",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Fiche de culture",
+          "h": 22
+        },
+        {
+          "text": "Cycles et rappels",
+          "h": 22
+        },
+        {
+          "text": "Solutions et relevés",
+          "h": 22
+        },
+        {
+          "text": "Cultures et archives",
+          "h": 22
+        },
+        {
+          "text": "Exporter ce filtre en CSV",
+          "h": 22
+        }
+      ],
+      "violations": []
+    }
+  ],
+  "errors": []
+}
