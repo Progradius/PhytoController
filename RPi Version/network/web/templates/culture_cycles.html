@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% macro confirm() %}{% if not data.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié les dates malgré l’horloge non synchronisée.</label>{% endif %}{% endmacro %}
+{% macro check_state(check) %}éclairage {{ 'vérifié' if check.lighting else 'à vérifier' }}, {{ 'sortie locale' if check.space == 'space_1' else 'pompe' }} {{ 'vérifiée' if check.pump else 'à vérifier' }}, ventilation {{ 'vérifiée' if check.ventilation else 'à vérifier' }}{% endmacro %}
+{% macro check_context(check) %}{{ stages.get(check.stage, check.stage) }}{% if check.space %} · {{ spaces[check.space] }}{% else %} · hors espace{% endif %} · début du stade {{ check.stage_at|culture_date(data.timezone) if check.stage_at else 'contexte non enregistré' }}{% endmacro %}
 {% macro reminder_form(reminder={}) %}
 <form class="culture-form" data-cycle-form data-operation="reminder"{% if reminder %} data-id="{{ reminder.id }}" data-version="{{ reminder.revision }}"{% endif %}>
 <label>Rappel<input name="title" maxlength="160" value="{{ reminder.get('title','') }}" required></label>
@@ -40,7 +42,26 @@
 <label>Date de vérification<input type="date" name="effective_at" value="{{ data.today }}" required></label>
 {% for key,info in checklist.items() %}<label class="culture-confirm"><input name="{{ key }}" type="checkbox">{{ "Sortie locale vérifiée" if key == "pump" and summary.subject.space == "space_1" else info[0] }}</label><a href="{{ ('/conf#daily-timer-1' if key == 'lighting' else '/conf#cyclic-2') if summary.subject.space == 'space_1' and key != 'ventilation' else info[1] }}">Ouvrir les réglages : {{ info[0]|lower }}</a>{% endfor %}
 <label>Note de vérification<textarea name="note" maxlength="4000"></textarea></label>{{ confirm() }}<button class="button" type="submit">Enregistrer la vérification</button><output role="status"></output></form>{% endif %}
-{% for check in summary.checklists %}<p>{{ check.effective_at|culture_date(data.timezone) }} · {{ stages[check.stage] }} : éclairage {{ 'vérifié' if check.lighting else 'à vérifier' }}, {{ 'sortie locale' if check.space == 'space_1' else 'pompe' }} {{ 'vérifiée' if check.pump else 'à vérifier' }}, ventilation {{ 'vérifiée' if check.ventilation else 'à vérifier' }}.</p><p class="culture-note">{{ check.note }}</p>{% endfor %}</details>{% endif %}</section>{% endfor %}
+{% for check in summary.checklists %}<article class="card culture-checklist{% if check.cancelled %} culture-checklist-cancelled{% endif %}" id="verification-{{ check.id }}">
+<h3>Vérification du {{ check.effective_at|culture_date(data.timezone) }}{{ ' · ANNULÉE' if check.cancelled else '' }}</h3>
+<p>{{ summary.subject.name }} · contexte enregistré : {{ check_context(check) }} · saisie le {{ check.recorded_at|culture_date(data.timezone) }} · révision {{ check.revision }}.</p>
+<p>{{ check_state(check) }}.</p>
+<p class="culture-note">{{ check.note }}</p>
+{% if check.reason %}<p class="culture-note">Motif : {{ check.reason }}</p>{% endif %}
+{% if check.conflict %}<p role="alert" class="culture-warning">Conflit avec une correction du parcours : le carnet situe aujourd’hui cette date en {{ stages.get(check.conflict.expected_stage, check.conflict.expected_stage) }}{% if check.conflict.expected_space %} dans l’{{ spaces[check.conflict.expected_space]|lower }}{% else %} hors espace{% endif %}, alors que la vérification déclare {{ stages.get(check.conflict.recorded_stage, check.conflict.recorded_stage) }}{% if check.conflict.recorded_space %} dans l’{{ spaces[check.conflict.recorded_space]|lower }}{% else %} hors espace{% endif %}. Rien n’est réécrit : corriger ou annuler cette vérification.</p>
+{% elif check.conflict_unknown %}<p class="culture-note">Contexte non enregistré à l’époque : aucun rapprochement automatique avec le parcours actuel n’est possible.</p>{% endif %}
+{% if not check.cancelled %}<details><summary>Corriger cette vérification</summary>
+<form class="culture-form" data-cycle-form data-operation="checklist_correct" data-id="{{ check.id }}" data-version="{{ check.revision }}">
+<label>Date corrigée de vérification<input type="date" name="effective_at" value="{{ check.effective_at }}" required></label>
+{% for key,info in checklist.items() %}<label class="culture-confirm"><input name="{{ key }}" type="checkbox"{% if check[key] %} checked{% endif %}>{{ "Sortie locale vérifiée" if key == "pump" and check.space == "space_1" else info[0] }}</label>{% endfor %}
+<label>Note corrigée<textarea name="note" maxlength="4000">{{ check.note }}</textarea></label>
+<label>Motif de la correction<input name="reason" maxlength="500" required></label>
+{{ confirm() }}<button class="button" type="submit">Enregistrer la correction</button><output role="status"></output></form></details>
+<details><summary>Annuler cette vérification</summary>
+<form class="culture-form" data-cycle-form data-operation="checklist_cancel" data-id="{{ check.id }}" data-version="{{ check.revision }}">
+<label>Motif de l’annulation<input name="reason" maxlength="500" required></label>
+{{ confirm() }}<button class="button" type="submit">Annuler la vérification</button><output role="status"></output></form></details>{% endif %}
+{% if check.revisions %}<details><summary>Historique de la vérification ({{ check.revisions|length }} version(s) antérieure(s))</summary>{% for old in check.revisions %}<p>Révision {{ old.revision }} · {{ old.effective_at|culture_date(data.timezone) }} · {{ check_context(old) }} · {{ check_state(old) }}{{ ' · annulée' if old.cancelled else '' }}.</p><p class="culture-note">{{ old.note }}</p>{% if old.reason %}<p class="culture-note">Motif : {{ old.reason }}</p>{% endif %}{% endfor %}</details>{% endif %}</article>{% else %}<p>Aucune vérification déclarée pour ce lot.</p>{% endfor %}</details>{% endif %}</section>{% endfor %}
 <section id="rappels" class="culture-section"><h2>Rappels dans le carnet</h2><p>La récurrence démarre à la date d’accomplissement réel. Aucun passage manqué n’est déclaré fait automatiquement. Les rappels apparaissent à l’ouverture de cette page ; aucune notification application fermée n’est promise.</p>
 <details class="card"><summary>Créer un rappel</summary>{{ reminder_form() }}</details>
 {% for reminder in data.reminders %}<article class="card culture-journal" id="reminder-{{ reminder.id }}"><h3>{{ reminder.title }}</h3><p>{{ states[reminder.state] }} · échéance {{ reminder.due_date|culture_date(data.timezone) }}{{ ' · EN RETARD' if reminder.overdue else ' · AUJOURD’HUI' if reminder.due_today else '' }}</p><p>{% for subject in data.subjects if subject.id == reminder.subject_id %}<a href="/cultures/{{ subject.id }}">{{ subject.name }}</a>{% endfor %}{% if reminder.reservoir_id %}{{ reservoirs[reminder.reservoir_id][0] }}{% endif %}</p><p class="culture-note">{{ reminder.note }}</p>

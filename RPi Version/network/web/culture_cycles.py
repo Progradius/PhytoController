@@ -7,7 +7,7 @@ from urllib.parse import unquote
 
 from aiohttp import web
 
-from model.culture import CultureConflict, CultureError, STAGES
+from model.culture import CultureConflict, CultureError, SPACES, STAGES
 from model.culture_cycle import CHECKLIST, MAX_PHOTO_BYTES, REMINDER_STATES
 from model.culture_solution import RESERVOIRS
 from network.web.pages import render_template
@@ -65,7 +65,7 @@ class CycleViews:
         return self.server._html(render_template("culture_cycles.html", page_title="Cycles et rappels",
             current_page="cultures", csrf_token=self.server.csrf_token, data=data, error=error,
             selected=request.query.getall("subject", []), states=REMINDER_STATES, checklist=CHECKLIST,
-            reservoirs=RESERVOIRS, stages=STAGES), status)
+            reservoirs=RESERVOIRS, stages=STAGES, spaces=SPACES), status)
 
     async def data(self, request):
         try:

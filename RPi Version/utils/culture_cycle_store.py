@@ -11,6 +11,7 @@ from model.culture_cycle import (CLIMATE_PAGE, MAX_SUMMARY_POINTS, REMINDER_STAT
                                  climate_granularity, climate_point, climate_span, planned_date,
                                  reminder_values, trusted_value)
 from model.culture_solution import RESERVOIRS
+from utils.culture_checklist_store import CHECKLIST_OPERATIONS
 
 CYCLE_TABLES = ("reminders", "culture_checklists", "climate_hours", "climate_minutes", "culture_media")
 CYCLE_SCHEMA = """
@@ -71,7 +72,7 @@ class CycleStoreMixin:
     def _cycle_mutate(self, command):
         # Les vérifications ont leur propre magasin et leur propre transaction depuis le
         # schéma 4 ; la route et le formulaire existants restent inchangés.
-        if isinstance(command, dict) and command.get("operation") == "checklist":
+        if isinstance(command, dict) and command.get("operation") in CHECKLIST_OPERATIONS:
             return self._checklist_mutate(command)
         if not isinstance(command, dict) or set(command) - {"request_id", "operation", "confirm_date", "id", "version", "target",
                 "title", "due_date", "interval_days", "note", "action"}:
@@ -252,7 +253,7 @@ class CycleStoreMixin:
                                     "mean": sum(values) / len(values) if values else None}
             summaries.append({"subject": subject, "climate": climate, "climate_detail": detail,
                               "measures": measures, "periods": subject["periods"],
-                              "checklists": self._checklists(subject["id"])})
+                              "checklists": self._checklists(subject)})
         target = selected[0] if len(selected) == 1 else None
         reminders = self._reminders(target)
         reminders.sort(key=lambda r: (r["state"] in ("done", "cancelled"), r["due_date"], r["id"]))

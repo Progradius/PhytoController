@@ -34,6 +34,11 @@
           if (command.operation === "reminder_action") Object.assign(command, {action: get("action"), due_date: get("due_date"), note: get("note")});
           if (command.operation === "checklist") Object.assign(command, {subject_id: form.dataset.subject, version: Number(form.dataset.version),
             effective_at: get("effective_at"), note: get("note"), checks: Object.fromEntries(["lighting", "pump", "ventilation"].map(name => [name, form.elements[name].checked]))});
+          // Une correction rejoue la saisie entière avec son motif ; une annulation ne porte
+          // que le motif. Aucune des deux ne commande d'équipement.
+          if (command.operation === "checklist_correct") Object.assign(command, {effective_at: get("effective_at"), note: get("note"), reason: get("reason"),
+            checks: Object.fromEntries(["lighting", "pump", "ventilation"].map(name => [name, form.elements[name].checked]))});
+          if (command.operation === "checklist_cancel") Object.assign(command, {reason: get("reason")});
         }
         // L'identité du fichier fait partie de la saisie ; le serveur vérifie aussi son empreinte.
         const signature = JSON.stringify(command) + (photo ? `${body.name}:${body.size}:${body.lastModified}` : "");
