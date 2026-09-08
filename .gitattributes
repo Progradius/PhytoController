@@ -1,0 +1,17 @@
+# Fins de ligne : LF partout dans le dépôt et dans la copie de travail, quel que soit l'OS
+# ou l'IDE (core.autocrlf est ignoré pour les chemins couverts par eol=).
+* text=auto eol=lf
+
+# Binaires : jamais de conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.sqlite3 binary
+*.zip binary
+*.gz binary
+*.pdf binary
