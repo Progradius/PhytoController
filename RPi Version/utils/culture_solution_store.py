@@ -149,9 +149,12 @@ class SolutionStoreMixin:
                     if start < end:
                         self._db.execute("INSERT INTO solution_links VALUES (?,?,?,?)", (period["id"], subject["id"], start, None if end == "9999" else end))
 
-    def _solution_mutate(self, command):
+    def _solution_mutate(self, command, equipment=None):
         if not isinstance(command, dict):
             raise CultureError("Objet JSON attendu.")
+        # Copie du catalogue connue à la saisie, comme pour les événements de culture :
+        # renommer un équipement plus tard ne réécrit aucun contexte enregistré.
+        self._equipment_context = json.dumps(equipment or {}, ensure_ascii=False)
         allowed = {"request_id", "operation", "confirm_date", "id", "version", "kind", "reservoir_id", "targets",
                    "effective_at", "precision", "cancelled", "reason", "note", "ph", "ec", "ec_unit", "temperature_c",
                    "volume_l", "context", "compensation", "intervention_id", "recipe_id", "recipe_revision", "ingredients", "name"}
@@ -264,7 +267,8 @@ class SolutionStoreMixin:
                        "reason": text_value(command.get("reason", ""), "Motif", 500, False),
                        "note": text_value(command.get("note", ""), "Note", 4000, False), **values,
                        "intervention_id": intervention_id, "recipe_id": recipe_id, "recipe_revision": recipe_revision,
-                       "ingredients": json.dumps(frozen, ensure_ascii=False)}
+                       "ingredients": json.dumps(frozen, ensure_ascii=False),
+                       "equipment_context": self._equipment_context}
                 columns = ",".join(row)
                 self._db.execute(f"INSERT INTO solution_entries ({columns}) VALUES ({','.join('?' for _ in row)})", tuple(row.values()))
                 self._db.executemany("INSERT INTO solution_targets VALUES (?,?,?)", [(identifier, revision, t) for t in targets])

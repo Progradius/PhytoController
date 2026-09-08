@@ -20,7 +20,16 @@ class CultureViews:
 
     def routes(self):
         from network.web.culture_cycles import CycleViews
-        return CycleViews(self).routes() + [web.get("/cultures/solutions", self.solutions_page),
+        from network.web.culture_equipment import EquipmentViews
+        from network.web.culture_journal import JournalViews
+        from network.web.culture_light import LightViews
+        from network.web.culture_targets import TargetsViews
+        # Les quatre vues des lots E à H sont déjà agrégées ici : chaque lot remplit son
+        # module sans revenir sur ce fichier partagé.
+        sections = (CycleViews(self), TargetsViews(self), LightViews(self),
+                    EquipmentViews(self), JournalViews(self))
+        return [route for section in sections for route in section.routes()] + [
+                web.get("/cultures/solutions", self.solutions_page),
                 web.get("/api/v1/cultures/solutions", self.solutions),
                 web.post("/api/v1/cultures/solutions", self.solution_mutate),
                 web.get("/api/v1/cultures/solutions/export", self.solution_export),
@@ -143,7 +152,8 @@ class CultureViews:
 
     async def solution_mutate(self, request):
         try:
-            return web.json_response(await self.store.call("solution_mutate", await request.json()))
+            return web.json_response(await self.store.call("solution_mutate", await request.json(),
+                                                           self.server.equipment_store.payload()))
         except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"error": "JSON invalide."}, status=400)
         except CultureConflict as exc:

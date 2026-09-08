@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from model.culture import validate_spaces
+from utils.culture_schema_v4 import V4_VIEWS
 from utils.culture_store import CultureStore, CultureUnavailable, SCHEMA_VERSION
 
 
@@ -23,7 +24,7 @@ def restore_copy(source: Path, destination: Path, *, _bundle=False) -> None:
     db.row_factory = sqlite3.Row
     try:
         db.execute("PRAGMA trusted_schema=OFF")
-        if db.execute("PRAGMA user_version").fetchone()[0] not in (1, 2, SCHEMA_VERSION):
+        if db.execute("PRAGMA user_version").fetchone()[0] not in (1, 2, 3, SCHEMA_VERSION):
             raise CultureUnavailable("Version de sauvegarde incompatible.")
         if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok" or db.execute("PRAGMA foreign_key_check").fetchone():
             raise CultureUnavailable("Intégrité de la sauvegarde invalide.")
@@ -49,6 +50,12 @@ def restore_copy(source: Path, destination: Path, *, _bundle=False) -> None:
                         raise CultureUnavailable("Photo de sauvegarde incompatible avec les dimensions ou métadonnées attendues.")
                     picture.verify()
             checker._cycle_validate()
+        if db.execute("PRAGMA user_version").fetchone()[0] >= 4:
+            # Le journal transversal est une vue : une sauvegarde de version 4 qui ne la
+            # porte pas est un schéma partiel, pas une base restaurable.
+            for view in V4_VIEWS:
+                if not db.execute("SELECT 1 FROM sqlite_schema WHERE type='view' AND name=?", (view,)).fetchone():
+                    raise CultureUnavailable("Vue du journal absente de la sauvegarde ; schéma incomplet.")
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".culture-restore-", dir=destination.parent) as temporary:
             staged = Path(temporary) / "cultures.sqlite3"

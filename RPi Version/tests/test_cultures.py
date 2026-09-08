@@ -11,6 +11,7 @@ import pytest
 
 from model.culture import CultureConflict, CultureError, age, stamp
 from utils.culture_backup import restore_copy
+from utils.culture_schema_v4 import V4_TABLES
 from utils.culture_store import CultureStore, CultureUnavailable
 
 NOW = datetime(2026, 9, 7, 15, tzinfo=timezone.utc)
@@ -230,7 +231,9 @@ async def test_export_restauration_et_redemarrage(cultures, tmp_path):
     lot = await cultures.call("mutate", create())
     await event(cultures, lot, "note", "2026-08-02", {"note": "=HYPERLINK(\"x\")\nTexte, français"})
     exported = await cultures.call("export")
-    assert exported["schema_version"] == 3
+    assert exported["schema_version"] == 4
+    assert set(exported["tables"]) >= set(V4_TABLES)
+    assert "culture_journal" not in exported["tables"]
     assert "Texte, français" in await cultures.call("csv")
     backup = tmp_path / "download.sqlite3"
     backup.write_bytes(await cultures.call("backup"))

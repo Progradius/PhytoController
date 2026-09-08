@@ -358,11 +358,13 @@ async def test_routes_photo_rappel_limites_et_pas_effet_controle(web_context):
 
 
 async def test_migration_v2_conserve_releves_et_sauvegarde(cultures):
+    from tests.test_culture_schema_v4 import strip_v4
     from tests.test_culture_solutions import entry
     saved = await cultures.call("solution_mutate", entry())
     path = cultures.path
     await cultures.close()
     with sqlite3.connect(path) as db:
+        strip_v4(db)
         for table in reversed(CYCLE_TABLES):
             db.execute(f"DROP TABLE {table}")
         db.execute("PRAGMA user_version=2")

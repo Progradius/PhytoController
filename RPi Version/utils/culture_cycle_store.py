@@ -6,8 +6,8 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from model.culture import CultureConflict, CultureError, STAGES, stamp, text_value
-from model.culture_cycle import (CHECKLIST, CLIMATE_PAGE, MAX_SUMMARY_POINTS, REMINDER_STATES,
+from model.culture import CultureConflict, CultureError, SPACES, STAGES, stamp, text_value
+from model.culture_cycle import (CLIMATE_PAGE, MAX_SUMMARY_POINTS, REMINDER_STATES,
                                  climate_granularity, climate_point, climate_span, planned_date,
                                  reminder_values, trusted_value)
 from model.culture_solution import RESERVOIRS
@@ -69,34 +69,17 @@ class CycleStoreMixin:
         return rows
 
     def _cycle_mutate(self, command):
+        # Les vérifications ont leur propre magasin et leur propre transaction depuis le
+        # schéma 4 ; la route et le formulaire existants restent inchangés.
+        if isinstance(command, dict) and command.get("operation") == "checklist":
+            return self._checklist_mutate(command)
         if not isinstance(command, dict) or set(command) - {"request_id", "operation", "confirm_date", "id", "version", "target",
-                "title", "due_date", "interval_days", "note", "action", "effective_at", "checks", "subject_id"}:
+                "title", "due_date", "interval_days", "note", "action"}:
             raise CultureError("Commande de carnet invalide.")
         def work():
             operation = command.get("operation")
             now = self.now().isoformat()
             identifier = command.get("id")
-            if operation == "checklist":
-                subject = next((s for s in self._projections() if s["id"] == command.get("subject_id")), None)
-                if not subject or subject["kind"] != "lot" or subject["archived"]:
-                    raise CultureError("Lot inconnu.")
-                if type(command.get("version")) is not int or command["version"] != subject["version"]:
-                    raise CultureConflict("Le parcours du lot a changé ; relire la liste de vérification.")
-                effective = command.get("effective_at")
-                key = stamp(effective, "date", self.zone, self.now())[0]
-                stage_key = stamp(subject["stage_at"], subject["stage_precision"], self.zone, self.now())[0]
-                # Une date sans heure peut désigner le jour même d'un changement horodaté.
-                stage_date = datetime.fromisoformat(stage_key).astimezone(ZoneInfo(self.zone)).date().isoformat()
-                if effective < stage_date:
-                    raise CultureError("La vérification précède le début du stade actuel.")
-                checks = command.get("checks")
-                if not isinstance(checks, dict) or set(checks) != set(CHECKLIST) or any(type(v) is not bool for v in checks.values()):
-                    raise CultureError("Renseigner les trois vérifications déclaratives.")
-                identifier = str(uuid.uuid4())
-                self._db.execute("INSERT INTO culture_checklists VALUES (?,?,?,?,?,?,?,?,?,?)", (identifier, subject["id"],
-                    subject["space"], subject["stage"], effective, now, *[int(checks[key]) for key in CHECKLIST],
-                    text_value(command.get("note", ""), "Note", 4000, False)))
-                return {"saved": True, "id": identifier}
             if operation not in ("reminder", "reminder_action"):
                 raise CultureError("Opération de carnet inconnue.")
             old = None
@@ -269,7 +252,7 @@ class CycleStoreMixin:
                                     "mean": sum(values) / len(values) if values else None}
             summaries.append({"subject": subject, "climate": climate, "climate_detail": detail,
                               "measures": measures, "periods": subject["periods"],
-                              "checklists": [dict(r) for r in self._db.execute("SELECT * FROM culture_checklists WHERE subject_id=? ORDER BY recorded_at DESC", (subject["id"],))]})
+                              "checklists": self._checklists(subject["id"])})
         target = selected[0] if len(selected) == 1 else None
         reminders = self._reminders(target)
         reminders.sort(key=lambda r: (r["state"] in ("done", "cancelled"), r["due_date"], r["id"]))
@@ -300,3 +283,22 @@ class CycleStoreMixin:
                     raise CultureError("Étendue climatique incohérente.")
             elif row["minimum"] is not None or row["maximum"] is not None or row["total"] != 0:
                 raise CultureError("Une absence climatique ne doit pas devenir une mesure.")
+        if self._db.execute("PRAGMA user_version").fetchone()[0] < 4:
+            # Une sauvegarde antérieure au schéma 4 ne porte pas ces colonnes ni ces tables :
+            # exiger leurs invariants ferait échouer la restauration d'une base pourtant saine.
+            return
+        for row in self._db.execute("SELECT owner_kind,subject_id,space,event_id,space_event_id FROM culture_media"):
+            # Exclusivité du propriétaire : une photo appartient à un événement de culture
+            # ou à une observation d'espace, jamais aux deux, jamais à aucun.
+            event = row["owner_kind"] == "event"
+            if (event != (row["event_id"] is not None) or event == (row["space_event_id"] is not None)
+                    or event != (row["subject_id"] is not None) or event == (row["space"] is not None)):
+                raise CultureError("Propriétaire de photo incohérent.")
+            if row["space"] is not None and row["space"] not in SPACES:
+                raise CultureError("Espace de photo inconnu.")
+        # Chaque lot D à H fournit son validateur ; l'ordre suit celui des lots.
+        self._validate_checklists()
+        self._validate_targets()
+        self._validate_light()
+        self._validate_equipment()
+        self._validate_journal()

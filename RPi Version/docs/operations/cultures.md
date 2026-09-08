@@ -366,5 +366,45 @@ préalable existante n'est jamais écrasée. Le schéma 3 ajoute photos, rappels
 agrégats ; les anciennes versions du code ne peuvent pas l'ouvrir. Sauvegarder le carnet complet
 avant tout retour arrière : restaurer une ancienne copie perdrait les saisies ultérieures.
 
+## Migration vers le schéma 4
+
+À l'ouverture d'un carnet de version 1, 2 ou 3, une copie cohérente
+`cultures.sqlite3.before-v4.sqlite3` est créée avant la migration transactionnelle. Depuis une
+version plus ancienne, les sauvegardes `.before-v2.sqlite3`, `.before-v3.sqlite3` et
+`.before-v4.sqlite3` sont produites successivement. La migration conserve toutes les
+vérifications (elles deviennent la révision 1 d'une ligne versionnée), toutes les photos et
+tous les relevés ; elle ne crée aucune plage cible, aucun repère d'éclairage et aucune
+affectation d'équipement. Les anciennes versions du code ne peuvent pas ouvrir un carnet de
+schéma 4 : sauvegarder l'ensemble avant tout retour arrière.
+
+### Lever une sauvegarde `.before-v4` après migration interrompue
+
+Une coupure pendant la migration laisse la base **intacte en version 3** et la sauvegarde
+`cultures.sqlite3.before-v4.sqlite3` sur le disque. Au redémarrage suivant, le carnet refuse de
+démarrer avec « Sauvegarde avant migration déjà présente ; vérifier cette copie avant de
+réessayer. » C'est voulu : une tentative précédente doit être arbitrée par une personne, pas
+écrasée en silence. La régulation, elle, n'est pas affectée — le carnet ne participe pas au
+watchdog et `control_healthy()` reste vrai.
+
+1. Arrêter le service : `sudo systemctl stop phyto`.
+2. Constater l'état réel des deux fichiers, sans les modifier :
+   `sqlite3 param/cultures.sqlite3 'PRAGMA user_version; PRAGMA quick_check;'` puis la même
+   commande sur `param/cultures.sqlite3.before-v4.sqlite3`. Le carnet actif doit être en
+   version 3 et la sauvegarde en version 3 également.
+3. Copier la sauvegarde hors de `param/` (clé USB, poste d'exploitation) et la vérifier sur une
+   destination isolée : `python3 scripts/restore-cultures.py <copie> /tmp/verification.sqlite3`.
+   Cette commande ne touche jamais le carnet actif.
+4. Comparer les volumes attendus (cultures, événements, relevés, vérifications, photos) entre le
+   carnet actif et la copie vérifiée. Si le carnet actif est le plus complet, il est la référence.
+5. Seulement alors, retirer la sauvegarde du répertoire de travail :
+   `sudo mv param/cultures.sqlite3.before-v4.sqlite3 <archive hors serre>`. Ne jamais la
+   supprimer sans en conserver une copie ailleurs.
+6. Relancer : `sudo systemctl start phyto`. La migration reprend depuis le début, produit une
+   nouvelle sauvegarde `.before-v4.sqlite3` et aboutit.
+
+Si l'étape 2 montre un carnet actif déjà en version 4, la migration avait abouti : il ne reste
+qu'à archiver la sauvegarde. Si `quick_check` n'est pas « ok », ne pas relancer le service :
+restaurer une sauvegarde vérifiée selon la procédure de restauration sur copie ci-dessus.
+
 Les captures de ce guide proviennent de la base temporaire des tests navigateur ; elles ne
 montrent aucune donnée d'exploitation. Le jalon est validé hors matériel, sans déploiement Pi.

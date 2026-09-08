@@ -443,3 +443,77 @@ La PWA conserve seulement les pages et photos déjà consultées, datées et bor
 après succès réseau. Un échec de transport autorise leur lecture seule ; une réponse HTTP
 d'erreur ne présente pas silencieusement une ancienne page comme actuelle. Les API restent
 hors cache et aucune mutation n'est stockée ou rejouée.
+
+## Schéma 4 et migration
+
+Le schéma 4 est livré **en une seule fois**, avant les lots D à H, pour ne pas retoucher une
+migration déjà appliquée. Son DDL est figé dans `utils/culture_schema_v4.py` et n'est plus modifié.
+
+Tables ajoutées : `culture_targets` (plages cibles pH/EC), `culture_light_targets` (repères
+d'éclairage), `culture_equipment_links` (affectations d'équipements datées) et `space_events`
+(observations d'espace). Elles naissent **vides** : la migration n'invente ni plage par défaut,
+ni repère standard, ni date de réaffectation passée.
+
+Tables recréées avec copie intégrale des lignes :
+
+- `culture_checklists` devient versionnée (`PRIMARY KEY(id, revision)`) et gagne `reason`,
+  `cancelled`, `equipment_context` ainsi que le contexte de saisie `stage_at`, `stage_precision`
+  et `subject_version`. Les lignes migrées prennent la révision 1, `precision='date'` — la seule
+  précision que le schéma 3 utilisait — et gardent ces trois colonnes de contexte à `NULL` :
+  l'information n'existait pas et n'est pas reconstituée. `clock_reliable` reste `NULL` (inconnu).
+- `culture_media` gagne `owner_kind` (`event` ou `space_event`) et deux paires de clés étrangères
+  mutuellement exclusives, contrôlées par des `CHECK` et par `PRAGMA foreign_key_check`. Les
+  photos existantes deviennent `owner_kind='event'`. Aucun nom de fichier ne change.
+
+Colonne ajoutée : `solution_entries.equipment_context`, `'{}'` valant « catalogue inconnu à la
+saisie » pour l'existant. Les saisies neuves y copient le catalogue courant, comme `events`.
+
+Vue ajoutée : `culture_journal`, projection en `UNION ALL` des révisions courantes de `events`,
+`solution_entries` et `space_events`, **une ligne par opération** (les cibles sont jointes à la
+demande, un arrosage partagé compte donc pour 1). C'est une vue et non une table : une copie
+serait une seconde vérité à resynchroniser après chaque correction rétrospective. Elle est
+**exclue de l'export** — ses trois sources y figurent déjà — alors que les quatre tables
+nouvelles en font partie. Le champ `schema_version` de l'export JSON vaut 4.
+
+Index ajoutés au bénéfice des lectures bornées : `culture_checklists_subject`,
+`culture_checklists_recorded`, `culture_targets_window`, `culture_targets_dates`,
+`culture_light_scope`, `culture_equipment_window`, `culture_equipment_scope`,
+`space_events_space`, `space_events_sort`, `culture_media_owner`, `culture_media_space`,
+`events_sort`, `solution_entries_sort`, `solution_targets_subject`, `solution_entries_kind`
+et `climate_hours_hour`.
+
+Procédure d'ouverture d'un carnet de version 1, 2 ou 3 : sauvegarde cohérente
+`cultures.sqlite3.before-v4.sqlite3` (une par version traversée, `.before-v2` et `.before-v3`
+comprises), puis `PRAGMA foreign_keys=OFF` **hors transaction** — indispensable pour recréer une
+table enfant, et sans effet à l'intérieur d'une transaction —, `BEGIN IMMEDIATE` suivi du DDL,
+`PRAGMA foreign_key_check` **dans** la transaction, `PRAGMA user_version=4`, `COMMIT`, puis
+`PRAGMA foreign_keys=ON` dans un `finally`. Une référence pendante ou toute autre erreur provoque
+un `ROLLBACK` : la base reste en version 3, intacte, et la sauvegarde `.before-v4.sqlite3`
+subsiste. Elle bloque volontairement une nouvelle tentative jusqu'à vérification humaine — voir
+le [guide d'exploitation](../operations/cultures.md#lever-une-sauvegarde-before-v4-après-migration-interrompue).
+Un `user_version` supérieur à 4 est refusé sans aucune écriture ni retour arrière.
+
+`restore_copy` accepte les schémas 1, 2, 3 et 4. Pour une sauvegarde de version 4 elle exige en
+plus la présence de la vue `culture_journal` : une base de version 4 sans elle est un schéma
+partiel, pas une base restaurable. Les validateurs de chaque lot sont rejoués à la restauration.
+`scripts/restore-cultures.py` est inchangé : il délègue entièrement.
+
+### Lot D — vérifications
+
+À compléter par le lot D : révisions, motif, annulation et conflit avec une correction de parcours.
+
+### Lot E — plages cibles
+
+À compléter par le lot E : saisie, résolution du contexte et affichage des plages pH/EC.
+
+### Lot F — repères d'éclairage
+
+À compléter par le lot F : repères informatifs et écart aux horaires configurés.
+
+### Lot G — affectations d'équipements
+
+À compléter par le lot G : périodes de validité et provenance du contexte d'un événement.
+
+### Lot H — journal et observations d'espace
+
+À compléter par le lot H : pagination filtrable du journal et observations d'espace avec photos.

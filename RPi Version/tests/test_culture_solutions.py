@@ -151,10 +151,12 @@ async def test_erreurs_atomicite_horloge_et_csv(cultures):
 
 
 async def test_migration_v1_sauvegarde_et_schema_futur(cultures, tmp_path):
+    from tests.test_culture_schema_v4 import strip_v4
     lot = await cultures.call("mutate", create())
     source = cultures.path
     await cultures.close()
     with sqlite3.connect(source) as db:
+        strip_v4(db)
         for table in reversed(SOLUTION_TABLES + CYCLE_TABLES):
             db.execute(f"DROP TABLE {table}")
         db.execute("PRAGMA user_version=1")
@@ -285,6 +287,8 @@ async def test_migration_interrompue_ne_publie_pas_un_schema_partiel(cultures):
     path = cultures.path
     await cultures.close()
     with sqlite3.connect(path) as db:
+        from tests.test_culture_schema_v4 import strip_v4
+        strip_v4(db)
         for table in reversed(SOLUTION_TABLES + CYCLE_TABLES):
             db.execute(f"DROP TABLE {table}")
         db.execute("CREATE TABLE recipes (incompatible TEXT)")

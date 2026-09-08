@@ -71,7 +71,7 @@ class MediaStoreMixin:
         if not event_ids:
             return []
         return [dict(r) for r in self._db.execute(
-            f"SELECT * FROM culture_media WHERE event_id IN ({','.join('?' for _ in event_ids)}) ORDER BY recorded_at", event_ids)]
+            f"SELECT * FROM culture_media WHERE owner_kind='event' AND event_id IN ({','.join('?' for _ in event_ids)}) ORDER BY recorded_at", event_ids)]
 
     def _media_add(self, command, raw):
         if not isinstance(command, dict) or set(command) - {"request_id", "confirm_date", "subject_id", "event_id", "event_revision", "caption"}:
@@ -87,7 +87,7 @@ class MediaStoreMixin:
                 raise CultureError("Événement inconnu ou annulé.")
             if type(command.get("event_revision")) is not int or command["event_revision"] != event["revision"]:
                 raise CultureConflict("L’événement a changé ; relire son contenu avant d’ajouter une photo.")
-            if self._db.execute("SELECT COUNT(*) FROM culture_media WHERE event_id=?", (event_id,)).fetchone()[0] >= 4:
+            if self._db.execute("SELECT COUNT(*) FROM culture_media WHERE owner_kind='event' AND event_id=?", (event_id,)).fetchone()[0] >= 4:
                 raise CultureError("Quatre photos maximum par événement.")
             caption = text_value(command.get("caption", ""), "Légende", 500, False)
             jpeg, width, height = image_bytes(raw)
@@ -114,7 +114,12 @@ class MediaStoreMixin:
             finally:
                 os.close(descriptor)
             digest = hashlib.sha256(jpeg).hexdigest()
-            self._db.execute("INSERT INTO culture_media VALUES (?,?,?,?,?,?,?,?,?,?,?)", (identifier, subject_id, event_id,
+            # Photo d'événement de culture : les colonnes d'observation d'espace restent
+            # NULL, l'exclusivité des deux propriétaires étant garantie par les CHECK.
+            self._db.execute("""INSERT INTO culture_media
+                (id,owner_kind,subject_id,space,event_id,event_revision,space_event_id,space_event_revision,
+                 name,sha256,size,width,height,caption,recorded_at)
+                VALUES (?,'event',?,NULL,?,?,NULL,NULL,?,?,?,?,?,?,?)""", (identifier, subject_id, event_id,
                 event["revision"], name, digest, len(jpeg), width, height, caption, self.now().isoformat()))
             return {"saved": True, "id": identifier, "subject_id": subject_id}
         try:

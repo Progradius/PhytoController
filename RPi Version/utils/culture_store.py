@@ -24,16 +24,47 @@ from utils.culture_solution_store import SolutionStoreMixin, SOLUTION_SCHEMA, SO
 
 from utils.culture_cycle_store import CycleStoreMixin, CYCLE_SCHEMA, CYCLE_TABLES
 from utils.culture_media_store import MediaStoreMixin
+from utils.culture_checklist_store import ChecklistStoreMixin
+from utils.culture_targets_store import TargetsStoreMixin
+from utils.culture_light_store import LightStoreMixin
+from utils.culture_equipment_store import EquipmentStoreMixin
+from utils.culture_journal_store import JournalStoreMixin
+from utils.culture_schema_v4 import SCHEMA4_SQL, V4_TABLES
 
-SCHEMA_VERSION = 3
-TABLES = ("settings", "subjects", "origins", "events", "requests") + SOLUTION_TABLES + CYCLE_TABLES
+SCHEMA_VERSION = 4
+# La vue `culture_journal` est volontairement absente : elle ne contient rien que ses
+# sources n'exportent déjà, et un SELECT * dessus dupliquerait tout le carnet.
+TABLES = ("settings", "subjects", "origins", "events", "requests") + SOLUTION_TABLES + CYCLE_TABLES + V4_TABLES
+
+BASE_SCHEMA = """
+CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE subjects (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('mother','lot')),
+  name TEXT NOT NULL, variety TEXT NOT NULL, origin_type TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE origins (
+  id TEXT PRIMARY KEY, subject_id TEXT NOT NULL REFERENCES subjects(id),
+  mother_id TEXT REFERENCES subjects(id), label TEXT NOT NULL,
+  count INTEGER NOT NULL CHECK(count>0));
+CREATE TABLE events (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL,
+  subject_id TEXT NOT NULL REFERENCES subjects(id), revision INTEGER NOT NULL,
+  kind TEXT NOT NULL, effective_at TEXT NOT NULL, precision TEXT NOT NULL,
+  sort_at TEXT NOT NULL, recorded_at TEXT NOT NULL, clock_reliable INTEGER NOT NULL,
+  payload TEXT NOT NULL, cancelled INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT '', equipment_context TEXT NOT NULL DEFAULT '{}',
+  UNIQUE(id, revision));
+CREATE INDEX events_subject ON events(subject_id, sort_at);
+CREATE TABLE requests (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL);
+"""
 
 
 class CultureUnavailable(RuntimeError):
     pass
 
 
-class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
+class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, ChecklistStoreMixin,
+                   TargetsStoreMixin, LightStoreMixin, EquipmentStoreMixin, JournalStoreMixin):
     FILE = Path(__file__).resolve().parents[1] / "param" / "cultures.sqlite3"
 
     def __init__(self, path=None, *, now=None, reliable=None, zone="Europe/Paris"):
@@ -78,35 +109,13 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
             if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise CultureUnavailable("Carnet corrompu conservé sur disque ; restaurer une sauvegarde.")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (1, 2, SCHEMA_VERSION) and (version != 0 or existed):
+            if version not in (1, 2, 3, SCHEMA_VERSION) and (version != 0 or existed):
                 raise CultureUnavailable("Schéma du carnet incompatible ; données conservées.")
             db.execute("PRAGMA foreign_keys=ON")
             db.execute("PRAGMA journal_mode=WAL")
             db.execute("PRAGMA synchronous=FULL")
             if version == 0:
-                db.executescript("""
-                    BEGIN IMMEDIATE;
-                    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                    CREATE TABLE subjects (
-                      id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('mother','lot')),
-                      name TEXT NOT NULL, variety TEXT NOT NULL, origin_type TEXT NOT NULL,
-                      version INTEGER NOT NULL DEFAULT 1);
-                    CREATE TABLE origins (
-                      id TEXT PRIMARY KEY, subject_id TEXT NOT NULL REFERENCES subjects(id),
-                      mother_id TEXT REFERENCES subjects(id), label TEXT NOT NULL,
-                      count INTEGER NOT NULL CHECK(count>0));
-                    CREATE TABLE events (
-                      sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL,
-                      subject_id TEXT NOT NULL REFERENCES subjects(id), revision INTEGER NOT NULL,
-                      kind TEXT NOT NULL, effective_at TEXT NOT NULL, precision TEXT NOT NULL,
-                      sort_at TEXT NOT NULL, recorded_at TEXT NOT NULL, clock_reliable INTEGER NOT NULL,
-                      payload TEXT NOT NULL, cancelled INTEGER NOT NULL DEFAULT 0,
-                      reason TEXT NOT NULL DEFAULT '', equipment_context TEXT NOT NULL DEFAULT '{}',
-                      UNIQUE(id, revision));
-                    CREATE INDEX events_subject ON events(subject_id, sort_at);
-                    CREATE TABLE requests (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL);
-                    PRAGMA user_version=1;
-                """)
+                db.executescript("BEGIN IMMEDIATE;" + BASE_SCHEMA + "PRAGMA user_version=1;")
                 db.execute("INSERT INTO settings VALUES ('timezone',?)", (self.zone,))
                 db.commit()
             if version in (0, 1):
@@ -130,6 +139,25 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin):
                 except BaseException:
                     db.rollback()
                     raise
+            if version in (0, 1, 2, 3):
+                if version in (1, 2, 3):
+                    self._migration_backup(db, 4)
+                # La recréation de tables enfants (vérifications, photos) exige de relâcher
+                # les clés étrangères, et ce PRAGMA est sans effet à l'intérieur d'une transaction.
+                db.execute("PRAGMA foreign_keys=OFF")
+                try:
+                    db.executescript("BEGIN IMMEDIATE;" + SCHEMA4_SQL)
+                    # Contrepartie du relâchement : rien ne sort de la transaction avec une
+                    # référence pendante ; sinon la base reste en version 3, intacte.
+                    if db.execute("PRAGMA foreign_key_check").fetchone():
+                        raise CultureUnavailable("Références incohérentes après migration ; données conservées.")
+                    db.execute("PRAGMA user_version=4")
+                    db.commit()
+                except BaseException:
+                    db.rollback()
+                    raise
+                finally:
+                    db.execute("PRAGMA foreign_keys=ON")
             setting = db.execute("SELECT value FROM settings WHERE key='timezone'").fetchone()
             if setting is None:
                 raise CultureUnavailable("Fuseau du carnet manquant ; données conservées.")
