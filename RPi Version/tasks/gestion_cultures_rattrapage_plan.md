@@ -1,7 +1,8 @@
 # Plan — Compléments et corrections du carnet de cultures après audit
 
 Date : 8 septembre 2026.
-Statut : plan de travail issu de l’audit ; implémentation non commencée.
+Statut : lots A à I livrés et validés hors matériel le 8 septembre 2026 (voir le tableau de
+suivi en fin de document) ; aucune autorisation de déploiement.
 Branche auditée : `feature/gestion-cultures`, référence `58e97e6`.
 Plan de référence : [Gestion des cultures et carnet d’exploitation](gestion_cultures_plan.md).
 
@@ -168,13 +169,13 @@ Critères d’acceptation :
 Points d’entrée : `utils/culture_cycle_store.py`, `network/web/culture_cycles.py`,
 `network/web/templates/culture_cycles.html`, `network/web/static/js/culture_cycles.js`.
 
-- [ ] Ajouter révisions, motif et annulation visible aux listes de vérification.
-- [ ] Préserver le contexte historique de la vérification : culture, espace, stade, date
+- [x] Ajouter révisions, motif et annulation visible aux listes de vérification.
+- [x] Préserver le contexte historique de la vérification : culture, espace, stade, date
   effective et date de saisie ; distinguer ce contexte du stade actuellement affiché.
-- [ ] Définir le traitement d’une correction de parcours qui contredit une vérification
+- [x] Définir le traitement d’une correction de parcours qui contredit une vérification
   déjà enregistrée : signaler le conflit ou demander sa correction, sans réécriture silencieuse.
-- [ ] Appliquer version attendue et idempotence ; aucune case ne commande un équipement.
-- [ ] Inclure toutes les versions dans l’export et l’exercice de restauration.
+- [x] Appliquer version attendue et idempotence ; aucune case ne commande un équipement.
+- [x] Inclure toutes les versions dans l’export et l’exercice de restauration.
 
 Critères d’acceptation : une case cochée par erreur peut être corrigée, une vérification
 peut être annulée sans disparition de l’historique, un onglet ancien reçoit un conflit et
@@ -182,15 +183,15 @@ une modification rétrospective du parcours ne laisse pas un contexte contradict
 
 ## 8. Lot E — Plages cibles pH/EC facultatives et historisées
 
-- [ ] Définir un modèle de plages cibles avec cible et période de validité explicites,
+- [x] Définir un modèle de plages cibles avec cible et période de validité explicites,
   version, précision temporelle et contexte de solution ou de culture.
-- [ ] Définir et documenter la résolution du contexte quand un lot change d’espace ou de
+- [x] Définir et documenter la résolution du contexte quand un lot change d’espace ou de
   solution ; ne pas appliquer rétroactivement la plage actuelle aux anciennes mesures.
-- [ ] Permettre la saisie d’une plage pH seule, EC seule ou des deux, ainsi que leur fin
+- [x] Permettre la saisie d’une plage pH seule, EC seule ou des deux, ainsi que leur fin
   de validité, correction et annulation traçables.
-- [ ] Accepter la virgule décimale, normaliser explicitement l’EC en mS/cm, refuser NaN,
+- [x] Accepter la virgule décimale, normaliser explicitement l’EC en mS/cm, refuser NaN,
   infini, minimum supérieur au maximum et périodes contradictoires.
-- [ ] Afficher les plages contextualisées sur les courbes et dans les consultations/exportations.
+- [x] Afficher les plages contextualisées sur les courbes et dans les consultations/exportations.
   Ne fournir aucune plage par défaut, diagnostic causal, dosage ou alarme de contrôle.
 
 Critères d’acceptation : deux périodes successives gardent leurs propres cibles après
@@ -199,15 +200,15 @@ lot ne mélangent pas les contextes ; corrections, migrations, exports et restau
 
 ## 9. Lot F — Repères d’éclairage et état opérationnel
 
-- [ ] Ajouter des repères d’exploitation informatifs modifiables, notamment les références
+- [x] Ajouter des repères d’exploitation informatifs modifiables, notamment les références
   18 h / 6 h en végétatif et 12 h / 12 h en floraison prévues au plan.
-- [ ] Conserver leur contexte et leurs versions ; ne pas les traiter comme une prescription
+- [x] Conserver leur contexte et leurs versions ; ne pas les traiter comme une prescription
   universelle ou un profil à appliquer à la configuration.
-- [ ] Présenter ensemble le stade déclaré, le repère applicable, les horaires effectivement
+- [x] Présenter ensemble le stade déclaré, le repère applicable, les horaires effectivement
   configurés, l’activation et l’état opérationnel déjà disponibles.
-- [ ] Montrer les règles jour/nuit pertinentes et la ventilation commune en réutilisant les
+- [x] Montrer les règles jour/nuit pertinentes et la ventilation commune en réutilisant les
   sources existantes, sans nouveau calcul de régulation ni acquisition matérielle.
-- [ ] Afficher un écart au repère comme information avec accès aux réglages existants.
+- [x] Afficher un écart au repère comme information avec accès aux réglages existants.
   Préciser qu’un état GPIO ne prouve pas le fonctionnement physique d’un équipement.
 
 Critères d’acceptation : modifier un repère ne change ni horaires ni sorties ; horaires
@@ -218,15 +219,15 @@ présentés correctement ; aucune alarme de contrôle nouvelle n’est créée.
 
 Points d’entrée : `param/equipment_metadata.py`, magasins de culture et vues du carnet.
 
-- [ ] Conserver les identifiants et noms courants du catalogue existant comme source de
+- [x] Conserver les identifiants et noms courants du catalogue existant comme source de
   vérité ; ajouter uniquement les associations métier historiques dans le carnet.
-- [ ] Modéliser les périodes de validité des associations aux espaces/réservoirs et les
+- [x] Modéliser les périodes de validité des associations aux espaces/réservoirs et les
   changements d’usage, notamment les deux usages possibles de `cyclic_2`.
-- [ ] Résoudre le contexte d’un événement à sa date effective et conserver la provenance
+- [x] Résoudre le contexte d’un événement à sa date effective et conserver la provenance
   du contexte ainsi que sa date de saisie.
-- [ ] Préserver les anciennes copies de catalogue. Lors de la migration, les identifier
+- [x] Préserver les anciennes copies de catalogue. Lors de la migration, les identifier
   comme contexte connu à la saisie, sans inventer de dates de réaffectation passées.
-- [ ] Rendre les périodes consultables et corrigeables avec révisions et validation des
+- [x] Rendre les périodes consultables et corrigeables avec révisions et validation des
   contradictions ; ne modifier ni câblage ni réglages d’équipement.
 
 Critères d’acceptation : après changement d’usage de `cyclic_2`, une intervention
@@ -235,17 +236,17 @@ le signale. Renommer un équipement ne réécrit pas les anciens libellés enreg
 
 ## 11. Lot H — Journal transversal et observations d’espace
 
-- [ ] Ajouter une consultation paginée filtrable par période, cible et type couvrant notes,
+- [x] Ajouter une consultation paginée filtrable par période, cible et type couvrant notes,
   pertes, stades, déplacements, récoltes et interventions structurées.
-- [ ] Conserver les liens vers fiches, solutions, photos, corrections et versions précédentes.
+- [x] Conserver les liens vers fiches, solutions, photos, corrections et versions précédentes.
   Une entrée multi-cibles reste une opération unique dans le journal global et ses totaux.
-- [ ] Ajouter une cible d’observation explicite pour chaque espace, sans créer une fausse
+- [x] Ajouter une cible d’observation explicite pour chaque espace, sans créer une fausse
   plante pour porter la note et sans déplacer les notes dans l’historique purgé à 72 h.
-- [ ] Permettre les photos facultatives sur ces observations avec les mêmes limites,
+- [x] Permettre les photos facultatives sur ces observations avec les mêmes limites,
   validations, sauvegardes et règles de consultation que les autres photos.
-- [ ] Permettre correction et annulation traçables, pagination stable, export du filtre et
+- [x] Permettre correction et annulation traçables, pagination stable, export du filtre et
   accès daté en lecture seule aux pages effectivement conservées par la PWA.
-- [ ] Préserver les filtres et les champs en cas d’échec, et neutraliser les textes dans les CSV.
+- [x] Préserver les filtres et les champs en cas d’échec, et neutraliser les textes dans les CSV.
 
 Critères d’acceptation : retrouver les observations d’un espace même vide, les interventions
 d’une mère et les événements d’un lot archivé sur une période choisie ; vérifier absence de
@@ -253,23 +254,23 @@ doublon des arrosages partagés, liens à travers la pagination et restauration 
 
 ## 12. Lot I — Validation consolidée et clôture
 
-- [ ] Pour chaque changement Python, exécuter la suite pytest complète conformément aux
+- [x] Pour chaque changement Python, exécuter la suite pytest complète conformément aux
   instructions du dépôt ; ajouter les tests métier des nouveaux scénarios et des régressions.
-- [ ] Exécuter les parcours Playwright concernés pendant les lots, puis la suite complète
+- [x] Exécuter les parcours Playwright concernés pendant les lots, puis la suite complète
   sur bureau, téléphone, écran étroit, paysage et profil PWA à la clôture.
-- [ ] Vérifier accessibilité, clavier, champs conservés après erreur, conflits, double clic,
+- [x] Vérifier accessibilité, clavier, champs conservés après erreur, conflits, double clic,
   réponse perdue et absence de rejeu hors ligne avec des carnets remplis.
-- [ ] Tester chaque chemin de migration supporté, son interruption, le refus d’écriture,
+- [x] Tester chaque chemin de migration supporté, son interruption, le refus d’écriture,
   le schéma futur, la corruption et la conservation des données antérieures.
-- [ ] Refaire une sauvegarde/restauration ZIP sur copie isolée avec données anciennes et
+- [x] Refaire une sauvegarde/restauration ZIP sur copie isolée avec données anciennes et
   nouvelles, révisions, liens, plages, associations, vérifications, rappels et photos.
-- [ ] Vérifier que toutes les actions de culture laissent la configuration et les GPIO
+- [x] Vérifier que toutes les actions de culture laissent la configuration et les GPIO
   inchangés, et qu’une panne du carnet ne dégrade pas la santé du contrôle.
-- [ ] Actualiser le guide illustré, le contrat API, la procédure de sauvegarde/restauration,
+- [x] Actualiser le guide illustré, le contrat API, la procédure de sauvegarde/restauration,
   la roadmap et le plan de référence pour refléter exactement la livraison finale.
-- [ ] Vérifier `git diff --check` et `diff -u CLAUDE.md AGENTS.md` ; toute modification des
+- [x] Vérifier `git diff --check` et `diff -u CLAUDE.md AGENTS.md` ; toute modification des
   instructions doit être identique dans les deux fichiers.
-- [ ] Consigner pour chaque lot son commit, ses tests, ses résultats et ses limites résiduelles.
+- [x] Consigner pour chaque lot son commit, ses tests, ses résultats et ses limites résiduelles.
 
 La clôture exige que chaque écart A à H ait une preuve de réalisation et de validation,
 ou un retrait explicite du périmètre validé par l’exploitant. Une limite ajoutée dans un guide
@@ -289,9 +290,9 @@ intervention sur le Pi pour commencer les corrections et leur validation hors ma
 | A | Livré (8 septembre 2026) | `2284074` | 20 tests magasin/HTTP, Playwright bureau + téléphone ; recherche insensible à la casse mais pas aux accents ; en mode recherche les filtres du journal sont ignorés ; `_solution_data` charge encore toutes les entrées en mémoire |
 | B | Livré (8 septembre 2026) | `1cdf87d` | 16 tests dont couverture, zéros réels, changement d’heure et taille sous 1 Mio ; 12 000 agrégats : page 258 217 o, JSON 178 966 o, 27 à 138 ms hors matériel (non qualifié sur le Pi) ; détail horaire réservé à une sélection unique ; `measures` pH/EC lit encore tous les relevés |
 | C | Livré (8 septembre 2026) | `e749c80` | Tests magasin et HTTP (dates, instants, minuit, DST, horloge non fiable, onglet périmé, révisions), Playwright bureau + téléphone ; portée `stage`/`move` seulement, la clôture se corrige par `correct` |
-| D | À faire | — | — |
-| E | À faire | — | — |
-| F | À faire | — | — |
-| G | À faire | — | — |
-| H | À faire | — | — |
-| I | À faire | — | — |
+| D | Livré (8 septembre 2026) | `f4a00cc` (schéma 4 : `ca865d0`) | 8 tests magasin + restauration, Playwright bureau + téléphone ; conflit dérivé à la lecture ; une annulation est terminale (nouvelle saisie plutôt que réactivation) |
+| E | Livré (8 septembre 2026) | `f51e619` | 18 tests dont fenêtres, résolution et restauration, Playwright bureau + téléphone ; aucune plage datée dans le futur (`stamp`) ; le CSV des relevés gagne `ph_cible`/`ec_cible` ; arrosage commun à deux mères ciblées → plage la plus récente et `multiple` |
+| F | Livré (8 septembre 2026) | `8d7c9b5` | 10 tests dont horaires traversant minuit, minuterie désactivée, état indisponible, config et GPIO inchangés, Playwright bureau, téléphone et PWA ; aucun repère planifiable à l’avance ; précision `instant` non proposée par le formulaire |
+| G | Livré (8 septembre 2026) | `d40a243` (bloc d’affichage des solutions dans `f51e619`) | 11 tests dont libellé figé après renommage et restauration, Playwright bureau + téléphone ; toutes les affectations couvrant la date sont affichées, sans filtrage par pertinence |
+| H | Livré (8 septembre 2026) | `a7d2eab` | 12 tests dont arrosage multi-mères compté une fois, espace vide, restauration ZIP avec photos d’espace, Playwright bureau, téléphone et PWA ; `space`/`kind` non corrigibles (annuler puis ressaisir) ; CSV non borné ; cas de bord du relevé à l’instant exact d’un renouvellement |
+| I | Clôturé (8 septembre 2026) | commit de clôture (tests `tests/test_culture_cloture.py`, documentation, `CLAUDE.md` = `AGENTS.md`) | 357 tests pytest ; 135 tests Playwright réussis et 70 exclusions prévues sur les 5 profils ; 11 tests de clôture (migration v3 remplie comparée table par table, disque en lecture seule, corruption, schéma futur, ZIP intégral restauré par l’API et par `restore-cultures.py --bundle`, 12 mutations HTTP sans écriture de `param.json` ni GPIO ni override, 7 pages en 503 sans dégradation du contrôle, double clic et clé réutilisée). Limites résiduelles : `requests` non purgée ; plafonds ZIP et médias sous pression ; `_solution_data`/`measures` non bornés ; aucune capture d’écran des nouvelles pages ; validations hors matériel seulement, aucune autorisation de déploiement |

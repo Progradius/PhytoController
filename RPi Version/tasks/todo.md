@@ -17,21 +17,31 @@ Baseline (8 septembre 2026, `58e97e6`) : 273 pytest, 92 Playwright, `git diff --
 ## Phase 2 — schéma 4 puis lots D à H
 - [x] Migration schéma 4 (une seule, sauvegarde `.before-v4.sqlite3`) — `ca865d0`, 287 pytest
 - [x] Pré-câblage partagé (scripts vides servis, motif service worker, liens de navigation)
-- [ ] Lot D — vérifications déclaratives corrigibles
-- [ ] Lot E — plages cibles pH/EC facultatives et historisées
-- [ ] Lot G — affectations d'équipements datées
-- [ ] Lot F — repères d'éclairage et état opérationnel
-- [ ] Lot H — journal transversal et observations d'espace
+- [x] Lot D — vérifications déclaratives corrigibles (`f4a00cc`)
+- [x] Lot E — plages cibles pH/EC facultatives et historisées (`f51e619`)
+- [x] Lot G — affectations d'équipements datées (`d40a243`)
+- [x] Lot F — repères d'éclairage et état opérationnel (`8d7c9b5`)
+- [x] Lot H — journal transversal et observations d'espace (`a7d2eab`)
+- [x] Vérification phase 2 : 346 pytest, 135 Playwright sur 5 profils (fixture isolée par test, `d568ae2`)
 
 ## Phase 3 — clôture (lot I)
-- [ ] Suite pytest complète, Playwright complète (5 profils), pyflakes, octets nuls
-- [ ] Migration 1/2/3 → 4, interruption, refus d'écriture, schéma futur, corruption
-- [ ] Sauvegarde/restauration ZIP sur copie isolée avec données anciennes et nouvelles
-- [ ] Documentation (guide, contrat API, sauvegarde, roadmap, plan de référence), CLAUDE.md = AGENTS.md
-- [ ] Tableau de traçabilité du plan (commit, tests, limites) par lot
+- [x] Suite pytest complète (357), Playwright complète 5 profils (135 réussis, 70 exclusions), pyflakes, octets nuls
+- [x] Migration 1/2/3 → 4, interruption, refus d'écriture, schéma futur, corruption (`tests/test_culture_schema_v4.py`, `tests/test_culture_cloture.py`)
+- [x] Sauvegarde/restauration ZIP sur copie isolée avec données anciennes et nouvelles
+- [x] Documentation (guide, contrat API, sauvegarde, roadmap, plan de référence), CLAUDE.md = AGENTS.md
+- [x] Tableau de traçabilité du plan (commit, tests, limites) par lot
 
 ## Revue
-(à compléter à la clôture)
+- Organisation : un agent Opus par lot, sur des fichiers disjoints, avec un brief commun ; l'orchestrateur a
+  vérifié chaque rendu (suite complète, diffs des fichiers partagés, invariants) avant de committer.
+- Trois interventions de l'orchestrateur hors délégation : raccord des durées dans la comparaison des cycles,
+  remplacement de deux BOM littéraux par `"\ufeff"`, et isolation du carnet Playwright **par test** (deux specs
+  d'un même worker se disputaient l'espace 2, exclusif).
+- Erreurs corrigées en cours de route et consignées dans `tasks/lessons.md` : écrasement de ce fichier par `Write`,
+  trailers d'attribution refusés dans les messages de commit.
+- Limites résiduelles ouvertes (voir `docs/risk-register.md` R-CULT-01 à 03 et « Limites connues » du contrat
+  API) : table `requests` jamais purgée ; plafonds ZIP/médias ; `_solution_data` et `measures` non bornés ;
+  aucune capture d'écran des quatre nouvelles pages ; aucune qualification sur le Pi.
 
 
 # TODO — Déploiement et armement de la qualité des capteurs
