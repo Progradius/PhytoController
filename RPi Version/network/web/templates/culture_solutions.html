@@ -13,15 +13,20 @@
 <button type="submit" class="button">{{ label }}</button><output role="status" aria-live="polite"></output>
 {% endmacro %}
 {% macro entry_form(entry={}) %}
+{# Une entrée neuve prend l'intention choisie en tête de page ; une correction reste
+   verrouillée sur le type de l'entrée et ignore le filtre courant. #}
+{% set kind_value = entry.get('kind') if entry else (filters.get('kind') if filters.get('kind') in kinds else 'reading') %}
 <form class="culture-form solution-form" data-solution-entry{% if entry %} data-id="{{ entry.id }}" data-version="{{ entry.revision }}"{% endif %}>
-<label>Action<select name="kind"{% if entry %} disabled{% endif %}>{% for key,label in kinds.items() %}<option value="{{ key }}"{% if entry.get('kind','reading') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <label>Cible<select name="target" required><option value="">Choisir une cible</option>
 {% for reservoir in data.reservoirs %}<option value="{{ reservoir.id }}" data-reservoir{% if entry.get('reservoir_id',filters.get('target')) == reservoir.id %} selected{% endif %}>{{ reservoir.name }}</option>{% endfor %}
 {% for subject in data.subjects %}<option value="{{ subject.id }}" data-subject-kind="{{ subject.kind }}"{% if (entry.get('targets') and entry.targets[0] == subject.id) or (not entry and filters.get('target') == subject.id) %} selected{% endif %}>{{ subject.name }}{{ ' (archivée)' if subject.archived else '' }}</option>{% endfor %}</select></label>
+<label>Action<select name="kind"{% if entry %} disabled{% endif %}>{% for key,label in kinds.items() %}<option value="{{ key }}"{% if kind_value == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <details data-mothers><summary>Autres mères pour un arrosage ou relevé commun</summary><p>Le volume est celui du mélange partagé ; il n’est pas multiplié par le nombre de mères.</p>
 {% for subject in data.subjects if subject.kind == 'mother' %}<label class="culture-confirm"><input type="checkbox" name="mother" value="{{ subject.id }}"{% if subject.id in entry.get('targets',[])[1:] %} checked{% endif %}>{{ subject.name }}</label>{% endfor %}</details>
+{# Date compacte : la date et sa précision tiennent sur une seule ligne. #}
+<div class="culture-grid">
 <label>Date effective<input name="effective_at" type="{{ 'datetime-local' if entry.get('precision') == 'instant' else 'date' }}" value="{{ entry.get('effective_at',data.today) }}"{% if entry.get('precision') == 'instant' %} data-instant="{{ entry.effective_at }}"{% endif %} required></label>
-<label>Précision de la date<select name="precision">{% for key,label in (('date','Date connue'),('instant','Date et heure connues'),('approximative','Date approximative')) %}<option value="{{ key }}"{% if entry.get('precision','date') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Précision de la date<select name="precision">{% for key,label in (('date','Date connue'),('instant','Date et heure connues'),('approximative','Date approximative')) %}<option value="{{ key }}"{% if entry.get('precision','date') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></div>
 <div class="culture-grid">
 <label>pH<input name="ph" inputmode="decimal" value="{{ entry.ph if entry and entry.ph is not none else '' }}"></label>
 <label>EC<input name="ec" inputmode="decimal" value="{{ entry.ec if entry and entry.ec is not none else '' }}"></label>
@@ -56,14 +61,19 @@
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% block content %}
 <h1>Solutions et relevés</h1>{% set culture_section = 'solutions' %}{% include 'culture_navigation.html' %}
-<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#saisie">Ajouter un relevé</a><a href="#recettes">Recettes</a><a href="#journal-solutions">Journal et courbes</a></nav>
+{# Intentions quotidiennes : la cible et la période du filtre sont conservées, seul le type
+   change. Les deux autres types (nutriments, correction pH) restent dans le choix « Action ». #}
+{% set intention_query %}{% if filters.get('target') %}target={{ filters['target']|urlencode }}&{% endif %}{% if filters.get('start') %}start={{ filters['start']|urlencode }}&{% endif %}{% if filters.get('end') %}end={{ filters['end']|urlencode }}&{% endif %}{% endset %}
+<nav class="culture-links" aria-label="Que voulez-vous saisir ?" data-solution-intentions>
+{% for key,label in (('reading','Mesurer pH / EC'),('water','Arroser'),('renewal','Renouveler la solution'),('topup','Ajouter de l’eau')) %}<a class="button{{ '' if filters.get('kind') == key else ' button-secondary' }}" href="?{{ intention_query }}kind={{ key }}#saisie" data-intention="{{ key }}"{% if filters.get('kind') == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#saisie">Saisie</a><a href="#reservoirs">Réservoirs</a><a href="#courbes">Courbes</a><a href="#journal-solutions">Journal</a><a href="#recettes">Recettes</a></nav>
 <p>Carnet déclaratif. Une saisie ne modifie aucun équipement ni réglage.</p>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates et les âges affichés.</p>{% endif %}
-<section class="culture-grid" aria-label="Solutions présentes">{% for reservoir in data.reservoirs %}<article class="card"><h2><a href="?target={{ reservoir.id }}">{{ reservoir.name }}</a></h2>
+<section id="reservoirs" class="culture-grid" aria-label="Solutions présentes">{% for reservoir in data.reservoirs %}<article class="card"><h2><a href="?target={{ reservoir.id }}">{{ reservoir.name }}</a></h2>
 {% for period in data.periods if period.reservoir_id == reservoir.id and not period.end_at %}<p>Solution depuis le {{ period.preparation.effective_at|culture_date(data.timezone) }} · {{ period.age.days }} jours</p><p><a href="?target={{ reservoir.id }}&entry={{ period.id }}#entry-{{ period.id }}">Préparation : {{ period.preparation.volume_l }} L</a></p>{% for link in data.links if link.period_id == period.id and not link.end_at %}{% for subject in data.subjects if subject.id == link.subject_id %}<p>Alimente <a href="/cultures/{{ subject.id }}">{{ subject.name }}</a> depuis le {{ link.start_at|culture_date(data.timezone) }}</p>{% endfor %}{% endfor %}{% else %}<p>Aucune solution déclarée. Enregistrer un renouvellement pour reprendre le suivi.</p>{% endfor %}</article>{% endfor %}</section>
 
-<details id="saisie" class="culture-section card culture-new-entry"><summary>Ajouter un relevé ou une intervention</summary>
+<details id="saisie" class="culture-section card culture-new-entry"><summary>Saisir : {{ kinds[filters['kind']] if filters.get('kind') in kinds else 'Relevé' }}</summary>
 {% if data.latest %}<p>Dernier relevé du filtre : {{ data.latest.effective_at|culture_date(data.timezone) }} · pH {{ data.latest.ph if data.latest.ph is not none else '—' }} · EC {{ data.latest.ec if data.latest.ec is not none else '—' }} mS/cm <span data-measure-age="{{ data.latest.sort_at }}"></span></p>{% else %}<p>Aucun relevé pour ce filtre.</p>{% endif %}
 <p class="card-meta">Les mesures sont volontairement vides. Virgule décimale acceptée ; EC normalisée en mS/cm. Une date seule ne précise pas l’ordre des interventions dans la journée.</p>
 {{ entry_form() }}</details>
@@ -76,10 +86,10 @@
 {% if data.chart_truncated %}Affichage limité aux 2 000 derniers groupes journaliers ; réduire la période ou exporter toutes les données.{% endif %}</p>
 {# Lot E : bandes de référence des plages cibles, résolues par période et jamais par défaut. #}
 <p class="card-meta">Les bandes de référence proviennent des <a href="/cultures/targets{% if filters.get('target') %}?target={{ filters['target']|urlencode }}{% endif %}">plages cibles</a> résolues à la date de chaque mesure. Une période sans plage reste sans bande ; aucune plage n’est appliquée rétroactivement ni proposée par défaut.</p>
-<div class="culture-grid" data-solution-charts data-chart="{{ data.chart|tojson|forceescape }}" data-stages="{{ data.stages|tojson|forceescape }}" data-target-bands="{{ data.chart_targets|tojson|forceescape }}">{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %}<figure class="card solution-chart"><figcaption>{{ label }}</figcaption><svg viewBox="0 0 600 220" role="img" aria-label="Points mesurés : {{ label }}" data-metric="{{ metric }}"></svg></figure>{% endfor %}</div>
+<div id="courbes" class="culture-grid" data-solution-charts data-chart="{{ data.chart|tojson|forceescape }}" data-stages="{{ data.stages|tojson|forceescape }}" data-target-bands="{{ data.chart_targets|tojson|forceescape }}">{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %}<figure class="card solution-chart"><figcaption>{{ label }}</figcaption><svg viewBox="0 0 600 220" role="img" aria-label="Points mesurés : {{ label }}" data-metric="{{ metric }}"></svg></figure>{% endfor %}</div>
 <details class="card"><summary>Repères des interventions et stades</summary><ul>{% for point in data.chart if point.annotations %}<li>{{ point.at|culture_date(data.timezone) }} · {{ point.annotations|join(', ') }} · {{ point.target }}</li>{% endfor %}{% for stage in data.stages %}<li>{{ stage.at|culture_date(data.timezone) }} · {{ stage.label }}</li>{% endfor %}</ul></details>
 <div class="culture-links"><a data-solution-export href="/api/v1/cultures/solutions/export">Exporter les relevés et interventions CSV du filtre</a><a href="/api/v1/cultures/export?format=sqlite3">Base SQLite seule (sans photos)</a></div>
-{% for entry in data["items"] %}<article class="card culture-journal solution-journal" id="entry-{{ entry.id }}" data-point="{{ {'ph':entry.ph,'ec':entry.ec,'at':entry.sort_at,'cancelled':entry.cancelled,'kind':entry.kind,'period':entry.period_id,'target':entry.reservoir_id or entry.targets|join(','),'label':kinds[entry.kind],'number':loop.index}|tojson|forceescape }}">
+{% for entry in data["items"] %}<article class="card culture-journal solution-journal" id="entry-{{ entry.id }}" tabindex="-1" data-point="{{ {'ph':entry.ph,'ec':entry.ec,'at':entry.sort_at,'cancelled':entry.cancelled,'kind':entry.kind,'period':entry.period_id,'target':entry.reservoir_id or entry.targets|join(','),'label':kinds[entry.kind],'number':loop.index}|tojson|forceescape }}">
 <h3>{{ loop.index }}. {{ kinds[entry.kind] }}{{ ' · annulé' if entry.cancelled else '' }}</h3><p>{{ entry.effective_at|culture_date(data.timezone) }}{{ ' (approximative)' if entry.precision == 'approximative' else '' }} · référence {{ entry.id[:8] }}</p>
 <p>{% for reservoir in data.reservoirs if reservoir.id == entry.reservoir_id %}{{ reservoir.name }}{% endfor %}{% for subject in data.subjects if subject.id in entry.targets or subject.id in entry.fed_subjects %} · <a href="/cultures/{{ subject.id }}">{{ subject.name }}</a>{% endfor %}</p>
 <p>pH {{ entry.ph if entry.ph is not none else '—' }} · EC {{ entry.ec if entry.ec is not none else '—' }} mS/cm · {{ entry.temperature_c if entry.temperature_c is not none else '—' }} °C · {{ entry.volume_l if entry.volume_l is not none else '—' }} L{{ ' partagés (total unique)' if entry.targets|length > 1 else '' }}</p>
@@ -98,4 +108,4 @@
 <section id="recettes" class="culture-section"><h2>Recettes réutilisables</h2><p>Une nouvelle version ne modifie jamais les préparations passées. Aucune conversion masse/volume ni recommandation de dosage.</p><details class="card"><summary>Créer une recette</summary>{{ recipe_form() }}</details>
 {% for recipe in data.recipes %}<details class="card culture-journal"><summary>{{ recipe.name }} · version {{ recipe.revision }}</summary>{{ recipe_form(recipe) }}</details>{% endfor %}</section>
 {% endif %}{% endblock %}
-{% block page_scripts %}<script src="/static/js/culture_solutions.js?v={{ asset_versions.culture_solutions }}" defer></script>{% endblock %}
+{% block page_scripts %}<script src="/static/js/culture_forms.js?v={{ asset_versions.culture_forms }}" defer></script><script src="/static/js/culture_solutions.js?v={{ asset_versions.culture_solutions }}" defer></script>{% endblock %}

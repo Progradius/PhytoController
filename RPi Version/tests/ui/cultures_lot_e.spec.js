@@ -40,7 +40,7 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await again.getByLabel("pH minimum").fill("6,0");
   await again.getByLabel("Début de validité").fill("2026-08-05");
   await again.getByRole("button", {name: "Enregistrer la plage cible"}).click();
-  await expect(again.locator("output")).toContainText("chevauchent");
+  await expect(again.locator(".culture-form-errors")).toContainText("chevauchent");
   // Champs conservés après refus : la saisie n'est jamais perdue.
   await expect(again.getByLabel("pH minimum")).toHaveValue("6,0");
 

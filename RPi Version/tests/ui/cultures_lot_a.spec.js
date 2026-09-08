@@ -62,7 +62,7 @@ test("relevé ancien : lien conservé, recherche bornée et refus sans doublon",
   await quick.getByRole("combobox", {name: "Contexte du relevé", exact: true}).selectOption("after");
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await quick.getByRole("button", {name: "Enregistrer la saisie"}).click();
-    await expect(quick.locator("output")).toContainText("Saisie conservée");
+    await expect(quick.locator(".culture-form-errors")).toContainText("Saisie conservée");
     await expect(quick.getByLabel("pH", {exact: true})).toHaveValue("6,1");
   }
   const after = (await (await page.request.get("/api/v1/cultures/solutions")).json()).total;

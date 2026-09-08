@@ -81,7 +81,7 @@ test("changement d'usage de cyclic_2 : périodes successives et contexte résolu
   // Une seconde affectation qui recouvre la première est refusée, sans écriture.
   const overlap = await declare(page, {equipment: "cyclic_2", usage: second, scope: "space", target: "space_1", start: "2026-06-15"});
   expect(overlap.answer.status()).toBe(400);
-  await expect(overlap.form.locator("output")).toContainText("recouvrent");
+  await expect(overlap.form.locator(".culture-form-errors")).toContainText("recouvrent");
   await expect(windows(page, "cyclic_2")).toHaveCount(1);
 
   // Clore la période puis ouvrir la suivante : deux usages successifs cohabitent.

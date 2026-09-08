@@ -1,19 +1,34 @@
 (() => {
   "use strict";
+  const forms = window.PhytoCultureForms;
+  const params = new URLSearchParams(location.search);
+  // La saisie s'ouvre sur l'ancre habituelle et sur une intention choisie en tête de page.
   const openEntry = () => {
-    if (location.hash === "#saisie") document.querySelector("#saisie")?.setAttribute("open", "");
+    if (location.hash === "#saisie" || params.has("kind")) document.querySelector("#saisie")?.setAttribute("open", "");
   };
   addEventListener("hashchange", openEntry);
   openEntry();
-  const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-  const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), n => n.toString(16).padStart(2, "0")).join("");
-  const decimal = value => {
+  // Retour sur une entrée : l'élément visé porte le focus, il est la confirmation.
+  const focusHash = () => {
+    if (!location.hash || location.hash === "#saisie") return;
+    let node = null;
+    try { node = document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch { node = null; }
+    if (!node || node.tabIndex !== -1) return;
+    for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+      if (parent.tagName === "DETAILS") parent.open = true;
+    }
+    node.focus({preventScroll: true});
+    node.scrollIntoView({block: "center"});
+  };
+  focusHash();
+  // Refus attribuable à un champ : le socle le relie au contrôle nommé par le serveur.
+  const invalid = (message, field, index) => Object.assign(new Error(message), {field, index});
+  const decimal = (value, field, index) => {
     if (!value.trim()) return null;
     const result = Number(value.replace(",", "."));
-    if (!Number.isFinite(result)) throw new Error("Nombre invalide ; la virgule décimale est acceptée.");
+    if (!Number.isFinite(result)) throw invalid("Nombre invalide ; la virgule décimale est acceptée.", field, index);
     return result;
   };
-  const params = new URLSearchParams(location.search);
   document.querySelectorAll("[data-solution-offset]").forEach(link => {
     const query = new URLSearchParams(params); query.set("offset", link.dataset.solutionOffset); link.search = query.toString();
   });
@@ -24,10 +39,10 @@
     el.textContent = `· il y a environ ${days} jour(s)`;
   });
   document.querySelectorAll(".solution-form").forEach(form => {
+    forms.register(form);
     const get = name => form.elements[name]?.value || "";
-    const output = form.querySelector("output");
-    const products = () => Array.from(form.querySelectorAll("[data-product]"), row => ({product: row.querySelector('[name="product"]').value,
-      quantity: decimal(row.querySelector('[name="quantity"]').value), unit: row.querySelector('[name="unit"]').value})).filter(p => p.product.trim() || p.quantity !== null);
+    const products = () => Array.from(form.querySelectorAll("[data-product]"), (row, index) => ({product: row.querySelector('[name="product"]').value,
+      quantity: decimal(row.querySelector('[name="quantity"]').value, "quantity", index), unit: row.querySelector('[name="unit"]').value})).filter(p => p.product.trim() || p.quantity !== null);
     const effective = form.elements.effective_at;
     if (effective?.dataset.instant) {
       const d = new Date(effective.dataset.instant);
@@ -118,7 +133,10 @@
       const list = form.querySelector("[data-product-list]");
       if (list.children.length >= 40) return;
       const row = list.firstElementChild.cloneNode(true);
-      row.querySelectorAll("input").forEach(input => { input.value = ""; }); list.append(row);
+      row.querySelectorAll("input").forEach(input => { input.value = ""; delete input.dataset.cfGenerated; input.removeAttribute("id"); });
+      list.append(row);
+      // Les identifiants sont recalculés pour que le refus d'un produit vise la bonne ligne.
+      forms.register(form);
     });
     form.addEventListener("click", event => {
       const button = event.target.closest("[data-remove-product]");
@@ -126,17 +144,14 @@
       else if (button) button.closest("[data-product]").querySelectorAll("input").forEach(input => { input.value = ""; });
     });
     sync();
-    let busy = false, previous = null, key = requestId();
     form.addEventListener("submit", async event => {
       event.preventDefault();
-      if (busy) return;
-      if (!navigator.onLine || document.body.classList.contains("is-offline")) { output.textContent = "Hors ligne : saisie conservée dans cette page ; aucun envoi mis en attente."; return; }
-      const button = form.querySelector('[type="submit"]');
+      let command;
       try {
-        let command = {operation: form.hasAttribute("data-solution-recipe") ? "recipe" : form.dataset.id ? "correct" : "entry",
+        command = {operation: form.hasAttribute("data-solution-recipe") ? "recipe" : form.dataset.id ? "correct" : "entry",
           confirm_date: form.elements.confirm_date?.checked || false};
         if (form.dataset.id) Object.assign(command, {id: form.dataset.id, version: Number(form.dataset.version)});
-        if (command.operation === "recipe") Object.assign(command, {name: get("name"), volume_l: decimal(get("volume_l")), ingredients: products()});
+        if (command.operation === "recipe") Object.assign(command, {name: get("name"), volume_l: decimal(get("volume_l"), "volume_l"), ingredients: products()});
         else {
           const selected = form.elements.target.selectedOptions[0];
           const reservoir = selected.hasAttribute("data-reservoir");
@@ -144,41 +159,43 @@
           if (!form.querySelector("[data-mothers]").hidden) form.querySelectorAll('[name="mother"]:checked').forEach(input => { if (!targets.includes(input.value)) targets.push(input.value); });
           Object.assign(command, {kind: get("kind"), reservoir_id: reservoir ? get("target") : null, targets,
             effective_at: get("precision") === "instant" ? (effective.dataset.rendered === effective.value ? effective.dataset.instant : new Date(effective.value).toISOString()) : effective.value,
-            precision: get("precision"), ph: decimal(get("ph")), ec: decimal(get("ec")), ec_unit: get("ec_unit"),
-            temperature_c: decimal(get("temperature_c")), volume_l: decimal(get("volume_l")), context: get("context"),
+            precision: get("precision"), ph: decimal(get("ph"), "ph"), ec: decimal(get("ec"), "ec"), ec_unit: get("ec_unit"),
+            temperature_c: decimal(get("temperature_c"), "temperature_c"), volume_l: decimal(get("volume_l"), "volume_l"), context: get("context"),
             intervention_id: get("intervention_id") || null, compensation: get("compensation"), note: get("note"),
             ingredients: form.querySelector("[data-preparation]").hidden ? [] : products()});
           const recipe = form.elements.recipe_id.selectedOptions[0];
           if (recipe.value) {
-            if (!form.elements.confirm_recipe.checked) throw new Error("Vérifier les quantités avant validation.");
+            if (!form.elements.confirm_recipe.checked) throw invalid("Vérifier les quantités avant validation.", "confirm_recipe");
             Object.assign(command, {recipe_id: recipe.value, recipe_revision: Number(recipe.dataset.revision),
               ingredients: JSON.parse(recipe.dataset.ingredients).map(p => ({...p, quantity: p.quantity * (command.volume_l / Number(recipe.dataset.volume))}))});
           }
           if (form.dataset.id) Object.assign(command, {cancelled: form.elements.cancelled.checked, reason: get("reason")});
         }
-        const body = JSON.stringify(command);
-        if (previous !== null && previous !== body) key = requestId();
-        previous = body; command.request_id = key;
-        busy = true; button.disabled = true; output.textContent = "Enregistrement…";
-        const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 15000);
-        let response;
-        try { response = await fetch("/api/v1/cultures/solutions", {method: "POST", headers: {"Content-Type": "application/json", "X-CSRF-Token": csrf}, body: JSON.stringify(command), signal: controller.signal}); }
-        finally { clearTimeout(timeout); }
-        const result = await response.json().catch(() => ({error: "Requête refusée. Vérifier la connexion."}));
-        if (!response.ok) throw new Error(`${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir cette page dans un nouvel onglet pour consulter la version actuelle." : ""}`);
-        output.textContent = "Enregistré. Ouverture de l’entrée…";
-        const next = new URL(location.href); next.searchParams.delete("offset"); next.searchParams.delete("entry"); next.searchParams.delete("kind");
-        next.searchParams.delete("start"); next.searchParams.delete("end");
-        if (command.operation !== "recipe") next.searchParams.set("target", command.reservoir_id || command.targets[0]);
-        next.hash = command.operation === "recipe" ? "recettes" : `entry-${result.id}`;
-        // L'entrée peut être rétrospective ; la page serveur choisit sa pagination.
-        if (command.operation !== "recipe") next.searchParams.set("entry", result.id);
-        if (next.pathname === location.pathname && next.search === location.search) {
-          location.hash = next.hash; location.reload();
-        } else location.assign(next.href);
       } catch (error) {
-        output.textContent = error.name === "AbortError" || error instanceof TypeError ? "Réponse non reçue. Saisie conservée : réessayez sans modification pour vérifier le même enregistrement." : error.message;
-      } finally { busy = false; button.disabled = false; }
+        forms.showError(form, {error: error.message, field: error.field, index: error.index});
+        return;
+      }
+      forms.status(form, "Enregistrement…");
+      const answer = await forms.submitJson(form, "/api/v1/cultures/solutions", command);
+      // Hors ligne et envoi déjà en vol : le socle a posé son message, la saisie reste intacte.
+      if (answer.offline || answer.busy) return;
+      if (!answer.ok) {
+        const data = answer.data || {};
+        forms.showError(form, {...data,
+          error: `${data.error} Saisie conservée.${answer.status === 409 ? " Ouvrir cette page dans un nouvel onglet pour consulter la version actuelle." : ""}`});
+        return;
+      }
+      const result = answer.data;
+      forms.status(form, "Enregistré. Ouverture de l’entrée…");
+      const next = new URL(location.href); next.searchParams.delete("offset"); next.searchParams.delete("entry"); next.searchParams.delete("kind");
+      next.searchParams.delete("start"); next.searchParams.delete("end");
+      if (command.operation !== "recipe") next.searchParams.set("target", command.reservoir_id || command.targets[0]);
+      next.hash = command.operation === "recipe" ? "recettes" : `entry-${result.id}`;
+      // L'entrée peut être rétrospective ; la page serveur choisit sa pagination.
+      if (command.operation !== "recipe") next.searchParams.set("entry", result.id);
+      if (next.pathname === location.pathname && next.search === location.search) {
+        location.hash = next.hash; location.reload();
+      } else location.assign(next.href);
     });
   });
   const charts = document.querySelector("[data-solution-charts]");

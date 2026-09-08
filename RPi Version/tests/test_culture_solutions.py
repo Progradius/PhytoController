@@ -238,6 +238,60 @@ async def test_courbes_longues_pagination_et_preparation_sans_rupture(cultures):
     assert len((await cultures.call("solution_data", {"start": "2026-08-02", "end": "2026-08-02"}, 0, True))) == 502
 
 
+async def test_intentions_visibles_et_type_par_defaut_de_la_saisie(web_context):
+    """Lot UI 2 : les quatre intentions conservent le filtre et arment la saisie neuve."""
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    assert (await client.post("/api/v1/cultures/solutions", json=entry(), headers=headers)).status == 200
+
+    response = await client.get("/cultures/solutions?target=reservoir_2&kind=water&start=2026-07-01&end=2026-09-01")
+    assert response.status == 200, await response.text()
+    html = await response.text()
+    # Cible et période suivent l'intention ; seul le type change, et la saisie s'ouvre.
+    for kind in ("reading", "water", "renewal", "topup"):
+        assert f'href="?target=reservoir_2&start=2026-07-01&end=2026-09-01&kind={kind}#saisie"' in html
+    assert 'data-intention="water" aria-current="true"' in html
+    assert html.count('aria-current="true"') == 1
+    assert "Saisir : Arrosage" in html
+    # Les deux types restants ne sont pas des intentions ; ils demeurent dans le choix « Action ».
+    assert 'data-intention="nutrient"' not in html and 'data-intention="ph"' not in html
+    saisie = html.split('<details id="saisie"')[1].split('id="journal-solutions"')[0]
+    assert '<option value="water" selected>Arrosage</option>' in saisie
+    assert 'name="ph" inputmode="decimal" value=""' in saisie
+
+    # Sans intention, la saisie neuve retombe sur le relevé ; aucun lien n'est marqué courant.
+    plain = await (await client.get("/cultures/solutions?target=reservoir_2")).text()
+    assert 'aria-current="true"' not in plain and "Saisir : Relevé" in plain
+    assert '<option value="reading" selected>Relevé</option>' in plain.split('<details id="saisie"')[1]
+    # Un type inconnu est déjà refusé par le magasin : la page ne l'invente pas.
+    assert (await client.get("/cultures/solutions?kind=invalide")).status == 400
+    # Ancres locales : courbes et journal restent atteignables sans traverser la saisie.
+    for anchor in ("#saisie", "#reservoirs", "#courbes", "#journal-solutions", "#recettes"):
+        assert f'href="{anchor}"' in html
+    assert 'id="courbes"' in html and 'id="reservoirs"' in html
+
+
+async def test_correction_ignore_le_filtre_de_type(cultures):
+    """Lot UI 2 : une correction reste verrouillée sur le type de l'entrée corrigée."""
+    from network.web.pages import render_template
+    from model.culture_solution import SOLUTION_KINDS
+
+    await cultures.call("solution_mutate", entry())
+    data = await cultures.call("solution_data", {}, 0)
+    html = render_template("culture_solutions.html", page_title="Solutions et relevés",
+                           current_page="cultures", csrf_token=CSRF_TOKEN, data=data, error=None,
+                           filters={"kind": "water"}, kinds=SOLUTION_KINDS,
+                           override_summary=None, pwa_url="", pwa_https_configured=False)
+    saisie, journal = html.split('id="journal-solutions"')
+    assert '<option value="water" selected>Arrosage</option>' in saisie
+    # Le formulaire de correction porte l'identifiant de l'entrée et son type d'origine.
+    correction = journal.split('data-solution-entry data-id=')[1]
+    assert '<option value="renewal" selected>Renouvellement</option>' in correction
+    assert 'value="water" selected' not in correction
+    # L'entrée du journal est une cible de retour focalisable après enregistrement.
+    assert 'tabindex="-1" data-point=' in journal
+
+
 async def test_intervention_ancienne_reste_liee_et_retrouvable(cultures):
     """Lot A : une correction de pH ou de note conserve un lien devenu ancien."""
     lot = await cultures.call("mutate", create(space="space_2"))
