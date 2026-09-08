@@ -50,7 +50,7 @@ class EquipmentViews:
             error, status = str(exc), 503
         return self.server._html(render_template(
             "culture_equipment.html", page_title="Affectations d'équipements",
-            current_page="cultures", csrf_token=self.server.csrf_token, data=data, error=error,
+            current_page="cultures", culture_subjects=request.query.getall("subject", []), csrf_token=self.server.csrf_token, data=data, error=error,
             filters=self.filters(request)), status)
 
     async def data(self, request):

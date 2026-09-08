@@ -89,24 +89,36 @@
       const missing = all.filter(p => p.missing);
       caption.textContent = `${all[0].label} (${all[0].unit}) · commun à la serre · synthèse par ${granularity} · ${valid.length} période(s) avec valeur fiable, ${missing.length} lacune(s) sur ${all.length}`;
       const svg = node("svg", {viewBox: "0 0 600 240", role: "img", "aria-label": caption.textContent}); figure.append(caption, svg); container.append(figure);
-      if (!valid.length) { svg.append(node("text", {x: 30, y: 100}, "Aucune valeur fiable")); continue; }
-      const start = Math.min(...all.map(p => p.hour)), end = Math.max(...all.map(p => p.hour));
-      const min = Math.min(...valid.map(p => p.minimum)), max = Math.max(...valid.map(p => p.maximum));
-      const x = p => 65 + 470 * (end === start ? 0.5 : (p.hour - start) / (end - start));
-      const y = value => 175 - 120 * (min === max ? 0.5 : (value - min) / (max - min));
-      svg.append(node("path", {d: "M65 30V185H550", class: "solution-axis"}), node("text", {x: 0, y: 55}, max.toFixed(1)), node("text", {x: 0, y: 175}, min.toFixed(1)));
-      svg.append(node("text", {x: 65, y: 220}, new Date(start*1000).toLocaleDateString("fr-FR")), node("text", {x: 450, y: 220}, new Date(end*1000).toLocaleDateString("fr-FR")));
-      // Les barres min/max et points moyens ne relient jamais une lacune.
-      for (const p of valid) {
-        const line = node("path", {d: `M${x(p)} ${y(p.minimum)}V${y(p.maximum)}`, class: "solution-range"});
-        const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot"});
-        dot.append(node("title", {}, `${p.at} : ${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables sur ${p.span_hours} h de période, couverture ${(p.coverage*100).toFixed(0)} %`)); svg.append(line, dot);
-      }
-      // Une période sans agrégat reste une lacune signalée, jamais une valeur nulle tracée.
-      for (const p of missing) {
-        const tick = node("path", {d: `M${x(p)} 185V193`, class: "climate-gap"});
-        tick.append(node("title", {}, `${p.at} : aucun agrégat sur ${p.span_hours} h de période`)); svg.append(tick);
-      }
+      const draw = () => {
+        svg.replaceChildren();
+        const width = svg.getBoundingClientRect().width || 240, right = width - 20;
+        svg.setAttribute("viewBox", `0 0 ${width} 255`);
+        if (!valid.length) { svg.append(node("text", {x: 30, y: 100}, "Aucune valeur fiable")); return; }
+        const start = Math.min(...all.map(p => p.hour)), end = Math.max(...all.map(p => p.hour));
+        const min = Math.min(...valid.map(p => p.minimum)), max = Math.max(...valid.map(p => p.maximum));
+        const x = p => 65 + (right - 65) * (end === start ? 0.5 : (p.hour - start) / (end - start));
+        const y = value => 175 - 120 * (min === max ? 0.5 : (value - min) / (max - min));
+        svg.append(node("path", {d: `M65 30V185H${right}`, class: "solution-axis"}), node("text", {x: 0, y: 55}, max.toFixed(1)), node("text", {x: 0, y: 175}, min.toFixed(1)));
+        svg.append(node("text", {x: 65, y: 220}, new Date(start*1000).toLocaleDateString("fr-FR")), node("text", {x: right, y: 238, "text-anchor": "end"}, new Date(end*1000).toLocaleDateString("fr-FR")));
+        // Les barres min/max et points moyens ne relient jamais une lacune.
+        for (const p of valid) {
+          const line = node("path", {d: `M${x(p)} ${y(p.minimum)}V${y(p.maximum)}`, class: "solution-range"});
+          const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot"});
+          dot.append(node("title", {}, `${p.at} : ${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables sur ${p.span_hours} h de période, couverture ${(p.coverage*100).toFixed(0)} %`)); svg.append(line, dot);
+        }
+        // Une période sans agrégat reste une lacune signalée, jamais une valeur nulle tracée.
+        for (const p of missing) {
+          const tick = node("path", {d: `M${x(p)} 185V193`, class: "climate-gap"});
+          tick.append(node("title", {}, `${p.at} : aucun agrégat sur ${p.span_hours} h de période`)); svg.append(tick);
+        }
+      };
+      let lastWidth = 0;
+      new ResizeObserver(() => {
+        const width = svg.getBoundingClientRect().width;
+        if (Math.abs(width - lastWidth) < 1) return;
+        lastWidth = width; draw();
+      }).observe(svg);
+      draw();
     }
   });
   // Consultation hors ligne : inventaire daté des pages du carnet réellement conservées.

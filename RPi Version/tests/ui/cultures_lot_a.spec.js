@@ -46,6 +46,7 @@ test("relevé ancien : lien conservé, recherche bornée et refus sans doublon",
   await expect(corrected.getByRole("link", {name: `Intervention ${renewal.id.slice(0, 8)}`})).toBeVisible();
 
   // Saisie rétrospective : la recherche bornée retrouve l'intervention ancienne.
+  await page.locator("#saisie > summary").click();
   const quick = page.locator("[data-solution-entry]").first();
   await quick.getByText("Température, volume, contexte et note", {exact: true}).click();
   await quick.getByLabel("Retrouver une intervention ancienne").fill(renewal.id.slice(0, 8));

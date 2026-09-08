@@ -120,6 +120,7 @@ test("une intervention affiche le contexte d'équipement résolu à sa propre da
 
   // Une intervention saisie sans affectation déclarée porte sa propre copie de catalogue.
   await page.goto("/cultures/solutions");
+  await page.locator("#saisie > summary").click();
   const entry = page.locator("form[data-solution-entry]").first();
   await entry.locator('[name="kind"]').selectOption("renewal");
   await entry.locator('[name="target"]').selectOption("reservoir_2");

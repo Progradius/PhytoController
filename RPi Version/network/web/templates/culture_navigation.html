@@ -1,0 +1,36 @@
+{# Navigation stable ; les filtres métier restent propres à chaque rubrique. #}
+{% set nav = namespace(subjects=[], target='', name='', kind='') %}
+{% if detail is defined and detail %}
+  {% set nav.subjects = [detail.subject.id] %}{% set nav.name = detail.subject.name %}
+{% elif selected is defined %}
+  {% set nav.subjects = selected %}
+{% elif culture_subjects is defined %}
+  {% set nav.subjects = culture_subjects %}
+{% endif %}
+{% if filters is defined and filters.get('target') %}
+  {% set nav.target = filters['target'] %}
+  {% if data %}{% for item in data.subjects if item.id == nav.target %}{% set nav.subjects = [item.id] %}{% set nav.name = item.name %}{% endfor %}{% endif %}
+{% endif %}
+{% if nav.target and data is defined and data %}
+  {% if data.reservoirs is defined %}
+    {% if data.reservoirs is mapping %}{% set nav.name = data.reservoirs.get(nav.target, nav.name) %}{% if nav.target in data.reservoirs %}{% set nav.kind = 'reservoir' %}{% endif %}
+    {% else %}{% for item in data.reservoirs if item.id == nav.target %}{% set nav.name = item.name %}{% set nav.kind = 'reservoir' %}{% endfor %}{% endif %}
+  {% endif %}
+  {% if data.spaces is defined %}{% set nav.name = data.spaces.get(nav.target, nav.name) %}{% if nav.target in data.spaces %}{% set nav.kind = 'space' %}{% endif %}{% endif %}
+{% endif %}
+{% if nav.subjects|length == 1 %}
+  {% set nav.target = nav.subjects[0] %}
+  {% if data is defined and data and data.subjects is defined %}{% for item in data.subjects if item.id == nav.target %}{% set nav.name = item.name %}{% endfor %}{% endif %}
+{% endif %}
+{% macro destination(section) -%}
+/cultures{{ '/' ~ section if section else '' }}{% if section in ('solutions','targets','journal') and nav.target and (nav.subjects|length == 1 or nav.kind == 'reservoir' or (nav.kind == 'space' and section == 'journal')) %}?target={{ nav.target|urlencode }}{% elif section in ('cycles','light','equipment') and nav.subjects %}?{% for id in nav.subjects %}{{ '&' if not loop.first else '' }}subject={{ id|urlencode }}{% endfor %}{% endif %}
+{%- endmacro %}
+<nav class="culture-links culture-navigation" aria-label="Navigation du carnet">
+{% for section,label in (('', 'Cultures'),('solutions','Solutions et relevés'),('cycles','Cycles et rappels'),('targets','Plages cibles'),('light','Repères d’éclairage'),('equipment','Équipements'),('journal','Journal')) %}
+<a data-culture-page href="{{ destination(section) }}"{% if culture_section == section %} aria-current="page"{% endif %}>{{ label }}{% if (nav.subjects|length > 1 and section in ('solutions','targets','journal')) or (nav.target and not nav.subjects and (section in ('cycles','light','equipment') or (nav.kind == 'space' and section in ('solutions','targets')))) %} · vue globale{% endif %}</a>
+{% endfor %}
+</nav>
+{% if nav.subjects|length == 1 %}
+<div class="culture-context"><span>{{ 'Contexte de retour' if culture_section in ('light','equipment') else 'Culture sélectionnée' }} : <a data-culture-page href="/cultures/{{ nav.target|urlencode }}">{{ nav.name or 'Retour à la fiche' }}</a></span><a href="/cultures{{ '/' ~ culture_section if culture_section else '' }}">Vue globale</a></div>
+{% elif nav.subjects %}<p class="culture-context">{{ nav.subjects|length }} cultures sélectionnées pour la comparaison. <a href="/cultures/cycles">Vue globale</a></p>
+{% elif nav.target %}<p class="culture-context">Cible sélectionnée : {{ nav.name or nav.target }}. <a href="/cultures/{{ culture_section }}">Vue globale</a></p>{% endif %}

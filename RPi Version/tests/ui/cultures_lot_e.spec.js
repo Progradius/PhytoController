@@ -20,6 +20,7 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await expect(page.getByText("Aucune plage cible pour ce filtre")).toBeVisible();
 
   // Saisie pH seul, à la virgule décimale, sur le réservoir de l'espace 2.
+  await page.locator(".culture-new-entry > summary").click();
   const form = page.locator("[data-target-form][data-operation='target']").first();
   await form.getByRole("combobox", {name: "Cible de la plage"}).selectOption("reservoir_2");
   await form.getByLabel("Intitulé de la plage").fill("Végétatif");
@@ -33,6 +34,7 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   const identifier = (await article.getAttribute("id")).replace("target-", "");
 
   // Refus : une seconde plage recouvrant la même cible ne peut pas coexister.
+  await page.locator(".culture-new-entry > summary").click();
   const again = page.locator("[data-target-form][data-operation='target']").first();
   await again.getByRole("combobox", {name: "Cible de la plage"}).selectOption("reservoir_2");
   await again.getByLabel("pH minimum").fill("6,0");

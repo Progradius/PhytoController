@@ -10,7 +10,8 @@
 <label>Espace visé (portée « un espace »)<select name="space"><option value="">Aucun</option>{% for key,name in spaces.items() %}<option value="{{ key }}"{% if target.get('space') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <label>Stade concerné<select name="stage" data-light-stage><option value="">Tous les stades</option>{% for key,name in stages.items() %}<option value="{{ key }}"{% if target.get('stage') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <label>Éclairage par jour, en minutes<input type="number" name="on_minutes" min="0" max="1440" step="1" value="{{ target.get('on_minutes', 1080) }}" required data-light-minutes></label>
-<p class="culture-note" data-light-preview role="status">18 h / 6 h. Les repères proposés sont 18 h / 6 h en végétatif et 12 h / 12 h en floraison ; ils ne sont enregistrés que si vous les validez.</p>
+<button type="button" class="button button-secondary" data-light-preset hidden>Utiliser le repère proposé</button>
+<p class="culture-note" data-light-preview role="status">{{ target.get('on_minutes', 1080) }} min d’éclairage par jour. Le changement de stade conserve cette durée ; le bouton proposé permet de la remplacer.</p>
 <label>Début de validité<input type="date" name="start_at" value="{{ target.get('start_at', data.today) }}" required></label>
 <label>Fin de validité (facultative)<input type="date" name="end_at" value="{{ target.get('end_at','') }}"></label>
 <label>Note<textarea name="note" maxlength="4000">{{ target.get('note','') }}</textarea></label>
@@ -19,7 +20,8 @@
 {% endmacro %}
 {% block content %}
 <h1>Repères d’éclairage</h1>
-<nav class="culture-links" aria-label="Carnet"><a data-culture-page href="/cultures">Cultures et archives</a><a data-culture-page href="/cultures/cycles">Cycles et rappels</a><a href="#reperes">Repères enregistrés</a><a href="/conf">Réglages des équipements</a></nav>
+{% set culture_section = 'light' %}{% include 'culture_navigation.html' %}
+<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#reperes">Repères enregistrés</a></nav>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 <p>Un repère est une <strong>information d’exploitation</strong> : l’enregistrer, le corriger ou l’annuler ne change ni les horaires configurés, ni les sorties, ni la régulation. Les horaires se modifient uniquement dans la configuration, par les liens ci-dessous.</p>
 <p class="culture-warning" role="note">Un état relu sur une broche GPIO ne prouve pas le fonctionnement physique d’un équipement : il indique le niveau appliqué, pas qu’une lampe éclaire ou qu’un ventilateur tourne. Une vérification sur place reste nécessaire.</p>
@@ -54,7 +56,7 @@
 <p>Jour/nuit : {{ data.operational.day_night.start }} → {{ data.operational.day_night.stop }} · source {{ 'minuterie quotidienne 1' if data.operational.day_night.source == 'dailytimer1' else 'horaires personnalisés' }}{% if data.operational.day_night.empty %} · plage vide{% endif %}. Ces règles proviennent des réglages existants et sont affichées telles quelles : le carnet ne les recalcule pas et ne les modifie pas.</p>
 <nav class="culture-links" aria-label="Réglages liés"><a href="/conf#motor">Réglages de la ventilation</a><a href="/conf#day-night">Réglages jour/nuit</a><a href="/conf#daily-timer-1">Éclairage 1</a><a href="/conf#daily-timer-2">Éclairage 2</a></nav></section>
 <section id="reperes" class="culture-section"><h2>Repères enregistrés</h2>
-<form method="get" class="culture-form">
+<form method="get" class="culture-form">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}
 <label>Portée<select name="scope"><option value="">Toutes</option>{% for key,name in scopes.items() %}<option value="{{ key }}"{% if filters.get('scope') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <label>Stade<select name="stage"><option value="">Tous</option>{% for key,name in stages.items() %}<option value="{{ key }}"{% if filters.get('stage') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <button class="button" type="submit">Filtrer</button></form>
@@ -72,7 +74,7 @@
 <label>Motif de l’annulation<input name="reason" maxlength="500" required></label>
 {{ confirm() }}<button class="button" type="submit">Annuler le repère</button><output role="status"></output></form>{% endif %}
 {% if target.revisions %}<details><summary>Versions précédentes</summary>{% for old in target.revisions %}<p>Révision {{ old.revision }} · {{ old.label }} · {{ old.on_minutes }} min d’éclairage · du {{ old.start_at|culture_date(data.timezone) }} au {{ old.end_at|culture_date(data.timezone) if old.end_at else 'sans fin déclarée' }}{% if old.cancelled %} · annulé{% endif %}</p><p class="culture-note">{{ old.reason }}</p>{% endfor %}</details>{% endif %}
-</article>{% else %}<p>Aucun repère enregistré pour ce filtre. La migration n’en crée aucun : les valeurs 18 h / 6 h et 12 h / 12 h sont seulement proposées à la saisie.</p>{% endfor %}
+</article>{% else %}<p>Aucun repère enregistré pour ce filtre. Vous pouvez en ajouter un ci-dessus.</p>{% endfor %}
 </section>
 <p class="culture-note">Consultation hors ligne : cette page est conservée après une visite réussie, dans la limite existante des pages du carnet. Hors ligne, elle est datée et en lecture seule ; aucune saisie n’est mise en attente ni rejouée.</p>
 {% endif %}{% endblock %}

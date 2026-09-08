@@ -1,5 +1,10 @@
 (() => {
   "use strict";
+  const openEntry = () => {
+    if (location.hash === "#saisie") document.querySelector("#saisie")?.setAttribute("open", "");
+  };
+  addEventListener("hashchange", openEntry);
+  openEntry();
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
   const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), n => n.toString(16).padStart(2, "0")).join("");
   const decimal = value => {
@@ -187,54 +192,67 @@
   // Lot E : bandes de référence des plages cibles, fournies par période résolue.
   const bands = JSON.parse(charts?.dataset.targetBands || "[]");
   document.querySelectorAll("svg[data-metric]").forEach(svg => {
-    const metric = svg.dataset.metric, measured = points.filter(p => p[metric] !== null);
-    if (!measured.length) { svg.append(svgNode("text", {x: 30, y: 100}, "Aucune mesure sur cette page")); return; }
-    const times = points.map(p => Date.parse(p.at)), low = Math.min(...times), high = Math.max(...times);
-    // Lot E : les bornes cibles n'écrasent pas l'échelle des mesures ; elles l'élargissent
-    // seulement quand elles sont présentes, pour rester lisibles sans déformer la courbe.
-    const metricBands = bands.filter(b => b[metric + "_min"] !== null || b[metric + "_max"] !== null);
-    const bandValues = metricBands.flatMap(b => [b[metric + "_min"], b[metric + "_max"]].filter(v => v !== null && v !== undefined));
-    const values = measured.flatMap(p => [p[metric + "_min"] ?? p[metric], p[metric + "_max"] ?? p[metric]]).concat(bandValues), min = Math.min(...values), max = Math.max(...values);
-    const x = p => 60 + 480 * (high === low ? 0.5 : (Date.parse(p.at) - low) / (high - low));
-    const y = p => 160 - 115 * (max === min ? 0.5 : (p[metric] - min) / (max - min));
-    svg.append(svgNode("path", {d: "M60 25V170H550", class: "solution-axis"}));
-    svg.append(svgNode("text", {x: 4, y: 45}, max.toFixed(2)), svgNode("text", {x: 4, y: 160}, min.toFixed(2)));
-    // Lot E : bandes de référence, tracées avant les mesures pour rester en arrière-plan.
-    // Elles ne couvrent que la période où la plage a été résolue : aucune extrapolation.
-    const xAt = at => 60 + 480 * (high === low ? 0.5 : (Date.parse(at) - low) / (high - low));
-    const yValue = value => 160 - 115 * (max === min ? 0.5 : (value - min) / (max - min));
-    metricBands.forEach(band => {
-      const left = xAt(band.start), right = Math.max(xAt(band.end), left + 4);
-      const lower = band[metric + "_min"], upper = band[metric + "_max"];
-      const title = `Plage cible ${band.label || ""} · ${lower === null || lower === undefined ? "sans minimum" : lower} à ${upper === null || upper === undefined ? "sans maximum" : upper}`;
-      if (lower !== null && lower !== undefined && upper !== null && upper !== undefined) {
-        const rect = svgNode("rect", {x: left, y: yValue(upper), width: right - left,
-          height: Math.max(yValue(lower) - yValue(upper), 1), class: "solution-target-band"});
-        rect.append(svgNode("title", {}, title)); svg.append(rect);
-        return;
-      }
-      // Une seule borne reste une seule borne : jamais complétée par une valeur inventée.
-      const bound = lower !== null && lower !== undefined ? lower : upper;
-      const edge = svgNode("path", {d: `M${left} ${yValue(bound)}H${right}`, class: "solution-target-edge"});
-      edge.append(svgNode("title", {}, title)); svg.append(edge);
-    });
-    const date = value => new Date(value).toLocaleDateString("fr-FR", {day: "2-digit", month: "2-digit"});
-    svg.append(svgNode("text", {x: 60, y: 205}, date(low)), svgNode("text", {x: 495, y: 205}, date(high)));
-    points.filter(p => p.annotations.length).forEach(p => {
-      const line = svgNode("path", {d: `M${x(p)} 25V170`, class: p.annotations.includes("Renouvellement") ? "solution-renewal" : "solution-marker"});
-      line.append(svgNode("title", {}, `${p.annotations.join(", ")} · ${p.at}`));
-      svg.append(line);
-    });
-    stages.forEach(p => {
-      const line = svgNode("path", {d: `M${x(p)} 25V170`, class: "solution-stage"});
-      line.append(svgNode("title", {}, `${p.label} · ${p.at}`)); svg.append(line);
-    });
-    measured.forEach(p => {
-      if (p[metric + "_count"]) {
-        svg.append(svgNode("path", {d: `M${x(p)} ${y({...p, [metric]: p[metric + "_min"]})}V${y({...p, [metric]: p[metric + "_max"]})}`, class: "solution-range"}));
-      }
-      const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: "solution-dot"});
-      dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
-    });
+    const draw = () => {
+      svg.replaceChildren();
+      const width = svg.getBoundingClientRect().width || 240;
+      svg.setAttribute("viewBox", `0 0 ${width} 220`);
+      const right = width - 20, span = right - 60;
+      const metric = svg.dataset.metric, measured = points.filter(p => p[metric] !== null);
+      if (!measured.length) { svg.append(svgNode("text", {x: 30, y: 100}, "Aucune mesure")); return; }
+      const times = points.map(p => Date.parse(p.at)), low = Math.min(...times), high = Math.max(...times);
+      // Lot E : les bornes cibles n'écrasent pas l'échelle des mesures ; elles l'élargissent
+      // seulement quand elles sont présentes, pour rester lisibles sans déformer la courbe.
+      const metricBands = bands.filter(b => b[metric + "_min"] !== null || b[metric + "_max"] !== null);
+      const bandValues = metricBands.flatMap(b => [b[metric + "_min"], b[metric + "_max"]].filter(v => v !== null && v !== undefined));
+      const values = measured.flatMap(p => [p[metric + "_min"] ?? p[metric], p[metric + "_max"] ?? p[metric]]).concat(bandValues), min = Math.min(...values), max = Math.max(...values);
+      const x = p => 60 + span * (high === low ? 0.5 : (Date.parse(p.at) - low) / (high - low));
+      const y = p => 160 - 115 * (max === min ? 0.5 : (p[metric] - min) / (max - min));
+      svg.append(svgNode("path", {d: `M60 25V170H${right}`, class: "solution-axis"}));
+      svg.append(svgNode("text", {x: 4, y: 45}, max.toFixed(2)), svgNode("text", {x: 4, y: 160}, min.toFixed(2)));
+      // Lot E : bandes de référence, tracées avant les mesures pour rester en arrière-plan.
+      // Elles ne couvrent que la période où la plage a été résolue : aucune extrapolation.
+      const xAt = at => 60 + span * (high === low ? 0.5 : (Date.parse(at) - low) / (high - low));
+      const yValue = value => 160 - 115 * (max === min ? 0.5 : (value - min) / (max - min));
+      metricBands.forEach(band => {
+        const left = xAt(band.start), right = Math.max(xAt(band.end), left + 4);
+        const lower = band[metric + "_min"], upper = band[metric + "_max"];
+        const title = `Plage cible ${band.label || ""} · ${lower === null || lower === undefined ? "sans minimum" : lower} à ${upper === null || upper === undefined ? "sans maximum" : upper}`;
+        if (lower !== null && lower !== undefined && upper !== null && upper !== undefined) {
+          const rect = svgNode("rect", {x: left, y: yValue(upper), width: right - left,
+            height: Math.max(yValue(lower) - yValue(upper), 1), class: "solution-target-band"});
+          rect.append(svgNode("title", {}, title)); svg.append(rect);
+          return;
+        }
+        // Une seule borne reste une seule borne : jamais complétée par une valeur inventée.
+        const bound = lower !== null && lower !== undefined ? lower : upper;
+        const edge = svgNode("path", {d: `M${left} ${yValue(bound)}H${right}`, class: "solution-target-edge"});
+        edge.append(svgNode("title", {}, title)); svg.append(edge);
+      });
+      const date = value => new Date(value).toLocaleDateString("fr-FR", {day: "2-digit", month: "2-digit"});
+      svg.append(svgNode("text", {x: 60, y: 205}, date(low)), svgNode("text", {x: right, y: 205, "text-anchor": "end"}, date(high)));
+      points.filter(p => p.annotations.length).forEach(p => {
+        const line = svgNode("path", {d: `M${x(p)} 25V170`, class: p.annotations.includes("Renouvellement") ? "solution-renewal" : "solution-marker"});
+        line.append(svgNode("title", {}, `${p.annotations.join(", ")} · ${p.at}`));
+        svg.append(line);
+      });
+      stages.forEach(p => {
+        const line = svgNode("path", {d: `M${x(p)} 25V170`, class: "solution-stage"});
+        line.append(svgNode("title", {}, `${p.label} · ${p.at}`)); svg.append(line);
+      });
+      measured.forEach(p => {
+        if (p[metric + "_count"]) {
+          svg.append(svgNode("path", {d: `M${x(p)} ${y({...p, [metric]: p[metric + "_min"]})}V${y({...p, [metric]: p[metric + "_max"]})}`, class: "solution-range"}));
+        }
+        const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: "solution-dot"});
+        dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
+      });
+    };
+    let lastWidth = 0;
+    new ResizeObserver(() => {
+      const width = svg.getBoundingClientRect().width;
+      if (Math.abs(width - lastWidth) < 1) return;
+      lastWidth = width; draw();
+    }).observe(svg);
+    draw();
   });
 })();

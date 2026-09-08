@@ -15,7 +15,7 @@
     const minutes = form.querySelector("[data-light-minutes]");
     const stage = form.querySelector("[data-light-stage]");
     const preview = form.querySelector("[data-light-preview]");
-    let edited = false;
+    const preset = form.querySelector("[data-light-preset]");
     const describe = () => {
       if (!preview || !minutes) return;
       const value = Number(minutes.value);
@@ -23,13 +23,18 @@
         ? `${duration(value)} d’éclairage et ${duration(DAY - value)} d’obscurité par jour. Repère informatif : il ne change aucun horaire.`
         : "Durée attendue : de 0 à 1440 minutes, éclairage et obscurité totalisant 24 h.";
     };
-    minutes?.addEventListener("input", () => { edited = true; describe(); });
-    // Préremplissage proposé, jamais imposé : une valeur saisie à la main est conservée.
-    stage?.addEventListener("change", () => {
-      if (!minutes || edited || !(stage.value in PRESETS)) return;
+    minutes?.addEventListener("input", describe);
+    const propose = () => {
+      if (!preset) return;
+      preset.hidden = !(stage.value in PRESETS);
+      if (!preset.hidden) preset.textContent = `Utiliser ${duration(PRESETS[stage.value])} / ${duration(DAY - PRESETS[stage.value])}`;
+    };
+    stage?.addEventListener("change", propose);
+    preset?.addEventListener("click", () => {
       minutes.value = String(PRESETS[stage.value]);
       describe();
     });
+    propose();
     describe();
 
     let busy = false, previous = null, key = identifier();

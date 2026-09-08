@@ -1,4 +1,4 @@
-// Fixture partagée : serveur de carnet temporaire par worker, aides de création.
+// Fixture partagée : serveur de carnet temporaire par test, aides de création.
 const {test, expect, AxeBuilder, dates, createMother} = require("./culture_fixtures");
 
 test("lot multi-mères, carnet et correction sur téléphone et bureau", async ({page}, testInfo) => {
@@ -139,6 +139,7 @@ test("solutions : recette, renouvellement, relevé et correction accessibles", a
   await recipe.getByLabel("Quantité", {exact: true}).fill("2,5");
   await recipe.getByRole("button", {name: "Enregistrer la recette"}).click();
   await expect(page.getByText("Recette navigateur · version 1", {exact: true})).toBeVisible();
+  await page.locator("#saisie > summary").click();
   const quick = page.locator("[data-solution-entry]").first();
   await quick.getByRole("combobox", {name: "Action", exact: true}).selectOption("renewal");
   await quick.getByLabel("Date effective").fill("2026-08-01");
@@ -150,6 +151,7 @@ test("solutions : recette, renouvellement, relevé et correction accessibles", a
   await expect(page.locator(".solution-journal")).toHaveCount(1);
   await expect(page.locator(".solution-journal")).toContainText("Produit témoin : 5.0 mL");
   await expect(quick.getByLabel("pH", {exact: true})).toHaveValue("");
+  await page.locator("#saisie > summary").click();
   await quick.getByLabel("Date effective").fill("2026-08-02");
   await quick.getByLabel("pH", {exact: true}).fill("6,2");
   await quick.getByLabel("EC", {exact: true}).fill("1200");
@@ -173,6 +175,7 @@ test("solutions : recette, renouvellement, relevé et correction accessibles", a
 test("solutions : panne réseau, conservation des champs et idempotence", async ({page}, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Une vérification réseau suffit.");
   await page.goto("/cultures/solutions?target=cuttings_1");
+  await page.locator("#saisie > summary").click();
   const form = page.locator("[data-solution-entry]").first();
   await form.getByRole("combobox", {name: "Action", exact: true}).selectOption("renewal");
   await form.getByLabel("Date effective").fill("2026-08-01");
@@ -191,6 +194,7 @@ test("solutions : panne réseau, conservation des champs et idempotence", async 
   await expect(page.locator(".solution-journal")).toHaveCount(1);
   expect(bodies[0].request_id).toBe(bodies[1].request_id);
   await page.context().setOffline(true);
+  await page.locator("#saisie > summary").click();
   await form.getByLabel("pH", {exact: true}).fill("6,1");
   await form.getByRole("button", {name: "Enregistrer la saisie"}).click();
   await expect(form.locator("output")).toContainText("Hors ligne");

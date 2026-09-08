@@ -4,11 +4,12 @@
 {% macro query(extra={}) %}{% set parts = [] %}{% for key in ('start','end','target','type') %}{% if filters.get(key) %}{% set _ = parts.append(key ~ '=' ~ filters[key]|urlencode) %}{% endif %}{% endfor %}{% for key,value in extra.items() %}{% set _ = parts.append(key ~ '=' ~ value|string|urlencode) %}{% endfor %}{{ '?' ~ parts|join('&') if parts else '' }}{% endmacro %}
 {% block content %}
 <h1>Journal du carnet</h1>
-<nav class="culture-links" aria-label="Carnet"><a data-culture-page href="/cultures">Cultures et archives</a><a data-culture-page href="/cultures/solutions">Solutions et relevés</a><a data-culture-page href="/cultures/cycles">Cycles et rappels</a><a href="#observation">Observer un espace</a></nav>
+{% set culture_section = 'journal' %}{% include 'culture_navigation.html' %}
+<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#observation">Observer un espace</a></nav>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% endif %}
-<p>Le journal réunit les opérations du carnet — origines, stades, déplacements, pertes, notes, récoltes, relevés, arrosages et observations d’espace — sur une seule chronologie. Une opération visant plusieurs cibles reste <strong>une</strong> entrée : un arrosage de trois pieds mères y compte pour une opération, jamais pour trois. Les observations d’espace sont durables : elles ne rejoignent pas l’historique opérateur purgé à 72 h.</p>
+<p>Retrouvez les relevés, interventions et observations par date et par cible. Une opération partagée apparaît une seule fois.</p>
 <details class="card culture-offline-index"><summary>Pages du carnet conservées hors ligne</summary><p>Le carnet reste réseau d’abord : une page datée n’est relue qu’après un échec réseau, en lecture seule. Seules les pages réellement visitées sont conservées, dans la limite existante de 20 pages du carnet. Aucune saisie du journal n’est mise en attente ni rejouée.</p><div data-culture-offline-index><p>Liste indisponible dans ce navigateur.</p></div></details>
-<section class="card culture-section"><h2>Filtrer le journal</h2>
+<details class="card culture-section culture-filters"><summary>Filtrer le journal</summary>
 <form method="get" class="culture-form" data-journal-filters>
 <div class="culture-grid">
 <label>Depuis le<input type="date" name="start" value="{{ filters.get('start','') }}"></label>
@@ -24,18 +25,10 @@
 </div>
 <button class="button" type="submit">Afficher le journal</button>
 <a class="button button-secondary" href="/cultures/journal">Retirer les filtres</a></form>
-{% if data %}<p><a href="/api/v1/cultures/journal/export{{ query() }}">Exporter ce filtre en CSV</a> · les textes libres y sont neutralisés contre l’injection de formules.</p>{% endif %}</section>
+</details>
+{% if data %}<p><a href="/api/v1/cultures/journal/export{{ query() }}">Exporter ce filtre en CSV</a></p>{% endif %}
 {% if data %}
-<section id="observation" class="culture-section"><h2>Observer un espace</h2>
-<p>Une observation vise l’espace lui-même : elle ne crée aucune plante et ne modifie aucun réglage. Elle reste consultable même lorsque l’espace est vide.</p>
-<details class="card"><summary>Enregistrer une observation d’espace</summary>
-<form class="culture-form" data-journal-form data-operation="space_event">
-<label>Espace observé<select name="space" required>{% for key,label in data.spaces.items() %}<option value="{{ key }}"{% if filters.get('target') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-<label>Genre<select name="kind" required>{% for key,label in data.kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
-<label>Date effective<input type="date" name="effective_at" value="{{ data.today }}" required></label>
-<label>Précision de la date<select name="precision">{% for key,label in (('date','Date connue'),('approximative','Date approximative')) %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
-<label>Observation<textarea name="note" maxlength="4000" required></textarea></label>
-{{ confirm() }}<button class="button" type="submit">Enregistrer l’observation</button><output role="status" aria-live="polite"></output></form></details></section>
+
 <section class="culture-section"><h2>Opérations du carnet</h2>
 <p>{{ data.total }} opération(s) pour ce filtre · page à partir de l’opération {{ data.offset + 1 if data.total else 0 }}.</p>
 {% for item in data['items'] %}<article class="card culture-journal-entry" id="entry-{{ item.entry_id }}">
@@ -63,5 +56,15 @@
 {{ confirm() }}<button class="button" type="submit">Envoyer la photo</button><output role="status" aria-live="polite"></output></form></details>{% endif %}
 </article>{% else %}<p>Aucune opération pour ce filtre. Les observations d’un espace vide restent visibles en choisissant cet espace comme cible.</p>{% endfor %}
 <nav class="culture-links" aria-label="Pagination du journal">{% if data.offset %}<a data-journal-offset="{{ [0,data.offset-data.page]|max }}" href="{{ query({'offset': [0,data.offset-data.page]|max}) }}">Opérations plus récentes</a>{% endif %}{% if data.offset + data.page < data.total %}<a data-journal-offset="{{ data.offset+data.page }}" href="{{ query({'offset': data.offset+data.page}) }}">Opérations plus anciennes</a>{% endif %}</nav></section>
+<section id="observation" class="culture-section"><h2>Observer un espace</h2>
+<p>Une observation vise l’espace lui-même : elle ne crée aucune plante et ne modifie aucun réglage. Elle reste consultable même lorsque l’espace est vide.</p>
+<details class="card"><summary>Enregistrer une observation d’espace</summary>
+<form class="culture-form" data-journal-form data-operation="space_event">
+<label>Espace observé<select name="space" required>{% for key,label in data.spaces.items() %}<option value="{{ key }}"{% if filters.get('target') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Genre<select name="kind" required>{% for key,label in data.kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+<label>Date effective<input type="date" name="effective_at" value="{{ data.today }}" required></label>
+<label>Précision de la date<select name="precision">{% for key,label in (('date','Date connue'),('approximative','Date approximative')) %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+<label>Observation<textarea name="note" maxlength="4000" required></textarea></label>
+{{ confirm() }}<button class="button" type="submit">Enregistrer l’observation</button><output role="status" aria-live="polite"></output></form></details></section>
 {% endif %}{% endblock %}
 {% block page_scripts %}<script src="/static/js/culture_journal.js?v={{ asset_versions.culture_journal }}" defer></script>{% endblock %}

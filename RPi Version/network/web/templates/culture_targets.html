@@ -27,13 +27,14 @@
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% block content %}
 <h1>Plages cibles pH et EC</h1>
-<nav class="culture-links" aria-label="Navigation du carnet"><a href="/cultures">Cultures et parcours</a><a href="/cultures/solutions">Solutions et relevés</a><a href="/cultures/cycles">Cycles et rappels</a><a href="#plages">Plages enregistrées</a></nav>
-<p>Repères de lecture déclaratifs. Une plage n’ordonne aucun dosage, ne modifie aucun réglage et ne déclenche aucune alarme de contrôle. Elle est facultative : une période sans plage reste affichée sans bande de référence.</p>
+{% set culture_section = 'targets' %}{% include 'culture_navigation.html' %}
+<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#plages">Plages enregistrées</a></nav>
+<p>Les plages pH/EC servent à lire les relevés. Elles sont facultatives et ne changent ni dosage, ni réglage, ni alarme.</p>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates de validité avant de confirmer.</p>{% endif %}
-<section class="culture-section card"><h2>Enregistrer une plage cible</h2>
+<details class="culture-section card culture-new-entry"><summary>Enregistrer une plage cible</summary>
 <p class="card-meta">La plage s’applique aux mesures dont la date tombe dans sa fenêtre de validité. Elle n’est jamais appliquée rétroactivement aux mesures antérieures à son début. Résolution : cibles directes du relevé, puis sujets alimentés par la solution à cette date, puis réservoir du relevé — priorité stricte, sans mélange entre deux sources.</p>
-{{ target_form() }}</section>
+{{ target_form() }}</details>
 <section id="plages" class="culture-section"><h2>Plages enregistrées</h2>
 <form method="get" class="culture-form target-filter"><label>Filtrer la cible<select name="target"><option value="">Toutes les cibles</option>{% for item in data.reservoirs + data.subjects %}<option value="{{ item.id }}"{% if filters.get('target') == item.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
 <label>Filtrer la portée<select name="scope"><option value="">Toutes les portées</option>{% for key,label in (('reservoir','Réservoirs'),('subject','Cultures')) %}<option value="{{ key }}"{% if filters.get('scope') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>

@@ -18,17 +18,18 @@
 {% endmacro %}
 {% block content %}
 <h1>Affectations d’équipements</h1>
-<nav class="culture-links" aria-label="Carnet"><a href="/cultures">Cultures et archives</a><a href="/cultures/solutions">Solutions et relevés</a><a href="/cultures/cycles">Cycles et rappels</a><a href="#catalogue">Catalogue courant</a><a href="#date">Consulter une date</a><a href="#affectations">Périodes</a></nav>
+{% set culture_section = 'equipment' %}{% include 'culture_navigation.html' %}
+<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#catalogue">Catalogue courant</a><a href="#date">Consulter une date</a><a href="#affectations">Périodes</a></nav>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates avant de confirmer une affectation.</p>{% endif %}
-<p>Cette page est <strong>déclarative</strong> : elle enregistre quel équipement servait à quoi, et entre quelles dates. Elle ne modifie aucun câblage, aucun réglage d’équipement, aucune broche et aucun horaire. Les identifiants et les noms actuels restent ceux du catalogue de la configuration.</p>
+<p>Déclarez l’usage des équipements et leurs périodes d’affectation. Cette saisie ne change ni câblage, ni réglage, ni horaire.</p>
 <datalist id="equipment-usages">{% for usage in data.usages %}<option value="{{ usage }}"></option>{% endfor %}</datalist>
 <section id="catalogue" class="card culture-section"><h2>Catalogue courant, en lecture seule</h2>
 <p>Ces identifiants et ces noms sont la source de vérité ; ils se modifient dans <a href="/conf#equipment">la configuration des équipements</a>, jamais dans le carnet. Chaque affectation copie le libellé connu <em>au moment de sa saisie</em> : renommer un équipement plus tard ne réécrit aucun libellé déjà enregistré.</p>
 <div class="culture-table-scroll" tabindex="0" role="group" aria-label="Catalogue courant des équipements"><table><thead><tr><th>Identifiant</th><th>Nom actuel</th><th>Usage du catalogue</th><th>Zone</th><th>État</th><th>Affectations</th></tr></thead><tbody>{% for group in data.equipments %}<tr><td>{{ group.equipment_id }}</td><td>{{ group.current_name or '—' }}</td><td>{{ group.current_usage or '—' }}</td><td>{{ group.zone or '—' }}</td><td>{{ 'Hors service' if group.out_of_service else 'En service' }}</td><td><a href="#equipement-{{ group.equipment_id }}">{{ group.links|length }} période(s)</a></td></tr>{% endfor %}</tbody></table></div></section>
 <section id="date" class="card culture-section"><h2>Contexte connu à une date</h2>
 <p>La résolution suit une cascade stricte : affectation datée du carnet, puis copie du catalogue portée par la saisie, puis « association inconnue à cette date ». Il n’y a jamais de repli sur le catalogue d’aujourd’hui.</p>
-<form method="get" class="culture-form"><label>Date consultée<input type="date" name="at" value="{{ filters.get('at','') }}" required></label><button class="button" type="submit">Résoudre cette date</button></form>
+<form method="get" class="culture-form">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}<label>Date consultée<input type="date" name="at" value="{{ filters.get('at','') }}" required></label><button class="button" type="submit">Résoudre cette date</button></form>
 {% if data.resolved %}<p data-equipment-resolved>{% if data.resolved.provenance == 'link' %}Affectation connue : {{ data.resolved.label }}.{% elif data.resolved.provenance == 'snapshot' %}Contexte connu à la saisie : {{ data.resolved.label }}.{% else %}Association inconnue à cette date.{% endif %}</p>
 {% if data.resolved.provenance == 'unknown' %}<p class="culture-note">Aucune affectation ne couvre le {{ data.at|culture_date(data.timezone) }}. Les saisies de cette période afficheront leur propre contexte de saisie s’il en existe un.</p>{% endif %}{% endif %}</section>
 <section id="affectations" class="culture-section"><h2>Périodes d’affectation par équipement</h2>
