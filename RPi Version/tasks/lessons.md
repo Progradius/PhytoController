@@ -78,3 +78,17 @@ ne vérifiait que le verdict ne dépend pas de la cadence de lecture.
    contraire est un **cliquet**, pas un anti-rebond : compter N évènements réels, sans reset.
 5. Quand un diagnostic produit beaucoup de faux positifs, chercher d'abord **ce qu'il mesure**
    avant de toucher à ses seuils. Retoucher les seuils est la rustine qui masque la question.
+
+## 2026-09-08 — `Write` sur un fichier de suivi jamais lu
+
+**Ce qui s'est passé.** Au démarrage du rattrapage du carnet de cultures, `tasks/todo.md` a été
+réécrit avec `Write` sans avoir été lu : 763 lignes de suivi de cinq chantiers précédents (déploiement
+qualité capteurs, refonte logging, PWA, jalon 3) ont disparu du commit. L'écart n'a été vu que par
+le `--stat` du commit (« 788 deletions »), pas par l'outil.
+
+**Règles.**
+1. `Write` est réservé aux fichiers **nouveaux**. Pour un fichier existant, `Edit`, ou lecture
+   préalable puis fusion explicite. Les fichiers de suivi (`tasks/todo.md`, `tasks/lessons.md`)
+   sont **cumulatifs** : on y ajoute une section, on ne les remplace jamais.
+2. Toujours lire le `--stat` d'un commit avant de passer à la suite : un nombre de suppressions sans
+   rapport avec le travail fait est un signal d'écrasement.

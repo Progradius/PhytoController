@@ -37,3 +37,20 @@
 .culture-table-scroll { overflow-x: auto; max-width: 100%; }
 .culture-table-scroll th, .culture-table-scroll td { padding: .5rem; text-align: left; }
 .culture-form select[multiple] { min-height: 8rem; }
+
+/* Lot C */
+.culture-duration { white-space: nowrap; }
+.culture-backfill summary { cursor: pointer; font-weight: 600; min-height: 2.5rem; }
+.culture-backfill .card-meta { overflow-wrap: anywhere; }
+
+/* Lot A */
+.solution-lookup { display: flex; flex-direction: column; gap: .4rem; margin-block: .6rem; }
+.solution-lookup .culture-links { flex-wrap: wrap; gap: .4rem; }
+.solution-lookup input { width: 100%; }
+
+/* Lot B */
+.climate-gap { stroke: currentColor; stroke-width: 2; stroke-dasharray: 2 2; opacity: .6; }
+.culture-offline-index { margin-block: 1rem; }
+.culture-offline-index ul { margin: .5rem 0 0; padding-left: 1.2rem; }
+.culture-offline-index li { overflow-wrap: anywhere; margin-block: .35rem; }
+.culture-unavailable { opacity: .75; text-decoration: line-through; cursor: not-allowed; }

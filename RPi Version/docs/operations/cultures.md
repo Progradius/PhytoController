@@ -27,6 +27,29 @@ Les jours calendaires sont calculés dans le fuseau du carnet, changements d'heu
 Si le Pi ne dispose pas de preuve de synchronisation, les compteurs sont signalés à vérifier
 et une confirmation explicite des dates est exigée pour enregistrer.
 
+## Compléter le passé d'une culture reprise
+
+Une culture créée directement « en floraison » n'a pas ses étapes antérieures. La section
+« Compléter le parcours passé » de sa fiche les ajoute après coup, sans toucher au stade
+courant ni à la clôture. Elle reste disponible sur une fiche en séchage ou archivée.
+
+1. « Ajouter une étape passée » ne propose que les stades du parcours **antérieurs** au stade
+   courant et encore absents. Quand la liste est vide, tout est renseigné.
+2. « Ajouter un déplacement passé » complète une occupation manquante, par exemple l'espace 1
+   avant l'entrée dans l'espace 2. Le lot entier occupe l'espace indiqué à partir de cette date,
+   jusqu'au déplacement suivant déjà enregistré.
+3. Chaque étape garde sa date effective, sa précision (date connue, approximative ou heure
+   connue), son fuseau et sa date de saisie. Elle apparaît dans le journal et se corrige comme
+   toute autre entrée, ses versions précédentes conservées.
+4. La date doit être strictement antérieure au début du stade courant : à date égale, l'ordre du
+   parcours serait ambigu. Une chronologie impossible ou un conflit d'occupation de l'espace 2
+   est refusé en bloc — aucune étape n'est écrite et le formulaire conserve la saisie.
+5. Après enregistrement, le stade courant et son compteur sont inchangés ; l'attribution des
+   solutions et arrosages est recalculée selon les dates d'occupation corrigées.
+
+Le parcours affiche la durée de chaque période, en jours calendaires du fuseau du carnet, avec
+la même convention que les compteurs. La période en cours est comptée jusqu'à aujourd'hui.
+
 ## Conduire le parcours
 
 Ouvrir la fiche du lot pour déclarer un nouveau stade, déplacer l'ensemble ou noter une perte.
@@ -180,6 +203,22 @@ Après succès, la page ouvre l'entrée, même rétrospective. En cas d'échec, 
 et réessayer sans modifier la saisie pour vérifier le même enregistrement. La reconnexion ne
 rejoue rien. Les courbes sont descriptives et ne proposent aucun diagnostic ou dosage.
 
+### Relevés liés à une intervention ancienne
+
+Le sélecteur **Intervention associée** propose les 200 interventions les plus récentes et,
+toujours, celle déjà associée au relevé corrigé, même vieille de centaines de saisies. Corriger
+seulement le pH ou la note conserve donc le lien et son contexte avant/après ; le retirer demande
+de choisir explicitement « Sans lien ».
+
+Pour une saisie rétrospective, le champ **Retrouver une intervention ancienne** cherche par type,
+date, cible ou référence, et les boutons **Plus récentes** / **Plus anciennes** parcourent la
+liste par 200. Le nombre de résultats et la tranche affichée sont annoncés sous le champ. Si la
+recherche n'aboutit pas (réseau), l'association en cours reste conservée dans le formulaire.
+
+Dans le journal, le lien **Intervention …** d'un relevé ouvre l'intervention même si elle n'est
+pas sur la page courante ou est exclue par les filtres : il rouvre le journal sans filtre à la
+bonne page.
+
 Le bouton **Exporter les relevés et interventions CSV du filtre** produit des colonnes avec
 unités explicites, préparation, cibles et notes. Il conserve une ligne par saisie commune,
 annulations comprises. Les anciennes révisions sont dans l'export complet JSON/SQLite.
@@ -254,10 +293,48 @@ sans valeur fiable ; zéro reste une vraie valeur. Le statut du snapshot inclut 
 
 Les agrégats horaires survivent à la purge de l'historique technique et aux redémarrages.
 La couverture est le nombre de minutes fiables divisé par 60, y compris pour une heure partielle.
-Les heures au bord d'un cycle peuvent inclure des minutes extérieures à celui-ci. L'interface
-limite l'affichage aux 10 000 derniers points horaires par culture ; la sauvegarde conserve tout.
+Les heures au bord d'un cycle peuvent inclure des minutes extérieures à celui-ci.
 Aucune donnée antérieure à l'activation n'est reconstituée. Une horloge non fiable suspend la
 synthèse. Les courbes restent descriptives, sans dosage ni diagnostic causal automatique.
+
+### Cycles longs : synthèse complète et détail horaire
+
+La courbe et le tableau ne montrent plus « les derniers points » : la synthèse couvre **tout**
+le cycle, à un pas choisi d'après sa durée — heure, jour, semaine ou quatre semaines — de façon
+que le nombre de périodes affichées reste borné. Le pas retenu est écrit en toutes lettres au
+dessus de la courbe, avec le nombre de périodes et le nombre de périodes sans agrégat.
+
+Les périodes sont alignées sur l'horloge **UTC** (un « jour » est un jour UTC), comme la clé
+horaire des agrégats : un changement d'heure ne déplace donc aucune période et ne crée pas de
+journée de 23 ou 25 heures. Les périodes du tout début et de la toute fin du cycle ne comptent
+que leurs heures comprises dans le cycle ; leur couverture est calculée sur ce nombre d'heures.
+
+La moyenne d'une période vient des sommes et des effectifs fiables, jamais d'une moyenne de
+moyennes horaires : une heure avec une seule minute fiable ne pèse pas autant qu'une heure
+complète. Une période sans agrégat reste une **lacune** : elle est marquée d'un trait sous l'axe
+et d'aucun point, jamais d'un zéro. Chaque capteur garde sa propre courbe.
+
+Le tableau **Détail horaire paginé** donne les agrégats heure par heure, 60 par page, avec le
+nombre total conservé en base. Seule la page affichée est chargée : la page de cycles ne
+contient plus des milliers de lignes. Le détail n'apparaît que si **une seule** culture est
+sélectionnée ; en comparaison de deux à quatre cycles, chaque synthèse indique sa granularité et
+propose un lien pour ouvrir le détail d'une culture. Les agrégats anciens ne sont jamais
+supprimés par ces affichages, et la sauvegarde complète continue de tout conserver.
+
+### Consulter un cycle hors ligne
+
+Le carnet reste **réseau d'abord** : une page datée n'est relue qu'après un échec réseau. Le bloc
+**Pages du carnet conservées hors ligne** liste les pages du carnet réellement conservées avec
+leur date de conservation ; une page de détail horaire y figure avec le premier agrégat qu'elle
+montre. Les limites existantes sont inchangées : au plus 20 pages du carnet et 4 Mio par page,
+40 photos consultées, et aucune donnée d'`/api/` mise en cache.
+
+Sont conservées **les pages effectivement visitées** : la synthèse d'un cycle si elle a été
+ouverte, et chaque page de détail horaire réellement consultée. Hors ligne, un lien vers une page
+non conservée est barré et suivi de « non conservé hors ligne » ; il ne tente aucune requête.
+La synthèse affichée hors ligne est celle de la dernière visite et couvre la même période qu'alors ;
+sa date figure dans la bannière « HORS LIGNE — données datant de… — lecture seule ». Aucune
+saisie n'est mise en attente ni rejouée, et le carnet ne déclenche aucune notification système.
 
 ## Restaurer une sauvegarde complète sur copie
 

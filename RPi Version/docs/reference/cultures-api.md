@@ -98,6 +98,58 @@ Erreurs : `400` validation, `403` CSRF/origine, `404` fiche absente, `409` versi
 Les erreurs métier JSON portent `error`. Les erreurs des middlewares existants peuvent être texte
 ou HTML selon Accept ; les clients ne doivent pas supposer du JSON pour tout refus.
 
+### Étapes passées d'un parcours repris — `operation: "backfill"`
+
+Renseigne les étapes **antérieures** connues d'une culture reprise en cours de cycle, sans
+changer son stade courant ni sa clôture. Distincte de `event` : elle refuse toute étape qui
+n'est pas dans le passé du stade affiché.
+
+```json
+{
+  "operation": "backfill",
+  "request_id": "identifiant-unique",
+  "subject_id": "uuid-du-lot",
+  "version": 3,
+  "steps": [
+    {"kind": "stage", "effective_at": "2026-06-05", "precision": "date",
+     "payload": {"stage": "enracinement"}, "reason": "Carnet papier"},
+    {"kind": "move", "effective_at": "2026-06-10", "precision": "instant",
+     "payload": {"space": "space_1"}}
+  ]
+}
+```
+
+- `steps` : 1 à 12 étapes, écrites **toutes ou aucune** dans la transaction de la commande.
+  Un refus ne laisse ni événement, ni clé dans `requests` : la même clé reste utilisable.
+- `kind` vaut `stage` ou `move` uniquement. Récolte, fin de séchage, archivage et libération
+  restent des événements de clôture, corrigés par `correct`.
+- `precision` (`date`, `approximative`, `instant`), fuseau et date de saisie suivent les mêmes
+  règles que `event` ; chaque étape devient un événement révisable et corrigible.
+- Un `stage` doit figurer dans les étapes admissibles publiées par `GET /api/v1/cultures/{id}` :
+  stades du parcours antérieurs au stade courant et encore absents. Un `move` vise `space_1` ou
+  `space_2` (`space_1` seul pour un pied mère) et déplace le lot entier.
+- La date effective doit être **strictement antérieure** au début du stade courant. À date égale,
+  l'ordre ne dépendrait que de la séquence d'insertion : la commande est refusée (`400`).
+- Le parcours entier, l'occupation des espaces et les intersections occupation/solution sont
+  rejoués et revalidés avant commit ; l'attribution des solutions suit les occupations corrigées.
+- `version` attendue et `request_id` s'appliquent comme pour `event` (`409` sur onglet périmé).
+  Fonctionne aussi sur une fiche en floraison, en séchage ou archivée.
+
+`GET /api/v1/cultures/{id}` porte pour cela :
+
+```json
+{"backfill": {"stages": ["germination", "vegetatif"],
+              "spaces": ["space_1", "space_2"], "before": "2026-08-01"}}
+```
+
+`stages` vide signifie qu'aucune étape antérieure ne manque. `before` est le début du stade
+courant, borne stricte des dates acceptées.
+
+Chaque période de `subject.periods` porte désormais `duration`, calculée comme les compteurs
+existants (`{"days", "weeks", "remaining_days", "week"}`, jours calendaires locaux). Une période
+encore ouverte est comptée jusqu'à aujourd'hui. Ces périodes alimentent aussi la comparaison des
+cycles.
+
 ## Persistance et compatibilité
 
 Schéma SQLite initial 1 : `settings`, `subjects`, `origins`, `events`, `requests`.
@@ -123,9 +175,24 @@ d'import automatiquement accepté par cette version.
 révisions par page, annulations visibles, avec `revisions`. Les cibles possibles sont
 `reservoir_2` (espace 2), `cuttings_1` (bac de bouturage espace 1), ou les UUID des cultures.
 La réponse fournit aussi `reservoirs`, `recipes`, `subjects`, `periods`, `links`, `latest`,
-`interventions` (200 dernières pour le sélecteur), `chart`, `stages`, `chart_aggregated` et
-`chart_truncated`. Les clients plus spécialisés peuvent retrouver une intervention ancienne
-par pagination du journal et utiliser son UUID.
+`interventions` (fenêtre de 200 pour le sélecteur, voir ci-dessous), `chart`, `stages`,
+`chart_aggregated` et `chart_truncated`.
+
+### Retrouver une intervention ancienne (lot A)
+
+`interventions` contient les 200 interventions les plus récentes **plus** celles déjà associées
+aux relevés de la page affichée : une correction ne peut donc jamais perdre son lien parce que
+l'intervention est sortie de la fenêtre. Chaque élément porte `id`, `kind`, `effective_at`,
+`reservoir_id`, `targets`, `target_label` (réservoir ou cultures visées), `cancelled` et
+`linked`. La réponse ajoute `interventions_total`, `interventions_offset`, `interventions_search`
+et `interventions_page` (taille de fenêtre, 200).
+
+`GET /api/v1/cultures/solutions?interventions=<texte>[&interventions_offset=<n>]` bascule en
+**recherche bornée** : la réponse ne contient alors que ce bloc d'interventions, sans journal,
+courbe ni agrégat. Le texte (100 caractères au plus) est cherché, sans casse, dans le type, la
+date effective, la cible et la référence ; `interventions_offset` pagine par 200 de la plus
+récente à la plus ancienne. Un texte trop long renvoie 400, un offset hors bornes aussi. Aucune
+requête ne charge tout le carnet dans un sélecteur.
 
 `chart` couvre le filtre indépendamment de la pagination. Jusqu'à 1 000 entrées, chaque point
 représente une mesure ; au-delà, regroupement par date locale, cible et période de solution :
@@ -209,7 +276,16 @@ par un relevé avant/après sans corriger d'abord ce lien. Les révisions passé
 Succès : `{"saved": true, "id": "uuid", "version": 1}`. Idempotence, conflits, horloge incertaine,
 CSRF, limite de corps et codes d'erreur suivent le contrat de création des cultures ci-dessus.
 Les pages `/cultures/solutions?target=...` utilisent en plus `entry=uuid` pour ouvrir la bonne
-page du journal après une saisie rétrospective.
+page du journal après une saisie rétrospective ; les liens « Intervention … » du journal
+emploient `?entry=uuid#entry-uuid` sans filtre, afin d'atteindre une destination absente de la
+page ou du filtre courant.
+
+Une correction (`operation: "correct"`) qui **ne mentionne pas** `intervention_id` ou `context`
+conserve les valeurs de la révision précédente : corriger un pH seul ou une note seule ne perd
+ni ne change l'association. Fournir `"intervention_id": null` reste le moyen explicite de
+détacher un relevé. Une association incohérente (cibles, réservoir ou contexte avant/après
+contradictoires) est refusée en bloc, sans écriture partielle, et une nouvelle tentative
+identique ne crée aucun doublon.
 
 ### Schéma 2 et migration
 
@@ -306,9 +382,50 @@ explicitent la couverture. Les zéros fiables comptent. Aucune acquisition maté
 L'horloge non fiable suspend les ajouts ; les minutes répétées sont dédoublonnées.
 
 Chaque synthèse contient `subject`, `periods`, `measures` pH/EC, `checklists`, `climate` et
-`climate_truncated`. Le climat est commun à la serre ; les heures de bord ne sont pas découpées
-à la minute du cycle. Au plus 10 000 derniers points sont rendus par culture, sans purge des
-agrégats antérieurs. Les données purgées de l'historique technique ne sont pas reconstituées.
+`climate_detail`. Le climat est commun à la serre ; les heures de bord ne sont pas découpées
+à la minute du cycle. Les données purgées de l'historique technique ne sont pas reconstituées.
+
+### Synthèse climatique bornée et détail horaire paginé (lot B)
+
+`climate` couvre **tout** le cycle, du premier au dernier agrégat horaire possible, à une
+granularité choisie d'après sa durée : la plus fine de `heure` (3 600 s), `jour` (86 400 s),
+`semaine` (604 800 s) ou `quatre semaines` (2 419 200 s) telle que le nombre de périodes reste
+sous `MAX_SUMMARY_BUCKETS = 200`. Champs : `granularity_seconds`, `granularity_label`,
+`bucket_count`, `sensor_count`, `gap_count`, `gaps_shown`, `truncated`, `start`, `end`,
+`start_at`, `end_at` et `points`.
+
+**Convention d'intervalle.** Une période commence à un multiple entier de sa durée depuis
+l'époque Unix, exactement comme la clé `hour` de `climate_hours` : `bucket = hour - (hour % pas)`.
+La convention est donc **UTC** et invariante au changement d'heure — un seau `jour` est un jour
+UTC (jamais un jour local de 23 ou 25 h) et un seau `semaine` commence un **jeudi 00:00 UTC**.
+Les heures aux bords du cycle ne sont pas découpées : l'heure qui contient le début du cycle et
+celle qui contient sa fin sont incluses entières, mais la période de bord ne compte que les
+heures effectivement comprises dans le cycle. `span_hours` donne ce nombre d'heures et sert de
+dénominateur aux couvertures ; une première ou dernière période est donc légitimement partielle.
+
+Chaque point porte `sensor`, `label`, `unit`, `hour` (début du seau), `at` (ISO UTC), `minimum`,
+`maximum`, `mean`, `valid_count`, `observed_count`, `hours` (heures agrégées présentes),
+`span_hours`, `coverage = valid_count / (60 × span_hours)`,
+`hour_coverage = hours / span_hours` et `missing`. La moyenne vaut
+`SUM(total) / SUM(valid_count)` calculé en SQL : jamais une moyenne non pondérée de moyennes
+horaires. `MIN`/`MAX` ignorent les absences. Une période sans agrégat est rendue avec
+`missing: true`, `mean: null`, `minimum: null` et des effectifs à zéro — **une lacune, jamais
+une valeur nulle**. Les capteurs restent distincts : un point par capteur et par période.
+`gaps_shown: false` (ou `truncated: true`) signale que le plafond de points a empêché de
+matérialiser toutes les lacunes ; l'interface l'annonce alors explicitement.
+
+`climate_detail` n'est renseigné que pour une **sélection d'une seule culture** ; il vaut `null`
+lors d'une comparaison, dont chaque synthèse affiche sa granularité. Il contient `rows`
+(agrégats horaires bruts, `mean`, `coverage = valid_count / 60`, `at`), `total` (nombre
+d'agrégats en base sur la fenêtre du cycle), `offset`, `page` (60), `previous` et `next`.
+L'agrégation, le comptage et la pagination sont faits en SQL borné (`GROUP BY` sur le seau,
+`LIMIT`/`OFFSET`) : l'historique n'est jamais lu entièrement pour être ensuite tronqué.
+
+Paramètres de requête supplémentaires sur `GET /cultures/cycles` et
+`GET /api/v1/cultures/cycles` : `climate_offset` (entier 0 à 10 000 000, aligné sur la page et
+ramené à la dernière page s'il dépasse le total) et `climate_at` (epoch UTC en secondes, 0 à
+4 102 444 800, qui positionne la page contenant cet instant). Une valeur hors bornes ou non
+entière renvoie 400. Aucun agrégat n'est supprimé ni modifié par ces lectures.
 
 Le schéma 3 ajoute `reminders`, `culture_checklists`, `climate_hours`, `climate_minutes`,
 `culture_media`. Les migrations 1 → 2 → 3 sont successives, chaque migration d'une base existante
