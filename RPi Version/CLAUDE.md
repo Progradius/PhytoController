@@ -296,6 +296,24 @@ Invariants ajoutés par les lots D à H, à préserver :
   `select` ;
 - le **backfill** n'accepte que des étapes strictement antérieures au début du stade courant.
 
+Conventions d'interface des lots UI 1 et 2 (aucune route ni persistance nouvelle) :
+`static/js/culture_forms.js` est le **socle unique** des formulaires du carnet — `register`
+(identifiants stables, rejouable après un clonage d'origines), `submitJson` / `submitBinary`
+(CSRF, garde hors ligne, clé d'idempotence conservée tant que la saisie ne change pas) et
+`showError` (résumé en tête + message au champ) ; un formulaire nouveau l'adopte au lieu de refaire
+sa gestion d'erreur. Un refus se rattache au contrôle par son attribut `name`, jamais par un `id`
+deviné : `CultureError(message, field, index)`, `index` étant le rang 0-based dans un groupe
+répété ; le serveur n'émet **qu'une erreur par requête** (le socle JS, lui, en affiche N), et un
+503 n'en nomme aucune. Les règles d'action sont **pures** dans `model/culture.py` —
+`allowed_actions`, `stage_options`, `first_stage`, `creation_stages`, `fiche_actions` : aucune
+condition d'action en Jinja ou en JS, et le test d'équivalence `tests/test_culture_actions.py`
+s'adapte au nouveau balisage, il ne se supprime pas. Le bloc `agenda` est calculé dans `_overview`
+**sans projection neuve**, borné (`TODAY_JOURNAL`, `upcoming_count` au lieu d'une liste), et
+réutilise `overview["today"]`, l'unique date du carnet. Le retour après enregistrement passe par
+les ancres `event-{id}` / `reminder-{id}` en `tabindex="-1"` (et `data-cycle-return="agenda"` pour
+un rappel actionné depuis l'accueil) : l'élément focalisé **est** la confirmation, pas un
+`aria-live` de plus.
+
 Ne pas copier naïvement un SQLite vivant en WAL : l'export utilise l'API de sauvegarde ; le ZIP
 réunit base, médias et manifeste SHA-256, et `scripts/restore-cultures.py [--bundle]` ne publie
 jamais que vers une copie isolée nouvelle. Les photos sont réencodées sans métadonnées et bornées

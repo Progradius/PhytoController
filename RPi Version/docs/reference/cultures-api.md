@@ -3,7 +3,9 @@
 Ce document décrit l'état livré du carnet : les trois livraisons initiales (cultures et parcours,
 solutions et relevés, photos/rappels/cycles) et les lots A à H du plan de rattrapage, qui ajoutent
 le schéma 4, les vérifications corrigibles, les plages cibles, les repères d'éclairage, les
-affectations d'équipements et le journal transversal.
+affectations d'équipements et le journal transversal. Les lots UI 1 et 2 n'ajoutent **aucune route**
+et aucune persistance : ils enrichissent les réponses existantes (erreurs rattachées à un champ,
+bloc `agenda`, blocs de fiche, identité de l'entrée écrite).
 
 Toutes les routes sont locales, dynamiques et `no-store`. Les POST exigent le jeton existant
 `X-CSRF-Token`, le Host autorisé et la même origine que le serveur. Corps JSON limité à 64 Kio.
@@ -12,6 +14,48 @@ Les actions sont déclaratives, sans accès GPIO et sans écriture de configurat
 Conventions communes à toutes les mutations : `request_id` obligatoire (idempotence par clé +
 empreinte du corps), `version` attendue de l'entité visée (une valeur périmée répond `409`),
 `confirm_date: true` exigé quand l'horloge n'est pas fiable, et aucune date future acceptée.
+
+## Forme des erreurs métier (lot UI 2)
+
+Toute erreur métier du carnet passe par un helper unique, `error_response` dans
+`network/web/cultures.py`. Le corps est un JSON dont `error` reste **premier et inchangé** : un
+client qui ne lit que cette clé continue de fonctionner. Deux clés facultatives le complètent.
+
+| Clé | Contenu |
+| --- | --- |
+| `field` | Attribut `name` du contrôle fautif (`"ph"`, `"stage_at"`, `"origin_count"`), tel qu'il apparaît dans le formulaire ; absent quand aucun champ précis n'est en cause |
+| `index` | Rang **0-based** du contrôle parmi ceux qui partagent ce `name` dans un groupe répété (origines d'un lot, produits d'une recette) ; absent sinon, et jamais présent sans `field` |
+
+```json
+{"error": "Effectif entier attendu, de 1 à 10000.", "field": "origin_count", "index": 1}
+```
+
+Une réponse `503` (carnet indisponible, schéma incompatible, file auxiliaire saturée) ne porte
+**jamais** de `field` : aucun champ n'est en cause, et en désigner un ferait chercher une faute de
+saisie là où c'est le carnet qui est absent. Les statuts eux-mêmes sont inchangés.
+
+**Au plus une erreur par requête.** La validation s'arrête au premier refus ; la réponse ne contient
+donc jamais de liste. C'est une limite du serveur, assumée et documentée, pas une contrainte du
+client : le socle `static/js/culture_forms.js` sait déjà afficher N entrées dans son résumé.
+
+Pour `operation: "create"`, une prévalidation pure en tête de `_create` applique les contrôles
+**dans l'ordre du formulaire** (nom → variété → origine du lot → origines → date d'origine → stade →
+date de stade → espace → date d'espace). Les insertions qui suivent conservent, elles, leur ordre
+métier (`create`, puis `move`, puis `stage`/`harvest`) : sans cette passe, une commande cumulant deux
+fautes aurait désigné la plus tardive, donc un champ plus bas que le premier vraiment fautif.
+
+Champs actuellement nommés, par API (les autres refus restent globaux et s'affichent en résumé) :
+
+| API | `field` possibles |
+| --- | --- |
+| `POST /api/v1/cultures`, `operation: create` | `name`, `variety`, `origin_type`, `mother_id`*, `origin_label`*, `origin_count`*, `origin_at`, `stage`, `stage_at`, `space`, `space_at`, `confirm_date` |
+| `POST /api/v1/cultures`, `event` / `correct` / `backfill` | `effective_at`, `drying_at`, `reason`, `stage`, `space`, `count`, `origin_id`, `weight_g`, `origin_weight`*, `confirm_date` |
+| `POST /api/v1/cultures/solutions` | `name`, `volume_l`, `product`*, `quantity`*, `unit`*, `kind`, `target`, `ph`, `ec`, `ec_unit`, `temperature_c`, `context`, `compensation`, `recipe_id`, `effective_at`, `reason`, `confirm_date` |
+| `POST /api/v1/cultures/journal` | `effective_at`, `reason` |
+| `POST /api/v1/cultures/cycles` | `confirm_date` |
+| `POST /api/v1/cultures/targets`, `/light`, `/equipment` | Aucun à ce jour : ces refus sont globaux |
+
+(*) Champ répétable : le refus est accompagné d'`index`.
 
 ## Lecture
 
@@ -34,7 +78,8 @@ API de lecture :
 | --- | --- |
 | `GET /api/v1/cultures?archives=0&offset=0` | Jusqu'à 40 cultures actives, total, occupation des deux espaces et catalogue des mères |
 | `GET /api/v1/cultures?archives=1&offset=0` | Jusqu'à 40 cultures archivées ; occupation indépendante de l'archivage |
-| `GET /api/v1/cultures/{id}?offset=0` | Fiche projetée, périodes avec `duration`, origines, descendants, étapes `backfill` admissibles et 40 événements avec anciennes révisions |
+| `GET /api/v1/cultures?agenda=1` | La même réponse, plus le bloc `agenda` : rappels classés et dernières opérations (voir ci-dessous) |
+| `GET /api/v1/cultures/{id}?offset=0` | Fiche projetée, périodes avec `duration`, origines, descendants, étapes `backfill` admissibles, 40 événements avec anciennes révisions, plus `reminders`, `media`, `actions` et `stage_options` |
 | `GET /api/v1/cultures/solutions` | Journal des solutions, courbes, plages résolues et fenêtre d'interventions (voir « Solutions et relevés ») |
 | `GET /api/v1/cultures/cycles` | Synthèses de cycle, climat borné, détail horaire paginé, vérifications, rappels, photos |
 | `GET /api/v1/cultures/targets` | Plages cibles courantes filtrées, avec leurs révisions |
@@ -53,6 +98,70 @@ Les réponses comprennent le fuseau et la fiabilité de l'horloge. L'âge compor
 `remaining_days`, `week`. Les occupations du détail contiennent des clés UTC de comparaison ;
 ce ne sont pas des heures effectivement observées quand la précision était une date seule.
 Les dates d'événements conservent leur valeur et leur `precision` originales.
+
+### Bloc `agenda` (lot UI 2)
+
+`GET /api/v1/cultures?agenda=1` ajoute à la vue d'ensemble un bloc de synthèse, calculé **dans**
+`_overview` à partir des sujets déjà projetés et de deux requêtes SQL : aucune projection nouvelle,
+aucune acquisition. Il est absent par défaut, et la page `/cultures` ne le demande que pour l'accueil
+des cultures actives — une fiche a le sien, et `?archives=1` n'a ni rappel ni prochaine action.
+
+```json
+"agenda": {
+  "reminders": {"overdue": [], "due_today": [], "upcoming_count": 0, "done_today": []},
+  "journal": [],
+  "journal_truncated": false
+}
+```
+
+- Les quatre seaux viennent de `reminder_buckets(rows, today, zone)`, fonction **pure** de
+  `model/culture_cycle.py` : un rappel ouvert (`planned`, `postponed`) tombe dans `overdue`,
+  `due_today` ou `upcoming` selon sa seule échéance ; un rappel `done` ou `cancelled` n'apparaît dans
+  `done_today` que si sa clôture (`completed_at`, sinon `recorded_at`) ramenée au fuseau du carnet
+  tombe sur la date du jour. Comparer la seule chaîne UTC ferait disparaître de sa journée un rappel
+  clos à 23 h 30 en heure d'été.
+- `upcoming` n'est pas sérialisé : seul son cardinal, `upcoming_count`, l'est. L'accueil renvoie
+  vers `/cultures/cycles#rappels` plutôt que de dérouler une liste sans échéance proche.
+- Chaque rappel sérialisé porte `id`, `revision`, `title`, `due_date`, `state`, `interval_days`,
+  `completed_at` et `target` : `{"kind": "culture" | "reservoir", "id", "name"}`. Le nom est repris
+  des sujets déjà projetés ou du catalogue de réservoirs, sans requête supplémentaire, et retombe sur
+  l'identifiant s'il est inconnu. Les révisions ne sont pas chargées (`_reminders(revisions=False)`) :
+  l'accueil n'affiche aucun historique.
+- `journal` contient au plus `TODAY_JOURNAL = 5` lignes de la vue `culture_journal`, les plus
+  récentes, enrichies comme celles de `/cultures/journal`. Une ligne de plus est lue uniquement pour
+  renseigner `journal_truncated`, qui commande le lien « Voir tout le journal ».
+- La date de référence est `overview.today`, déjà présente dans la réponse : il n'y en a qu'une, et
+  les formulaires l'utilisent aussi comme valeur par défaut de leurs champs de date.
+
+Un carnet vide ne produit ni zéro ni entrée inventée : les seaux sont des listes vides,
+`upcoming_count` vaut `0` et `journal` est vide.
+
+### Fiche : `reminders`, `media`, `actions`, `stage_options` (lot UI 2)
+
+`GET /api/v1/cultures/{id}` ajoute quatre blocs, tous dérivés de données déjà lues :
+
+| Clé | Contenu |
+| --- | --- |
+| `reminders` | Les rappels du seul sujet, classés dans les **quatre** seaux (`upcoming` est ici sérialisé, la fiche l'affiche), sans révisions |
+| `media` | `_media_list(subject_id)` : photos de la culture, `owner_kind="event"`, les plus récentes d'abord, **bornées à 100** |
+| `actions` | `fiche_actions(subject)` : `{"primary": [...], "other": [...]}` |
+| `stage_options` | `stage_options(subject)` : stades proposables pour une progression, dans l'ordre du parcours |
+
+`actions.primary` commence toujours par `reading` puis `observation`. Ces deux identifiants ne sont
+**pas** des types d'événement : `reading` est un lien vers la saisie de relevé
+(`/cultures/solutions?target={id}&kind=reading#saisie`) et `observation` réunit la note et sa photo
+en une seule saisie. Au plus une action contextuelle les rejoint, celle que l'état du parcours rend
+évidente : mère non archivée → `archive` ; lot en germination, enracinement ou végétatif → `stage` ;
+floraison dans l'espace 2 → `harvest` ; floraison hors espace 2 → `move` ; séchage → `finish` ;
+archivé dont l'espace reste occupé → `release` ; archivé et libéré → aucune. `other` reçoit le reste
+des actions autorisées, sans jamais répéter `note` ni l'action promue.
+
+Les règles sont pures et vivent dans `model/culture.py` (`allowed_actions`, `fiche_actions`,
+`stage_options`, `first_stage`, `creation_stages`) ; `tests/test_culture_actions.py` vérifie leur
+équivalence avec le gabarit rendu sur une matrice type × stade × espace × archivage.
+`stage_options` rouvre la liste entière du parcours en mode correction (`current` renseigné) :
+corriger une saisie n'est pas progresser, et interdire le retour en arrière rendrait une erreur de
+stade irréparable.
 
 ## Création : `POST /api/v1/cultures`
 
@@ -123,13 +232,23 @@ conserver l'`id` de chaque ligne existante. Les anciennes valeurs sont conservé
 Le serveur rejoue le parcours et vérifie les occupations et filiations avant commit.
 
 Succès : `{ "saved": true, "subject_id": "uuid", "version": 2 }`.
+
+Depuis le lot UI 2, la réponse porte en plus `event_id` et `event_revision` — l'identité exacte de
+la ligne écrite — **si et seulement si** `operation` vaut `event` ou `correct`. Les deux clés sont
+absentes pour `create` et `backfill`, qui écrivent plusieurs entrées et n'en désignent aucune, et
+absentes du rejeu d'une clé d'idempotence enregistrée **avant** ce lot : le résultat mémorisé est
+rendu tel quel, jamais complété après coup. Un client doit donc traiter leur absence comme normale
+et se replier sur la fiche entière. Elles servent à deux choses : renvoyer l'opérateur sur l'ancre
+`#event-{id}` de l'entrée créée, et rattacher une photo à cette révision précise.
+
 Une même clé avec le même corps retourne le résultat initial même après d'autres modifications ;
 une même clé avec un corps différent est refusée. Réutiliser la même clé lors d'une réponse perdue.
 Les contrôles d'idempotence et de version se font dans la transaction SQL, pas dans le navigateur.
 
 Erreurs : `400` validation, `403` CSRF/origine, `404` fiche absente, `409` version ou clé en conflit,
 `413` corps trop grand, `503` stockage incompatible/indisponible ou file auxiliaire saturée.
-Les erreurs métier JSON portent `error`. Les erreurs des middlewares existants peuvent être texte
+Les erreurs métier JSON portent `error`, et éventuellement `field` et `index` (voir « Forme des
+erreurs métier »). Les erreurs des middlewares existants peuvent être texte
 ou HTML selon Accept ; les clients ne doivent pas supposer du JSON pour tout refus.
 
 ### Étapes passées d'un parcours repris — `operation: "backfill"`
@@ -212,6 +331,13 @@ révisions par page, annulations visibles, avec `revisions`. Les cibles possible
 La réponse fournit aussi `reservoirs`, `recipes`, `subjects`, `periods`, `links`, `latest`,
 `interventions` (fenêtre de 200 pour le sélecteur, voir ci-dessous), `chart`, `stages`,
 `chart_aggregated` et `chart_truncated`.
+
+`kind` doit appartenir à `SOLUTION_KINDS` (`reading`, `renewal`, `water`, `topup`, `nutrient`,
+`ph`) : une valeur inconnue est refusée en `400` (« Type de filtre inconnu. »), sur l'API
+comme sur la page `/cultures/solutions?kind=…`, qui rend alors son message d'erreur au lieu du
+journal. Depuis le lot UI 2, ce même paramètre porte aussi une **intention de saisie** : la page
+présélectionne ce type dans le formulaire d'une entrée neuve et ouvre la saisie. Une correction
+d'entrée existante reste verrouillée sur le type de l'entrée d'origine et ignore le filtre courant.
 
 ### Retrouver une intervention ancienne (lot A)
 
@@ -397,6 +523,16 @@ Le corps est binaire `application/octet-stream`, avec le jeton CSRF habituel et
 `confirm_date` si nécessaire. L'événement doit appartenir à la culture et ne pas être annulé.
 Une révision dépassée reçoit 409. L'empreinte des octets reçus participe à l'idempotence.
 Réponse : `saved`, `id` de photo, `subject_id`.
+
+**Enchaînement observation → photo (lot UI 2).** Le formulaire d'observation d'une fiche envoie
+deux requêtes séquentielles et jamais une seule : d'abord la note
+(`POST /api/v1/cultures`, `operation: event`, `kind: note`), puis la photo, et seulement si la
+première a réussi. `event_revision` est donc obligatoire et vaut la révision retournée par cette
+note — une correction de l'entrée intercalée entre les deux envois fait échouer la photo en `409`,
+ce qui est le comportement voulu : la photo se rattache à une version précise, pas à un événement
+flou. Une note enregistrée dont la photo est refusée n'est **pas** effacée : seule la photo est à
+rejouer, avec une clé d'idempotence neuve, la note conservant la sienne. Sans `event_id` dans la
+réponse de la note, aucune photo n'est envoyée.
 
 La limite de 5 Mio est vérifiée même sans `Content-Length` ; réception limitée à 30 secondes,
 métadonnées à 7 000 caractères. La limite JSON globale reste 64 Kio. Erreurs spécifiques :
@@ -826,6 +962,11 @@ contourner par le client. Mesures faites hors matériel, sans qualification sur 
 | Table `requests` | Les clés d'idempotence ne sont **jamais** purgées ; leur volume croît avec le nombre de mutations |
 | Sujet alimenté à l'instant d'un renouvellement | Un relevé « avant renouvellement » saisi à l'instant exact du renouvellement suit, pour le filtre par sujet alimenté, la période ouverte à cet instant ; la page des solutions reste la référence pour ce cas de bord |
 | Résolution d'équipement d'une page | `GET /api/v1/cultures/equipment?at=…` renvoie dans `resolved` **toutes** les affectations couvrant cette date, tous équipements confondus ; le filtre `equipment` restreint `equipments`, pas `resolved`. La résolution par saisie (`items[].equipment` des solutions) reste, elle, propre à sa date effective |
+| Une seule erreur par requête | La validation s'arrête au premier refus : un formulaire portant deux fautes doit être corrigé et renvoyé deux fois. Le client (`culture_forms.js`) accepte déjà N erreurs, c'est le serveur qui n'en produit qu'une |
+| Champs nommés partiels | `field` n'existe que pour les API listées dans « Forme des erreurs métier » ; plages cibles, éclairage et équipements refusent encore sans désigner de champ, et le refus s'affiche alors en résumé de formulaire |
+| Bornes de l'agenda | `agenda.journal` est plafonné à `TODAY_JOURNAL = 5` entrées et `upcoming_count` remplace la liste des rappels à venir : l'accueil n'est pas une seconde page de journal ni un second écran de rappels |
+| Photos d'une fiche | `detail.media` est borné à 100 photos, sans pagination : au-delà, la galerie des cycles reste la vue complète |
+| `event_id` d'un rejeu ancien | Le rejeu d'une clé d'idempotence enregistrée avant le lot UI 2 rend le résultat mémorisé tel quel, donc sans `event_id` ni `event_revision` ; un client ne peut pas en déduire qu'aucune entrée n'a été écrite |
 
 Volumétrie observée hors matériel avec 12 000 agrégats horaires : page des cycles 258 217 octets,
 JSON 178 966 octets, sous le plafond de cache de la PWA. Ces valeurs ne qualifient pas les

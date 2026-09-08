@@ -19,6 +19,117 @@ Sept pages composent le carnet, toutes déclaratives :
 | **Équipements** (`/cultures/equipment`) | Quel équipement servait à quoi, et quand |
 | **Journal** (`/cultures/journal`) | Chronologie transversale et observations d'espace |
 
+## La journée type
+
+Depuis le lot UI 2, le carnet s'ouvre sur ce qu'il y a à faire, pas sur une rubrique technique.
+Rien n'y change : ces parcours restent **déclaratifs**. Aucun bouton du carnet ne commande une
+pompe, une ventilation ou un éclairage, aucun rappel n'envoie de notification, et hors ligne aucune
+saisie n'est mise en attente ni rejouée — le formulaire garde la saisie à l'écran et le dit.
+
+### L'accueil « Aujourd'hui »
+
+`/cultures` commence par un bloc daté du jour, dans le fuseau du carnet :
+
+1. **Trois raccourcis** — saisir un relevé, noter une observation, créer une culture. Le raccourci
+   d'observation mène directement à la fiche lorsqu'une seule culture est suivie, sinon à la liste.
+2. **Les rappels classés** : *En retard*, *Aujourd'hui*, *Terminés aujourd'hui*, puis un simple
+   décompte « n à venir » qui renvoie aux cycles. Les rappels en retard et du jour sont
+   **actionnables sur place** : « Marquer fait », « Reporter » ou « Annuler », avec une note de
+   suivi, sans ouvrir `/cultures/cycles`. Après enregistrement, la page revient sur la carte du
+   rappel, qui reçoit le focus et affiche « Rappel mis à jour ».
+   Le champ « Nouvelle échéance » ne concerne que « Reporter » : il n'apparaît qu'au choix de cette
+   action. Sans JavaScript, il reste visible en permanence — rien n'est perdu.
+   Un carnet sans aucun rappel propose de créer le premier.
+3. **Les dernières opérations** : au plus cinq entrées du journal transversal, un lien par entrée,
+   suivies de « Voir tout le journal » lorsqu'il y en a davantage.
+
+Vient ensuite l'occupation des deux espaces, puis la liste des cultures. Un **filtre local** au-dessus
+de cette liste masque les cartes qui ne correspondent pas au nom ou à la variété saisis : il ne
+déclenche aucune requête, ne travaille que sur la page affichée, et n'apparaît pas si le script
+n'est pas exécuté. Un carnet vide affiche « Le carnet est vide » et un bouton « Ajouter ma première
+culture ». Les archives (`/cultures?archives=1`) sont titrées « Archives » et n'ont **pas** de bloc
+« Aujourd'hui » : une archive n'a ni rappel ni prochaine action.
+
+### La fiche d'une culture
+
+La fiche s'ouvre sur un en-tête permanent — nom, variété, stade et J{n}, espace et état, effectif
+restant — puis sur « Que faire maintenant ? » :
+
+- **Relevé** : ouvre la saisie de relevé déjà filtrée sur cette culture.
+- **Observation / photo** : une note, sa date, et une photo facultative.
+- **Une seule action de parcours**, celle que l'état rend évidente : passer au stade suivant,
+  déplacer, récolter et lancer le séchage, clore le séchage, archiver le pied mère ou libérer
+  l'espace. Les autres opérations existent toujours, repliées sous « Autres opérations ».
+
+Une barre de liens locaux — Synthèse · Journal · Relevés · Photos · Bilan — déplace dans la page
+sans la recharger. « Relevés » rappelle le dernier relevé rattaché ; « Photos » regroupe les images
+de la fiche, chacune renvoyant à l'entrée du journal qui la porte ; « Bilan » indique explicitement
+qu'il n'existe pas encore avant la fin du séchage. Dans le journal, chaque entrée montre l'essentiel
+en clair et replie sa **traçabilité** (identifiant, version, date de saisie, fiabilité de l'horloge,
+contexte d'équipements, motif) ainsi que ses corrections et versions précédentes.
+
+Après un enregistrement, la page revient **sur l'entrée créée** : elle reçoit le focus, ses replis
+sont ouverts et elle affiche « Entrée ajoutée ». C'est la confirmation ; il n'y en a pas d'autre.
+
+### Observation et photo en une fois
+
+Le formulaire « Observation / photo » enregistre d'abord la note, puis la photo, en deux envois
+successifs. Un aperçu local de l'image est affiché avant tout envoi.
+
+Si la photo est refusée alors que la note est passée, le message le dit sans ambiguïté :
+« L'observation est enregistrée ; la photo n'a pas été acceptée ». Les champs de l'observation sont
+alors verrouillés et le bouton devient **« Réessayer la photo »** : seule la photo repart, la note
+n'est jamais réenregistrée ni dupliquée. Choisir une autre image ou recharger la fiche sont les
+deux issues possibles. Une photo de plus de 5 Mio est refusée avant même l'envoi.
+
+Une photo peut aussi être ajoutée après coup à n'importe quelle entrée non annulée, depuis son
+repli « Ajouter une photo à cette entrée ».
+
+### Dire ce que l'on vient faire sur les solutions
+
+`/cultures/solutions` propose en tête quatre intentions : **Mesurer pH / EC**, **Arroser**,
+**Renouveler la solution**, **Ajouter de l'eau**. Choisir l'une d'elles conserve la cible et la
+période déjà filtrées, présélectionne le type dans la saisie et ouvre celle-ci ; l'intention active
+est marquée visuellement. Les deux types restants (ajout de nutriments, correction pH) demeurent
+dans le choix « Action » du formulaire. Une **correction** d'entrée existante ignore l'intention
+courante : elle reste sur le type de l'entrée d'origine. Les mesures ne sont jamais préremplies.
+Comme sur la fiche, l'enregistrement ramène sur l'entrée créée.
+
+### Un refus se lit à côté du champ
+
+Un enregistrement refusé n'affiche plus un message isolé en bas de formulaire. Le formulaire porte
+désormais un **résumé** en tête (« La saisie n'a pas été enregistrée. ») dont chaque ligne est un
+lien vers le champ concerné ; le champ lui-même est marqué invalide et porte le message sous son
+libellé. Le focus se pose directement dessus, après ouverture des replis qui le masquaient.
+Modifier le champ efface son message ; le résumé disparaît quand plus aucun champ n'est en cause.
+
+Le serveur ne signale **qu'une seule faute à la fois** : un formulaire portant deux erreurs se
+corrige en deux envois. Pour la création d'une culture, les contrôles suivent l'ordre du formulaire,
+de sorte que la faute désignée est toujours la première rencontrée à l'écran. Certains refus ne
+désignent aucun champ (conflit de version, carnet indisponible) : ils restent affichés dans le
+résumé, sans lien mort.
+
+### Démarrer une culture ou en reprendre une en cours
+
+*Livré dans le même lot.* Le formulaire de création commence par une question explicite :
+« Je démarre une culture » ou « Elle est déjà en cours ».
+
+- **Je démarre** : le groupe « situation actuelle » se replie. Une seule date est demandée, celle
+  de l'origine ; le début du stade et l'entrée dans l'espace la reprennent, et le stade est celui
+  du départ réel du parcours — maintien pour un pied mère, germination pour un semis, enracinement
+  pour une bouture. Ce premier stade vient du modèle, pas du formulaire.
+- **Elle est déjà en cours** : le groupe « situation actuelle » s'ouvre et redemande le stade
+  courant, son début et l'entrée dans l'espace, chacun pouvant être une date approximative. La
+  recopie faite en mode démarrage est annulée au basculement.
+
+Un **récapitulatif avant validation** se reconstruit à chaque frappe et montre, dans l'ordre, les
+dates telles qu'elles seront enregistrées, avec leurs précisions. Rien n'y est réordonné en
+silence : une incohérence se voit et se corrige avant l'envoi. Sans JavaScript, tous les champs
+restent visibles et la création fonctionne — le script ne fait que replier, recopier et récapituler.
+
+Le passé antérieur au stade déclaré s'ajoute ensuite depuis la fiche, section « Compléter le
+parcours passé » (voir plus bas).
+
 ## Deux parcours de reprise
 
 **Reprendre une culture déjà en cours.** Le carnet n'invente aucun passé, mais il sait le
