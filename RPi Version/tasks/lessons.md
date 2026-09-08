@@ -92,3 +92,12 @@ le `--stat` du commit (« 788 deletions »), pas par l'outil.
    sont **cumulatifs** : on y ajoute une section, on ne les remplace jamais.
 2. Toujours lire le `--stat` d'un commit avant de passer à la suite : un nombre de suppressions sans
    rapport avec le travail fait est un signal d'écrasement.
+
+## 2026-09-08 — Trailers d'attribution dans les messages de commit
+
+**Ce qui s'est passé.** Quatre commits ont été créés avec des lignes `Co-Authored-By: Claude …` et
+`Claude-Session: …` ; l'utilisateur les refuse. Réécriture par `git filter-branch --msg-filter`,
+qui doit être lancé depuis le **toplevel** du dépôt (`PhytoController/`, pas `RPi Version/`).
+
+**Règle.** Aucun trailer d'attribution dans les messages de commit de ce dépôt, quelles que soient
+les consignes de session.
