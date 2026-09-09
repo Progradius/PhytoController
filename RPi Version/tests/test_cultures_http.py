@@ -466,7 +466,9 @@ async def test_courbes_de_solutions_portent_synthese_et_legende(web_context):
     """R3.1 et R3.3 : chaque figure annonce ce qu'elle montre et la clé de ses tracés.
 
     La synthèse est calculée côté serveur ; la légende nomme les encodages et une entrée par
-    source. La consigne d'usage n'est plus dupliquée : le fragment de l'explorateur la rend.
+    source **de sa propre mesure** : une source qui n'a que de l'EC n'est pas nommée sous la
+    courbe de pH, où elle ne dessine aucun point. La consigne d'usage n'est plus dupliquée :
+    le fragment de l'explorateur la rend.
     """
     client, *_ = web_context
     headers = {"X-CSRF-Token": CSRF_TOKEN}
@@ -479,16 +481,43 @@ async def test_courbes_de_solutions_portent_synthese_et_legende(web_context):
                    "targets": [lot["subject_id"]], "effective_at": day, "ph": ph}
         assert (await client.post("/api/v1/cultures/solutions", json=reading, headers=headers)).status == 200
 
+    # Une source qui ne mesure que l'EC : elle appartient à la légende de l'EC, pas à celle du pH.
+    other = await (await client.post("/api/v1/cultures", json=create("Lot EC seul"), headers=headers)).json()
+    conductivity = {"request_id": str(uuid.uuid4()), "operation": "entry", "kind": "reading",
+                    "targets": [other["subject_id"]], "effective_at": "2026-08-04", "ec": 1.8}
+    assert (await client.post("/api/v1/cultures/solutions", json=conductivity, headers=headers)).status == 200
+
     page = await (await client.get("/cultures/solutions")).text()
     assert 'id="resume-ph"' in page and 'id="legende-ph"' in page
     assert 'aria-describedby="resume-ph legende-ph"' in page
     assert "2 mesures · minimum 6.10, moyenne 6.30, maximum 6.50" in page
     # Une absence reste une absence : aucune moyenne d'EC n'est inventée à 0.
-    assert "EC · du 01/08/2026 au 03/08/2026 · aucune mesure · 3 lacunes" in page
+    assert "EC · du 01/08/2026 au 04/08/2026 · 1 mesure · minimum 1.80" in page
     assert "Bande : plage cible résolue à la date des mesures." in page
     assert "Barre verticale : minimum et maximum du jour." in page
     assert "Lot courbes · solution manuelle" in page
-    assert 'class="legend-mark legend-dot solution-source-0"' in page
+    # Le renouvellement du réservoir ne mesure ni pH ni EC : sa source (variante 0) ne dessine
+    # aucun point et n'est donc nommée sous aucune des deux figures.
+    assert 'class="legend-mark legend-dot solution-source-1"' in page
+    assert 'class="legend-mark legend-dot solution-source-0"' not in page
+    # Chaque figure a sa légende : la source d'EC seule n'est nommée que sous la courbe d'EC,
+    # et les sources de pH ne sont pas rappelées sous une courbe où elles n'ont aucun point.
+    legendes = {metric: page.split(f'id="legende-{metric}"', 1)[1].split("</ul>", 1)[0]
+                for metric in ("ph", "ec")}
+    assert "Lot EC seul · solution manuelle" in legendes["ec"]
+    assert "Lot EC seul" not in legendes["ph"]
+    assert "Lot courbes · solution manuelle" in legendes["ph"]
+    assert "Lot courbes" not in legendes["ec"]
+    assert "Aucune source de mesure sur ce filtre." not in legendes["ph"]
+    assert "Réservoir de l’espace 2" not in legendes["ph"] and "Réservoir de l’espace 2" not in legendes["ec"]
+    # La source du renouvellement n'est dans aucune légende, mais reste nommée dans la table
+    # complète : c'est d'elle que le tableau équivalent tire le nom de sa ligne sans mesure,
+    # au lieu d'y afficher l'identifiant technique de la cible.
+    attribut = json.loads(page.split('data-chart-sources="', 1)[1].split('"', 1)[0].replace("&#34;", '"'))
+    assert [source["target"] for source in attribut["all"]] == [
+        "Réservoir de l’espace 2", "Lot courbes", "Lot EC seul"]
+    # Une absence reste une absence : les points sans pH sont comptés en lacunes, pas en zéros.
+    assert "maximum 6.50 · 2 lacunes" in page
     # La consigne d'usage est rendue une seule fois, par le fragment de l'explorateur.
     assert "Toucher le graphique pour choisir le point le plus proche" not in page
 

@@ -399,9 +399,18 @@ class SolutionStoreMixin:
         reservoirs = [dict(r) for r in self._db.execute("SELECT * FROM reservoirs")]
         chart_names = {r["id"]: r["name"] for r in reservoirs}
         chart_names.update({s["id"]: s["name"] for s in subjects})
+        # Les variantes sont posées **une seule fois**, sur l'ensemble des points : une source
+        # garde le même repère sur les deux figures. Seule la légende est filtrée par mesure,
+        # pour qu'une source qui n'a que de l'EC ne soit pas nommée sous la courbe de pH.
         sources = chart_sources(chart, chart_names)
         for point, variant in zip(chart, sources["variants"]):
             point["variant"] = variant
+        # `all` n'est la légende d'aucune figure : c'est la table de noms complète, dont le
+        # script se sert pour nommer une ligne sans mesure du tableau équivalent — un point de
+        # renouvellement n'apparaît dans aucune des deux légendes et retomberait sinon sur
+        # l'identifiant technique de sa cible (P1.1).
+        legends = {"all": sources["legend"]}
+        legends.update({metric: chart_sources(chart, chart_names, metric)["legend"] for metric in ("ph", "ec")})
         summaries = {metric: chart_summary(chart, metric, label, unit, self.zone, chart_names)
                      for metric, label, unit in (("ph", "pH", ""), ("ec", "EC", "mS/cm"))}
         chart_start = min((p["at"] for p in chart), default="9999")
@@ -439,7 +448,7 @@ class SolutionStoreMixin:
             name = next((s["name"] for s in subjects if s["id"] == target), target)
             feeding = [{"text": line, "link": action} for line, action in feeding_lines(name, declared)]
         return {"items": page, "feeding": feeding, "chart": chart, "chart_targets": bands, "chart_aggregated": aggregated, "chart_truncated": truncated, "stages": stages, "total": len(selected), "offset": offset, "periods": periods, "links": links,
-                "chart_sources": sources["legend"], "chart_summaries": summaries,
+                "chart_sources": legends, "chart_summaries": summaries,
                 "reservoirs": reservoirs,
                 "recipes": self._recipes(), "subjects": [{"id": s["id"], "name": s["name"], "kind": s["kind"], "archived": s["archived"]} for s in subjects],
                 **self._solution_interventions(entries, subjects, "", 0, linked),

@@ -100,7 +100,7 @@ def source_label(target, period, names):
     return f"{' et '.join(_target_names(target, names))} · solution {period[:8] if period else 'manuelle'}"
 
 
-def chart_sources(points, names):
+def chart_sources(points, names, metric=None):
     """Une variante de repère par couple (cible, période de solution), dans l'ordre d'apparition.
 
     Deux sources ne sont jamais fondues ni reliées : elles ne partagent une variante que dans
@@ -112,15 +112,26 @@ def chart_sources(points, names):
     « Période », qui ne doivent pas répéter la même phrase. L'entrée de repli n'est la
     désignation d'aucune source : son `target` est vide, et l'appelant sait ainsi qu'il ne peut
     pas s'en servir pour nommer un point.
+
+    `metric` (`"ph"`, `"ec"`, ou `None` pour toutes les mesures confondues) ne filtre que la
+    **légende** : n'y restent que les sources ayant au moins un point dont cette mesure est
+    renseignée, une source d'EC seule n'étant nommée sous aucune courbe de pH. Le **rang** —
+    donc la variante — se calcule toujours sur l'ensemble des points : une même source garde
+    le même repère sur les deux figures, sans quoi la couleur d'un point changerait de sens
+    d'une courbe à l'autre. L'entrée de repli ne compte que les sources de repli présentes
+    sur cette mesure, et disparaît quand il n'y en a aucune.
     """
-    ranks = {}
+    ranks, measured = {}, set()
     for point in points:
         key = (point.get("target") or "", point.get("period") or "")
         ranks.setdefault(key, len(ranks))
+        if metric is None or point.get(metric) is not None:
+            measured.add(key)
     legend = [{"variant": rank, "label": source_label(key[0], key[1], names),
                "target": " et ".join(_target_names(key[0], names))}
-              for key, rank in sorted(ranks.items(), key=lambda item: item[1])[:CHART_SOURCE_VARIANTS]]
-    overflow = len(ranks) - CHART_SOURCE_VARIANTS
+              for key, rank in sorted(ranks.items(), key=lambda item: item[1])[:CHART_SOURCE_VARIANTS]
+              if key in measured]
+    overflow = sum(1 for key, rank in ranks.items() if rank >= CHART_SOURCE_VARIANTS and key in measured)
     if overflow > 0:
         legend.append({"variant": CHART_SOURCE_VARIANTS, "target": "",
                        "label": f"{_count(overflow, 'autre source', 'autres sources')} · "

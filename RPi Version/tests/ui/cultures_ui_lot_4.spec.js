@@ -348,14 +348,21 @@ test("courbes de solutions : légende par source et synthèse textuelle", async 
   expect((await entry({kind: "reading", reservoir_id: "reservoir_2", effective_at: "2026-08-02",
     ph: 6.1})).ok()).toBe(true);
   expect((await entry({kind: "reading", targets: [id], effective_at: "2026-08-03", ph: 6.5})).ok()).toBe(true);
+  // Une troisième source qui ne mesure que l'EC : elle n'a aucun point sur la courbe de pH,
+  // sa légende ne doit donc pas la nommer.
+  const conductivity = await createMother(page, "Mère EC seule");
+  expect((await entry({kind: "reading", targets: [conductivity], effective_at: "2026-08-04",
+    ec: 1.8})).ok()).toBe(true);
   await page.goto("/cultures/solutions");
   const figure = page.locator(".solution-chart").first();
   // R3.3 : la synthèse vient du serveur ; une absence reste une absence, jamais un zéro.
   await expect(figure.locator("#resume-ph")).toContainText("2 mesures");
   await expect(figure.locator("#resume-ph")).toContainText("minimum 6.10, moyenne 6.30, maximum 6.50");
   const ec = page.locator(".solution-chart").nth(1);
-  await expect(ec.locator("#resume-ec")).toContainText("aucune mesure");
+  await expect(ec.locator("#resume-ec")).toContainText("1 mesure");
   await expect(ec.locator("#resume-ec")).not.toContainText("0.00");
+  // Les points sans EC restent des lacunes ; aucune moyenne n'est inventée à leur place.
+  await expect(ec.locator("#resume-ec")).toContainText("3 lacunes");
   await expect(figure.locator("svg")).toHaveAttribute("aria-describedby", "resume-ph legende-ph");
   // R3.1 : la légende nomme les encodages et les deux sources du filtre.
   const legend = figure.locator("#legende-ph");
@@ -363,6 +370,13 @@ test("courbes de solutions : légende par source et synthèse textuelle", async 
   await expect(legend).toContainText("Barre verticale : minimum et maximum du jour.");
   await expect(legend).toContainText(/Réservoir de l’espace 2 · solution \w{8}/);
   await expect(legend).toContainText("Mère légende · solution manuelle");
+  // Chaque figure a la légende de sa mesure : une source qui n'a que de l'EC n'est pas nommée
+  // sous la courbe de pH, où elle ne dessine aucun point.
+  await expect(legend).not.toContainText("Mère EC seule");
+  const legendEc = ec.locator("#legende-ec");
+  await expect(legendEc).toContainText("Mère EC seule · solution manuelle");
+  await expect(legendEc).not.toContainText("Mère légende");
+  await expect(legendEc).not.toContainText("Réservoir de l’espace 2");
   // Deux sources, deux classes distinctes : jamais la seule couleur, la forme change aussi.
   await expect(figure.locator("circle.solution-source-0")).toHaveCount(1);
   await expect(figure.locator("circle.solution-source-1")).toHaveCount(1);

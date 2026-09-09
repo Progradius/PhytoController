@@ -106,7 +106,9 @@
 <li><span class="legend-mark legend-stage" aria-hidden="true"></span>Tiret composé : changement de stade.</li>
 <li><span class="legend-mark legend-range" aria-hidden="true"></span>Barre verticale : minimum et maximum du jour.</li>
 <li><span class="legend-mark legend-dot" aria-hidden="true"></span>Point : une mesure. Sa forme et sa teinte disent la source ; aucun trait ne relie deux sources.</li>
-{% for source in data.chart_sources %}<li><span class="legend-mark legend-dot solution-source-{{ source.variant }}" aria-hidden="true"></span>{{ source.label }}</li>{% else %}<li>Aucune source de mesure sur ce filtre.</li>{% endfor %}
+{# La légende d'une figure ne nomme que les sources ayant une mesure de **sa** grandeur ; la
+   variante, elle, reste commune aux deux figures — même source, même repère. #}
+{% for source in data.chart_sources[metric] %}<li><span class="legend-mark legend-dot solution-source-{{ source.variant }}" aria-hidden="true"></span>{{ source.label }}</li>{% else %}<li>Aucune source de mesure sur ce filtre.</li>{% endfor %}
 </ul></figure>{% endfor %}</div>
 <details class="card"><summary>Repères des interventions et stades</summary><ul>{% for point in data.chart if point.annotations %}<li>{{ point.at|culture_date(data.timezone) }} · {{ point.annotations|join(', ') }} · {{ point.target }}</li>{% endfor %}{% for stage in data.stages %}<li>{{ stage.at|culture_date(data.timezone) }} · {{ stage.label }}</li>{% endfor %}</ul></details>
 <div class="culture-links"><a data-solution-export href="/api/v1/cultures/solutions/export">Exporter les relevés et interventions CSV du filtre</a><a href="/api/v1/cultures/export?format=sqlite3">Base SQLite seule (sans photos)</a></div>

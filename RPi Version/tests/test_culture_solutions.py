@@ -392,6 +392,55 @@ def test_repere_par_source_borne_et_repli_annonce():
                                      "label": "3 autres sources · même repère, faute de variantes distinctes"}
 
 
+def test_legende_par_mesure_sans_deplacer_les_reperes():
+    """La légende d'une figure ne nomme que ses propres sources ; le repère reste commun.
+
+    Une source qui n'a que de l'EC apparaissait sous la courbe de pH, où elle ne dessine
+    pourtant aucun point. Le filtrage porte sur la **légende** seule : le rang, donc la
+    variante, se calcule sur tous les points, sans quoi la même source changerait de couleur
+    d'une figure à l'autre et le lecteur croirait à deux sources.
+    """
+    from model.culture_solution import chart_sources
+    names = {"reservoir_2": "Réservoir de l’espace 2", "lot-ec": "Basilic", "lot-ph": "Épinard"}
+    points = [{"target": "reservoir_2", "period": "abcdefgh1234", "ph": 6.1, "ec": 1.4},
+              {"target": "lot-ec", "period": None, "ph": None, "ec": 1.8},
+              {"target": "lot-ph", "period": None, "ph": 6.5, "ec": None}]
+
+    commun = chart_sources(points, names)
+    ph = chart_sources(points, names, "ph")
+    ec = chart_sources(points, names, "ec")
+    # Les variantes posées sur les points ne dépendent pas de la mesure.
+    assert commun["variants"] == ph["variants"] == ec["variants"] == [0, 1, 2]
+
+    assert [entry["target"] for entry in ph["legend"]] == ["Réservoir de l’espace 2", "Épinard"]
+    assert [entry["target"] for entry in ec["legend"]] == ["Réservoir de l’espace 2", "Basilic"]
+    # Une source présente sur les deux figures y garde le même repère.
+    assert ph["legend"][0]["variant"] == ec["legend"][0]["variant"] == 0
+    # Le repère d'une source ne se décale pas parce qu'une autre manque à sa légende.
+    assert [entry["variant"] for entry in ph["legend"]] == [0, 2]
+    assert [entry["variant"] for entry in ec["legend"]] == [0, 1]
+
+
+def test_repli_de_legende_ne_compte_que_les_sources_de_la_mesure():
+    """L'entrée « autres sources » compte les sources de repli **de cette mesure**, ou disparaît.
+
+    Compter les sources de repli toutes mesures confondues annoncerait sous la courbe de pH
+    des sources qui n'y ont pas un seul point, et laisserait l'entrée en place même quand
+    aucune source de repli n'y mesure quoi que ce soit.
+    """
+    from model.culture_solution import CHART_SOURCE_VARIANTS, chart_sources
+    points = [{"target": f"cible-{index}", "period": None, "ph": 6.0, "ec": None}
+              for index in range(CHART_SOURCE_VARIANTS)]
+    points += [{"target": f"repli-{index}", "period": None, "ph": None, "ec": 1.2} for index in range(3)]
+
+    ph = chart_sources(points, {}, "ph")
+    ec = chart_sources(points, {}, "ec")
+    assert len(ph["legend"]) == CHART_SOURCE_VARIANTS
+    assert all(entry["target"] for entry in ph["legend"])  # aucune entrée de repli
+    assert ec["legend"] == [{"variant": CHART_SOURCE_VARIANTS, "target": "",
+                             "label": "3 autres sources · même repère, faute de variantes distinctes"}]
+
+
 def test_repli_de_repere_ne_nomme_aucune_cible_et_reste_distinct():
     """Huit sources : six repères propres, un repli partagé et annoncé (P2.4).
 
@@ -446,9 +495,15 @@ async def test_courbes_portent_leur_synthese_et_leurs_reperes(cultures):
                                                  targets=[lot["subject_id"]], ph=6.5))
     data = await cultures.call("solution_data")
     assert {point["variant"] for point in data["chart"]} == {0, 1}
-    labels = [source["label"] for source in data["chart_sources"]]
+    labels = [source["label"] for source in data["chart_sources"]["ph"]]
     assert any(label.startswith("Réservoir de l’espace 2 · solution ") for label in labels)
     assert "Lot repère · solution manuelle" in labels
+    # Aucune mesure d'EC sur ce filtre : la légende de l'EC ne nomme aucune source, alors
+    # que les variantes posées sur les points restent celles des deux figures.
+    assert data["chart_sources"]["ec"] == []
+    # `all` reste la table de noms complète : le script y trouve le nom d'une source qu'aucune
+    # légende ne montre, plutôt que l'identifiant technique de sa cible.
+    assert [source["variant"] for source in data["chart_sources"]["all"]] == [0, 1]
     assert "2 mesures" in data["chart_summaries"]["ph"]
     assert "minimum 6.10" in data["chart_summaries"]["ph"] and "maximum 6.50" in data["chart_summaries"]["ph"]
     assert data["chart_summaries"]["ec"].startswith("EC · ") and "aucune mesure" in data["chart_summaries"]["ec"]

@@ -246,7 +246,13 @@
   // pose la classe et recopie le nom, pour que légende, dessin et curseur disent la même chose.
   // L'entrée de repli ne nomme aucune source : son `target` est vide, elle n'entre donc
   // dans aucune des deux tables ci-dessous et ces points gardent le repli d'origine.
-  const legendSources = JSON.parse(charts?.dataset.chartSources || "[]").filter(source => source.target);
+  // `chart_sources` est publié par mesure (`{ph, ec}`) parce que la **légende** d'une figure,
+  // rendue par le gabarit, ne nomme que les sources qui y ont un point. Le nommage, lui, prend
+  // la liste complète (`all`) : la variante est commune aux deux figures, et une ligne sans
+  // mesure du tableau équivalent — un renouvellement n'en porte aucune — doit encore nommer sa
+  // source au lieu de retomber sur l'identifiant technique.
+  const legendSources = (JSON.parse(charts?.dataset.chartSources || "{}").all || [])
+    .filter(source => source.target);
   const sourceLabels = new Map(legendSources.map(source => [source.variant, source.label]));
   const sourceNames = new Map(legendSources.map(source => [source.variant, source.target]));
   // Un identifiant technique ne se lit pas : la phrase du curseur et la colonne « Cible ou

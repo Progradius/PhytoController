@@ -553,7 +553,8 @@ de l'unique date du carnet — `[{"days": 7, "start": …, "end": …}, {"days":
 `end = today` et `start = today − (days − 1)` — et `search_max` (120). Aucune de ces deux
 valeurs n'est recalculée côté navigateur : une seconde date divergerait au passage de minuit.
 
-Solutions : `solution_data` publie `chart_sources` (`{variant, label, target}`) et
+Solutions : `solution_data` publie `chart_sources` **par mesure**
+(`{"ph": [{variant, label, target}, …], "ec": […], "all": […]}`) et
 `chart_summaries` (`{ph, ec}`, déjà en texte), et chaque point de `chart` porte `variant`,
 entier ≤ 6 où 6 est le repli partagé annoncé comme tel. `label` nomme la source entière
 (cibles et période), `target` les seules cibles : le tableau équivalent a une colonne « Cible
@@ -561,6 +562,17 @@ ou capteur » et une colonne « Période », qui ne répètent pas la même phra
 n'affiche l'identifiant technique. L'entrée de repli ne désigne aucune source : son `target`
 est vide, ce qui interdit de nommer un point avec elle. La synthèse est calculée par le
 serveur : une absence y reste « aucune mesure », jamais un zéro.
+
+La liste d'une mesure ne retient que les sources ayant au moins un point où cette mesure est
+renseignée : une source qui n'a que de l'EC n'est nommée sous aucune courbe de pH, et l'entrée
+de repli ne compte que les sources de repli présentes sur cette mesure (aucune entrée s'il n'y
+en a pas). **Invariant** : la variante, elle, est calculée sur l'ensemble des points et reste
+**commune aux deux figures** — même source, même repère sur le pH et sur l'EC ; seule
+l'appartenance à une légende dépend de la mesure. Un même `variant` porte donc le même `label`
+dans les deux listes. `all` n'est la légende d'aucune figure : c'est la table de noms complète,
+toutes sources confondues, dont le script se sert pour nommer une ligne **sans mesure** du
+tableau équivalent — un point de renouvellement ne figure dans aucune des deux légendes et
+retomberait sinon sur l'identifiant technique de sa cible.
 
 Contrat JS de l'explorateur, unique et volontairement minimal (en-tête de
 `network/web/static/js/culture_analysis.js`) : `chart(svg, rows, label, columns)` rend
