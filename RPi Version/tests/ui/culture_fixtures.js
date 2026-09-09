@@ -10,7 +10,13 @@ const AxeBuilder = require("@axe-core/playwright").default;
 // base sans se disputer l'espace ni fausser les comptages du journal.
 const test = base.extend({
   cultureBaseURL: [async ({}, use, testInfo) => {
-    if (process.env.PHYTO_UI_BASE_URL) return use(process.env.PHYTO_UI_BASE_URL);
+    // La garde vit DANS la fixture, jamais dans un `test.beforeEach` de module : le cache
+    // CommonJS n'exécute ce fichier qu'une fois par worker, donc un hook de module ne
+    // s'attacherait qu'au premier fichier de spec chargé et laisserait les suivants écrire
+    // dans le carnet visé par PHYTO_UI_BASE_URL — un carnet de production, le cas échéant.
+    // Ici la garde est traversée par chaque test qui demande la fixture, quel que soit son
+    // fichier. Ces scénarios écrivent UNIQUEMENT dans la base temporaire de tests/ui_server.py.
+    test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Aucune création de culture sur une cible externe.");
     const port = 39123 + testInfo.workerIndex;
     const url = `http://127.0.0.1:${port}`;
     const server = spawn(process.env.PHYTO_TEST_PYTHON || "python3", ["tests/ui_server.py"], {
@@ -34,11 +40,6 @@ const test = base.extend({
     }
   }, {scope: "test"}],
   baseURL: async ({cultureBaseURL}, use) => use(cultureBaseURL),
-});
-
-// Ces scénarios écrivent UNIQUEMENT dans la base temporaire de tests/ui_server.py.
-test.beforeEach(async () => {
-  test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Aucune création de culture sur une cible externe.");
 });
 
 // Trois dates saisies à la main = une culture déjà en cours. Le mode « Je démarre une

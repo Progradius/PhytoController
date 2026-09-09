@@ -82,6 +82,10 @@ def build_app():
         supervisor=FakeSupervisor(),
         equipment_store=FakeEquipmentStore(default_catalog()),
         operator_service=_FakeOperatorService(),
+        # Horloge système volontairement conservée ici, contrairement à `tests/test_http_server.py` :
+        # les specs navigateur saisissent des dates du jour (échéances de rappels, « aujourd'hui »
+        # de l'accueil, occupation en cours). Une horloge figée les rendrait futures ou trop
+        # anciennes selon le jour d'exécution, et le carnet refuserait des saisies légitimes.
         culture_store=CultureStore(Path(temporary.name) / "cultures.sqlite3", reliable=lambda: True),
     )
     app = server.create_app()

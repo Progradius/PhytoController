@@ -145,3 +145,27 @@ compté sur une liste filtrée côté client.
    la vérifie (`grep -L PhytoCultureForms static/js/culture_*.js`), sinon la doc ment dès le lot.
 5. Un `index` renvoyé par le serveur désigne un rang dans la **liste reçue** ; si le client filtre
    avant l'envoi, il doit garder la table rang envoyé → rang DOM et la traduire au retour.
+
+## 2026-09-09 — Une garde de sûreté placée dans un hook de module ne protège qu'un fichier
+
+**Ce qui s'est passé.** `tests/ui/culture_fixtures.js` refusait les specs mutatrices du carnet
+contre une cible externe avec un `test.beforeEach(test.skip(Boolean(process.env.PHYTO_UI_BASE_URL)))`
+écrit **au niveau du module**. Douze fichiers de spec requièrent ce module ; le cache CommonJS ne
+l'exécute qu'une fois par worker, donc le hook ne s'attachait qu'au premier fichier chargé. Avec
+`PHYTO_UI_BASE_URL` défini et plusieurs fichiers dans une seule commande : treize exclusions, mais
+deux `page.goto` réellement partis, arrêtés seulement parce que le port factice était interdit par
+Chromium. Sur un Pi réel, `createMother()` aurait créé un pied mère dans le carnet de production.
+
+**Pourquoi ça n'a pas été vu.** Chaque fichier avait été lancé seul pendant son lot : dans cette
+configuration le hook s'attache toujours au fichier courant, et la garde paraît fonctionner.
+
+**Règles.**
+1. Une garde de sûreté vit dans la **fixture** que le test consomme (`test.skip(...)` dans le corps
+   de la fixture), jamais dans un `test.beforeEach`/`test.afterEach` déclaré par un module partagé :
+   la fixture est instanciée pour chaque test, le hook de module une fois par worker.
+2. Une garde ne se prouve qu'en lançant **plusieurs fichiers de spec dans une même invocation** :
+   `npx playwright test tests/ui/cultures*.spec.js --workers=1` avec la variable d'environnement
+   dangereuse positionnée. Attendu : 100 % d'exclusions, zéro réussite, zéro échec.
+3. Un test qui écrit vers une cible désignée par une variable d'environnement est une commande de
+   production tant que la garde n'est pas prouvée : la preuve fait partie du livrable, au même titre
+   que la garde.

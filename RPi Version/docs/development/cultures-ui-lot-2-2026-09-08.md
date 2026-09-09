@@ -42,8 +42,11 @@ revue indépendante du diff complet avant clôture.
   démarrage, le premier stade du parcours et la date d’origine sont repris ; jamais une date
   n’est inventée. La bascule rend les trois dates indépendantes. Un récapitulatif avant
   validation est reconstruit depuis les champs, sans réordonnancement ni région vivante.
-- **Erreurs au champ.** Toute API du carnet renvoie `field` (attribut `name` du contrôle) et
-  `index` pour les listes répétées. Le socle `culture_forms.js` rend un résumé `role="alert"`
+- **Erreurs au champ.** Les API cultures, solutions et journal renvoient `field` (attribut
+  `name` du contrôle) et `index` pour les listes répétées. Ce n’est **pas** le cas de toutes
+  les API du carnet : plages cibles, éclairage, équipements, vérifications et photos refusent
+  encore sans `field`, leur message n’est alors rattaché à aucun contrôle (remédiation R3.3 du
+  [plan du 9 septembre](remediation-ui-cultures-lots-2-3-2026-09-09.md)). Le socle `culture_forms.js` rend un résumé `role="alert"`
   avec un lien par champ, marque le contrôle (`aria-invalid`, `aria-describedby` fusionné puis
   restauré), ouvre les replis et place le focus ; la saisie n’est jamais effacée. Une seule
   erreur est remontée par requête ; la prévalidation de la création suit l’ordre du formulaire.
@@ -116,3 +119,10 @@ refusent une cible `PHYTO_UI_BASE_URL` externe. Aucun essai ni déploiement sur 
 Limites : aucune étude avec des utilisateurs, aucun téléphone physique, lecteur d’écran,
 Safari/iOS ni Firefox ; une seule erreur remontée par requête ; sans JavaScript, la ligne
 « bouture » d’un lot reste masquée (limite antérieure au lot).
+
+**Le carnet ne fonctionne pas sans JavaScript.** Aucun formulaire du carnet ne porte
+d’attribut `method` ni `action` : tout passe par `fetch` depuis `culture_forms.js`. Sans
+script, les pages restent lisibles et les champs restent visibles — c’est tout ce que
+garantissent les mentions « sans JavaScript » ci-dessus — mais **aucune saisie n’est
+envoyable**. Un repli natif serait un choix d’architecture à décider séparément, pas une
+propriété du lot 2.

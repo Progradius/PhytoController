@@ -26,6 +26,13 @@ comparent l’export avant/après succès et refus, puis simulent une modificati
 et un rejeu après réponse perdue. Les suggestions ne sont ni des tâches persistantes ni
 des notifications. Elles ne modifient aucune donnée ni commande du contrôleur.
 
+Deux points relevés à l’audit sont **en cours de remédiation** et ne doivent pas être lus
+comme un choix définitif : la prévalidation systématique avant chaque enregistrement, qui
+fait deux requêtes serveur là où une suffit (R2.1), et le rejeu de l’assistance toutes les
+30 secondes pour chaque fiche ouverte, qui reprojette le carnet sans qu’une saisie ait
+changé (R2.2). Voir
+[le plan de remédiation](remediation-ui-cultures-lots-2-3-2026-09-09.md).
+
 La recherche de ressemblances porte sur 200 relevés courants, avec au plus trois
 résultats. Elle peut ignorer une entrée plus ancienne et ne prétend pas détecter tout
 doublon. Les associations d’alimentation viennent des périodes déclarées ; aucune
@@ -60,10 +67,14 @@ validation native du formulaire, tout en restant une action distincte de l’enr
 Bilan navigateur : **206 scénarios distincts validés**, 89 exclusions prévues selon
 les profils, sur les 295 cas de la suite complète. L’exécution complète initiale
 comptait 203 réussites et trois échecs liés à l’ajout du bouton ; la reprise finale
-des fichiers concernés et du lot 3 donne **32 réussites, 23 exclusions, aucun échec**.
-Cette reprise utilise deux workers et une limite de 60 secondes pour les parcours
-longs (plusieurs saisies, navigation et analyse axe), après deux dépassements du
-budget global initial de 20 secondes. Le scénario historique du lot C attend
+a porté sur `tests/ui/cultures_lot_c.spec.js`, `tests/ui/cultures.spec.js` et
+`tests/ui/cultures_ui_lot_3.spec.js`, sans échec.
+
+Le budget de temps est celui de `playwright.config.js` : `timeout: 20_000`, rallongé
+scénario par scénario avec `test.setTimeout(...)` (45 s pour le lot C, 60 s à 180 s
+ailleurs). Il n’existe pas de « limite de 60 secondes » globale ; la reprise ci-dessus
+a été relancée avec `--timeout=60000` en ligne de commande, une surcharge ponctuelle
+qui n’est pas la configuration du dépôt. Le scénario historique du lot C attend
 maintenant le refus en prévalidation et vérifie explicitement qu’aucune mutation
 finale n’est envoyée ; ses assertions de chronologie et de conservation de saisie
 restent présentes.

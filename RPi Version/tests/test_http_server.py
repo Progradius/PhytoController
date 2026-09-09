@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,6 +24,12 @@ from utils.culture_store import CultureStore
 
 
 CSRF_TOKEN = "T" * 43
+
+# Horloge figée du carnet : les dates en dur de ce fichier (relevé au 2026-09-02,
+# étalonnage au 2026-08-27) ne doivent pas devenir « futures » ni « anciennes » au fil
+# du temps réel, sinon le vert d'aujourd'hui est un rouge de demain. Même convention
+# que `tests/test_cultures.py`, postérieure à toutes les dates saisies ici.
+CULTURE_NOW = datetime(2026, 9, 7, 12, tzinfo=timezone.utc)
 
 
 class FakeStats:
@@ -182,7 +189,8 @@ async def web_context(config_path, monkeypatch):
     server = server_module.Server(
         FakeStatus(), sensors, store.current,
         supervisor=supervisor, equipment_store=equipment,
-        culture_store=CultureStore(config_path.parent / "cultures.sqlite3", reliable=lambda: True),
+        culture_store=CultureStore(config_path.parent / "cultures.sqlite3",
+                                   now=lambda: CULTURE_NOW, reliable=lambda: True),
     )
     client = TestClient(TestServer(server.create_app()))
     await client.start_server()
@@ -1262,6 +1270,9 @@ async def test_socle_de_formulaires_du_carnet_est_servi_et_precache(web_context)
 async def test_gabarits_du_carnet_chargent_le_socle_avant_leur_script(web_context):
     client, *_ = web_context
     for path, page_script in (
+        ("/cultures", "cultures.js"),
+        ("/cultures/solutions", "culture_solutions.js"),
+        ("/cultures/cycles", "culture_cycles.js"),
         ("/cultures/targets", "culture_targets.js"),
         ("/cultures/light", "culture_light.js"),
         ("/cultures/equipment", "culture_equipment.js"),

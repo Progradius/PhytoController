@@ -18,6 +18,25 @@ le `param/param.json` vivant comme fixture : `tests/conftest.py` construit une c
 chaque test persistant écrit sous `tmp_path`. Les imports de `RPi.GPIO` ne sont autorisés qu'après
 installation explicite du faux de `tests/fakes/rpi_gpio.py`.
 
+### Garde « cible externe » des specs du carnet
+
+Les scénarios navigateur du carnet créent des cultures. Ils ne doivent jamais s'exécuter contre une
+cible désignée par `PHYTO_UI_BASE_URL` : ce serait une écriture dans le carnet d'un Pi réel. La garde
+vit dans la fixture `cultureBaseURL` de `tests/ui/culture_fixtures.js`, et non dans un hook de module —
+le cache CommonJS ne rejoue le module qu'une fois par worker, donc un hook n'aurait protégé que le
+premier fichier de spec chargé. Elle se prouve en lançant **tous** les fichiers du carnet dans une
+seule commande, qui ne démarre aucun serveur :
+
+```bash
+set -o pipefail
+PHYTO_UI_BASE_URL=http://127.0.0.1:9 PATH="$PWD/.venv/bin:$PATH" \
+  npx playwright test --project=desktop-chromium --workers=1 --reporter=list \
+  tests/ui/cultures*.spec.js
+```
+
+Attendu : 100 % d'exclusions (41 au 9 septembre 2026), aucune réussite, aucun échec, aucune requête
+sortante. Une seule tentative de `page.goto` signifie que la garde a été déplacée hors de la fixture.
+
 ## Niveaux
 
 1. **Statique** : lecture des flux, imports, polarités, exceptions et annulations.
