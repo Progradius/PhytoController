@@ -167,6 +167,34 @@ Après la remédiation du 9 septembre 2026 (lot E, `tests/ui/cultures_ui_lot_4.s
   après redessin, plafond de quatre relâché d'un cran.
 - La fixture navigateur supprime désormais le répertoire temporaire qu'elle a créé : neuf
   scénarios laissent zéro `/tmp/phyto-ui-*` de plus.
+- Le serveur unique lancé par le `webServer` de `playwright.config.js` (specs hors carnet :
+  `dashboard`, `visual`, `cultures`…) ne fuit plus non plus. `tests/ui_server.py` crée un
+  `tempfile.TemporaryDirectory(prefix="phyto-ui-")` que Playwright ne laisse jamais nettoyer :
+  il tue le serveur en fin de session, donc ni `atexit` ni le finaliseur ne s'exécutent.
+  Le mécanisme est le même que celui de la fixture — imposer un `TMPDIR` qui nous appartient —
+  mais réparti sur trois points, parce que Playwright 1.62.1 démarre le `webServer` **avant**
+  `globalSetup` (ordre `clear output` → `plugin setup` → `globalSetup`) :
+  * `tests/ui/global_setup.js` définit le chemin `os.tmpdir()/phyto-ui-webserver-<PID>`, seule
+    vérité partagée. Il est **déterministe** et non mémorisé : la config est réévaluée dans
+    chaque worker, donc un `mkdtempSync` dans la config créerait un répertoire par worker,
+    tandis que le teardown tourne dans le processus principal, celui qui a évalué la config ;
+  * `playwright.config.js` le passe en `webServer.env.TMPDIR` et préfixe la commande d'un
+    `mkdir -p "$TMPDIR"` — indispensable, `TemporaryDirectory` échouant si `TMPDIR` n'existe
+    pas et `globalSetup` arrivant trop tard ;
+  * `tests/ui/global_teardown.js` supprime le répertoire, sous quatre gardes : chemin nommé par
+    `webServerScratchDir()`, enfant direct de `os.tmpdir()`, préfixe `phyto-ui-webserver-`,
+    existant. Les `/tmp/phyto-ui-*` historiques ne portent pas ce préfixe et sont épargnés.
+
+  Avec `PHYTO_UI_BASE_URL`, aucun serveur n'est lancé : `webServerScratchDir()` rend `null`,
+  les deux hooks ne font rien, rien n'est créé ni supprimé. `--list` n'exécute aucun hook et ne
+  crée donc rien. Vérification :
+
+  ```bash
+  ls -d /tmp/phyto-ui-* 2>/dev/null | wc -l
+  PHYTO_TEST_PYTHON=.venv/bin/python npx playwright test tests/ui/visual.spec.js \
+    --workers=1 --project=desktop-chromium
+  ls -d /tmp/phyto-ui-* 2>/dev/null | wc -l   # même compte qu'avant
+  ```
 
 Les scénarios d’interception HTTP du lot 4 s’exécutent sur bureau, mobile, 320 px
 et paysage, hors service worker ; le comportement PWA est exercé par les scénarios
