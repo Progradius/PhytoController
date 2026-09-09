@@ -276,3 +276,30 @@ le commentaire du code prétendait éviter.
 4. Corollaire des trois : quand aucun outil de test n'observe le canal concerné (annonces d'un
    lecteur d'écran, console CSP), le dire dans la documentation du lot au lieu de laisser croire
    qu'un test le couvre.
+
+## 2026-09-09 — Lot F et passe photos : quatre pièges d'orchestration
+
+**Ce qui s'est passé.** (1) Un `globalTeardown` Playwright écrit pour supprimer le répertoire du
+`webServer` s'exécutait **avant** l'arrêt du serveur, n'était jamais atteint si le serveur mourait
+au démarrage, et le `trap` proposé en remplacement ne pouvait pas s'exécuter parce que Playwright
+tue le groupe de processus par `SIGKILL` sans `gracefulShutdown` ; trois hypothèses successives,
+chacune plausible à la lecture de la doc, démenties par un projet jetable. (2) Un dossier de
+captures et un `param.example.json` modifié sont apparus dans l'arbre en cours de session : une
+autre session écrivait au même endroit. (3) Le challenge de conception en lecture seule, lancé
+avant l'implémentation, a repéré que l'aperçu du lot UI 2 était bloqué par la CSP depuis sa
+livraison. (4) Le hook RTK a renvoyé « 1 matches » sans la ligne pour un `grep -n`, et un compte
+de répertoires est passé de 196 à 197 sans que les sorties filtrées n'expliquent d'où.
+
+**Règles.**
+1. Un mécanisme de cycle de vie d'un outil (ordre des hooks, signal d'arrêt, réévaluation d'une
+   config par les workers) se prouve sur un **projet jetable** qui exerce le chemin nominal **et**
+   le chemin d'échec (serveur mort au démarrage), jamais par lecture de la doc ou du code source
+   seule ; le relecteur qui cite le code de l'outil doit lui aussi être rejoué.
+2. Tout fichier qui apparaît dans `git status` sans agent pour l'expliquer est traité comme
+   étranger : horodatage (`ls --time-style=full-iso`), aucune restauration, aucun `git add`
+   global — les commits se font par liste explicite, et le bilan nomme la session parallèle.
+3. La conception d'un lot est challengée par un agent en lecture seule **avant** l'agent
+   d'implémentation ; c'est là que les défauts hérités (CSP, câblage des scripts par gabarit)
+   apparaissent, pas dans la revue du diff.
+4. Un compteur de preuve (répertoires temporaires, exclusions, mutations) s'inspecte avec
+   `rtk proxy` ou `ls -dt` quand il diverge de l'attendu, et l'écart s'explique avant de commiter.

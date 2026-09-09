@@ -840,3 +840,83 @@ Revue : bilan et reliquats dans la section finale du plan. Reliquats hors lot à
 aperçu photo avant envoi, progression d'envoi, comparaison par âge du stade, légende des
 solutions calculée sur tous les points d'une figure, `webServer` de Playwright encore
 producteur de `/tmp/phyto-ui-*`.
+
+## Lot F et lot « photos » du carnet (9 septembre 2026)
+
+Suite des reliquats de la remédiation du lot UI 4. Point de départ `641a7ef`.
+
+- [x] F1 — légende des courbes de solutions calculée par mesure (`chart_sources(..., metric)`,
+      `{"ph","ec","all"}`, gabarit, JS, doc, tests purs/HTTP/spec, mutation : 4 tests tombent) — `9136e40`
+- [x] F2 — `webServer` de Playwright : `global_setup.js`/`global_teardown.js`, `TMPDIR` déterministe
+      par PID, quatre gardes au teardown ; 196 `/tmp/phyto-ui-*` avant et après `visual.spec.js` — `ce7022a`
+- [x] Revue indépendante du lot F (2 à corriger, 1 démenti) et corrections (`trap` + `gracefulShutdown`,
+      `globalTeardown` supprimé, docstring, libellé de légende vide, `html.unescape`) — `d6c101b`
+- [x] Lot photos — aperçu local dans le socle (`register`), progression d'envoi par XHR dans
+      `submitBinary` (signature inchangée), CSP `img-src blob:` (aperçu du lot 2 bloqué en production),
+      spec `cultures_ui_photos.spec.js` 6/5/5/5 sur quatre profils, docs, rapport — `0e3593e`
+- [x] Revue indépendante du lot photos (2 à corriger, 0 bloquant) et corrections (région atomique,
+      aperçu par champ, barre dans les gardes, T7 avec mutation prouvée) — `ca91af6`
+- [x] Validation de sortie : 823 pytest ; suite Playwright complète 306 / 124 exclusions / 0 échec ;
+      garde externe 340 exclusions ; bilan `docs/development/lot-f-photos-cultures-2026-09-09.md` ;
+      `tasks/lessons.md`
+- [ ] À demander à l'utilisateur : suppression des 196 `/tmp/phyto-ui-*` accumulés (16,5 Mio)
+
+Hors périmètre (décision produit) : comparaison des cycles par âge du stade.
+
+# Suivi — remédiation web, mobile et PWA (plan `docs/development/remediation-web-mobile-pwa-2026-09-09.md`)
+
+Source : audit du 9 septembre 2026 (`docs/development/audit-web-mobile-pwa-2026-09-09.md`, départ `641a7ef`).
+Baseline à noter ici après commit de l'arbre courant : commit, pytest, Playwright par profil.
+
+## Arbitrages à obtenir avant les lots concernés
+- [ ] Barre mobile Serre · Cultures · Alarmes · Plus (R1.3)
+- [ ] Vues Saisir/Relevés/Analyser par `?view=` sur la route existante (R1.6)
+- [ ] Brouillons : texte et sélections seulement, mesures exclues, 24 h (R3.4)
+- [ ] Mise à jour PWA sans `skipWaiting` automatique (R3.3)
+- [ ] Nom de la route et de l'entrée « Application sur ce téléphone » (R2.4)
+
+## Lot 0 — outillage
+- [ ] R0.1 script de mesure versionné `tests/ui/measure_pages.js` (rejoue `measures.json` à ±2 %)
+- [ ] R0.2 banc `scripts/benchmark-web-pages.py` + carnet 30/90/365 j
+- [ ] R0.3 macros `templates/macros/ui.html` (8 composants) + doc contributing
+
+## Lot 1 — lecture et urgence
+- [ ] R1.1 Alarmes : occurrences avant notifications et filtres (UX-01)
+- [ ] R1.2 Tableau : bande compacte, priorités, lignes d'équipement repliables, défaut jamais caché (UX-02)
+- [ ] R1.3 Barre mobile avec Cultures, onglet actif du carnet visible (UX-03)
+- [ ] R1.4 Console : région nommée, `/console` dans le test axe, actions mobiles, repli presse-papiers (UX-04)
+- [ ] R1.5 Notifications : premier plan et connexion explicités, aide par navigateur (UX-06)
+- [ ] R1.6 Solutions : vues Saisir/Relevés/Analyser, état vide, relevés compacts (UX-07)
+- [ ] R1.7 Filtre `nombre` + réplique JS, données brutes inchangées (UX-08)
+- [ ] R1.8 Fiche : synthèse et actions en tête, retour à la liste positionné (UX-09)
+- [ ] R1.9 Pages d'erreur : retour contextuel, réessai GET ; résumé de `system_action.html`
+- [ ] Vérification lot 1 : pytest, Playwright 5 profils un par un, pyflakes, `node --check`, octets nuls, `diff CLAUDE.md AGENTS.md`, mesures après
+
+## Lot 2 — application mobile quotidienne
+- [ ] R2.1 Configuration : groupes, horaires, tableau modifié → appliqué, barre non masquante, virgule (UX-10)
+- [ ] R2.2 Historique : indicateurs, un tracé, détail sous le graphique, axes 13 px, `pan-y` (UX-11)
+- [ ] R2.3 Légendes courtes / complètes des graphiques
+- [ ] R2.4 Page `/app` : connexion, installation par plateforme, copies, notifications, version (UX-05)
+- [ ] R2.5 Hors ligne : `data-offline-local`, messages des filtres GET, `/offline` avec carnet (UX-12)
+- [ ] R2.6 Cycles : rappels du jour, À faire / Comparer, espace Sauvegarde
+- [ ] R2.7 Plages, éclairage, équipements : sélecteur d'abord, déclaré / appliqué, affectations en tête
+- [ ] R2.8 Journal : ligne par opération, détails repliés, recherche visible, contexte au retour
+- [ ] Vérification lot 2 (même liste) + docs `http-interface.md`, `pwa-local-tls.md`, `cultures.md`
+
+## Lot 3 — cycle de vie PWA
+- [ ] R3.1 `fetchWithBudget` (8 s navigation, 15 s précache), test réseau muet et test 500 (UX-13)
+- [ ] R3.2 Initialisation sans attendre `serviceWorker.ready`, états worker/stockage en échec (UX-13)
+- [ ] R3.3 Mise à jour explicite : `updatefound`, bouton, `PhytoForms.isDirty()`, deux fenêtres (UX-14)
+- [ ] R3.4 Brouillons déclaratifs (après arbitrage) (UX-15)
+- [ ] Vérification lot 3 + CLAUDE.md/AGENTS.md (service worker, brouillons)
+
+## Lot 4 — qualification
+- [ ] R4.1 Protocole et grille appareils réels / VoiceOver / TalkBack / zoom / clavier virtuel (UX-16) — exécution par l'opérateur
+- [ ] R4.2 Baseline de performance sur Pi et téléphone, budgets, décision sur `/conf` (UX-17)
+- [ ] R4.3 Protocole de validation produit (dix tâches, objectifs chiffrés) et décisions sur les options préparées
+
+## Lot 5 — finitions
+- [ ] R5.1 Visitor réservée à la marque, chiffres tabulaires (UX-18)
+- [ ] R5.2 Contrastes plein jour, séries distinguables sans la couleur (UX-18)
+- [ ] R5.3 `.action-link` 44 px, glossaire des libellés (UX-18)
+- [ ] R5.4 Photo mobile : capture optionnelle, refus explicites, reprise sans doublon (UX-19)
