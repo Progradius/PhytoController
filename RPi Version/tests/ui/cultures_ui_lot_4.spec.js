@@ -478,12 +478,15 @@ test("sélecteur de comparaison : plafond de quatre, filtre local et pagination 
   // n'était jamais annoncé, et le refus restait muet. La case reste donc focalisable et
   // active ; c'est le geste qui est refusé.
   await expect(boxes.nth(4)).toHaveAttribute("aria-disabled", "true");
-  await expect(boxes.nth(4)).toBeEnabled();
+  // Playwright lit `aria-disabled` comme une désactivation (`toBeEnabled`, actionnabilité
+  // du clic) : la preuve porte donc sur la propriété DOM `disabled`, seule à retirer une
+  // case du parcours clavier, et le clic contourne la vérification d'actionnabilité.
+  await expect(boxes.nth(4)).toHaveJSProperty("disabled", false);
   await boxes.nth(4).focus();
   await expect(boxes.nth(4)).toBeFocused();
   // Cocher la cinquième la décoche aussitôt : le compte ne bouge pas. `click` et non
   // `check`, qui exigerait que la case reste cochée — c'est justement ce qui est refusé.
-  await boxes.nth(4).click();
+  await boxes.nth(4).click({force: true});
   await expect(boxes.nth(4)).not.toBeChecked();
   await expect(zone.locator("output")).toHaveText("4 / 4 cultures sélectionnées");
   await expect(zone.locator('input[name="subject"]:checked')).toHaveCount(4);

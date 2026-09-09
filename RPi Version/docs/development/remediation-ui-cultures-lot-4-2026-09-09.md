@@ -440,10 +440,20 @@ touche la régulation, aucune persistance ni route nouvelle.
   deux vocabulaires de la colonne « Cible ou capteur ») est corrigée par P1.1.
 - Hors lot, à arbitrer : aperçu de photo avant envoi, progression d'envoi, alignement de la
   comparaison par âge du stade.
-- Mineur, doute du lot C : la légende des courbes de solutions est calculée sur **tous** les
-  points de la figure, pas métrique par métrique — une source qui n'apporte que de l'EC
-  apparaît donc aussi dans la légende du pH. Et la colonne « Cible ou capteur » du tableau
-  équivalent affiche l'identifiant technique de la cible, alors que la légende et le texte du
-  curseur en montrent le nom : deux vocabulaires pour la même colonne.
 - Méthode : le `webServer` de `playwright.config.js` reste le dernier producteur de
   `/tmp/phyto-ui-*` (un par exécution non externe).
+
+### Validation de sortie (9 septembre 2026)
+
+| Contrôle | Résultat |
+| --- | --- |
+| pytest complet, arbre final | 820 réussites, 0 échec |
+| Suite Playwright complète, un worker, avant fusion des corrections de revue (`d78f805`) | 284 réussites, 111 exclusions prévues, 0 échec, 47 min |
+| Specs du lot 4 après fusion (`fc2a222` + spec corrigée), `desktop-chromium`, `mobile-chromium`, `mobile-etroit`, `mobile-paysage` | 11 / 11 sur chaque profil |
+| Garde cible externe, `tests/ui/cultures*.spec.js` en une invocation | 61 exclusions, 0 réussite, 0 échec (lot E) |
+| Banc sur le Pi, même semis, 4 cultures | 1 720,9 ms → 721,0 ms (lecture médiane) |
+
+Une assertion de la spec du sélecteur (`toBeEnabled()` sur une case `aria-disabled`) était
+fausse : Playwright lit `aria-disabled` comme une désactivation, pour `toBeEnabled` comme pour
+l'actionnabilité d'un clic. La preuve porte désormais sur la propriété DOM `disabled` et le
+clic de refus contourne la vérification d'actionnabilité.

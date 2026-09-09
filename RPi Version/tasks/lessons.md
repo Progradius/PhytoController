@@ -217,3 +217,32 @@ faire disparaître le compte d'exclusions ; le chiffre n'a été obtenu qu'avec 
    `rtk proxy npx playwright …` ou `--reporter=json`, jamais par la sortie filtrée.
 3. Une affirmation de rapport (« sélection conservée au redessin », « lien de contexte ») est
    vérifiée par une assertion, sinon elle est listée comme non testée dans le plan.
+
+## 2026-09-09 — Remédiation du lot UI 4 : quatre pièges de vérification
+
+**Ce qui s'est passé.** (1) La spec du journal attendait zéro résultat pour `q=bac` sur
+l'espace 2 alors que sa propre donnée de test (« Épinard tacheté sur le **bac** de droite »)
+y vivait : le code était juste, la spec fausse. (2) L'agent de correction a écrit
+`toBeEnabled()` sur une case `aria-disabled="true"` sans pouvoir jouer la spec ; Playwright
+lit `aria-disabled` comme une désactivation, pour `toBeEnabled` comme pour l'actionnabilité
+d'un `click()`. (3) Le « avant » du banc sur le Pi (759 ms) venait d'un semis où la branche
+la plus chère n'était jamais parcourue : rejoué avec le nouveau semis, le vrai avant était
+1 721 ms, et le gain réel ×2,4, pas 5 %. (4) Le garde-fou du worktree refuse un chemin
+d'exécutable contenant un espace (`RPi Version/.venv/bin/python3`) et le hook RTK réécrit
+`python3 -m pytest` en un binaire absent du worktree : l'agent a dû passer par `PYTHONPATH`
+et `rtk proxy`.
+
+**Règles.**
+1. Une donnée de test de recherche porte un mot **discriminant** absent de toutes les autres
+   données de la spec ; avant d'asserter « zéro résultat », `grep` le terme dans la fixture.
+2. Sur un contrôle `aria-disabled`, la preuve de focalisabilité est `toHaveJSProperty("disabled",
+   false)` et le geste refusé se joue en `click({force: true})` ; `toBeEnabled()` et `check()`
+   échoueront toujours.
+3. Un « avant » de banc n'est comparable que mesuré avec le **même semis** que l'après ; un
+   ancien chiffre publié sur un semis non représentatif est un repère historique, pas une
+   référence — le dire dans le JSON et rejouer l'ancien code sur le nouveau semis.
+4. Un agent en worktree reçoit dans sa consigne le chemin du venv **et** la commande exacte qui
+   fonctionne (`PYTHONPATH=<venv>/lib/python3.x/site-packages python3 -m pytest` via
+   `rtk proxy`), sinon il perd du temps à contourner les gardes. Une spec écrite sans pouvoir
+   être jouée est rejouée par l'orchestrateur **avant** commit, sur bureau puis sur chaque
+   profil mobile : c'est là que (2) est apparu.
