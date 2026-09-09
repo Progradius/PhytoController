@@ -992,3 +992,33 @@ contourner par le client. Mesures faites hors matériel, sans qualification sur 
 Volumétrie observée hors matériel avec 12 000 agrégats horaires : page des cycles 258 217 octets,
 JSON 178 966 octets, sous le plafond de cache de la PWA. Ces valeurs ne qualifient pas les
 performances sur le Raspberry Pi.
+
+## Assistance éphémère et prévalidation (lot UI 3)
+
+- `GET /api/v1/cultures/assistance/{subject_id}` : `items` (au plus 4), `version`,
+  `generated_at`, `valid_for_seconds` (30). Chaque item contient `id`, `category`,
+  `target`, `reason`, `action`, `href`, `fact_date`, `expires_when`. La version désigne
+  le parcours ; les rappels, relevés et vérifications sont relus indépendamment.
+  Horloge non fiable : liste vide. Sujet absent : 404 ; carnet indisponible : 503.
+- `POST /api/v1/cultures/preview/{domain}`, où `domain` vaut `culture` ou `solution` :
+  corps strictement identique à celui de la mutation correspondante, `request_id`
+  compris. Protection CSRF et origine identique. Réponse : `valid`, `summary` (phrases
+  explicatives), `similar` (au plus 3 relevés : `id`, `effective_at`, `ph`, `ec`),
+  `similar_scope`, `generated_at`. Pour une clé déjà enregistrée identique :
+  `replay: true`, résumé et ressemblances vides. Une clé réutilisée pour une autre
+  commande reste un conflit 409.
+
+La prévalidation appelle la mutation réelle dans une transaction `BEGIN IMMEDIATE`
+annulée à la sortie, succès comme erreur. Elle conserve donc toutes les validations,
+les reconstructions dérivées et les conflits, mais ne persiste ni événement, ni version,
+ni clé de requête. Le serveur ne retourne aucun identifiant provisoire à réutiliser.
+Les erreurs suivent le contrat commun `error` / `field` / `index` (400, 409, 503).
+La mutation finale refait toujours sa validation ; une prévalidation n’est pas un verrou
+réservant un état futur et ne dispense pas de la clé d’idempotence habituelle.
+
+Les ressemblances sont une aide de l’interface : elles ne bloquent pas une mutation API
+valide. Leur fenêtre est bornée à 200 relevés, révisions courantes non annulées,
+ordonnés par date de saisie puis séquence ; les cibles sont comparées sans ordre,
+les unités EC sont normalisées et les absences ne valent jamais zéro. Aucune nouvelle
+table ni migration : le carnet reste au schéma 4. Ces routes ne doivent jamais être
+mises en cache ni rejouées hors ligne.

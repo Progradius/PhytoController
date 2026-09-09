@@ -781,3 +781,40 @@ Les captures de ce guide proviennent de la base temporaire des tests navigateur 
 montrent aucune donnée d'exploitation, et aucune n'a été ajoutée pour les pages les plus récentes.
 Le carnet — trois livraisons initiales et lots A à H du rattrapage — est validé **hors matériel**,
 sans déploiement sur le Pi et sans autorisation de déploiement.
+
+## Assistance contextuelle
+
+La fiche propose jusqu’à quatre aides expliquées : rappels arrivés à échéance,
+vérifications à reprendre pour le contexte courant de floraison ou de séchage,
+étapes passées manquantes et dernier relevé connu. Une culture archivée peut encore
+nécessiter une libération réelle de son espace. Chaque aide indique sa cible, son
+motif, le fait daté et l’action permettant de le consulter ou de le renseigner.
+Une étape inconnue ou une mesure absente reste inconnue. L’ancienneté d’un relevé
+ne constitue pas un diagnostic agronomique.
+
+Ces aides sont recalculées à l’ouverture, au retour sur la page et toutes les
+30 secondes. Elles disparaissent hors ligne, à expiration ou si l’actualisation
+échoue. Une horloge non fiable suspend les suggestions. Les formulaires déjà
+ouverts restent soumis à la validation de version du serveur.
+
+Les formulaires de création, de parcours et de solutions proposent **Vérifier avant
+d’enregistrer**. Cette action expose les conséquences déclaratives ou les erreurs
+sans enregistrer la saisie. Une transition présente l’état avant/après, sa date et,
+pour une récolte, la coupure de l’alimentation déclarée et le maintien de l’occupation
+jusqu’à sa libération. Les règles de validation sont les mêmes que pour l’enregistrement
+final. Une autre saisie intervenue entre les deux étapes peut donc encore provoquer
+un refus. Le panneau expire après 30 secondes ; modifier un champ l’invalide.
+
+Un relevé ressemblant est signalé parmi les **200 derniers relevés courants**, avec
+au plus trois liens vers les entrées concernées. Le rapprochement exige le même jour
+local, les mêmes cibles, le même contexte et intervention, et les mêmes valeurs
+normalisées de pH, EC, température et compensation. Ce n’est pas une preuve de doublon :
+cocher **Je confirme qu’il s’agit d’un autre relevé**, puis enregistrer, permet de
+conserver une vraie seconde mesure. Une réponse perdue réutilise la clé du même
+enregistrement ; elle n’oblige pas à créer une seconde entrée.
+
+La prévalidation peut aussi afficher un relevé antérieur de même cible/contexte et
+l’alimentation déclarée à la date saisie. Elle conserve la cible choisie et tous les
+champs de mesure. Une association inconnue n’est pas déduite du nom d’un équipement.
+Aucune aide ne coche une vérification, ne change un stade ou un réglage, ni ne programme
+un envoi au retour du réseau.

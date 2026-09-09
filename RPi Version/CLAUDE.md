@@ -314,6 +314,15 @@ les ancres `event-{id}` / `reminder-{id}` en `tabindex="-1"` (et `data-cycle-ret
 un rappel actionné depuis l'accueil) : l'élément focalisé **est** la confirmation, pas un
 `aria-live` de plus.
 
+Lot UI 3 : `model/culture_assistance.py` porte les suggestions et le rapprochement de
+relevés ; `culture_assistance_store` expose des aides éphémères (4 maximum, 30 s) et
+la prévalidation. Celle-ci réutilise les mutations culture/solution dans une transaction
+**annulée même au succès**, sans clé ni version persistée ; la mutation finale revalide
+normalement. Une ressemblance (fenêtre de 200 relevés, 3 liens maximum) n'est jamais une
+interdiction métier ; le rejeu d'une clé déjà acceptée contourne cette aide, pas la
+vérification de son empreinte. Aucune suggestion n'est conservée hors ligne, aucune
+mesure n'est préremplie et aucune vérification n'est cochée automatiquement.
+
 Ne pas copier naïvement un SQLite vivant en WAL : l'export utilise l'API de sauvegarde ; le ZIP
 réunit base, médias et manifeste SHA-256, et `scripts/restore-cultures.py [--bundle]` ne publie
 jamais que vers une copie isolée nouvelle. Les photos sont réencodées sans métadonnées et bornées
