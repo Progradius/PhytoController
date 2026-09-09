@@ -145,6 +145,17 @@ test("photos : changer de fichier remplace l’aperçu", async ({page}, testInfo
   await expect(images).toHaveCount(1);
   await expectDecoded(images);
   expect(await images.getAttribute("src")).not.toBe(first);
+
+  // La zone appartient au **champ**, pas au formulaire : elle est le frère suivant du
+  // `<label>` enveloppant de ce champ-là. Cherchée dans tout le formulaire, deux champs
+  // photo d'un même formulaire se partageraient la première trouvée et le second
+  // effacerait l'aperçu du premier. Le nom accessible du champ reste « Photo » seul :
+  // rien n'est entré dans le label, ni l'aperçu ni un message.
+  await expect(form.getByLabel("Photo", {exact: true})).toHaveCount(1);
+  expect(await file.evaluate(node => {
+    const next = node.closest("label")?.nextElementSibling;
+    return next?.tagName === "FIGURE" && next.hasAttribute("data-culture-photo-preview");
+  })).toBe(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -241,4 +252,56 @@ test("photos : aperçu affiché et envoi en cours ne créent aucune violation d�
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   release();
   await expect(form.locator('.culture-form-errors[role="alert"]')).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// T7. Un second envoi pendant le premier ne crée pas de seconde barre
+// ---------------------------------------------------------------------------
+
+test("photos : un second envoi pendant le premier ne crée pas de seconde barre", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Règle du socle, indépendante du profil.");
+  test.setTimeout(90000);
+  await createMother(page, "Mère photos T7");
+  await observe(page, "Observation à double envoi");
+
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  await page.route("**/api/v1/cultures/journal/photos", async route => {
+    await held;
+    await route.abort("failed");
+  });
+
+  const {form} = await journalPhotoForm(page);
+  await form.locator('input[type="file"][name="photo"]').setInputFiles(photo("double.png"));
+
+  // Ce qui se compte ici est une **création**, pas un état : la barre du second envoi,
+  // si elle naissait, serait retirée par le `finally` de ce même envoi refusé, donc
+  // invisible à toute assertion d'état. Seul un observateur de mutations sépare « créée
+  // une fois » de « créée deux fois puis retirée ».
+  await page.evaluate(() => {
+    window.__phytoBarInsertions = 0;
+    new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.nodeName === "PROGRESS") window.__phytoBarInsertions += 1;
+        }
+      }
+    }).observe(document.body, {childList: true, subtree: true});
+  });
+
+  // Le bouton d'envoi est `disabled` pendant l'envoi : un `click()` ne partirait pas et
+  // ne prouverait rien. Le second départ est donc demandé au formulaire lui-même, ce qui
+  // emprunte exactement le chemin d'un double envoi et exerce la garde `busy` du socle.
+  await form.evaluate(node => node.requestSubmit());
+  await expect(form.locator("output progress")).toHaveCount(1);
+  await form.evaluate(node => node.requestSubmit());
+
+  // Une seule création : la barre naît **après** les gardes. Créée avant, l'envoi refusé
+  // par `busy` en aurait fabriqué une seconde.
+  expect(await page.evaluate(() => window.__phytoBarInsertions)).toBe(1);
+
+  release();
+  await expect(form.locator('.culture-form-errors[role="alert"]')).toBeVisible();
+  await expect(form.locator("progress")).toHaveCount(0);
+  await expect(form.locator(".culture-upload-readout")).toHaveCount(0);
 });

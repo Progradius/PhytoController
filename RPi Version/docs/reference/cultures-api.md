@@ -645,10 +645,12 @@ neuve. Sans `event_id` dans la réponse de la note, aucune photo n'est envoyée.
 corps envoyé (`xhr.upload`). Rien d'autre ne change : la méthode, l'URL, les trois en-têtes
 (`X-CSRF-Token`, `Content-Type: application/octet-stream`, `X-Culture-Metadata`), le corps binaire
 envoyé tel quel — jamais un `FormData`, qui changerait le type du corps et vaudrait 415 — et les
-quatre formes de retour rendues aux appelants (hors ligne, envoi déjà en vol, réponse HTTP,
-absence de réponse) sont identiques à celles du chemin JSON, dont les gardes sont désormais
-partagées. Il n'y a **ni reprise, ni file, ni rejeu automatique** : un envoi interrompu se
-réessaie à la main, et rien ne peut être annulé en cours de route.
+quatre formes de retour du contrat rendues aux appelants (hors ligne, occupé, réponse HTTP,
+réseau/délai) que `send` produit aussi, celui-ci y ajoutant seulement le message d'une exception
+inattendue. Les gardes des deux transports sont désormais partagées (`withGuards`), et la barre de
+progression est créée **à l'intérieur** de ces gardes : un envoi refusé n'en laisse aucune. Il n'y
+a **ni reprise, ni file, ni rejeu automatique** : un envoi interrompu se réessaie à la main, et
+rien ne peut être annulé en cours de route.
 
 La clé d'idempotence est calculée exactement comme avant, **avant** l'envoi et sans que le
 transport la voie : `request_id` vient de la signature `JSON.stringify(métadonnées)` suivie du nom,

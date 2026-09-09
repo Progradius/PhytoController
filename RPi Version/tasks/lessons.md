@@ -246,3 +246,33 @@ et `rtk proxy`.
    `rtk proxy`), sinon il perd du temps à contourner les gardes. Une spec écrite sans pouvoir
    être jouée est rejouée par l'orchestrateur **avant** commit, sur bureau puis sur chaque
    profil mobile : c'est là que (2) est apparu.
+
+## 2026-09-09 — Lot photos : un `<img>` visible n'est pas un `<img>` décodé
+
+**Ce qui s'est passé.** L'aperçu local de photo livré par le lot UI 2 était **bloqué en
+production** : la politique de sécurité de contenu servait `img-src 'self' data:`, sans `blob:`,
+et `URL.createObjectURL` produit précisément un `blob:`. L'`<img>` existait, occupait sa place et
+répondait `toBeVisible()` — la seule assertion de la spec du lot 2 — mais restait vide. Aucune
+erreur dans le DOM, aucun échec de test : le blocage n'apparaît qu'en console du navigateur. Il a
+fallu une sonde Playwright jetable lisant `naturalWidth` (`0`, `complete: true`) et la console de
+la page pour le voir, plusieurs semaines après la livraison.
+
+La même passe a mis au jour un défaut jumeau côté annonce : la barre de progression écrivait son
+pourcentage dans un `<span>` placé **dans** l'`<output role="status">` du formulaire, en croyant
+qu'un `aria-hidden` suffisait. Une région `role="status"` est atomique : chaque mutation de son
+sous-arbre la fait réannoncer en entier, donc chaque pour cent était annoncé — exactement ce que
+le commentaire du code prétendait éviter.
+
+**Règles.**
+1. Toute image **créée côté client** (`createObjectURL`, `data:`, `canvas`, `srcset` calculé) se
+   prouve par `naturalWidth > 0`, jamais par `toBeVisible()` : un `<img>` cassé est visible.
+2. Une CSP bloque **sans laisser de trace dans le DOM**. Toute ressource d'un schéma nouveau
+   (`blob:`, `data:`, un CDN, une police) se vérifie contre l'en-tête réellement servi, et cette
+   vérification devient un test serveur — sans quoi le défaut ne se voit qu'en production.
+3. Une région `aria-live` / `role="status"` est **atomique** : ne jamais muter son sous-arbre en
+   boucle. Ce qui change en continu se met soit hors de la région, soit dans un **attribut**
+   (`value`, `aria-valuetext`), dont la mutation ne la réveille pas. `aria-hidden` sur un enfant
+   n'y change rien : c'est la mutation, pas le contenu, qui déclenche l'annonce.
+4. Corollaire des trois : quand aucun outil de test n'observe le canal concerné (annonces d'un
+   lecteur d'écran, console CSP), le dire dans la documentation du lot au lieu de laisser croire
+   qu'un test le couvre.

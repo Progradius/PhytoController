@@ -13,6 +13,10 @@
   const CONFIRM_MATCH = "Confirmez qu’il s’agit d’un autre relevé avant d’enregistrer.";
   const LEAVING = "Une saisie n’a pas été enregistrée.";
   const PREVIEW_VALIDITY_MS = 30000;
+  // Délai d'un envoi binaire : une photo de 5 Mio sur le Wi-Fi d'une serre est longue.
+  // Partagé par `submitBinary` et `sendUpload`, pour que le transport ne puisse pas
+  // rester sans délai si l'appelant en oubliait un.
+  const UPLOAD_TIMEOUT_MS = 45000;
 
   let counter = 0;
   const bound = new WeakSet();   // contrôles dont l'effacement à la saisie est déjà branché
@@ -181,54 +185,88 @@
   // déjà choisi par l'opérateur. L'URL d'objet est révoquée à chaque changement, à la
   // remise à zéro du formulaire et au départ de la page : une image de 5 Mio retenue par
   // une URL oubliée resterait en mémoire tant que le document vit.
-  const previews = new Map();      // formulaire → URL d'objet en cours (itérable pour `pagehide`)
+  // Tout est indexé par **contrôle**, jamais par formulaire : deux champs photo dans un
+  // même formulaire partageraient sinon une URL et une zone, et le second effacerait
+  // l'aperçu du premier.
+  const previews = new Map();        // champ photo → URL d'objet en cours (itérable pour `pagehide`)
+  const previewZones = new WeakMap(); // champ photo → conteneur d'aperçu qui lui appartient
   const previewBound = new WeakSet();
+  const resetBound = new WeakSet();  // formulaires dont la remise à zéro est déjà branchée
   const PREVIEW_ALT = "Aperçu local de la photo choisie, avant tout envoi.";
 
   const isPhotoField = control => control.type === "file" && /image/i.test(control.accept || "");
 
-  // Le gabarit peut poser le conteneur ; sinon le socle le crée, frère du `<label>`
-  // enveloppant comme le message d'erreur, pour ne pas entrer dans le nom accessible
-  // du champ.
-  function previewZone(form, control) {
-    const existing = form.querySelector("[data-culture-photo-preview]");
-    if (existing) return existing;
-    const zone = document.createElement("figure");
-    zone.className = "culture-photo-preview";
-    zone.setAttribute("data-culture-photo-preview", "");
-    zone.hidden = true;
-    (labelOf(control) || control).after(zone);
+  // Le conteneur est frère du `<label>` enveloppant, comme le message d'erreur, pour ne
+  // pas entrer dans le nom accessible du champ. Un conteneur déjà posé par le gabarit
+  // n'est adopté que s'il est le frère **suivant de ce champ-là** : une recherche dans
+  // tout le formulaire rendrait la même zone à deux champs photo.
+  function previewZone(control) {
+    const known = previewZones.get(control);
+    if (known?.isConnected) return known;
+    const anchor = labelOf(control) || control;
+    let zone = anchor.nextElementSibling;
+    if (!zone || !zone.hasAttribute("data-culture-photo-preview")) {
+      zone = document.createElement("figure");
+      zone.className = "culture-photo-preview";
+      zone.setAttribute("data-culture-photo-preview", "");
+      zone.hidden = true;
+      anchor.after(zone);
+    }
+    previewZones.set(control, zone);
     return zone;
   }
 
-  function clearPreview(form) {
-    if (!form) return;
-    const url = previews.get(form);
-    if (url) { URL.revokeObjectURL(url); previews.delete(form); }
-    const zone = form.querySelector("[data-culture-photo-preview]");
+  function clearControlPreview(control) {
+    const url = previews.get(control);
+    if (url) { URL.revokeObjectURL(url); previews.delete(control); }
+    const zone = previewZones.get(control);
     if (!zone) return;
     zone.replaceChildren();
     zone.hidden = true;
   }
 
+  // Signature conservée — les pages appellent `clearPreview(form)` après un enregistrement
+  // réussi — mais l'effacement se fait champ par champ, chacun portant sa propre URL.
+  function clearPreview(form) {
+    if (!form) return;
+    for (const control of controlsOf(form)) {
+      if (isPhotoField(control)) clearControlPreview(control);
+    }
+  }
+
   function attachPreview(form, control) {
     control.addEventListener("change", () => {
-      clearPreview(form);
+      clearControlPreview(control);
       const chosen = control.files && control.files[0];
       if (!chosen) return;
+      // Un fichier qui n'est pas une image n'a pas d'aperçu : `createObjectURL` rendrait
+      // une URL parfaitement valide et l'`<img>` resterait cassé, donc visible et vide.
+      // Le refus de fond, lui, reste au serveur.
+      if (!/^image\//i.test(chosen.type)) return;
       const url = URL.createObjectURL(chosen);
-      previews.set(form, url);
+      previews.set(control, url);
       const image = document.createElement("img");
+      // Une image que le navigateur ne décode pas (fichier tronqué, format refusé) ne
+      // laisse pas un cadre vide : la zone se referme et l'URL est révoquée.
+      image.addEventListener("error", () => clearControlPreview(control));
       image.src = url;
       image.alt = PREVIEW_ALT;
-      const zone = previewZone(form, control);
+      const zone = previewZone(control);
       zone.replaceChildren(image);
       zone.hidden = false;
     });
-    form.addEventListener("reset", () => clearPreview(form));
+    // La remise à zéro est un événement du **formulaire** : une seule écoute par
+    // formulaire, qui efface les aperçus de tous ses champs photo.
+    if (!resetBound.has(form)) {
+      resetBound.add(form);
+      form.addEventListener("reset", () => clearPreview(form));
+    }
   }
 
-  addEventListener("pagehide", () => {
+  addEventListener("pagehide", event => {
+    // Page mise en cache arrière/avant : elle peut revenir telle quelle, aperçus compris.
+    // Révoquer ici laisserait des images cassées que rien ne recrée.
+    if (event.persisted) return;
     for (const url of previews.values()) URL.revokeObjectURL(url);
     previews.clear();
   });
@@ -467,48 +505,74 @@
   // `fetch` ne rend pas la progression d'un corps envoyé : une photo de 5 Mio sur un Wi-Fi
   // de serre laissait l'opérateur devant un texte figé, sans savoir si l'envoi avançait.
   // `XMLHttpRequest` la donne (`xhr.upload`), au prix d'un second transport — d'où le
-  // contrat strict : **exactement** les quatre formes de retour de `send`, pour que les
-  // appelants restent inchangés. Aucun rejeu, aucune file, aucune reprise : un envoi
-  // interrompu se réessaie à la main, avec la même clé d'idempotence.
-  function sendUpload(form, url, {headers, body, timeoutMs, onProgress}) {
-    return withGuards(form, () => new Promise(resolve => {
-      const xhr = new XMLHttpRequest();
-      // `open` avant tout `setRequestHeader` : l'ordre inverse lève une exception.
-      xhr.open("POST", url);
-      xhr.timeout = timeoutMs;
-      for (const [key, value] of Object.entries({"X-CSRF-Token": csrf(), ...headers})) {
-        if (value !== undefined && value !== null) xhr.setRequestHeader(key, String(value));
+  // contrat strict : **exactement** les quatre formes de retour du contrat — hors ligne,
+  // occupé, réponse HTTP, réseau/délai — que `send` produit aussi, celui-ci y ajoutant
+  // seulement le message d'une exception inattendue. Les appelants restent inchangés.
+  // Aucun rejeu, aucune file, aucune reprise : un envoi interrompu se réessaie à la main,
+  // avec la même clé d'idempotence.
+  function sendUpload(form, url, {headers, body, timeoutMs, onProgress, onStart}) {
+    return withGuards(form, async () => {
+      // La barre n'existe **qu'ici**, à l'intérieur des gardes : créée avant, un envoi
+      // refusé parce qu'un autre est déjà en vol en aurait ajouté une seconde, que le
+      // `finally` de l'envoi en cours ne retire pas.
+      const bar = onStart?.() ?? null;
+      const report = event => { bar?.advance(event); onProgress?.(event); };
+      try {
+        return await new Promise(resolve => {
+          // Un `open` ou un `send` qui lève (URL refusée, corps impossible à envoyer)
+          // rejetterait la promesse et remonterait une exception aux appelants, qui
+          // n'attendent que les quatre formes du contrat.
+          try {
+            const xhr = new XMLHttpRequest();
+            // `open` avant tout `setRequestHeader` : l'ordre inverse lève une exception.
+            xhr.open("POST", url);
+            xhr.timeout = timeoutMs ?? UPLOAD_TIMEOUT_MS;
+            for (const [key, value] of Object.entries({"X-CSRF-Token": csrf(), ...headers})) {
+              if (value !== undefined && value !== null) xhr.setRequestHeader(key, String(value));
+            }
+            // Branchés avant `send` : un envoi très court émettrait sinon ses événements
+            // avant que quiconque n'écoute, et la barre resterait indéterminée jusqu'à la
+            // réponse.
+            xhr.upload.addEventListener("progress", event => report({
+              loaded: event.loaded, total: event.total, lengthComputable: event.lengthComputable,
+            }));
+            xhr.upload.addEventListener("load", () => report({done: true}));
+            xhr.addEventListener("load", () => {
+              let data;
+              try { data = JSON.parse(xhr.responseText); } catch { data = {error: REFUSED}; }
+              // 413, 415 et 408 répondent du texte : le refus reste celui du socle.
+              if (!data || typeof data !== "object") data = {error: REFUSED};
+              resolve({ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data, aborted: false});
+            });
+            xhr.addEventListener("error", () =>
+              resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: false}));
+            xhr.addEventListener("timeout", () =>
+              resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: true}));
+            xhr.addEventListener("abort", () =>
+              resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: true}));
+            // Le `File` part tel quel : un `FormData` changerait le type du corps, que le
+            // serveur exige binaire.
+            xhr.send(body);
+          } catch {
+            resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: false});
+          }
+        });
+      } finally {
+        // La barre est retirée quelle que soit l'issue, et avant que l'appelant ne pose
+        // son message : succès, refus, réseau ou délai laissent le même `<output>` propre.
+        bar?.remove();
       }
-      // Branchés avant `send` : un envoi très court émettrait sinon ses événements avant
-      // que quiconque n'écoute, et la barre resterait indéterminée jusqu'à la réponse.
-      xhr.upload.addEventListener("progress", event => onProgress?.({
-        loaded: event.loaded, total: event.total, lengthComputable: event.lengthComputable,
-      }));
-      xhr.upload.addEventListener("load", () => onProgress?.({done: true}));
-      xhr.addEventListener("load", () => {
-        let data;
-        try { data = JSON.parse(xhr.responseText); } catch { data = {error: REFUSED}; }
-        // 413, 415 et 408 répondent du texte : le refus reste celui du socle.
-        if (!data || typeof data !== "object") data = {error: REFUSED};
-        resolve({ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data, aborted: false});
-      });
-      xhr.addEventListener("error", () =>
-        resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: false}));
-      xhr.addEventListener("timeout", () =>
-        resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: true}));
-      xhr.addEventListener("abort", () =>
-        resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: true}));
-      // Le `File` part tel quel : un `FormData` changerait le type du corps, que le
-      // serveur exige binaire.
-      xhr.send(body);
-    }));
+    });
   }
 
-  // La barre vit dans l'`<output>` du formulaire, à côté du texte d'état déjà posé par
-  // l'appelant, qui n'est pas réécrit. Le pourcentage n'est porté que par `value`,
-  // `aria-valuetext` et un frère `aria-hidden` : la région `aria-live` garde donc le même
-  // texte accessible du début à la fin, sans quoi un lecteur d'écran annoncerait chaque
-  // pour cent reçu.
+  // La barre vit dans l'`<output role="status">` du formulaire, à côté du texte d'état
+  // déjà posé par l'appelant, qui n'est pas réécrit. Cette région est **atomique** par
+  // défaut : toute mutation de son sous-arbre la fait réannoncer en entier. La
+  // `<progress>` y est donc ajoutée **une fois** — une seule annonce — et son avancement
+  // ne passe ensuite que par ses attributs `value` et `aria-valuetext`, dont la mutation
+  // ne réveille pas la région. Le texte visible du pourcentage, lui, est posé **hors** de
+  // l'`<output>`, en frère immédiat, et retiré avec la barre : à l'intérieur, chaque pour
+  // cent aurait été annoncé.
   function progressBar(form) {
     const output = outputOf(form);
     if (!output) return null;
@@ -520,7 +584,8 @@
     const readout = document.createElement("span");
     readout.className = "culture-upload-readout";
     readout.setAttribute("aria-hidden", "true");
-    output.append(bar, readout);
+    output.append(bar);
+    output.after(readout);
     return {
       advance(event) {
         if (event.done) {
@@ -693,29 +758,26 @@
     const signature =
       JSON.stringify(command) + `|${blob?.name || ""}:${blob?.size || 0}:${blob?.lastModified || 0}`;
     command.request_id = requestKey(form, signature);
-    // La barre est retirée quelle que soit l'issue, et avant que l'appelant ne pose son
-    // message : succès, refus, réseau ou hors ligne laissent le même `<output>` propre.
+    // La barre est posée par `sendUpload`, une fois les gardes franchies, et retirée par
+    // lui quelle que soit l'issue : un envoi refusé hors ligne ou parce qu'un autre est
+    // déjà en vol n'en laisse aucune trace.
     // Aucun `form.reset()` ici — en échec, la légende saisie et le fichier choisi restent
     // en place, donc la clé d'idempotence aussi, et le renvoi vérifie le même
     // enregistrement au lieu d'en créer un second.
-    const bar = progressBar(form);
-    try {
-      const answer = await sendUpload(form, url, {
-        headers: {
-          // VITAL : sans en-tête explicite, `XMLHttpRequest` déduirait le type du `File`
-          // (`image/png`) et le serveur répondrait 415.
-          "Content-Type": "application/octet-stream",
-          "X-Culture-Metadata": encodeURIComponent(JSON.stringify(command)),
-        },
-        body: blob,
-        timeoutMs: options.timeoutMs ?? 45000,
-        onProgress: event => { bar?.advance(event); options.onProgress?.(event); },
-      });
-      if (answer.ok) disarm(form);
-      return answer;
-    } finally {
-      bar?.remove();
-    }
+    const answer = await sendUpload(form, url, {
+      headers: {
+        // VITAL : sans en-tête explicite, `XMLHttpRequest` déduirait le type du `File`
+        // (`image/png`) et le serveur répondrait 415.
+        "Content-Type": "application/octet-stream",
+        "X-Culture-Metadata": encodeURIComponent(JSON.stringify(command)),
+      },
+      body: blob,
+      timeoutMs: options.timeoutMs ?? UPLOAD_TIMEOUT_MS,
+      onStart: () => progressBar(form),
+      onProgress: options.onProgress,
+    });
+    if (answer.ok) disarm(form);
+    return answer;
   }
 
   const clearReviews = () => {

@@ -11,8 +11,12 @@
 .culture-form input[type=checkbox] { width: 1.25rem; flex-shrink: 0; }
 .culture-form-actions { display: grid; gap: .75rem; }
 /* Le message d'erreur est un frère du <label>, jamais son enfant (nom accessible) ; dans
-   une grille à plusieurs colonnes il prend une ligne entière, donc reste sous son champ. */
-.culture-form .field-error, .culture-grid > .field-error, .culture-origin .field-error { grid-column: 1 / -1; margin-top: -.4rem; }
+   une grille à plusieurs colonnes il prend une ligne entière, donc reste sous son champ.
+   L'aperçu de photo est posé au même endroit, par la même règle : sans cette ligne, il
+   irait remplir la colonne suivante, à côté du champ au lieu d'être dessous. */
+.culture-form .field-error, .culture-grid > .field-error, .culture-origin .field-error,
+.culture-form .culture-photo-preview { grid-column: 1 / -1; }
+.culture-form .field-error, .culture-grid > .field-error, .culture-origin .field-error { margin-top: -.4rem; }
 .culture-origin { display: grid; gap: .7rem; padding-block: .75rem; border-bottom: 1px solid var(--border, #53675b); }
 .culture-origins { min-width: 0; padding: .75rem; }
 .culture-warning { padding: 1rem; border: 1px solid currentColor; border-radius: .5rem; }
@@ -136,7 +140,10 @@ details.culture-primary-action > summary { font-weight: 700; }
    portrait ne repousse pas le bouton d'envoi hors de l'écran. */
 .culture-photo-preview { margin: .4rem 0; }
 .culture-photo-preview img { max-width: min(100%, 18rem); height: auto; max-height: 12rem; object-fit: contain; border-radius: .5rem; }
-.culture-upload-readout { margin-left: .4rem; }
+/* Le pourcentage visible est un frère de l'<output>, jamais son enfant : cette région
+   `role="status"` est atomique et chaque pour cent y serait réannoncé. Il occupe donc
+   une ligne entière de la grille du formulaire, juste sous la zone d'état. */
+.culture-upload-readout { grid-column: 1 / -1; margin-top: -.5rem; }
 .culture-trace .card-meta { overflow-wrap: anywhere; }
 /* Cible d'un retour après enregistrement : jamais une couleur seule, le libellé
    « Entrée ajoutée » — rendu `hidden` par le gabarit et révélé par le script au moment du
