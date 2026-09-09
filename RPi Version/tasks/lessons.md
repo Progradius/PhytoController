@@ -198,3 +198,22 @@ un `field`.
 5. Un message d'erreur ne va jamais **dans** un `<label>` enveloppant : il entre dans le nom
    accessible du champ. Frère du label + `aria-describedby`, et un test `getByLabel(..., {exact:
    true})` après un refus est la preuve.
+
+## 2026-09-09 — Audit du lot UI 4 : un test peut « couvrir » une branche sans la discriminer
+
+**Ce qui s'est passé.** Le rapport du lot 4 et le docstring du prédicat SQL désignaient la
+branche « relevé avant un renouvellement à la même seconde » comme *la* règle protégée par le
+test d'équivalence. Un agent a neutralisé cette branche hors dépôt (les deux bras du `CASE`
+rendus identiques) : 64 tests verts. Le scénario du test construisait bien le renouvellement à
+la seconde, mais gardait le lot alimenté avant et après, donc le changement de période n'était
+pas observable. Par ailleurs, le hook RTK a filtré la sortie de `npx playwright` au point de
+faire disparaître le compte d'exclusions ; le chiffre n'a été obtenu qu'avec `rtk proxy npx`.
+
+**Règles.**
+1. Une branche présentée comme critique se prouve par mutation : la neutraliser doit faire
+   échouer au moins un test. « Le scénario existe » ne suffit pas, il faut que le résultat
+   dépende de la branche.
+2. Quand un compte précis de tests importe (exclusions, réussites par profil), passer par
+   `rtk proxy npx playwright …` ou `--reporter=json`, jamais par la sortie filtrée.
+3. Une affirmation de rapport (« sélection conservée au redessin », « lien de contexte ») est
+   vérifiée par une assertion, sinon elle est listée comme non testée dans le plan.

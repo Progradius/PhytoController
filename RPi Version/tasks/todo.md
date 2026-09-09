@@ -820,3 +820,15 @@ La **coupure sur faute** est sortie du périmètre du jalon 4 (arbitrage du 2 se
 jalon ne touche pas au chemin `energized()`, sa moitié logicielle est couverte par la suite de
 tests, et sa moitié électrique appartient à `docs/development/hardware-validation.md`, où elle
 était déjà inscrite (« Relais actifs-BAS » étapes 4-5, « Supervision et arrêt » étape 1).
+
+## Remédiation du lot UI 4 du carnet (9 septembre 2026)
+
+Plan : `docs/development/remediation-ui-cultures-lot-4-2026-09-09.md` (état des lieux, R1.1 à
+R4.4, lots A à E). Aucun P0. À dérouler après feu vert.
+
+- [ ] Lot A — explorateur, galerie, CSS (R1.1, R1.3, R1.4, R1.6, R2.4, R3.2, R3.6)
+- [ ] Lot B — magasin cycles/solutions, pagination, banc, mutation « avant » (R1.2, R2.1–R2.3, R3.7, R4.1)
+- [ ] Lot C — légende, synthèse, lien de contexte, archives (R1.5, R3.1, R3.3, R3.5)
+- [ ] Lot D — recherche et filtres rapides du journal (R3.4)
+- [ ] Lot E — spec du lot 4, fixture `/tmp`, documentation (R4.2–R4.4)
+- [ ] Banc rejoué sur le Pi, rapport du lot 4 mis à jour
