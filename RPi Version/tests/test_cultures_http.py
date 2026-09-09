@@ -293,6 +293,23 @@ async def test_carte_de_rappel_offre_fait_et_reporter_en_deux_boutons(web_contex
     assert "Enregistrer le suivi" not in page
     # Sans script, la nouvelle échéance reste visible : c'est le script qui la replie.
     assert 'data-reminder-postpone><label>Nouvelle échéance' in page
+    # Soumission implicite : le bouton par défaut est le premier bouton d'envoi de l'arbre.
+    # Entrée dans la nouvelle échéance doit reporter, jamais clore le rappel : le premier
+    # bouton du formulaire porte donc « postponed », et il est masqué.
+    form = page[page.index('data-operation="reminder_action"'):]
+    form = form[:form.index("</form>")]
+    assert form.index('value="postponed" data-reminder-action="postponed" hidden') < form.index('value="done"')
+
+    # La page des cycles rend la même carte : deux boutons, le repli « Autres actions » et
+    # le même bouton par défaut. Le sélecteur d'action y a disparu aussi.
+    cycles = await (await client.get("/cultures/cycles")).text()
+    assert 'data-operation="reminder_action"' in cycles
+    assert "<label>Action sur le rappel<select" not in cycles and "Enregistrer le suivi" not in cycles
+    assert 'name="action" value="done" data-reminder-action="done">Fait<' in cycles
+    assert "<summary>Autres actions</summary>" in cycles
+    block = cycles[cycles.index('data-operation="reminder_action"'):]
+    block = block[:block.index("</form>")]
+    assert block.index('value="postponed" data-reminder-action="postponed" hidden') < block.index('value="done"')
 
 
 async def test_transitions_guidees_marquees_par_la_regle_pure(web_context):
@@ -355,7 +372,47 @@ async def test_recherche_de_l_accueil_est_un_formulaire_get_borne(web_context):
     empty = await (await client.get("/cultures?q=introuvable")).text()
     assert "Aucune culture ne porte « introuvable »" in empty
     assert "Le carnet est vide" not in empty
+    # Une recherche trop longue est un refus de saisie : la page répond 400 et l'API rend
+    # le contrat JSON du carnet, avec le champ en cause — jamais un texte brut à part.
     assert (await client.get("/cultures?q=" + "x" * 121)).status == 400
+    refused = await client.get("/api/v1/cultures?q=" + "x" * 121)
+    assert refused.status == 400
+    assert await refused.json() == {"error": "Recherche trop longue.", "field": "q"}
+
+
+async def test_saisie_ouverte_depuis_une_fiche_montre_l_alimentation_declaree(web_context):
+    """R3.5 : la source est affichée à côté du champ, le choix reste à l'opérateur.
+
+    Ouvrir la saisie depuis une fiche (`?target=…`) énonce l'alimentation déclarée à la
+    date de la saisie et sa provenance. Rien n'est sélectionné à la place de l'opérateur :
+    l'association déclarée n'est pas forcément la cible qu'il veut viser, et le carnet
+    n'invente aucune alimentation. Les trois cas — aucune, une, plusieurs — restent
+    distincts, comme à la prévalidation.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    fed = await (await client.post("/api/v1/cultures", json=create("Lot alimenté", space="space_2"),
+                                   headers=headers)).json()
+    alone = await (await client.post("/api/v1/cultures", json=create("Lot sans solution", space="space_1"),
+                                     headers=headers)).json()
+    renewal = {"operation": "entry", "request_id": str(uuid.uuid4()), "kind": "renewal",
+               "reservoir_id": "reservoir_2", "effective_at": "2026-08-01", "volume_l": 20}
+    assert (await client.post("/api/v1/cultures/solutions", json=renewal, headers=headers)).status == 200
+
+    page = await (await client.get("/cultures/solutions?target=" + fed["subject_id"])).text()
+    assert "Alimentation déclarée à cette date pour Lot alimenté : Réservoir de l’espace 2" in page
+    assert "Ouvrir Réservoir de l’espace 2" in page
+    # Aucune sélection automatique : la cible reste celle demandée, le réservoir n'est pas
+    # coché à la place de l'opérateur.
+    form = page[page.index('<form class="culture-form solution-form" data-solution-entry'):]
+    form = form[:form.index("</form>")]
+    assert f'<option value="{fed["subject_id"]}" data-subject-kind="lot" selected>' in form
+    assert '<option value="reservoir_2" data-reservoir selected>' not in form
+
+    empty = await (await client.get("/cultures/solutions?target=" + alone["subject_id"])).text()
+    assert "Aucune alimentation déclarée à cette date pour Lot sans solution." in empty
+    # Sans cible demandée, aucun repère : il n'y a pas de sujet dont parler.
+    assert "data-solution-feeding" not in await (await client.get("/cultures/solutions")).text()
 
 
 async def test_raccourci_observation_selon_le_nombre_de_cultures(web_context):

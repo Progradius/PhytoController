@@ -324,7 +324,12 @@
 
   // --- Envois -------------------------------------------------------------
 
-  const submitButton = form => form.querySelector('[type="submit"]');
+  // Un formulaire du carnet peut porter plusieurs boutons d'envoi — « Fait » et
+  // « Reporter » d'un rappel, « Annuler ce rappel » sous son repli. N'en désactiver qu'un
+  // pendant l'envoi laissait les autres cliquables : la garde `busy` refusait bien le
+  // second envoi, mais l'opérateur voyait un bouton actif répondre « un envoi est déjà en
+  // cours » au lieu d'un bouton visiblement indisponible.
+  const submitButtons = form => Array.from(form.querySelectorAll('[type="submit"]'));
 
   // La clé d'idempotence est conservée tant que la saisie ne change pas : un même envoi
   // rejoué après une réponse perdue vérifie l'enregistrement au lieu d'en créer un
@@ -348,8 +353,10 @@
       return {ok: false, status: 0, data: {error: BUSY}, aborted: false, busy: true};
     }
     busy.add(form);
-    const button = submitButton(form);
-    if (button) button.disabled = true;
+    // Seuls les boutons que cet envoi a désactivés sont réactivés : un bouton déjà
+    // indisponible pour une autre raison le reste.
+    const disabled = submitButtons(form).filter(node => !node.disabled);
+    for (const node of disabled) node.disabled = true;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -370,7 +377,7 @@
     } finally {
       clearTimeout(timer);
       busy.delete(form);
-      if (button) button.disabled = false;
+      for (const node of disabled) node.disabled = false;
     }
   }
 
@@ -456,9 +463,11 @@
         }
         // Actions nommées par le serveur : des liens de lecture vers une page du carnet.
         // Aucun n'écrit quoi que ce soit et aucun ne vaut confirmation. Un `href` qui n'est
-        // pas un chemin local est ignoré plutôt que rendu.
+        // pas un chemin local est ignoré plutôt que rendu : « /… » seul ne suffit pas, car
+        // « //hôte/chemin » est une URL absolue de protocole relatif, donc un autre site.
         for (const item of checked.data.links || []) {
-          if (!item || typeof item.href !== "string" || !item.href.startsWith("/")) continue;
+          if (!item || typeof item.href !== "string"
+              || !item.href.startsWith("/") || item.href.startsWith("//")) continue;
           const link = document.createElement("a");
           link.href = item.href;
           link.textContent = String(item.label || item.href);
@@ -564,6 +573,10 @@
     clearErrors,
     clearField,
     resetField,
+    // Exposé pour que les pages qui visent une ancre appliquent la **même** règle de
+    // dévoilement que les refus : ouvrir un repli, jamais un bloc masqué par une règle
+    // métier. Deux règles concurrentes finiraient par diverger.
+    reveal,
     status,
   };
 })();

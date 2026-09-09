@@ -21,11 +21,40 @@
     const query = new URLSearchParams(location.search); query.set("climate_offset", link.dataset.climateOffset);
     query.delete("climate_at"); link.search = query.toString();
   });
+  // Carte de rappel : « Fait » et « Reporter » sont deux boutons d'envoi du même
+  // formulaire, sur l'accueil comme sur cette page. Le champ de nouvelle échéance est rendu
+  // visible — sans script, personne ne l'ouvrirait —, c'est donc ici qu'il est replié : le
+  // premier clic sur « Reporter » l'ouvre et y pose le focus sans rien envoyer, le suivant
+  // envoie. Annuler le clic suffit à retenir l'envoi, il n'y a rien à mémoriser.
+  // Le bouton par défaut du formulaire (soumission implicite) est le « Reporter » masqué du
+  // gabarit ; il n'est pas ce bouton visible, d'où le `:not([hidden])`.
+  document.querySelectorAll('[data-operation="reminder_action"]').forEach(form => {
+    const zone = form.querySelector("[data-reminder-postpone]");
+    const postpone = form.querySelector('[data-reminder-action="postponed"]:not([hidden])');
+    if (!zone || !postpone) return;
+    zone.hidden = true;
+    postpone.addEventListener("click", event => {
+      if (!zone.hidden) return;
+      event.preventDefault();
+      zone.hidden = false;
+      zone.querySelector("input")?.focus();
+    });
+  });
   document.querySelectorAll("[data-cycle-form], [data-photo-form]").forEach(form => {
     forms.register(form);
     const get = name => form.elements[name]?.value || "";
     form.addEventListener("submit", async event => {
       event.preventDefault();
+      // Un suivi de rappel n'a de sens que déclenché par l'un de ses boutons d'action :
+      // « Fait », « Reporter » ou « Annuler ». Une soumission sans bouton nommé — un
+      // navigateur qui n'en désigne aucun, un script tiers — prendrait l'action du premier
+      // bouton d'envoi, et clore un rappel n'a pas de retour en arrière. Mieux vaut
+      // redemander le geste que d'en deviner un.
+      if (form.dataset.operation === "reminder_action"
+          && !event.submitter?.hasAttribute("data-reminder-action")) {
+        forms.showError(form, {error: "Choisir « Fait » ou « Reporter »."});
+        return;
+      }
       const photo = form.hasAttribute("data-photo-form");
       const command = {confirm_date: form.elements.confirm_date?.checked || false};
       let file = null;

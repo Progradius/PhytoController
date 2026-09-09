@@ -246,7 +246,7 @@ def allowed_actions(subject):
     return actions
 
 
-def stage_options(subject, correction=False, *, current=None):
+def stage_options(subject, correction=False):
     """Stades proposables, dans l'ordre de `STAGES`.
 
     `correction=True` (un stade est déjà saisi et l'opérateur le rectifie) rouvre la liste
@@ -255,10 +255,9 @@ def stage_options(subject, correction=False, *, current=None):
     ici — il commence par une récolte — et l'entrée du parcours non retenue par l'origine
     reste exclue.
 
-    `current=` est l'ancien nom du même drapeau, conservé en alias pour les appelants qui
-    y passaient un stade : seule sa véracité comptait déjà.
+    L'ancien alias `current=`, qui acceptait un stade là où seule la véracité comptait, n'a
+    plus d'appelant : un drapeau nommé comme une valeur finit par en recevoir une.
     """
-    correction = bool(correction or current)
     kind, stage = subject["kind"], subject.get("stage")
     excluded = "germination" if subject.get("origin_type") == "cutting" else "enracinement"
     options = []

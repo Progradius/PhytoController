@@ -84,10 +84,14 @@ class CultureViews:
         Elle voyage telle quelle jusqu'au magasin, qui compare des noms déjà projetés :
         aucun caractère n'y est spécial, il n'y a donc rien à échapper ici. Seule sa
         longueur est bornée, comme toute entrée de requête.
+
+        Le refus est un `CultureError`, donc le contrat JSON du carnet (`{"error": …}`) :
+        une réponse en texte brut obligeait le socle des formulaires à traiter à part le
+        seul refus qui ne ressemble pas aux autres.
         """
         needle = (request.query.get("q") or "").strip()
         if len(needle) > 120:
-            raise web.HTTPBadRequest(text="Recherche trop longue.")
+            raise CultureError("Recherche trop longue.", "q")
         return needle
 
     async def overview(self, request):
@@ -97,6 +101,8 @@ class CultureViews:
                 request.query.get("agenda") == "1", self.search(request)))
         except CultureUnavailable as exc:
             return web.json_response({"available": False, "error": str(exc)}, status=503)
+        except CultureError as exc:
+            return error_response(exc, 400)
 
     async def detail(self, request):
         try:
@@ -108,16 +114,16 @@ class CultureViews:
 
     @staticmethod
     def version(request):
-        """Version de fiche que le client affiche déjà, ou None si elle est absente.
+        """Jeton de fraîcheur que le client affiche déjà, ou None s'il est absent.
 
-        Une valeur illisible n'est pas un refus : elle vaut « je n'en ai pas », et le
-        serveur recalcule. Refuser la requête ne rendrait service à personne — l'aide
-        n'est pas une écriture et la version n'est qu'un moyen d'éviter un calcul.
+        C'est une **chaîne opaque** produite par le magasin : le client la renvoie telle
+        quelle et personne d'autre ne la lit. Une valeur inconnue ou tronquée n'est pas un
+        refus : elle vaut « je n'en ai pas », et le serveur recalcule. Refuser la requête ne
+        rendrait service à personne — l'aide n'est pas une écriture et le jeton n'est qu'un
+        moyen d'éviter un calcul. Sa longueur reste bornée, comme toute entrée de requête.
         """
-        try:
-            return int(request.query["version"])
-        except (KeyError, ValueError, TypeError):
-            return None
+        token = request.query.get("version")
+        return token if token and len(token) <= 200 else None
 
     async def assistance(self, request):
         try:
@@ -183,15 +189,23 @@ class CultureViews:
         # Le bloc « Aujourd'hui » n'a de sens que sur l'accueil des cultures actives : une
         # fiche a le sien, et les archives n'ont ni rappel ni prochaine action.
         agenda = not subject_id and not archived
+        # La recherche est validée à part : son refus est une saisie trop longue (400),
+        # jamais une fiche introuvable (404).
+        needle = ""
         try:
-            overview = await self.store.call("overview", archived, 0 if subject_id else offset, agenda,
-                                             "" if subject_id else self.search(request))
-            if subject_id:
-                detail = await self.store.call("detail", subject_id, offset)
+            needle = "" if subject_id else self.search(request)
         except CultureError as exc:
-            error, status = str(exc), 404
-        except CultureUnavailable as exc:
-            error, status = str(exc), 503
+            error, status = str(exc), 400
+        if error is None:
+            try:
+                overview = await self.store.call("overview", archived, 0 if subject_id else offset,
+                                                 agenda, needle)
+                if subject_id:
+                    detail = await self.store.call("detail", subject_id, offset)
+            except CultureError as exc:
+                error, status = str(exc), 404
+            except CultureUnavailable as exc:
+                error, status = str(exc), 503
         return self.server._html(render_template(
             "cultures.html", page_title=detail["subject"]["name"] if detail else "Cultures",
             current_page="cultures", csrf_token=self.server.csrf_token,

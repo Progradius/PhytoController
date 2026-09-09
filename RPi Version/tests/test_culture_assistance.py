@@ -231,13 +231,17 @@ async def test_http_assistance_version_inchangee_et_fiche_inconnue(web_context):
     client, server, *_ = web_context
     saved = await server.cultures.store.call("mutate", create())
     url = f"/api/v1/cultures/assistance/{saved['subject_id']}"
-    response = await client.get(f"{url}?version={saved['version']}")
+    # Le jeton est celui que le serveur a rendu, renvoyé tel quel : le client ne le
+    # fabrique pas et n'en lit rien.
+    first = await (await client.get(url)).json()
+    token = first["version"]
+    response = await client.get(f"{url}?version={token}")
     assert response.status == 200 and response.headers["Cache-Control"] == "no-store"
-    assert await response.json() == {"unchanged": True, "version": saved["version"],
+    assert await response.json() == {"unchanged": True, "version": token,
                                      "valid_for_seconds": 30,
                                      "generated_at": (await response.json())["generated_at"]}
-    # Une version illisible n'est pas un refus : elle vaut « je n'en ai pas ».
-    for query in ("", "?version=", "?version=abc", "?version=1.5"):
+    # Un jeton illisible ou périmé n'est pas un refus : il vaut « je n'en ai pas ».
+    for query in ("", "?version=", "?version=abc", "?version=1.5", "?version=" + "9" * 400):
         assert "items" in await (await client.get(url + query)).json()
     assert (await client.get("/api/v1/cultures/assistance/inconnu?version=1")).status == 404
 

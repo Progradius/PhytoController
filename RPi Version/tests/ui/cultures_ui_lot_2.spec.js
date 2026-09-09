@@ -720,6 +720,37 @@ test("lot UI 2 : « Fait » se clique une fois, « Reporter » ouvre sa date pui
   expect(posts.preview).toHaveLength(0);
 });
 
+test("lot UI 2 : Entrée dans la nouvelle échéance reporte, elle ne clôt jamais le rappel", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  const id = await createMother(page, "Mère touche Entrée");
+  const created = await mutate(page, "/api/v1/cultures/cycles", {
+    operation: "reminder", target: id, title: "Rappel clavier", due_date: day(1), interval_days: 0,
+  });
+  expect(created.status, JSON.stringify(created.body)).toBe(200);
+  const reminder = created.body.id;
+
+  await page.goto("/cultures");
+  const card = page.locator(`#agenda #reminder-${reminder}`);
+  const zone = card.locator("[data-reminder-postpone]");
+  await card.getByRole("button", {name: "Reporter", exact: true}).click();
+  await expect(zone).toBeVisible();
+
+  // La touche Entrée dans un champ envoie le formulaire par son bouton **par défaut**,
+  // c'est-à-dire le premier bouton d'envoi de l'arbre, pas celui qui a le focus. Quand
+  // c'était « Fait », l'opérateur qui validait sa date clôturait le rappel, sans retour
+  // possible. Le geste doit rester un report.
+  const field = zone.locator("input[name='due_date']");
+  await field.fill(day(0));
+  await field.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`#reminder-${reminder}$`));
+  const moved = page.locator(`#agenda #reminder-${reminder}`);
+  await expect(moved).toBeVisible();
+  await expect(moved).toContainText(day(0).split("-").reverse().join("/"));
+  // Le rappel reste à faire : rien dans la page ne le déclare accompli.
+  await expect(page.getByRole("heading", {name: "Terminés aujourd’hui"})).toHaveCount(0);
+});
+
 test("lot UI 2 : une transition guidée se vérifie avant d'écrire et atterrit sur les vérifications", async ({page}, testInfo) => {
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
   test.setTimeout(90000);

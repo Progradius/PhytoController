@@ -68,39 +68,78 @@ async def test_accueil_fiche_et_assistance_ne_projettent_qu_une_fois(counted):
 async def test_assistance_a_version_inchangee_ne_projette_rien(counted):
     store, counter = counted
     lot = await seeded(store)
-    identifier, version = lot["subject_id"], lot["version"]
+    identifier = lot["subject_id"]
 
     counter.calls = 0
-    fresh = await store.call("assistance", identifier, version)
-    assert fresh == {"unchanged": True, "version": version, "valid_for_seconds": 30,
+    first = await store.call("assistance", identifier, None)
+    token = first["version"]
+    assert "items" in first and counter.calls == 1
+
+    counter.calls = 0
+    fresh = await store.call("assistance", identifier, token)
+    assert fresh == {"unchanged": True, "version": token, "valid_for_seconds": 30,
                      "generated_at": store.now().isoformat()}
     assert counter.calls == 0
 
-    # Une version périmée refait le calcul complet : l'aide ne peut pas rester sur un
-    # parcours qui a changé.
+    # Un jeton périmé refait le calcul complet : l'aide ne peut pas rester sur un parcours
+    # qui a changé.
     counter.calls = 0
-    stale = await store.call("assistance", identifier, version - 1)
-    assert "items" in stale and stale["version"] == version and counter.calls == 1
+    stale = await store.call("assistance", identifier, "0:jeton-perime")
+    assert "items" in stale and stale["version"] == token and counter.calls == 1
 
-    # Une version absente aussi : c'est le cas d'un premier chargement.
+    # Un jeton absent aussi : c'est le cas d'un premier chargement.
     counter.calls = 0
     assert "items" in await store.call("assistance", identifier, None)
     assert counter.calls == 1
 
-    # Après une mutation, la version que le client affichait ne vaut plus.
-    saved = await event(store, lot, "note", "2026-09-01", {"note": "Observation"})
+    # Après une mutation de parcours, le jeton que le client affichait ne vaut plus.
+    await event(store, lot, "note", "2026-09-01", {"note": "Observation"})
     counter.calls = 0
-    assert "items" in await store.call("assistance", identifier, version)
-    assert counter.calls == 1
+    after = await store.call("assistance", identifier, token)
+    assert "items" in after and after["version"] != token and counter.calls == 1
     counter.calls = 0
-    assert (await store.call("assistance", identifier, saved["version"]))["unchanged"]
+    assert (await store.call("assistance", identifier, after["version"]))["unchanged"]
+    assert counter.calls == 0
+
+
+async def test_jeton_d_assistance_suit_les_rappels_pas_seulement_le_parcours(counted):
+    """Un rappel accompli invalide le jeton (D-3).
+
+    La version du sujet ne bouge qu'aux événements de parcours : seule elle, l'aide
+    « Ouvrir le rappel » restait affichée jusqu'au rechargement de la page, le serveur
+    répondant « inchangé » alors que le rappel était clos. La comparaison porte donc sur un
+    jeton opaque qui inclut aussi les rappels, vérifications, photos et dernier relevé du
+    sujet — sans projection : c'est l'objet du compteur ci-dessous.
+    """
+    store, counter = counted
+    lot = await seeded(store)
+    identifier = lot["subject_id"]
+    token = (await store.call("assistance", identifier, None))["version"]
+
+    reminder = await store.call("cycle_mutate", {"operation": "reminder", "request_id": str(uuid.uuid4()),
+        "target": identifier, "title": "Contrôler la solution", "due_date": "2026-08-10",
+        "interval_days": 0, "note": ""})
+    counter.calls = 0
+    opened = await store.call("assistance", identifier, token)
+    assert "items" in opened and opened["version"] != token
+    assert any(item["id"] == "reminder-" + reminder["id"] for item in opened["items"])
+
+    await store.call("cycle_mutate", {"operation": "reminder_action", "request_id": str(uuid.uuid4()),
+        "id": reminder["id"], "version": reminder["version"], "action": "done", "note": ""})
+    counter.calls = 0
+    closed = await store.call("assistance", identifier, opened["version"])
+    assert "items" in closed, "un rappel accompli doit invalider le jeton"
+    assert not any(item["id"].startswith("reminder-") for item in closed["items"])
+    # Le jeton reste inchangé tant que rien ne bouge, et sa vérification ne projette rien.
+    counter.calls = 0
+    assert (await store.call("assistance", identifier, closed["version"]))["unchanged"]
     assert counter.calls == 0
 
 
 async def test_assistance_a_version_inchangee_refuse_une_fiche_inconnue(cultures):
     from model.culture import CultureError
     with pytest.raises(CultureError, match="introuvable"):
-        await cultures.call("assistance", "inconnu", 1)
+        await cultures.call("assistance", "inconnu", "1:0:0:0:0:0:-")
 
 
 async def test_dernier_releve_d_un_sujet_egale_la_lecture_integrale(cultures):
@@ -142,6 +181,15 @@ async def test_dernier_releve_d_un_sujet_egale_la_lecture_integrale(cultures):
     await compare()
     assert (await cultures.call("latest_reading", fed["subject_id"]))["ph"] == 6.4
     assert await cultures.call("latest_reading", orphan["subject_id"]) is None
+    # Relevé « avant » horodaté à la seconde exacte d'un renouvellement : c'est la branche
+    # spéciale de la requête (`]début ; fin]` au lieu de `[début ; fin[`), celle qui
+    # rattache la mesure à la solution **précédente**. Sans elle, la période lue serait la
+    # nouvelle et le dernier relevé d'une fiche pourrait diverger de l'export.
+    renewal = await cultures.call("solution_mutate", entry("renewal", "2026-08-09"))
+    await cultures.call("solution_mutate", entry("reading", "2026-08-09", ph=5.7,
+                                                 intervention_id=renewal["id"], context="before"))
+    await compare()
+    assert (await cultures.call("latest_reading", fed["subject_id"]))["ph"] == 5.7
 
 
 async def test_dernier_releve_annule_ou_corrige_suit_la_revision_courante(cultures):

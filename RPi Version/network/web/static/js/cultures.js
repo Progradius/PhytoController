@@ -87,7 +87,9 @@
           const link = document.createElement("a"); link.href = item.href; link.textContent = item.action;
           const details = document.createElement("details");
           const summary = document.createElement("summary"); summary.textContent = "Source et validité";
-          const fact = document.createElement("p"); fact.textContent = `Carnet version ${data.version}, fait daté du ${item.fact_date}. ${item.expires_when}`;
+          // Le jeton de fraîcheur du carnet est opaque : il sert au serveur, il ne se lit
+          // pas. Ce qui s'affiche reste le fait daté et la validité de l'aide.
+          const fact = document.createElement("p"); fact.textContent = `Fait daté du ${item.fact_date}. ${item.expires_when}`;
           details.append(summary, fact); article.append(h, p, link, details); fresh.append(article);
         }
         clearTimeout(expiry);
@@ -529,25 +531,11 @@
     });
   });
 
-  // --- Accueil : « Fait » ou « Reporter » en un geste, filtre local ---------
-  // Deux boutons d'envoi dans le même formulaire : même route et même charge utile qu'avec
-  // l'ancien sélecteur, un geste de moins. Le champ de nouvelle échéance est rendu visible
-  // — sans script, personne ne l'ouvrirait — donc c'est ce script qui le replie : le
-  // premier clic sur « Reporter » l'ouvre et y pose le focus sans rien envoyer, le suivant
-  // envoie. Annuler un clic sur un bouton d'envoi suffit à retenir l'envoi : rien à retenir
-  // dans une variable.
-  for (const form of document.querySelectorAll('[data-operation="reminder_action"]')) {
-    const zone = form.querySelector("[data-reminder-postpone]");
-    const postpone = form.querySelector('[data-reminder-action="postponed"]');
-    if (!zone || !postpone) continue;
-    zone.hidden = true;
-    postpone.addEventListener("click", event => {
-      if (!zone.hidden) return;
-      event.preventDefault();
-      zone.hidden = false;
-      zone.querySelector("input")?.focus();
-    });
-  }
+  // --- Accueil : filtre local de la liste ----------------------------------
+  // Le pliage de la zone de report des rappels vit désormais dans `culture_cycles.js`, qui
+  // porte déjà l'envoi de ces formulaires et que les deux pages concernées chargent :
+  // l'accueil et la page des cycles ont la même carte de rappel, elles n'en ont qu'un seul
+  // comportement.
 
   const searchBlock = document.querySelector("[data-culture-search-block]");
   const search = document.querySelector("[data-culture-search]");
@@ -572,15 +560,16 @@
   // --- Retour sur l'entrée ou le rappel visé --------------------------------
   // L'élément focalisé est la confirmation : pas d'annonce supplémentaire, mais ses
   // replis sont ouverts pour qu'il ne reçoive jamais le focus en restant invisible.
+  // Le dévoilement est celui du socle (`reveal`) : replis `<details>` et conteneurs
+  // `data-cf-collapsible` seulement. Ouvrir tout ancêtre `hidden` faisait apparaître un
+  // bloc qu'une règle de page avait retiré de la saisie — type d'origine, mode « Je
+  // démarre » —, sans jamais le refermer.
   const focusTarget = () => {
     const id = decodeURIComponent(location.hash.slice(1));
     if (!id) return;
     const target = document.getElementById(id);
     if (!target || target.tabIndex !== -1) return;
-    for (let node = target; node && node !== document.body; node = node.parentElement) {
-      if (node.tagName === "DETAILS") node.open = true;
-      if (node.hasAttribute("hidden")) node.hidden = false;
-    }
+    forms?.reveal(target);
     target.querySelector(":scope > .culture-added")?.removeAttribute("hidden");
     target.focus({preventScroll: true});
     target.scrollIntoView({block: "center"});

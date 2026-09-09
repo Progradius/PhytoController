@@ -8,6 +8,7 @@ import uuid
 from zoneinfo import ZoneInfo
 
 from model.culture import CultureConflict, CultureError, age, stamp, text_value
+from model.culture_assistance import feeding_lines
 from model.culture_solution import RESERVOIRS, SOLUTION_KINDS, ingredients, measurements, number
 # Lot E : la plage cible d'un relevé est résolue à la date de ce relevé, jamais rétroactivement.
 from model.culture_targets import resolve_targets, target_bands, target_text
@@ -405,7 +406,26 @@ class SolutionStoreMixin:
             # avec sa provenance ; jamais un repli sur le catalogue courant.
             entry["equipment"] = self._equipment_context_at(entry["sort_at"], entry.get("equipment_context"), entry["recorded_at"])
         linked = [e["intervention_id"] for e in page if e["intervention_id"]]
-        return {"items": page, "chart": chart, "chart_targets": bands, "chart_aggregated": aggregated, "chart_truncated": truncated, "stages": stages, "total": len(selected), "offset": offset, "periods": periods, "links": links,
+        # Repère d'alimentation de la cible ouverte depuis une fiche (`?target=…`) : les
+        # associations déclarées qui couvrent la date par défaut de la saisie, énoncées par
+        # la règle pure `feeding_lines` — aucune, une seule, ou plusieurs, jamais confondues.
+        # Rien n'est sélectionné pour l'opérateur : le champ « Cible » garde son choix, ce
+        # n'est qu'un fait daté affiché à côté. Aucune requête de plus : les périodes et les
+        # associations sont déjà lues pour cette page.
+        feeding = None
+        if target and target not in RESERVOIRS:
+            at = stamp(self.now().astimezone(ZoneInfo(self.zone)).date().isoformat(),
+                       "date", self.zone, self.now())[0]
+            reservoir_of = {p["id"]: p["reservoir_id"] for p in periods}
+            declared = sorted(({"reservoir_id": reservoir_of[link["period_id"]], "start_at": link["start_at"],
+                                "name": RESERVOIRS[reservoir_of[link["period_id"]]][0]}
+                               for link in links if link["subject_id"] == target
+                               and link["period_id"] in reservoir_of
+                               and link["start_at"] <= at and (not link["end_at"] or link["end_at"] > at)),
+                              key=lambda row: (row["start_at"], row["reservoir_id"]))
+            name = next((s["name"] for s in subjects if s["id"] == target), target)
+            feeding = [{"text": line, "link": action} for line, action in feeding_lines(name, declared)]
+        return {"items": page, "feeding": feeding, "chart": chart, "chart_targets": bands, "chart_aggregated": aggregated, "chart_truncated": truncated, "stages": stages, "total": len(selected), "offset": offset, "periods": periods, "links": links,
                 "reservoirs": [dict(r) for r in self._db.execute("SELECT * FROM reservoirs")],
                 "recipes": self._recipes(), "subjects": [{"id": s["id"], "name": s["name"], "kind": s["kind"], "archived": s["archived"]} for s in subjects],
                 **self._solution_interventions(entries, subjects, "", 0, linked),

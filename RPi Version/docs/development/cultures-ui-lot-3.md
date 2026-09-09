@@ -26,11 +26,13 @@ comparent l’export avant/après succès et refus, puis simulent une modificati
 et un rejeu après réponse perdue. Les suggestions ne sont ni des tâches persistantes ni
 des notifications. Elles ne modifient aucune donnée ni commande du contrôleur.
 
-Deux points relevés à l’audit sont **en cours de remédiation** et ne doivent pas être lus
-comme un choix définitif : la prévalidation systématique avant chaque enregistrement, qui
-fait deux requêtes serveur là où une suffit (R2.1), et le rejeu de l’assistance toutes les
-30 secondes pour chaque fiche ouverte, qui reprojette le carnet sans qu’une saisie ait
-changé (R2.2). Voir
+Deux points relevés à l’audit ont été **corrigés le 9 septembre 2026** et ne doivent plus
+être lus comme un choix de ce lot : la prévalidation systématique avant chaque
+enregistrement, qui faisait deux requêtes serveur là où une suffit (R2.1 — elle ne part
+plus que sur « Vérifier », sur le premier envoi d’un relevé et sur une transition guidée),
+et le rejeu de l’assistance toutes les 30 secondes pour chaque fiche ouverte, qui
+reprojetait le carnet sans qu’une saisie ait changé (R2.2 — plus d’intervalle, et un jeton
+de fraîcheur évite tout recalcul). Voir
 [le plan de remédiation](remediation-ui-cultures-lots-2-3-2026-09-09.md).
 
 La recherche de ressemblances porte sur 200 relevés courants, avec au plus trois

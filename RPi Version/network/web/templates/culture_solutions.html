@@ -20,6 +20,12 @@
 <label>Cible<select name="target" required><option value="">Choisir une cible</option>
 {% for reservoir in data.reservoirs %}<option value="{{ reservoir.id }}" data-reservoir{% if entry.get('reservoir_id',filters.get('target')) == reservoir.id %} selected{% endif %}>{{ reservoir.name }}</option>{% endfor %}
 {% for subject in data.subjects %}<option value="{{ subject.id }}" data-subject-kind="{{ subject.kind }}"{% if (entry.get('targets') and entry.targets[0] == subject.id) or (not entry and filters.get('target') == subject.id) %} selected{% endif %}>{{ subject.name }}{{ ' (archivée)' if subject.archived else '' }}</option>{% endfor %}</select></label>
+{# Saisie ouverte depuis une fiche (`?target=…`) : l'alimentation déclarée à la date de la
+   saisie est un fait daté affiché à côté du champ, avec sa source. Aucune sélection n'est
+   faite à la place de l'opérateur — l'association déclarée n'est pas forcément celle qu'il
+   veut viser, et le carnet n'invente aucune alimentation. Les trois cas (aucune, une,
+   plusieurs) viennent de la règle pure `feeding_lines`, comme à la prévalidation. #}
+{% if not entry and data.feeding %}<div class="card-meta" data-solution-feeding>{% for row in data.feeding %}<p>{{ row.text }} <a href="{{ row.link.href }}">{{ row.link.label }}</a></p>{% endfor %}</div>{% endif %}
 <label>Action<select name="kind"{% if entry %} disabled{% endif %}>{% for key,label in kinds.items() %}<option value="{{ key }}"{% if kind_value == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <details data-mothers><summary>Autres mères pour un arrosage ou relevé commun</summary><p>Le volume est celui du mélange partagé ; il n’est pas multiplié par le nombre de mères.</p>
 {% for subject in data.subjects if subject.kind == 'mother' %}<label class="culture-confirm"><input type="checkbox" name="mother" value="{{ subject.id }}"{% if subject.id in entry.get('targets',[])[1:] %} checked{% endif %}>{{ subject.name }}</label>{% endfor %}</details>

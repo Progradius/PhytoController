@@ -255,12 +255,19 @@ test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau
   await form.getByLabel("Récurrence en jours (0 = ponctuel)").fill("2");
   await form.getByRole("button", {name: "Enregistrer le rappel"}).click();
   await expect(page.getByRole("heading", {name: "Contrôler le carnet"})).toBeVisible();
+  // Même carte de rappel que l'accueil : deux boutons, et le premier clic sur « Reporter »
+  // ouvre la nouvelle échéance sans rien envoyer.
   const action = page.locator('[data-operation="reminder_action"]').first();
-  await action.getByRole("combobox", {name: "Action sur le rappel"}).selectOption("postponed");
-  await action.getByLabel("Nouvelle échéance (pour reporter)").fill(postponed);
-  await action.getByRole("button", {name: "Enregistrer le suivi"}).click();
+  await expect(action.locator("select[name='action']")).toHaveCount(0);
+  const zone = action.locator("[data-reminder-postpone]");
+  await expect(zone).toBeHidden();
+  await action.getByRole("button", {name: "Reporter", exact: true}).click();
+  await expect(zone).toBeVisible();
+  await zone.locator("input[name='due_date']").fill(postponed);
+  await action.getByRole("button", {name: "Reporter", exact: true}).click();
   await expect(page.getByText(`Reporté · échéance ${frenchDate(postponed)}`)).toBeVisible();
-  await action.getByRole("button", {name: "Enregistrer le suivi"}).click();
+  await page.locator('[data-operation="reminder_action"]').first()
+    .getByRole("button", {name: "Fait", exact: true}).click();
   await expect(page.getByRole("heading", {name: "Contrôler le carnet"})).toHaveCount(2);
   await expect(page.getByText("Aucune synthèse climatique disponible pour ce cycle.")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);

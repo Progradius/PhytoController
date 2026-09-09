@@ -15,8 +15,8 @@ import pytest
 
 from model.culture import (KINDS, STAGES, allowed_actions, creation_stages, fiche_actions,
                            first_stage, stage_options)
-from model.culture_cycle import stage_checks
-from utils.culture_store import CultureStore
+from model.culture_cycle import REMINDER_STATES, stage_checks
+from utils.culture_store import PAGE, CultureStore
 
 # Horloge figée, postérieure à toutes les dates saisies ici : le vert d'aujourd'hui ne doit
 # pas dépendre du jour où la suite est lancée.
@@ -62,12 +62,12 @@ def build_detail(item, **overrides):
     `stage_options` est transmis par la vue : le gabarit n'a plus sa table de rangs,
     l'équivalence porte donc sur la liste rendue par le magasin.
     """
-    detail = {"subject": item, "events": [], "total": 0, "offset": 0, "photos": [],
+    detail = {"subject": item, "events": [], "total": 0, "offset": 0, "page": PAGE, "photos": [],
               "descendants": [], "backfill": {"stages": [], "spaces": [], "before": None},
               "reminders": EMPTY_BUCKETS, "media": [], "actions": fiche_actions(item),
               "stage_checks": stage_checks(item),
               "stage_options": stage_options(item),
-              "stage_options_full": stage_options(item, current=True)}
+              "stage_options_full": stage_options(item, correction=True)}
     detail.update(overrides)
     return detail
 
@@ -75,7 +75,8 @@ def build_detail(item, **overrides):
 def render(item, detail=None):
     from network.web.pages import render_template
     overview = {"timezone": "Europe/Paris", "today": "2026-09-07", "clock_reliable": True,
-                "mothers": [], "occupants": [], "items": [], "offset": 0, "total": 0}
+                "mothers": [], "occupants": [], "items": [], "offset": 0, "total": 0,
+                "page": PAGE, "reminder_states": REMINDER_STATES}
     return render_template("cultures.html", page_title=item["name"], current_page="cultures",
                            csrf_token="jeton", overview=overview,
                            detail=detail if detail is not None else build_detail(item), error=None,
@@ -154,7 +155,7 @@ def test_stade_courant_affiche_toutes_les_options_en_correction():
     # test tant que le journal restait vide.
     item = subject(stage="floraison")
     assert stage_options(item) == []
-    complete = stage_options(item, current=True)
+    complete = stage_options(item, correction=True)
     assert complete == ["germination", "vegetatif", "floraison"]
     correction = {"id": "evt-1", "kind": "stage", "effective_at": "2026-08-15",
                   "precision": "date", "payload": {"stage": "vegetatif"}, "cancelled": False,
@@ -234,5 +235,5 @@ async def test_vue_detail_publie_les_regles_pures(tmp_path, label, overrides):
     assert detail["actions"] == fiche_actions(item)
     assert detail["stage_checks"] == stage_checks(item)
     assert detail["stage_options"] == stage_options(item)
-    assert detail["stage_options_full"] == stage_options(item, current=True)
+    assert detail["stage_options_full"] == stage_options(item, correction=True)
     assert_equivalence(render(item, detail=detail), item)

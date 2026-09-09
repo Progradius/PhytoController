@@ -21,7 +21,7 @@ from model.culture import (SPACES, STAGES, CultureConflict, CultureError, backfi
                            creation_stages, event_payload, fiche_actions, observation_shortcut,
                            project, stamp, stage_options, text_value, validate_origin,
                            validate_origins, validate_spaces)
-from model.culture_cycle import TODAY_REMINDERS, reminder_buckets, stage_checks
+from model.culture_cycle import REMINDER_STATES, TODAY_REMINDERS, reminder_buckets, stage_checks
 from model.culture_journal import TODAY_JOURNAL
 
 from model.culture_solution import RESERVOIRS
@@ -39,6 +39,11 @@ from model.culture_assistance import transition_summary
 from utils.culture_schema_v4 import SCHEMA4_SQL, V4_TABLES
 
 SCHEMA_VERSION = 4
+
+# Taille de page des listes du carnet (cultures, journal d'une fiche). Elle voyage dans les
+# réponses (`page`) : le gabarit construisait ses liens « Précédentes / Suivantes » avec sa
+# propre constante, soit deux vérités pour un même découpage.
+PAGE = 40
 # La vue `culture_journal` est volontairement absente : elle ne contient rien que ses
 # sources n'exportent déjà, et un SELECT * dessus dupliquerait tout le carnet.
 TABLES = ("settings", "subjects", "origins", "events", "requests") + SOLUTION_TABLES + CYCLE_TABLES + V4_TABLES
@@ -310,7 +315,11 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
         overview = {"available": True, "timezone": self.zone, "clock_reliable": self.reliable(),
                     "today": today, "search": (search or "").strip(),
-                    "items": selected[offset:offset + 40], "total": len(selected), "offset": offset,
+                    "items": selected[offset:offset + PAGE], "total": len(selected), "offset": offset,
+                    "page": PAGE,
+                    # Libellés d'état des rappels : la table pure du modèle, jamais recopiée
+                    # dans un gabarit.
+                    "reminder_states": REMINDER_STATES,
                     "occupants": [s for s in subjects if s["space"]],
                     "mothers": [{"id": s["id"], "name": s["name"], "archived": s["archived"]}
                                 for s in subjects if s["kind"] == "mother"]}
@@ -336,12 +345,12 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
             event["revisions"] = [v for v in versions if v["id"] == event["id"] and v["revision"] < event["revision"]]
         names = {s["id"]: s["name"] for s in subjects}
         today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
-        return {"subject": subject, "events": events[offset:offset + 40], "total": len(events),
-                "offset": offset, "timezone": self.zone, "clock_reliable": self.reliable(),
+        return {"subject": subject, "events": events[offset:offset + PAGE], "total": len(events),
+                "offset": offset, "page": PAGE, "timezone": self.zone, "clock_reliable": self.reliable(),
                 "backfill": {"stages": backfill_stages(subject),
                              "spaces": ["space_1"] if subject["kind"] == "mother" else list(SPACES),
                              "before": subject.get("stage_at")},
-                "photos": self._media_for_events([e["id"] for e in events[offset:offset + 40]]),
+                "photos": self._media_for_events([e["id"] for e in events[offset:offset + PAGE]]),
                 # Rappels du seul sujet, classés comme sur l'accueil : la fiche montre ce qui
                 # est en retard ou dû aujourd'hui sans rouvrir la page des cycles.
                 "reminders": self._reminder_view_buckets(

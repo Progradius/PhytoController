@@ -801,11 +801,16 @@ ouverts restent soumis à la validation de version du serveur.
 
 Les formulaires de création, de parcours et de solutions proposent **Vérifier avant
 d’enregistrer**. Cette vérification est **à la demande** : elle ne part que sur ce
-bouton, et sur le premier envoi d’un relevé de solution, une seule fois par saisie —
-le seul chemin qui cherche des relevés ressemblants. Enregistrer directement n’en
-déclenche aucune, et un échec de vérification qui n’est pas un refus (carnet occupé,
-réseau) n’empêche pas l’enregistrement, qui revalide tout. Cette action expose les
-conséquences déclaratives ou les erreurs sans enregistrer la saisie. Une transition présente l’état avant/après, sa date et,
+bouton, sur le premier envoi d’un relevé de solution, une seule fois par saisie — le seul
+chemin qui cherche des relevés ressemblants —, et sur une **transition guidée** (passage
+de stade, déplacement, récolte, clôture du séchage, archivage, libération d’espace) : le
+premier clic sur le bouton d’enregistrement montre l’avant/après sans rien écrire, la
+confirmation envoie la mutation. Une transition coûte donc deux envois, dans cet ordre, et
+n’écrit jamais au premier clic. Tout autre enregistrement direct — création, correction,
+rattrapage, observation, photo — n’en déclenche aucune, et un échec de vérification qui
+n’est pas un refus (carnet occupé, réseau) n’empêche pas l’enregistrement, qui revalide
+tout. Cette action expose les conséquences déclaratives ou les erreurs sans enregistrer la
+saisie. Une transition présente l’état avant/après, sa date et,
 pour une récolte, la coupure de l’alimentation déclarée et le maintien de l’occupation
 jusqu’à sa libération. Les règles de validation sont les mêmes que pour l’enregistrement
 final. Une autre saisie intervenue entre les deux étapes peut donc encore provoquer
@@ -821,6 +826,10 @@ enregistrement ; elle n’oblige pas à créer une seconde entrée.
 
 La prévalidation peut aussi afficher un relevé antérieur de même cible/contexte et
 l’alimentation déclarée à la date saisie. Elle conserve la cible choisie et tous les
-champs de mesure. Une association inconnue n’est pas déduite du nom d’un équipement.
+champs de mesure. Quand la saisie est ouverte depuis une fiche (lien « Saisir un relevé
+pour cette culture »), la même phrase — aucune, une, ou plusieurs alimentations déclarées,
+avec la date de l’association — s’affiche **dès le chargement**, à côté du champ de cible.
+C’est un fait daté, pas une sélection : aucun réservoir n’est choisi à la place de
+l’opérateur. Une association inconnue n’est pas déduite du nom d’un équipement.
 Aucune aide ne coche une vérification, ne change un stade ou un réglage, ni ne programme
 un envoi au retour du réseau.

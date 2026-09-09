@@ -55,15 +55,27 @@
 <h4>{{ reminder.title }}</h4>
 <p>Échéance {{ reminder.due_date|culture_date(overview.timezone) }}{% if reminder.interval_days %} · tous les {{ reminder.interval_days }} jours{% endif %}</p>
 <p>{% if reminder.target.kind == 'culture' %}<a href="/cultures/{{ reminder.target.id|urlencode }}">{{ reminder.target.name }}</a>{% else %}<a href="/cultures/solutions?target={{ reminder.target.id|urlencode }}">{{ reminder.target.name }}</a>{% endif %}</p>
-{% if closed %}<p>{{ 'Annulé' if reminder.state == 'cancelled' else 'Fait' }}{% if reminder.completed_at %} le {{ reminder.completed_at|culture_date(overview.timezone) }}{% endif %}</p>
+{% if closed %}<p>{{ overview.reminder_states[reminder.state] }}{% if reminder.completed_at %} le {{ reminder.completed_at|culture_date(overview.timezone) }}{% endif %}</p>
 {% else %}
 <form class="culture-form" data-cycle-form data-operation="reminder_action" data-id="{{ reminder.id }}" data-version="{{ reminder.revision }}" data-cycle-return="agenda">
 {# Deux gestes, deux boutons : « Fait » et « Reporter » sont l'action, pas une valeur à
    choisir puis à confirmer. Le champ de date reste rendu visible — sans script il n'y a
-   personne pour l'ouvrir — et c'est `cultures.js` qui le replie puis le rouvre au premier
-   clic sur « Reporter ». « Annuler » n'est pas un geste du quotidien : il reste offert,
-   sous un repli, et ne dispute pas la place aux deux autres. #}
-<div data-reminder-postpone><label>Nouvelle échéance (pour reporter)<input type="date" name="due_date"></label></div>
+   personne pour l'ouvrir — et c'est `culture_cycles.js` qui le replie puis le rouvre au
+   premier clic sur « Reporter ». « Annuler » n'est pas un geste du quotidien : il reste
+   offert, sous un repli, et ne dispute pas la place aux deux autres.
+
+   Le bouton masqué ci-dessous est le **bouton par défaut** du formulaire : la soumission
+   implicite (Entrée dans le champ de date) agit comme un clic sur le premier bouton
+   d'envoi de l'arbre, quelle que soit sa visibilité. C'était « Fait » : une touche Entrée
+   dans la nouvelle échéance clôturait le rappel au lieu de le reporter, sans retour
+   possible. Il porte donc « Reporter », le seul geste qu'Entrée dans ce champ puisse
+   vouloir dire, et les deux boutons visibles gardent leur ordre de lecture. Il n'est ni
+   affiché ni atteignable au clavier ; `culture_cycles.js` refuse par ailleurs tout envoi
+   qui ne vient pas d'un bouton d'action. #}
+<button type="submit" name="action" value="postponed" data-reminder-action="postponed" hidden tabindex="-1">Reporter</button>
+{# `data-cf-collapsible` : ce repli-là est bien un pliage d'affichage, pas une règle
+   métier — un refus serveur portant sur la nouvelle échéance doit pouvoir le rouvrir. #}
+<div data-cf-collapsible data-reminder-postpone><label>Nouvelle échéance (pour reporter)<input type="date" name="due_date"></label></div>
 <label>Note de suivi<textarea name="note" maxlength="4000"></textarea></label>
 {{ confirm_date() }}<div class="culture-form-actions culture-reminder-actions"><button class="button" type="submit" name="action" value="done" data-reminder-action="done">Fait</button><button class="button button-secondary" type="submit" name="action" value="postponed" data-reminder-action="postponed">Reporter</button><output role="status" class="form-status" aria-live="polite"></output></div>
 <details class="culture-reminder-other"><summary>Autres actions</summary><button class="button button-secondary" type="submit" name="action" value="cancelled" data-reminder-action="cancelled">Annuler ce rappel</button></details></form>
@@ -105,7 +117,7 @@
 </div>
 {# Le raccourci ne dépend plus d'un comptage écrit ici : `observation_shortcut` est une
    règle pure. Une seule culture, il l'ouvre ; plusieurs, il ouvre ce sélecteur, qui n'est
-   qu'une liste de liens — elle fonctionne sans script et reste bornée à la page (40), la
+   qu'une liste de liens — elle fonctionne sans script et reste bornée à la page, la
    recherche de la liste servant au-delà. #}
 {% if not overview.observation_shortcut %}
 <details class="card culture-observation-picker" id="choisir-observation" tabindex="-1"><summary>Choisir la culture à observer</summary>
@@ -146,7 +158,9 @@
 {% if overview.search %}<p>Aucune culture ne porte « {{ overview.search }} » dans son nom ou sa variété{{ ' parmi les archives' if archives else '' }}.</p>{% elif archives %}<p>Aucune archive.</p>{% else %}<p>Le carnet est vide. Une culture déjà en cours se reprend aussi, avec ses dates connues ou approximatives.</p><p><a class="button" href="#creer-lot">Ajouter ma première culture</a></p>{% endif %}
 {% endfor %}</div>
 {% set search_query = '&q=' ~ overview.search|urlencode if overview.search else '' %}
-<nav class="culture-links" aria-label="Pagination des cultures">{% if overview.offset %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ [0,overview.offset-40]|max }}{{ search_query }}">Précédentes</a>{% endif %}{% if overview.offset+40 < overview.total %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ overview.offset+40 }}{{ search_query }}">Suivantes</a>{% endif %}</nav></section>
+{# La taille de page vient du magasin (`overview.page`) : c'est lui qui découpe la liste,
+   la page ne peut pas en supposer une seconde. #}
+<nav class="culture-links" aria-label="Pagination des cultures">{% if overview.offset %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ [0,overview.offset-overview.page]|max }}{{ search_query }}">Précédentes</a>{% endif %}{% if overview.offset+overview.page < overview.total %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ overview.offset+overview.page }}{{ search_query }}">Suivantes</a>{% endif %}</nav></section>
 {% if not archives %}
 <section class="culture-grid culture-section" aria-label="Créer une culture">
 {% for kind,title in (('mother','Ajouter un pied mère'),('lot','Créer un lot')) %}
@@ -289,7 +303,7 @@
 <label>Motif de correction (facultatif)<input name="reason" maxlength="500"></label>{% if event.kind != 'create' %}<label class="culture-confirm"><input type="checkbox" name="cancelled"{% if event.cancelled %} checked{% endif %}> Annuler cette entrée erronée</label>{% endif %}{{ submit('Enregistrer la correction') }}</form></details>
 {% if event.revisions %}<details><summary>Versions précédentes ({{ event.revisions|length }})</summary>{% for revision in event.revisions %}<p>Version {{ revision.revision }} · {{ revision.effective_at|culture_date(overview.timezone) }} · {{ {'date':'date connue','instant':'heure connue','approximative':'date approximative'}[revision.precision] }}{{ ' · annulée' if revision.cancelled else '' }}</p>{{ event_summary(revision) }}{% endfor %}</details>{% endif %}
 </article>{% endfor %}
-<nav class="culture-links" aria-label="Pagination du journal">{% if detail.offset %}<a href="?offset={{ [0,detail.offset-40]|max }}">Entrées plus récentes</a>{% endif %}{% if detail.offset+40 < detail.total %}<a href="?offset={{ detail.offset+40 }}">Entrées plus anciennes</a>{% endif %}</nav></section>
+<nav class="culture-links" aria-label="Pagination du journal">{% if detail.offset %}<a href="?offset={{ [0,detail.offset-detail.page]|max }}">Entrées plus récentes</a>{% endif %}{% if detail.offset+detail.page < detail.total %}<a href="?offset={{ detail.offset+detail.page }}">Entrées plus anciennes</a>{% endif %}</nav></section>
 {% endif %}
 <details class="card culture-section"><summary>Export et sauvegarde du carnet complet</summary><p>Les archives sont conservées sans purge automatique. Conservez une sauvegarde hors du Pi. Le CSV sert à l’analyse ; SQLite est la sauvegarde restaurable.</p><div class="culture-links"><a href="/api/v1/cultures/export?format=csv">Exporter le journal CSV</a><a href="/api/v1/cultures/export?format=json">Exporter toutes les données JSON</a><a href="/api/v1/cultures/export?format=sqlite3">Base SQLite seule (sans photos)</a><a href="/api/v1/cultures/bundle">Sauvegarde complète avec photos (ZIP)</a></div></details>
 {% endif %}

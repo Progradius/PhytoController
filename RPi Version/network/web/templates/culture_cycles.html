@@ -23,8 +23,16 @@
 <details class="card"><summary>Créer un rappel</summary>{{ reminder_form() }}</details>
 {% for reminder in data.reminders %}<article class="card culture-journal" id="reminder-{{ reminder.id }}" tabindex="-1"><h3>{{ reminder.title }}</h3><p>{{ states[reminder.state] }} · échéance {{ reminder.due_date|culture_date(data.timezone) }}{{ ' · EN RETARD' if reminder.overdue else ' · AUJOURD’HUI' if reminder.due_today else '' }}</p><p>{% for subject in data.subjects if subject.id == reminder.subject_id %}<a href="/cultures/{{ subject.id }}">{{ subject.name }}</a>{% endfor %}{% if reminder.reservoir_id %}{{ reservoirs[reminder.reservoir_id][0] }}{% endif %}</p><p class="culture-note">{{ reminder.note }}</p>
 {% if reminder.state in ('planned','postponed') %}<form class="culture-form" data-cycle-form data-operation="reminder_action" data-id="{{ reminder.id }}" data-version="{{ reminder.revision }}">
-<label>Action sur le rappel<select name="action"><option value="done">Marquer fait</option><option value="postponed">Reporter</option><option value="cancelled">Annuler</option></select></label>
-<label>Nouvelle échéance (pour reporter)<input type="date" name="due_date"></label><label>Note de suivi<textarea name="note" maxlength="4000"></textarea></label>{{ confirm() }}<button class="button" type="submit">Enregistrer le suivi</button><output role="status"></output></form>
+{# Même carte de rappel que l'accueil, mêmes gestes : deux boutons d'envoi plutôt qu'une
+   valeur à choisir puis à confirmer, « Annuler » sous un repli, et le bouton masqué qui
+   fait de « Reporter » le bouton par défaut du formulaire — Entrée dans la nouvelle
+   échéance ne doit pas clore le rappel. Le pliage de la zone de date est celui de
+   `culture_cycles.js`, chargé ici comme sur l'accueil. #}
+<button type="submit" name="action" value="postponed" data-reminder-action="postponed" hidden tabindex="-1">Reporter</button>
+<div data-cf-collapsible data-reminder-postpone><label>Nouvelle échéance (pour reporter)<input type="date" name="due_date"></label></div>
+<label>Note de suivi<textarea name="note" maxlength="4000"></textarea></label>{{ confirm() }}
+<div class="culture-form-actions culture-reminder-actions"><button class="button" type="submit" name="action" value="done" data-reminder-action="done">Fait</button><button class="button button-secondary" type="submit" name="action" value="postponed" data-reminder-action="postponed">Reporter</button><output role="status" class="form-status" aria-live="polite"></output></div>
+<details class="culture-reminder-other"><summary>Autres actions</summary><button class="button button-secondary" type="submit" name="action" value="cancelled" data-reminder-action="cancelled">Annuler ce rappel</button></details></form>
 <details><summary>Modifier le rappel</summary>{{ reminder_form(reminder) }}</details>{% endif %}
 {% if reminder.revisions %}<details><summary>Historique du rappel</summary>{% for old in reminder.revisions %}<p>{{ states[old.state] }} · {{ old.due_date|culture_date(data.timezone) }} · {{ old.title }}</p><p class="culture-note">{{ old.note }}</p>{% endfor %}</details>{% endif %}</article>{% else %}<p>Aucun rappel pour cette sélection.</p>{% endfor %}
 <nav class="culture-links" aria-label="Pagination des rappels">{% if data.offset %}<a data-cycle-offset="{{ [0,data.offset-40]|max }}" href="?offset={{ [0,data.offset-40]|max }}">Précédents</a>{% endif %}{% if data.offset+40 < data.reminder_total %}<a data-cycle-offset="{{ data.offset+40 }}" href="?offset={{ data.offset+40 }}">Suivants</a>{% endif %}</nav></section>

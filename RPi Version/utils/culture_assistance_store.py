@@ -10,31 +10,58 @@ from model.culture_targets import resolve_targets
 
 
 class AssistanceStoreMixin:
+    def _assistance_token(self, subject_id, version, latest):
+        """Jeton opaque de fraîcheur d'une fiche : version du parcours **et** ses sources.
+
+        La version du sujet ne bouge qu'aux événements de parcours (`UPDATE subjects SET
+        version`). Les aides, elles, dépendent aussi des rappels, des vérifications, des
+        photos du stade et du dernier relevé : un rappel marqué fait laissait donc l'aide
+        « Ouvrir le rappel » affichée jusqu'au rechargement de la page, puisque le serveur
+        répondait « inchangé ».
+
+        L'empreinte reste bon marché — des `COUNT`/`MAX(revision)` bornés au sujet, sur des
+        colonnes indexées, plus le dernier relevé que la réponse complète calcule de toute
+        façon. Aucune projection n'est faite ici. Le jeton n'a pas de sens hors du serveur :
+        le client le renvoie tel quel, il ne le lit pas.
+        """
+        counts = self._db.execute(
+            "SELECT (SELECT COUNT(*) FROM reminders WHERE subject_id=:s),"
+            " (SELECT COALESCE(MAX(revision),0) FROM reminders WHERE subject_id=:s),"
+            " (SELECT COUNT(*) FROM culture_checklists WHERE subject_id=:s),"
+            " (SELECT COALESCE(MAX(revision),0) FROM culture_checklists WHERE subject_id=:s),"
+            " (SELECT COUNT(*) FROM culture_media WHERE owner_kind='event' AND subject_id=:s)",
+            {"s": subject_id}).fetchone()
+        reading = "-" if latest is None else "|".join(
+            str(latest.get(key)) for key in ("effective_at", "precision", "ph", "ec"))
+        return ":".join([str(version)] + [str(value) for value in counts] + [reading])
+
     def _assistance(self, subject_id, version=None):
         """Aides éphémères d'une fiche ; `version` évite de tout recalculer pour rien.
 
         Une fiche laissée ouverte redemande ses aides à chaque retour de visibilité. Rien
-        n'est mémorisé entre deux requêtes : le client renvoie la version qu'il affiche et
-        le serveur la compare à celle du sujet, par une seule lecture d'un entier. Égales,
-        la réponse est `{"unchanged": true}` — sans projection, sans rappel, sans
-        vérification lues. Les aides ne dépendent que du parcours (dont toute modification
-        incrémente la version), des rappels et de la date du jour ; un changement de jour
-        se traduit dans les faits par un rappel qui devient dû, et la fiche est de toute
-        façon rechargée. Une version absente ou différente refait le calcul complet.
+        n'est mémorisé entre deux requêtes : le client renvoie le jeton qu'il affiche et le
+        serveur le compare à celui qu'il vient de calculer (`_assistance_token`), par
+        quelques agrégats bornés au sujet. Égaux, la réponse est `{"unchanged": true}` —
+        sans projection, sans rappel ni vérification détaillés. Les aides ne dépendent que
+        de ces sources et de la date du jour ; un changement de jour se traduit dans les
+        faits par un rappel qui devient dû, et la fiche est de toute façon rechargée. Un
+        jeton absent ou différent refait le calcul complet.
         """
-        if version is not None:
-            row = self._db.execute("SELECT version FROM subjects WHERE id=?", (subject_id,)).fetchone()
-            if row is None:
-                raise CultureError("Culture introuvable.")
-            if row["version"] == version:
-                return {"unchanged": True, "version": version, "valid_for_seconds": 30,
-                        "generated_at": self.now().isoformat()}
-        subject = next((s for s in self._projections() if s["id"] == subject_id), None)
-        if subject is None:
+        row = self._db.execute("SELECT version FROM subjects WHERE id=?", (subject_id,)).fetchone()
+        if row is None:
             raise CultureError("Culture introuvable.")
         # Le dernier relevé du seul sujet affiché : l'export intégral du journal n'a jamais
         # servi qu'à en extraire une ligne, et il coûtait une seconde projection complète.
-        subject["latest_reading"] = self._latest_reading(subject_id)
+        # Il entre dans le jeton, il est donc lu avant la comparaison, pas deux fois.
+        latest = self._latest_reading(subject_id)
+        token = self._assistance_token(subject_id, row["version"], latest)
+        if version is not None and version == token:
+            return {"unchanged": True, "version": token, "valid_for_seconds": 30,
+                    "generated_at": self.now().isoformat()}
+        subject = next((s for s in self._projections() if s["id"] == subject_id), None)
+        if subject is None:
+            raise CultureError("Culture introuvable.")
+        subject["latest_reading"] = latest
         today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
         # Révisions courantes uniquement : aucune lecture des anciennes révisions pour l'aide.
         checks = [dict(r) for r in self._db.execute(
@@ -48,7 +75,7 @@ class AssistanceStoreMixin:
             "SELECT COUNT(*) FROM culture_media WHERE owner_kind='event' AND subject_id=? AND recorded_at>=?",
             (subject_id, subject.get("stage_at") or "")).fetchone()[0] if subject.get("stage_at") else 0
         return {"items": suggestions(subject, checks, rows, today, self.zone, self.reliable(), photos),
-                "version": subject["version"], "generated_at": self.now().isoformat(), "valid_for_seconds": 30}
+                "version": token, "generated_at": self.now().isoformat(), "valid_for_seconds": 30}
 
     def _preview(self, domain, command, equipment=None):
         if domain not in ("culture", "solution") or not isinstance(command, dict):
