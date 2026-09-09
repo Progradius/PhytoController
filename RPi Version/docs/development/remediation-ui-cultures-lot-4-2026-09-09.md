@@ -411,8 +411,33 @@ rejoué sur le Pi et rapport mis à jour.
   son journal WAL. La fuite est donc plus lourde que décrite. Aucun n'étant vide, aucun n'a
   été supprimé par le lot E : leur nettoyage reste une décision de l'exploitant.
 
+### Revue indépendante et corrections
+
+Une revue indépendante des cinq lots a relevé douze écarts, tous corrigés ici. Aucun ne
+touche la régulation, aucune persistance ni route nouvelle.
+
+| Point | Écart relevé | Correctif appliqué |
+| --- | --- | --- |
+| P1.1 | colonne « Cible ou capteur » et phrase du curseur affichant l'identifiant technique | `chart_sources` publie `target` (cibles nommées) à côté de `label` ; `culture_solutions.js` nomme la source dans la cellule, le curseur et l'infobulle, et retombe sur `p.target` seulement pour le repli |
+| P1.2 | plafond de quatre imposé par `disabled`, donc explication jamais annoncée | `aria-disabled="true"` et refus au gestionnaire `change` (la cinquième case se décoche aussitôt) ; la case reste focalisable, opacité réduite dans `cultures.css` |
+| P1.3 | boutons et tap silencieux, seul `aria-valuetext` annonçait | région live masquée (`visually-hidden`, `role="status"`) propre à l'explorateur, alimentée par `select(index, {announce})` et uniquement pour un bouton ou un tap |
+| P2.1 | docstring affirmant un balayage borné par les dates | texte corrigé (dates facultatives, ×4,5 mesuré sur 12 000 relevés) ; aucune fenêtre par défaut ajoutée, le conseil passe dans `cultures-api.md` |
+| P2.2 | commentaire attribuant le gain aux bornes et à l'index `solution_date` | commentaire refait sur le plan réellement retenu (`SCAN l`, `solution_periods` par clé primaire, index automatique sur `reservoir_id`) ; le gain vient de la sous-requête corrélée supprimée |
+| P2.3 | aucune assertion sur le plan de requête | `test_bilan_ph_ec_ne_balaie_plus_solution_entries` : `EXPLAIN QUERY PLAN` du bilan, aucune ligne `SCAN e` |
+| P2.4 | variante de repli 6 indiscernable de la 5 (deux points évidés pointillés) | repli plein, contour continu épais, teinte en retrait et opacité `.55` ; les variantes 0 à 5 restent distinctes par la forme et le motif ; `test_repli_de_repere_ne_nomme_aucune_cible_et_reste_distinct` couvre huit sources |
+| P2.5 | `casefold()` côté serveur contre `toLowerCase()` côté navigateur | `search_key` plie par `lower()`, docstring expliquant « ß » ; deux tests (clé pure et recherche des choix) |
+| P2.6 | rembourrage du `dialog` fermant la galerie au clic | rembourrage porté par `.culture-gallery-body`, créé en JS ; `event.target === dialog` redevient exact |
+| P2.7 | retour de focus neutralisé même sans destination atteinte | `followed` reste faux pour la page courante sans fragment |
+| P2.8 | consigne d'usage répétée sous chaque figure | rendue au premier appel de `chart` de la page (drapeau de module) |
+| P2.9 | bloc de sélection sans `output` ni champ | garde `if (!output || !query) return;`, dans l'esprit de R1.4 |
+| P3 | `stages[period.stage]` sur les cartes d'archives ; `phyto_norm` réinscrite à chaque requête | `stages.get(period.stage, period.stage)` ; fonction inscrite une fois à l'ouverture de la connexion (`CultureStore._open`) |
+
 ### Reliquats
 
+- La légende des courbes de solutions reste calculée sur **tous** les points de la figure et
+  non métrique par métrique : une source qui n'apporte que de l'EC figure encore dans la
+  légende du pH. Le doute du lot C reste ouvert ; seule la seconde moitié du constat (les
+  deux vocabulaires de la colonne « Cible ou capteur ») est corrigée par P1.1.
 - Hors lot, à arbitrer : aperçu de photo avant envoi, progression d'envoi, alignement de la
   comparaison par âge du stade.
 - Mineur, doute du lot C : la légende des courbes de solutions est calculée sur **tous** les

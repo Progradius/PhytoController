@@ -392,7 +392,7 @@ async def test_page_des_choix_hors_bornes_est_ramenee_dans_les_resultats(culture
 async def test_recherche_de_comparaison_ignore_les_accents_et_classe_par_nom(cultures):
     """Normalisation NFD sans marques, des deux côtés (R3.7), et ordre documenté.
 
-    « epinard » ne trouvait pas « Épinard » : `casefold()` plie la casse, pas les signes
+    « epinard » ne trouvait pas « Épinard » : le seul pliage de casse ne touche pas les signes
     diacritiques. L'ordre était celui des projections (`rowid` décroissant), qui ne veut rien
     dire pour une recherche par nom.
     """
@@ -412,3 +412,56 @@ async def test_recherche_de_comparaison_ignore_les_accents_et_classe_par_nom(cul
     assert [s["name"] for s in everything["comparison_choices"]] == ["Basilic", "Épinard", "epinard tardif", "Menthe"]
     # La clé servie au filtre du navigateur est celle du serveur : une seule normalisation.
     assert {s["name"]: s["search"] for s in everything["comparison_choices"]}["Basilic"] == "basilic genovese"
+
+
+def test_cle_de_recherche_plie_la_casse_comme_le_navigateur():
+    """`lower()` et non `casefold()` : la clé du serveur est celle de JavaScript (P2.5).
+
+    `casefold()` plie plus que `toLowerCase()` : il rend « ß » en « ss ». Le serveur aurait
+    retenu « Straßburg » pour la saisie « strassburg », et le filtre du navigateur, qui plie
+    moins, aurait masqué aussitôt ce choix — un résultat compté par le serveur puis rendu
+    invisible par la page.
+    """
+    from model.culture_text import search_key
+
+    assert search_key("Straßburg") == "straßburg"
+    assert search_key("straß") in search_key("Straßburg")
+    assert search_key("strass") not in search_key("Straßburg")
+    # La normalisation des diacritiques, elle, ne change pas.
+    assert search_key("ÉPINARD") == search_key("epinard") == "epinard"
+
+
+async def test_recherche_de_comparaison_ne_plie_pas_l_eszett(cultures):
+    """La règle du magasin est bien celle-là, jusque dans la recherche des choix."""
+    await cultures.call("mutate", create("Straßburg", "mother"))
+
+    found = await cultures.call("cycle_data", [], 0, None, 0, None, "straß")
+    assert [s["name"] for s in found["comparison_choices"]] == ["Straßburg"]
+    # La clé servie au navigateur ne plie pas non plus : les deux filtres voient la même chose.
+    # La clé sert nom **et** variété : sans variété, elle garde son séparateur en fin.
+    assert found["comparison_choices"][0]["search"].strip() == "straßburg"
+    absent = await cultures.call("cycle_data", [], 0, None, 0, None, "strassburg")
+    assert absent["comparison_choices"] == []
+
+
+async def test_bilan_ph_ec_ne_balaie_plus_solution_entries(cultures):
+    """Plan de requête du bilan : plus aucun `SCAN e` (validation de R2.2).
+
+    Le correctif a remplacé un balayage du journal entier assorti d'une sous-requête corrélée
+    par relevé ; rien ne l'asseyait. `EXPLAIN QUERY PLAN` le dit en une ligne, et cette
+    assertion échouerait au retour de l'ancienne forme, même si les résultats restaient justes.
+    La requête est exécutée par le magasin, donc sur son thread unique.
+    """
+    lot = await cultures.call("mutate", create(space="space_2"))
+    await cultures.call("solution_mutate", entry())
+    await cultures.call("solution_mutate", entry("reading", "2026-08-05", ph=6.1, ec=1.4))
+
+    def plan():
+        sql = ("EXPLAIN QUERY PLAN SELECT COUNT(e.ph) FROM solution_entries e"
+               + cultures._subject_readings_sql())
+        return [row["detail"] for row in cultures._db.execute(sql, {"subject": lot["subject_id"]})]
+
+    cultures._plan_du_bilan = plan
+    detail = await cultures.call("plan_du_bilan")
+    assert detail, "aucun plan retourné"
+    assert not [line for line in detail if line == "SCAN e" or line.startswith("SCAN e ")], detail

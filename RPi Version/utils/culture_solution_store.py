@@ -497,9 +497,13 @@ class SolutionStoreMixin:
                     f" AND ({table}.end_at IS NULL OR {entry}.sort_at<{table}.end_at) END)")
 
         # Bornes larges redondantes avec la fenêtre : les deux bras du `CASE` sont inclus dans
-        # [début ; fin], donc elles ne changent aucun résultat, mais elles donnent au moteur un
-        # intervalle sur `sort_at` et rendent l'index `solution_date(sort_at, reservoir_id)`
-        # utilisable là où il ne restait qu'un balayage.
+        # [début ; fin], donc elles ne changent aucun résultat. Elles ne sont pas non plus ce
+        # qui a fait tomber le coût : le plan effectif part des associations du sujet
+        # (`SCAN l`), prend `solution_periods` par sa clé primaire et rejoint
+        # `solution_entries` par un index automatique sur `reservoir_id` — jamais par
+        # `solution_date(sort_at, reservoir_id)`. Le gain vient de la disparition de la
+        # sous-requête corrélée évaluée pour chaque relevé du carnet. Les bornes restent là
+        # parce qu'elles sont exactes et sans effet de bord, pas parce qu'elles optimisent.
         bounds = ("f.sort_at>=p.start_at AND (p.end_at IS NULL OR f.sort_at<=p.end_at)"
                   " AND f.sort_at>=l.start_at AND (l.end_at IS NULL OR f.sort_at<=l.end_at)")
         return (

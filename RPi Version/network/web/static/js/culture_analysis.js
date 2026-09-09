@@ -25,6 +25,9 @@
   const searchKey = value => String(value ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const RANK_HEADER = "Rang";
   const MISSING_CELL = "—";
+  // La consigne vaut pour la page, pas pour chaque figure : deux courbes sur une même page
+  // en donnaient deux copies, que le lecteur d'écran relit et que l'œil doit écarter.
+  let usageShown = false;
 
   // Contrat interne avec les scripts hôtes (solutions, cycles), volontairement minimal :
   //   chart(svg, rows, label, columns) rend l'explorateur et renvoie refresh(positions).
@@ -49,11 +52,21 @@
     range.max = String(rows.length - 1);
     range.value = "0";
     rangeLabel.append(range);
-    // Une seule annonce, celle du curseur : une région live sur la sortie doublerait
-    // chaque déplacement et reparlerait à chaque redessin, rotation du téléphone comprise.
+    // Sortie visible, jamais live : une région live posée ici doublerait chaque déplacement
+    // du curseur et reparlerait à chaque redessin, rotation du téléphone comprise.
     const output = element("p", null, "culture-analysis-output");
+    // Annonce des gestes qui n'ont pas le curseur sous le doigt ni sous le focus : un bouton
+    // et un tap ne déclenchent aucune relecture de `aria-valuetext`, donc le déplacement
+    // resterait muet. Région masquée et distincte de la sortie visible, qui n'est jamais
+    // live : le curseur au clavier annoncerait sinon deux fois le même point.
+    const announcer = element("p", null, "visually-hidden");
+    announcer.setAttribute("role", "status");
     controls.append(previous, next);
-    zone.append(rangeLabel, controls, output, element("p", USAGE, "card-meta"));
+    zone.append(rangeLabel, controls, output, announcer);
+    if (!usageShown) {
+      zone.append(element("p", USAGE, "card-meta"));
+      usageShown = true;
+    }
     svg.after(zone);
     let selected = 0;
     let marked = null;
@@ -86,7 +99,7 @@
     };
     // Bornage dans `select` plutôt que désactivation des boutons : un bouton qui devient
     // `disabled` sous le focus le perd au moment même où il est activé.
-    const select = index => {
+    const select = (index, options) => {
       const target = Math.max(0, Math.min(rows.length - 1, index));
       const changed = target !== selected || !range.hasAttribute("aria-valuetext");
       selected = target;
@@ -95,11 +108,14 @@
         output.textContent = `${selected + 1} / ${rows.length} · ${rows[selected].text}${bound()}`;
         range.setAttribute("aria-valuetext", output.textContent);
       }
+      // `announce` n'est vrai que pour un geste hors curseur : ni l'événement `input` du
+      // curseur, ni un redessin ne reparlent.
+      if (options && options.announce) announcer.textContent = output.textContent;
       paint();
     };
     range.addEventListener("input", () => select(Number(range.value)));
-    previous.addEventListener("click", () => select(selected - 1));
-    next.addEventListener("click", () => select(selected + 1));
+    previous.addEventListener("click", () => select(selected - 1, {announce: true}));
+    next.addEventListener("click", () => select(selected + 1, {announce: true}));
     svg.addEventListener("click", event => {
       // Distances calculées dans le repère du `viewBox` puis ramenées en pixels CSS par
       // la matrice de rendu : exact après une rotation, sans lire une boîte par point.
@@ -116,7 +132,7 @@
         best = index;
       });
       if (best < 0 || distance > TAP_RADIUS_PX) return;
-      select(best);
+      select(best, {announce: true});
     });
     const details = element("details");
     details.append(element("summary", "Tableau des données du graphique"));
@@ -185,7 +201,12 @@
     const context = element("a", "Ouvrir l’entrée liée");
     const controls = element("div", null, "culture-analysis-controls");
     controls.append(previous, next);
-    dialog.append(title, close, image, caption, controls, context);
+    // Le rembourrage vit sur cette enveloppe et non sur le `dialog` : posé sur le dialogue,
+    // il en fait une zone cliquable qui n'est aucun de ses enfants, et le clic y atteignait
+    // `event.target === dialog`, donc fermait la galerie à côté de l'image.
+    const body = element("div", null, "culture-gallery-body");
+    body.append(title, close, image, caption, controls, context);
+    dialog.append(body);
     document.body.append(dialog);
     let group = [];
     let index = 0;
@@ -240,7 +261,10 @@
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const destination = new URL(context.href, location.href);
       const here = destination.pathname === location.pathname && destination.search === location.search;
-      followed = true;
+      // Même page et aucun fragment : rien ne se passera, ni navigation ni défilement ni
+      // ancre à focaliser. Neutraliser le retour laisserait alors le focus sur `body`, sans
+      // destination atteinte à annoncer ; la lecture reprend donc sur la vignette.
+      followed = !here || Boolean(destination.hash);
       dialog.close();
       // Vers une autre page (journal → fiche), la navigation fait le travail. Sur la même
       // page, un dialogue qui se ferme ne laisse ni défilement ni focus au fragment : c'est
@@ -267,6 +291,9 @@
     const query = selection.querySelector('input[type="search"]');
     const checks = [...selection.querySelectorAll('[name="subject"]')];
     const output = selection.querySelector("output");
+    // Même garde que pour l'explorateur : un bloc rendu sans son champ de filtre ou sans sa
+    // sortie n'est pas une raison d'interrompre le script de la page.
+    if (!output || !query) return;
     const maximum = Number(selection.dataset.comparisonMax) || 4;
     if (!output.id) output.id = "culture-comparison-count";
     // Le plafond est annoncé par le compte, et motivé par la phrase du gabarit quand
@@ -280,13 +307,23 @@
       output.textContent = `${count} / ${maximum} cultures sélectionnées`;
       const needle = searchKey(query.value);
       checks.forEach(input => {
-        input.disabled = count >= maximum && !input.checked;
+        // `aria-disabled` et non `disabled` : une case désactivée sort de l'ordre de
+        // tabulation, donc son `aria-describedby` — le compte et la phrase qui motive le
+        // plafond — n'est jamais annoncé, et le refus reste muet. La case garde le focus,
+        // et c'est le gestionnaire `change` qui refuse la cinquième sélection.
+        if (count >= maximum && !input.checked) input.setAttribute("aria-disabled", "true");
+        else input.removeAttribute("aria-disabled");
         const matched = input.dataset.search.includes(needle);
         input.closest("label").hidden = !input.checked && !matched;
       });
     };
     query.addEventListener("input", refresh);
-    checks.forEach(input => input.addEventListener("change", refresh));
+    checks.forEach(input => input.addEventListener("change", () => {
+      // Le plafond est appliqué au geste : cocher au-delà décoche aussitôt, le compte
+      // reste « 4 / 4 » et l'explication reste annoncée par la case elle-même.
+      if (input.checked && checks.filter(box => box.checked).length > maximum) input.checked = false;
+      refresh();
+    }));
     refresh();
   }
 })();

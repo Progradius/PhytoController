@@ -541,17 +541,26 @@ Journal transversal — `GET /cultures/journal` et son export acceptent `q` :
 - les jokers `%` et `_` du texte cherché sont littéraux : `q=%` ne ramène pas tout le journal ;
 - `q` est borné à 120 caractères **par troncature**, et la valeur tronquée est renvoyée dans
   `filters.q` ; un `q` vide ne filtre pas ; le tri, la page et l'offset sont inchangés ;
-- le même `q` s'applique à l'export CSV du journal, pour que l'export corresponde à l'écran.
+- le même `q` s'applique à l'export CSV du journal, pour que l'export corresponde à l'écran ;
+- `q` **coûte** : les dates sont facultatives et, sans elles, la recherche balaie toute la vue,
+  la note de chaque ligne étant relue par un sous-select par source (mesuré ×4,5 sur un carnet
+  de 12 000 relevés, sur le thread unique du magasin). Aucune fenêtre par défaut n'est imposée
+  — elle écarterait des résultats que l'opérateur n'a pas exclus — : combiner `q` à une période
+  (`start`/`end`, ou les raccourcis 7 / 30 jours) sur un carnet volumineux.
 
 La réponse du journal porte aussi `quick`, les deux fenêtres calculées par le serveur à partir
 de l'unique date du carnet — `[{"days": 7, "start": …, "end": …}, {"days": 30, …}]` avec
 `end = today` et `start = today − (days − 1)` — et `search_max` (120). Aucune de ces deux
 valeurs n'est recalculée côté navigateur : une seconde date divergerait au passage de minuit.
 
-Solutions : `solution_data` publie `chart_sources` (`{variant, label}`) et `chart_summaries`
-(`{ph, ec}`, déjà en texte), et chaque point de `chart` porte `variant`, entier ≤ 6 où 6 est
-le repli partagé annoncé comme tel. La synthèse est calculée par le serveur : une absence y
-reste « aucune mesure », jamais un zéro.
+Solutions : `solution_data` publie `chart_sources` (`{variant, label, target}`) et
+`chart_summaries` (`{ph, ec}`, déjà en texte), et chaque point de `chart` porte `variant`,
+entier ≤ 6 où 6 est le repli partagé annoncé comme tel. `label` nomme la source entière
+(cibles et période), `target` les seules cibles : le tableau équivalent a une colonne « Cible
+ou capteur » et une colonne « Période », qui ne répètent pas la même phrase, et aucune des deux
+n'affiche l'identifiant technique. L'entrée de repli ne désigne aucune source : son `target`
+est vide, ce qui interdit de nommer un point avec elle. La synthèse est calculée par le
+serveur : une absence y reste « aucune mesure », jamais un zéro.
 
 Contrat JS de l'explorateur, unique et volontairement minimal (en-tête de
 `network/web/static/js/culture_analysis.js`) : `chart(svg, rows, label, columns)` rend

@@ -209,7 +209,7 @@ details.culture-primary-action > summary { font-weight: 700; }
 /* Lot UI 4 : exploration avec commandes natives, galerie et comparaison alignée. */
 .culture-analysis-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .75rem; }
 /* Cible tactile complète : une hauteur seule laissait des boutons de 30 px de large. */
-.culture-analysis-controls button, .culture-gallery > button { min-height: 44px; min-width: 44px; }
+.culture-analysis-controls button, .culture-gallery button { min-height: 44px; min-width: 44px; }
 .culture-chart-explorer { margin-top: .75rem; overflow-wrap: anywhere; }
 .culture-chart-explorer label { display: grid; gap: .5rem; }
 .culture-chart-explorer input[type="range"] { width: 100%; min-height: 44px; }
@@ -221,7 +221,11 @@ details.culture-primary-action > summary { font-weight: 700; }
 path.culture-selected-point { stroke-width: 4px; stroke-dasharray: none; opacity: 1; }
 /* Mêmes jetons visuels que `.confirm-dialog` : sur `var(--bg)` sans bordure ni ombre, le
    dialogue se confondait avec son voile en thème sombre. */
-.culture-gallery { width: min(900px, 94vw); max-height: 90dvh; overflow: auto; padding: 1rem; border: 1px solid var(--border-strong); border-radius: var(--radius, 14px); background: var(--raised, #fff); color: var(--text, #172b20); box-shadow: 0 30px 100px rgb(0 0 0 / 70%); }
+/* Rembourrage porté par `.culture-gallery-body` et non par le dialogue : sur le dialogue,
+   il forme une bande qui n'appartient à aucun enfant, où `event.target === dialog` — le
+   test du clic sur le voile — était vrai, et un clic à côté de l'image fermait la galerie. */
+.culture-gallery { width: min(900px, 94vw); max-height: 90dvh; overflow: auto; padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius, 14px); background: var(--raised, #fff); color: var(--text, #172b20); box-shadow: 0 30px 100px rgb(0 0 0 / 70%); }
+.culture-gallery-body { padding: 1rem; }
 .culture-gallery::backdrop { background: rgb(0 0 0 / 75%); }
 .culture-gallery img { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; margin: 1rem auto; object-fit: contain; }
 .culture-comparison { min-width: 560px; width: 100%; border-collapse: collapse; }
@@ -229,6 +233,10 @@ path.culture-selected-point { stroke-width: 4px; stroke-dasharray: none; opacity
 .culture-comparison th[scope="row"] { min-width: 150px; }
 .culture-comparison-choices { max-height: 18rem; overflow: auto; }
 .culture-comparison-choices label { min-height: 44px; }
+/* Plafond atteint : la case reste focalisable (`aria-disabled`, jamais `disabled`), sinon
+   son explication ne serait plus annoncée. Elle le dit aussi à l'œil, sans que l'opacité
+   soit la seule information : le compte « 4 / 4 » et la phrase du gabarit la portent. */
+.culture-comparison-choices input[aria-disabled="true"] { opacity: .55; }
 
 /* Lot C de la remédiation UI 4 : clé de lecture et synthèse des courbes de solutions. */
 /* La ligne des durées par stade s'enroule : `.culture-duration` interdit la coupure, ce qui
@@ -255,16 +263,21 @@ path.culture-selected-point { stroke-width: 4px; stroke-dasharray: none; opacity
 .solution-source-3 { --source-ink: var(--red, #b42323); }
 .solution-source-4 { --source-ink: var(--green, #0b7c3d); }
 .solution-source-5 { --source-ink: var(--muted, #4f685a); }
-.solution-source-6 { --source-ink: currentColor; }
+.solution-source-6 { --source-ink: var(--muted, #4f685a); }
 circle.solution-source-0, circle.solution-source-2, circle.solution-source-4 { fill: var(--source-ink); stroke: var(--source-ink); stroke-width: 1.5; }
-circle.solution-source-1, circle.solution-source-3, circle.solution-source-5, circle.solution-source-6 { fill: var(--raised, #fff); stroke: var(--source-ink); stroke-width: 2.5; }
+circle.solution-source-1, circle.solution-source-3, circle.solution-source-5 { fill: var(--raised, #fff); stroke: var(--source-ink); stroke-width: 2.5; }
 circle.solution-source-2, circle.solution-source-3 { stroke-dasharray: 5 3; }
 circle.solution-source-4, circle.solution-source-5 { stroke-dasharray: 2 2; }
-circle.solution-source-6 { stroke-dasharray: 1 2; }
+/* Le repli n'est pas une septième source : il dit « plusieurs sources sans repère propre ».
+   Il se distingue donc autrement que par une variante de plus — plein, contour continu
+   épais, teinte en retrait — et non par un pointillé de plus, indiscernable de la variante
+   5 dès que le point mesure dix pixels. */
+circle.solution-source-6 { fill: var(--source-ink); stroke: var(--source-ink); stroke-width: 3.5; stroke-dasharray: none; opacity: .55; }
 .legend-dot.solution-source-0, .legend-dot.solution-source-2, .legend-dot.solution-source-4 { background: var(--source-ink); border-color: var(--source-ink); }
-.legend-dot.solution-source-1, .legend-dot.solution-source-3, .legend-dot.solution-source-5, .legend-dot.solution-source-6 { background: var(--raised, #fff); border-color: var(--source-ink); }
+.legend-dot.solution-source-1, .legend-dot.solution-source-3, .legend-dot.solution-source-5 { background: var(--raised, #fff); border-color: var(--source-ink); }
 .legend-dot.solution-source-2, .legend-dot.solution-source-3 { border-style: dashed; }
-.legend-dot.solution-source-4, .legend-dot.solution-source-5, .legend-dot.solution-source-6 { border-style: dotted; }
+.legend-dot.solution-source-4, .legend-dot.solution-source-5 { border-style: dotted; }
+.legend-dot.solution-source-6 { background: var(--source-ink); border-color: var(--source-ink); border-width: 3px; opacity: .55; }
 /* La surbrillance du curseur reste prioritaire sur la variante de source, qui a la même
    spécificité : sans cette règle, un point évidé ne changerait plus d'aspect une fois choisi. */
 circle.culture-selected-point { stroke: currentColor; stroke-width: 3px; stroke-dasharray: none; }

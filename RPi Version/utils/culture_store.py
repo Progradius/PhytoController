@@ -134,6 +134,10 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         existed = self.path.exists()
         db = sqlite3.connect(str(self.path), timeout=2)
         db.row_factory = sqlite3.Row
+        # Clé de recherche du carnet, enregistrée une fois pour la vie de la connexion : la
+        # réenregistrer à chaque requête du journal refaisait le même travail sur le thread
+        # unique, sans jamais changer la fonction appelée.
+        db.create_function("phyto_norm", 1, search_key, deterministic=True)
         try:
             if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise CultureUnavailable("Carnet corrompu conservé sur disque ; restaurer une sauvegarde.")

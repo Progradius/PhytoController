@@ -106,16 +106,23 @@ def chart_sources(points, names):
     Deux sources ne sont jamais fondues ni reliées : elles ne partagent une variante que dans
     le repli, qui est annoncé par sa propre entrée de légende. Renvoie les variantes alignées
     sur `points` — l'appelant les pose sur ses points — et la légende qui les nomme.
+
+    Chaque entrée porte `label`, la source entière (cibles et période), et `target`, les seules
+    cibles nommées : le tableau équivalent a une colonne « Cible ou capteur » et une colonne
+    « Période », qui ne doivent pas répéter la même phrase. L'entrée de repli n'est la
+    désignation d'aucune source : son `target` est vide, et l'appelant sait ainsi qu'il ne peut
+    pas s'en servir pour nommer un point.
     """
     ranks = {}
     for point in points:
         key = (point.get("target") or "", point.get("period") or "")
         ranks.setdefault(key, len(ranks))
-    legend = [{"variant": rank, "label": source_label(key[0], key[1], names)}
+    legend = [{"variant": rank, "label": source_label(key[0], key[1], names),
+               "target": " et ".join(_target_names(key[0], names))}
               for key, rank in sorted(ranks.items(), key=lambda item: item[1])[:CHART_SOURCE_VARIANTS]]
     overflow = len(ranks) - CHART_SOURCE_VARIANTS
     if overflow > 0:
-        legend.append({"variant": CHART_SOURCE_VARIANTS,
+        legend.append({"variant": CHART_SOURCE_VARIANTS, "target": "",
                        "label": f"{_count(overflow, 'autre source', 'autres sources')} · "
                                 "même repère, faute de variantes distinctes"})
     variants = [min(ranks[(p.get("target") or "", p.get("period") or "")], CHART_SOURCE_VARIANTS)

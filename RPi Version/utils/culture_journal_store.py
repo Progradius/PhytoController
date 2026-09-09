@@ -135,14 +135,21 @@ class JournalStoreMixin:
         La normalisation est faite **en SQL**, par une fonction déterministe enregistrée
         sur la connexion. Le post-filtrage Python de la seule page affichée aurait été
         moins coûteux mais faux : le `COUNT(*)` et les liens « plus récentes / plus
-        anciennes » compteraient des lignes que la page n'affiche pas. Le balayage reste
-        borné par la fenêtre de dates du filtre, appliquée dans le même `WHERE`.
+        anciennes » compteraient des lignes que la page n'affiche pas.
+
+        Ce balayage n'est **pas** borné : les dates du filtre sont facultatives et, sans
+        elles, la clause parcourt toute la vue, note comprise, avec un sous-select par ligne
+        et par source (×4,5 sur 12 000 relevés, mesuré sur le thread unique du magasin).
+        Aucune fenêtre par défaut n'est posée ici — elle refuserait silencieusement des
+        résultats que l'opérateur n'a pas exclus ; c'est la documentation qui conseille de
+        combiner `q` à une période.
 
         Les libellés français des types, des espaces et des réservoirs sont des constantes
         Python et non des colonnes : ils sont rapprochés ici, et seules les clés déjà
         connues entrent dans le SQL, liées comme paramètres.
         """
-        self._db.create_function("phyto_norm", 1, search_key, deterministic=True)
+        # `phyto_norm` est posée à l'ouverture de la connexion (`CultureStore._open`) : une
+        # seule inscription pour toutes les requêtes qui s'en servent.
         params = {"q": _like_pattern(text)}
         catalogues = []
         for prefix, catalogue, column in (("qt", JOURNAL_TYPES, "j.source || ':' || j.kind"),

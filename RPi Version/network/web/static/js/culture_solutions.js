@@ -244,12 +244,21 @@
   // Lot C : la variante de repère d'un point et son libellé viennent du serveur, comme la
   // légende rendue sous la figure. Le script ne décide ni des sources ni de leur ordre ; il
   // pose la classe et recopie le nom, pour que légende, dessin et curseur disent la même chose.
-  const sourceLabels = new Map(JSON.parse(charts?.dataset.chartSources || "[]")
-    .map(source => [source.variant, source.label]));
-  const sourceMark = p => sourceLabels.has(p.variant) ? ` · repère : ${sourceLabels.get(p.variant)}` : "";
+  // L'entrée de repli ne nomme aucune source : son `target` est vide, elle n'entre donc
+  // dans aucune des deux tables ci-dessous et ces points gardent le repli d'origine.
+  const legendSources = JSON.parse(charts?.dataset.chartSources || "[]").filter(source => source.target);
+  const sourceLabels = new Map(legendSources.map(source => [source.variant, source.label]));
+  const sourceNames = new Map(legendSources.map(source => [source.variant, source.target]));
+  // Un identifiant technique ne se lit pas : la phrase du curseur et la colonne « Cible ou
+  // capteur » reprennent le nom de la légende, pour que le dessin, la légende et le tableau
+  // parlent le même vocabulaire. Le repli reste `p.target`, qui est alors tout ce qu'on a.
+  const sourceLabel = p => sourceLabels.get(p.variant) ?? `${p.target} · solution ${p.period || "manuelle"}`;
+  const sourceName = p => sourceNames.get(p.variant) ?? p.target;
   document.querySelectorAll("svg[data-metric]").forEach(svg => {
     const metric = svg.dataset.metric;
-    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : p[metric]} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""} · ${p.annotations.join(', ')}${sourceMark(p)}`;
+    // Le nom de la source dit déjà la cible **et** la période : il tient la place des deux,
+    // et remplace le « repère : … » qui les répétait une troisième fois.
+    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : p[metric]} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""} · ${p.annotations.join(', ')}`;
     // Tableau équivalent : une colonne par nature de donnée. Une lacune s'écrit
     // « mesure absente » dans la colonne valeur, jamais 0.
     const columns = ["Date", "Valeur", "Unité", "Cible ou capteur", "Période", "Agrégats", "Lacune"];
@@ -257,7 +266,7 @@
       p.at,
       p[metric] === null ? "mesure absente" : String(p[metric]),
       metric === "ec" ? "mS/cm" : "sans unité",
-      p.target,
+      sourceName(p),
       p.period || "manuelle",
       p[metric + "_count"]
         ? `${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}`
@@ -329,7 +338,7 @@
         const classes = ["solution-dot"];
         if (p.variant !== undefined && p.variant !== null) classes.push(`solution-source-${p.variant}`);
         const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: classes.join(" "), "data-analysis-index": i});
-        dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
+        dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
         places[i] = {x: x(p), y: y(p)};
       });
       refreshSelection(places);

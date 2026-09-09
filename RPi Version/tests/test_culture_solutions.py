@@ -381,11 +381,38 @@ def test_repere_par_source_borne_et_repli_annonce():
         "Réservoir de l’espace 2 · solution abcdefgh",
         "Réservoir de l’espace 2 · solution zzzzzzzz",
         "Épinard et Basilic · solution manuelle"]
+    # `target` nomme les seules cibles : c'est ce que la colonne « Cible ou capteur » du
+    # tableau équivalent affiche, la période ayant déjà sa propre colonne.
+    assert [entry["target"] for entry in sources["legend"]] == [
+        "Réservoir de l’espace 2", "Réservoir de l’espace 2", "Épinard et Basilic"]
     crowd = [{"target": f"cible-{i}", "period": None} for i in range(CHART_SOURCE_VARIANTS + 3)]
     crowded = chart_sources(crowd, {})
     assert crowded["variants"][-3:] == [CHART_SOURCE_VARIANTS] * 3
-    assert crowded["legend"][-1] == {"variant": CHART_SOURCE_VARIANTS,
+    assert crowded["legend"][-1] == {"variant": CHART_SOURCE_VARIANTS, "target": "",
                                      "label": "3 autres sources · même repère, faute de variantes distinctes"}
+
+
+def test_repli_de_repere_ne_nomme_aucune_cible_et_reste_distinct():
+    """Huit sources : six repères propres, un repli partagé et annoncé (P2.4).
+
+    Aucun scénario n'exerçait la borne à huit sources, celle du carnet réel quand un filtre
+    réunit plusieurs réservoirs et plusieurs solutions. L'entrée de repli n'est la désignation
+    d'aucune source : son `target` est vide, ce qui interdit au script de nommer un point avec
+    elle — il retomberait sinon sur « 2 autres sources » comme sur un nom de cible.
+    """
+    from model.culture_solution import CHART_SOURCE_VARIANTS, chart_sources
+    names = {f"cible-{index}": f"Culture {index}" for index in range(8)}
+    points = [{"target": f"cible-{index}", "period": None} for index in range(8)]
+    sources = chart_sources(points, names)
+
+    assert CHART_SOURCE_VARIANTS == 6
+    assert sources["variants"] == [0, 1, 2, 3, 4, 5, 6, 6]
+    # Six variantes distinctes, donc six repères distincts : aucune fusion silencieuse.
+    assert len(set(sources["variants"][:CHART_SOURCE_VARIANTS])) == CHART_SOURCE_VARIANTS
+    assert len(sources["legend"]) == CHART_SOURCE_VARIANTS + 1
+    assert sources["legend"][-1] == {"variant": 6, "target": "",
+                                     "label": "2 autres sources · même repère, faute de variantes distinctes"}
+    assert all(entry["target"] for entry in sources["legend"][:-1])
 
 
 def test_synthese_de_courbe_compte_les_mesures_sans_inventer_de_zero():

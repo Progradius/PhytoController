@@ -151,6 +151,11 @@ test("explorateur : bornage sans désactivation, tap borné et tableau structur�
   const next = figure.getByRole("button", {name: "Point suivant", exact: true});
   // R3.6 a : la sortie n'est plus une région live ; seul `aria-valuetext` annonce.
   await expect(figure.locator('.culture-analysis-output[role="status"]')).toHaveCount(0);
+  // P1.3 : une région live masquée, distincte de la sortie visible, porte les gestes qui
+  // n'ont pas le curseur sous le focus. Elle est muette tant qu'aucun bouton ni tap n'a servi.
+  const announcer = figure.locator('.culture-chart-explorer p.visually-hidden[role="status"]');
+  await expect(announcer).toHaveCount(1);
+  await expect(announcer).toHaveText("");
   await expect(output).toContainText("1 / 3");
   await expect(output).toContainText("premier point");
   // R1.1 : deux activations à la butée, le bouton reste actif et garde le focus.
@@ -161,6 +166,19 @@ test("explorateur : bornage sans désactivation, tap borné et tableau structur�
   await expect(next).toBeEnabled(); await expect(next).toBeFocused();
   await expect(output).toContainText("3 / 3");
   await expect(output).toContainText("dernier point");
+  // P1.3 : le bouton annonce le point atteint dans la région masquée — sans elle, le
+  // déplacement était silencieux, `aria-valuetext` n'étant relu que si le curseur a le focus.
+  const spoken = await output.textContent();
+  await expect(announcer).toHaveText(spoken);
+  // … et le curseur au clavier ne la touche pas : il annonce déjà par `aria-valuetext`, une
+  // seconde région dirait deux fois le même point.
+  const keyboardSlider = figure.getByRole("slider");
+  await keyboardSlider.focus();
+  await keyboardSlider.press("ArrowLeft");
+  await expect(output).toContainText("2 / 3");
+  await expect(announcer).toHaveText(spoken);
+  await keyboardSlider.press("ArrowRight");
+  await expect(output).toContainText("3 / 3");
   // R3.6 g : hauteur ET largeur minimales déclarées, la boîte rendue étant déjà large
   // par la longueur du libellé et ne prouverait donc rien.
   const sizes = await previous.evaluate(node => [getComputedStyle(node).minWidth, getComputedStyle(node).minHeight]);
@@ -353,10 +371,18 @@ test("courbes de solutions : légende par source et synthèse textuelle", async 
     return [style.fill, style.strokeDasharray, style.strokeWidth].join("|");
   }));
   expect(new Set(shapes).size).toBe(2);
-  // Le texte du curseur nomme la même source que la légende.
+  // Le texte du curseur nomme la même source que la légende, et l'identifiant technique de
+  // la cible (`reservoir_2`) n'apparaît plus nulle part : le curseur, la légende et la
+  // colonne « Cible ou capteur » du tableau disent le même nom.
   const slider = figure.getByRole("slider");
   await slider.focus();
-  await expect(figure.locator(".culture-analysis-output")).toContainText(/repère : Réservoir de l’espace 2 · solution \w{8}/);
+  const cursor = figure.locator(".culture-analysis-output");
+  await expect(cursor).toContainText(/Réservoir de l’espace 2 · solution \w{8}/);
+  await expect(cursor).not.toContainText("reservoir_2");
+  await figure.getByText("Tableau des données du graphique", {exact: true}).click();
+  const source = figure.locator("tbody tr").first().locator("td").nth(3);
+  await expect(source).toHaveText("Réservoir de l’espace 2");
+  await figure.getByText("Tableau des données du graphique", {exact: true}).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
   await page.screenshot({path: testInfo.outputPath("legende-courbes.png"), fullPage: true});
@@ -447,7 +473,20 @@ test("sélecteur de comparaison : plafond de quatre, filtre local et pagination 
   // R4.2 : le plafond de quatre est tenu côté client, et la case refusée dit pourquoi.
   for (let index = 0; index < 4; index += 1) await boxes.nth(index).check();
   await expect(zone.locator("output")).toHaveText("4 / 4 cultures sélectionnées");
-  await expect(boxes.nth(4)).toBeDisabled();
+  // P1.2 : `aria-disabled` et non `disabled`. Une case `disabled` sort de l'ordre de
+  // tabulation : son `aria-describedby` — le compte et la phrase qui motive le plafond —
+  // n'était jamais annoncé, et le refus restait muet. La case reste donc focalisable et
+  // active ; c'est le geste qui est refusé.
+  await expect(boxes.nth(4)).toHaveAttribute("aria-disabled", "true");
+  await expect(boxes.nth(4)).toBeEnabled();
+  await boxes.nth(4).focus();
+  await expect(boxes.nth(4)).toBeFocused();
+  // Cocher la cinquième la décoche aussitôt : le compte ne bouge pas. `click` et non
+  // `check`, qui exigerait que la case reste cochée — c'est justement ce qui est refusé.
+  await boxes.nth(4).click();
+  await expect(boxes.nth(4)).not.toBeChecked();
+  await expect(zone.locator("output")).toHaveText("4 / 4 cultures sélectionnées");
+  await expect(zone.locator('input[name="subject"]:checked')).toHaveCount(4);
   const described = await boxes.nth(4).getAttribute("aria-describedby");
   expect(described.split(" ")).toHaveLength(2);
   const targets = await page.evaluate(ids => ids.split(" ").map(id => {
@@ -457,10 +496,11 @@ test("sélecteur de comparaison : plafond de quatre, filtre local et pagination 
   // Le compte, puis la phrase qui motive le plafond : une case désactivée sans explication
   // serait un refus muet.
   expect(targets).toEqual([["output", false], ["p", true]]);
-  // Le plafond n'est jamais définitif : libérer une place rend la cinquième case disponible.
+  // Le plafond n'est jamais définitif : libérer une place lève le refus de la cinquième.
   await boxes.nth(0).uncheck();
-  await expect(boxes.nth(4)).toBeEnabled();
+  await expect(boxes.nth(4)).not.toHaveAttribute("aria-disabled", "true");
   await boxes.nth(0).check();
+  await expect(boxes.nth(4)).toHaveAttribute("aria-disabled", "true");
 
   // R1.2 : cocher depuis la page 2 ne renvoie pas page 1.
   await zone.getByRole("button", {name: "Afficher les cycles"}).click();
