@@ -150,6 +150,9 @@
       const list = form.querySelector("[data-product-list]");
       if (list.children.length >= 40) return;
       const row = list.firstElementChild.cloneNode(true);
+      // La ligne modèle peut porter un refus : sans ce nettoyage le clone afficherait le
+      // message de l'ancienne ligne, avec son identifiant en double.
+      forms.resetField(row);
       row.querySelectorAll("input").forEach(input => { input.value = ""; delete input.dataset.cfGenerated; input.removeAttribute("id"); });
       list.append(row);
       // Les identifiants sont recalculés pour que le refus d'un produit vise la bonne ligne.
@@ -201,9 +204,17 @@
       if (answer.offline || answer.busy || answer.preview) return;
       if (!answer.ok) {
         const data = answer.data || {};
-        const rank = ["product", "quantity", "unit"].includes(data.field) && typeof data.index === "number"
-          ? sentProducts[data.index] : undefined;
-        forms.showError(form, {...data, ...(rank === undefined ? {} : {index: rank}),
+        // Un refus d'ingrédient est numéroté dans la liste envoyée. Quand elle vient de la
+        // recette, aucune ligne de la page ne le porte : marquer la n-ième ligne de saisie
+        // libre désignerait un champ étranger au refus. C'est le choix de la recette qui
+        // porte alors le message.
+        const ingredient = ["product", "quantity", "unit"].includes(data.field) && typeof data.index === "number";
+        const rank = ingredient ? sentProducts[data.index] : undefined;
+        const {field: refusedField, index: refusedIndex, ...rest} = data;
+        const placed = !ingredient ? {field: refusedField, index: refusedIndex}
+          : rank !== undefined ? {field: refusedField, index: rank}
+          : command.recipe_id ? {field: "recipe_id"} : {};
+        forms.showError(form, {...rest, ...placed,
           error: `${data.error} Saisie conservée.${answer.status === 409 ? " Ouvrir cette page dans un nouvel onglet pour consulter la version actuelle." : ""}`});
         return;
       }

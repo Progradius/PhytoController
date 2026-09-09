@@ -9,6 +9,10 @@
   const REFUSED = "Requête refusée ; vérifier la connexion et actualiser le jeton si nécessaire.";
   const BUSY = "Un envoi est déjà en cours pour ce formulaire.";
   const SUMMARY_TITLE = "La saisie n’a pas été enregistrée.";
+  const PREVIEW_DOWN = "Vérification indisponible : enregistrement envoyé, le serveur revérifie le carnet.";
+  const CONFIRM_MATCH = "Confirmez qu’il s’agit d’un autre relevé avant d’enregistrer.";
+  const LEAVING = "Une saisie n’a pas été enregistrée.";
+  const PREVIEW_VALIDITY_MS = 30000;
 
   let counter = 0;
   const bound = new WeakSet();   // contrôles dont l'effacement à la saisie est déjà branché
@@ -16,6 +20,10 @@
   const reviewOnly = new WeakMap();
   const reviews = new WeakMap();
   const keys = new WeakMap();    // formulaire → {signature, value} de la clé d'idempotence
+  const guarded = new Set();     // formulaires suivis pour la protection des saisies en cours
+  const baselines = new WeakMap(); // formulaire → empreinte de sa saisie initiale
+  const settled = new WeakSet(); // formulaires dont la saisie est enregistrée : plus de garde
+  const touched = new WeakSet(); // formulaires réellement saisis par l'opérateur
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content;
   const isOffline = () => !navigator.onLine || document.body.classList.contains("is-offline");
@@ -30,6 +38,53 @@
     Array.from(form.elements).filter(
       el => el.name && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName)
     );
+
+  // --- Saisies non terminées ----------------------------------------------
+
+  // Chaque enregistrement du carnet recharge la page : une saisie encore ouverte dans un
+  // autre formulaire disparaîtrait sans un mot. L'empreinte compare la saisie courante à
+  // celle du chargement ; un formulaire enregistré (ou en cours d'envoi) est hors garde,
+  // sans quoi la navigation qui suit un succès demanderait elle-même confirmation.
+  const imprint = form => JSON.stringify(controlsOf(form).map(control => {
+    if (control.type === "checkbox" || control.type === "radio") return control.checked ? 1 : 0;
+    if (control.type === "file") return control.files?.length || 0;
+    return control.value;
+  }));
+
+  // La garde ne s'arme que sur une saisie réelle de l'opérateur : les pages du carnet
+  // réécrivent des champs au chargement (dates rendues dans le fuseau de l'appareil, mode
+  // « Je démarre » qui recopie la date d'origine), et une empreinte prise avant ces
+  // réécritures ferait croire à une saisie en cours sur chaque fiche ouverte. L'empreinte
+  // est donc reprise à la fin de la tâche de chargement, et seule une modification issue
+  // d'un événement de confiance rend le formulaire comparable.
+  const guard = form => {
+    if (guarded.has(form)) return;
+    guarded.add(form);
+    baselines.set(form, imprint(form));
+    setTimeout(() => { if (!touched.has(form)) baselines.set(form, imprint(form)); }, 0);
+    const touch = event => { if (event.isTrusted) touched.add(form); };
+    form.addEventListener("input", touch);
+    form.addEventListener("change", touch);
+  };
+
+  const disarm = form => {
+    settled.add(form);
+    guarded.delete(form);
+  };
+
+  const pending = () => {
+    for (const form of guarded) {
+      if (!form.isConnected || settled.has(form) || busy.has(form) || !touched.has(form)) continue;
+      if (imprint(form) !== baselines.get(form)) return true;
+    }
+    return false;
+  };
+
+  addEventListener("beforeunload", event => {
+    if (!pending()) return;
+    event.preventDefault();
+    event.returnValue = LEAVING;
+  });
 
   // --- Identifiants -------------------------------------------------------
 
@@ -81,6 +136,7 @@
         control.addEventListener("change", clear);
       }
     }
+    guard(form);
     return form;
   }
 
@@ -114,15 +170,15 @@
     const errorId = `${control.id}-error`;
     let note = document.getElementById(errorId);
     if (!note) {
-      // Le message va **dans** le <label> enveloppant, en dernier : posé après lui, il
-      // deviendrait une cellule de plus dans une grille de champs et se retrouverait à côté
-      // du champ refusé au lieu de rester sous lui. Un <span> parce qu'un <p> est interdit
-      // dans un <label>. `unmark`/`clearField` le retrouvent par son identifiant.
-      note = document.createElement(label ? "span" : "p");
+      // Le message est un frère du <label> enveloppant, jamais son enfant : tout texte
+      // placé dans le label entre dans le nom accessible du champ (« Photo Photo
+      // invalide… »), et le message serait annoncé deux fois, une fois comme nom et une
+      // fois comme description. Il reste sous le champ grâce à `grid-column: 1 / -1`
+      // dans les grilles du carnet. `unmark`/`clearField` le retrouvent par son identifiant.
+      note = document.createElement("p");
       note.className = "field-error";
       note.id = errorId;
-      if (label) label.append(note);
-      else control.after(note);
+      (label || control).after(note);
     }
     // Jamais d'injection : le message du serveur reste du texte.
     note.textContent = message;
@@ -158,6 +214,29 @@
     if (!summary.querySelector("li")) summary.remove();
   }
 
+  // Une ligne répétée (origine, ingrédient) se duplique par `cloneNode(true)` : le clone
+  // recopierait sinon le message d'erreur de la ligne d'origine, avec son identifiant. Deux
+  // éléments porteraient le même `id`, la nouvelle ligne s'afficherait refusée sans l'être,
+  // et sa première saisie effacerait le message de l'ancienne. Ce nettoyage porte sur la
+  // racine **et** ses descendants ; il est purement visuel et ne touche aucune valeur.
+  function resetField(root) {
+    if (!root) return root;
+    const nodes = root.querySelectorAll ? [root, ...root.querySelectorAll("*")] : [root];
+    for (const node of nodes) {
+      if (node.classList?.contains("field-error")) { node.remove(); continue; }
+      node.classList?.remove("field-invalid");
+      if (!node.removeAttribute) continue;
+      node.removeAttribute("aria-invalid");
+      if (node.dataset && node.dataset.describedbyBase !== undefined) {
+        const base = node.dataset.describedbyBase;
+        if (base) node.setAttribute("aria-describedby", base);
+        else node.removeAttribute("aria-describedby");
+        delete node.dataset.describedbyBase;
+      }
+    }
+    return root;
+  }
+
   function clearErrors(form) {
     if (!form) return;
     form.querySelector(".culture-form-errors")?.remove();
@@ -166,12 +245,16 @@
     }
   }
 
-  // Un champ refusé peut se trouver dans un repli ou une section masquée : on l'ouvre
-  // avant de le viser, sans quoi le focus se poserait sur un élément invisible.
+  // Un champ refusé peut se trouver dans un repli : on l'ouvre avant de le viser, sans quoi
+  // le focus se poserait sur un élément invisible. Seuls les replis sont ouverts : un
+  // `hidden` posé par une règle de page (type d'origine semis/bouture, mode « Je démarre »,
+  // ingrédients issus d'une recette) exprime une règle métier, pas un pliage. Le lever
+  // afficherait un champ que la page a délibérément retiré de la saisie, sans jamais le
+  // refermer. Un conteneur réellement repliable le déclare par `data-cf-collapsible`.
   function reveal(element) {
     for (let node = element; node && node !== document.body; node = node.parentElement) {
-      if (node.tagName === "DETAILS") node.open = true;
-      if (node.hasAttribute("hidden")) node.hidden = false;
+      if (node.tagName === "DETAILS") { node.open = true; node.hidden = false; continue; }
+      if (node.hasAttribute("hidden") && node.hasAttribute("data-cf-collapsible")) node.hidden = false;
     }
   }
 
@@ -299,7 +382,23 @@
     const signature = JSON.stringify(command);
     command.request_id = requestKey(form, signature);
     const domain = url === "/api/v1/cultures" ? "culture" : url === "/api/v1/cultures/solutions" ? "solution" : null;
-    if (domain) {
+    // La prévalidation coûte au serveur une transaction complète sur le thread unique du
+    // carnet : elle n'est plus faite à chaque enregistrement. Deux cas seulement la
+    // justifient — le bouton « Vérifier avant d'enregistrer », qui ne demande rien
+    // d'autre, et le premier envoi d'un relevé de solution, seul chemin qui cherche des
+    // ressemblances. Une saisie déjà vérifiée (même empreinte, vérification non expirée)
+    // repart directement vers la mutation, qui revalide de toute façon.
+    const verifying = Boolean(reviewOnly.get(form));
+    const seeksMatches = domain === "solution" && body.operation === "entry" && body.kind === "reading";
+    const known = reviews.get(form);
+    if (known && known.signature === signature && !verifying) {
+      // Une ressemblance affichée et non confirmée reste un arrêt : rien n'est envoyé.
+      if (known.matches !== "[]" && !known.confirmed) {
+        status(form, CONFIRM_MATCH);
+        return {ok: false, preview: true};
+      }
+    }
+    if (domain && (verifying || (seeksMatches && !(known && known.signature === signature)))) {
       form.addEventListener("input", change);
       form.addEventListener("change", change);
       const checked = await send(form, `/api/v1/cultures/preview/${domain}`, {
@@ -312,8 +411,15 @@
         status(form, "Saisie modifiée pendant la vérification : vérifiez à nouveau avant d’enregistrer.");
         return {ok: false, preview: true};
       }
-      if (!checked.ok) return checked;
-      if (isOffline()) {
+      // Un refus de fond (400) ou un conflit (409) est le même refus que celui de la
+      // mutation : il s'affiche au champ et rien n'est envoyé. Une vérification qui
+      // n'aboutit pas — carnet occupé, réseau, délai dépassé — n'est pas un refus : elle ne
+      // doit pas empêcher un enregistrement que le serveur revalidera.
+      if (!checked.ok) {
+        if (checked.offline || checked.busy || checked.status === 400 || checked.status === 409) return checked;
+        if (verifying) return checked;
+        status(form, PREVIEW_DOWN);
+      } else if (isOffline()) {
         status(form, OFFLINE);
         return {ok: false, offline: true};
       }
@@ -327,6 +433,8 @@
         const panel = document.createElement("section");
         panel.className = "notice culture-review";
         panel.tabIndex = -1;
+        // Le panneau apparaît et disparaît sans action de l'opérateur : il s'annonce.
+        panel.setAttribute("aria-live", "polite");
         const title = document.createElement("h3");
         title.textContent = "Vérification avant enregistrement";
         panel.append(title);
@@ -360,16 +468,18 @@
           if (reviews.get(form) !== memo) return;
           reviews.delete(form); panel.remove();
           status(form, "Vérification expirée : vérifiez à nouveau les données du carnet avant d’enregistrer.");
-        }, 30000);
+        }, PREVIEW_VALIDITY_MS);
         reviewOnly.delete(form);
         return {ok: false, preview: true};
       }
     }
-    return send(form, url, {
+    const answer = await send(form, url, {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(command),
       timeoutMs: options.timeoutMs ?? 15000,
     });
+    if (answer.ok) disarm(form);
+    return answer;
   }
 
   async function submitBinary(form, url, blob, metadata, options = {}) {
@@ -379,7 +489,7 @@
     const signature =
       JSON.stringify(command) + `|${blob?.name || ""}:${blob?.size || 0}:${blob?.lastModified || 0}`;
     command.request_id = requestKey(form, signature);
-    return send(form, url, {
+    const answer = await send(form, url, {
       headers: {
         "Content-Type": "application/octet-stream",
         "X-Culture-Metadata": encodeURIComponent(JSON.stringify(command)),
@@ -387,6 +497,8 @@
       body: blob,
       timeoutMs: options.timeoutMs ?? 45000,
     });
+    if (answer.ok) disarm(form);
+    return answer;
   }
 
   const clearReviews = () => {
@@ -399,6 +511,13 @@
   new MutationObserver(() => { if (isOffline()) clearReviews(); })
     .observe(document.body, {attributes: true, attributeFilter: ["class"]});
 
+  // Les aides de la fiche apparaissent, se remplacent et se retirent seules : la zone qui
+  // les porte s'annonce. Le marquage est posé ici, pas dans le gabarit : la zone n'est une
+  // région vivante que parce qu'un script l'alimente.
+  for (const zone of document.querySelectorAll("[data-culture-assistance]")) {
+    if (!zone.hasAttribute("aria-live")) zone.setAttribute("aria-live", "polite");
+  }
+
   window.PhytoCultureForms = {
     register,
     submitJson,
@@ -407,6 +526,7 @@
     showErrors,
     clearErrors,
     clearField,
+    resetField,
     status,
   };
 })();

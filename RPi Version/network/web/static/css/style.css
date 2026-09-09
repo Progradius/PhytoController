@@ -149,8 +149,8 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 /* `.field-invalid` est posée sur l'enveloppe du champ par la configuration, et sur le
    <label> enveloppant lui-même par les formulaires du carnet. */
 .field-invalid > label, .field-invalid legend, label.field-invalid { color: var(--red); }
-/* Rendu en <span> à l'intérieur du <label> du carnet : sans `display: block` le message
-   se placerait à côté du champ au lieu de rester sous lui. */
+/* Message d'erreur d'un champ : frère du <label> dans le carnet (jamais son enfant, pour
+   ne pas entrer dans le nom accessible du champ), bloc sous le champ dans la configuration. */
 .field-error { display: block; margin: .38rem 0 0; color: var(--red); font-size: .84rem; font-weight: 650; }
 .preview-panel { margin: 1rem 0; padding: .85rem 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--soft); font-size: .86rem; }
 .preview-panel p { margin: .25rem 0; color: var(--muted); }

@@ -10,9 +10,12 @@ const CURRENT = "2026-09-07";
 test("reprise en floraison : étapes et occupation passées complétées", async ({page}, testInfo) => {
   test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name), "Reprise exercée sur deux formats.");
   test.setTimeout(45000);
+  // Écritures réellement acceptées : un refus (400) vient de la mutation elle-même, qui
+  // n'écrit rien ; compter les requêtes émises confondrait refus et écriture.
   let mutations = 0;
-  page.on("request", request => {
-    if (request.method() === "POST" && request.url().endsWith("/api/v1/cultures")) mutations++;
+  page.on("response", response => {
+    const request = response.request();
+    if (request.method() === "POST" && request.url().endsWith("/api/v1/cultures") && response.status() === 200) mutations++;
   });
   const name = `Reprise ${testInfo.project.name} ${Date.now()}`;
   await page.goto("/cultures");
@@ -38,8 +41,9 @@ test("reprise en floraison : étapes et occupation passées complétées", async
     await entry.locator("..").locator(":scope > summary").click();
     await entry.locator('[name="effective_at"]').fill(date);
     if (fill) await fill(entry);
-    // Une saisie incohérente est désormais refusée dès la prévalidation ; aucune
-    // mutation finale ne part dans ce cas. Un succès attend toujours l'écriture réelle.
+    // Une saisie incohérente est refusée par la mutation (400, sans écriture) ou, si
+    // l'opérateur a demandé une vérification, dès la prévalidation. Un succès attend
+    // toujours l'écriture réelle.
     const answer = page.waitForResponse(r => r.request().method() === "POST" &&
       (r.url().endsWith("/api/v1/cultures") ||
        (r.url().endsWith("/api/v1/cultures/preview/culture") && r.status() >= 400)));

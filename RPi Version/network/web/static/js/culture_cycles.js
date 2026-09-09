@@ -3,7 +3,10 @@
   // Un lien d'assistance ouvre la vérification du bon sujet, sans cocher de case.
   const openChecks = () => {
     if (!location.hash.startsWith("#verifications-")) return;
-    const node = document.getElementById(location.hash.slice(1));
+    // Le fragment est encodé dans l'URL comme dans les autres pages du carnet : un
+    // identifiant de sujet non ASCII s'y lit percent-encodé, jamais tel quel.
+    let node = null;
+    try { node = document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch { node = null; }
     if (node?.tagName === "DETAILS") { node.open = true; node.querySelector("summary")?.focus(); }
   };
   openChecks(); addEventListener("hashchange", openChecks);

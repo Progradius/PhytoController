@@ -532,3 +532,129 @@ test("lot UI 2 : accueil, fiche, archives, solutions et état d'erreur restent a
   await audit("fiche-erreur");
 });
 
+
+// ---------------------------------------------------------------------------
+// 11. Remédiation : clonage après refus, refus local chiffré, envoi unique
+// ---------------------------------------------------------------------------
+
+// Le clone d'une ligne d'origine héritait du message de refus de la ligne modèle : deux
+// éléments portaient le même identifiant, la nouvelle ligne s'affichait refusée sans
+// l'être, et sa première saisie effaçait le message de l'ancienne.
+test("lot UI 2 : une origine ajoutée après un refus est vierge et n'emporte aucun message", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  await page.goto("/cultures");
+  const details = page.locator("details.culture-create").filter({hasText: "Créer un lot"});
+  await details.locator("summary").click();
+  const form = details.locator("form");
+  await form.getByRole("radio", {name: "Elle est déjà en cours"}).check();
+  await form.getByLabel("Nom", {exact: true}).fill("Lot origines clonées");
+  await form.getByLabel("Origine des semences").fill("Semences A");
+  for (const name of ["origin_at", "stage_at", "space_at"]) await form.locator(`[name="${name}"]`).fill(day(2));
+  await form.locator('[name="space"]').selectOption("space_2");
+
+  // Refus serveur simulé sur la première origine : c'est le seul moyen d'obtenir ce refus
+  // sans passer par un champ que le navigateur bloque déjà (obligatoire, borné).
+  await page.route("**/api/v1/cultures", route => route.fulfill({
+    status: 400, contentType: "application/json",
+    body: JSON.stringify({error: "Origine obligatoire.", field: "origin_label", index: 0})}));
+  await form.getByRole("button", {name: "Créer un lot", exact: true}).click();
+
+  const label = form.locator('.culture-origin').first().locator('[name="origin_label"]');
+  await expect(label).toHaveAttribute("aria-invalid", "true");
+  const errorId = `${await label.getAttribute("id")}-error`;
+  await expect(page.locator(`#${errorId}`)).toHaveCount(1);
+
+  await form.locator("[data-add-origin]").click();
+  const rows = form.locator(".culture-origin");
+  await expect(rows).toHaveCount(2);
+  const added = rows.nth(1);
+  await expect(added.locator(".field-error")).toHaveCount(0);
+  await expect(added.locator(".field-invalid")).toHaveCount(0);
+  await expect(added.locator('[name="origin_label"]')).toHaveValue("");
+  await expect(added.locator('[name="origin_label"]')).not.toHaveAttribute("aria-invalid", "true");
+  // Un seul élément par identifiant d'erreur, et le message reste sur la ligne refusée.
+  await expect(page.locator(`#${errorId}`)).toHaveCount(1);
+  await expect(page.locator(".field-error")).toHaveCount(1);
+  await added.locator('[name="origin_label"]').fill("Semences B");
+  await expect(page.locator(`#${errorId}`)).toHaveCount(1);
+  await expect(label).toHaveAttribute("aria-invalid", "true");
+});
+
+// Un refus calculé dans le navigateur se lit comme un refus du serveur : au champ, avec
+// le focus, y compris dans un repli qu'il faut ouvrir pour le rendre visible.
+test("lot UI 2 : un poids invalide est marqué au champ, dans son repli, sans rien envoyer", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  await page.goto("/cultures");
+  const lot = await mutate(page, "/api/v1/cultures", {
+    operation: "create", kind: "lot", name: "Lot pesée", origin_type: "seed",
+    stage: "sechage", space: "space_2", origin_at: day(9), stage_at: day(5), space_at: day(9),
+    origins: [{label: "Semences A", count: 2}, {label: "Semences B", count: 1}],
+  });
+  expect(lot.status, JSON.stringify(lot.body)).toBe(200);
+  await page.goto(`/cultures/${lot.body.subject_id}`);
+  let sent = 0;
+  page.on("request", request => {
+    if (request.method() === "POST" && request.url().includes("/api/v1/cultures")) sent += 1;
+  });
+  const action = page.locator("#action-finish");
+  await action.locator(":scope > summary").click();
+  const form = action.locator("form");
+  const submit = form.getByRole("button", {name: "Clore le séchage", exact: true});
+
+  await form.locator('[name="weight_g"]').fill("abc");
+  await submit.click();
+  const summary = form.locator('.culture-form-errors[role="alert"]');
+  await expect(summary).toContainText("Poids sec invalide.");
+  const weight = form.locator('[name="weight_g"]');
+  const weightId = await weight.getAttribute("id");
+  await expect(weight).toHaveAttribute("aria-invalid", "true");
+  await expect(summary.locator(`a[href="#${weightId}"]`)).toBeVisible();
+  expect(await focusedId(page)).toBe(weightId);
+
+  // Deuxième origine refusée : le rang envoyé désigne bien le deuxième champ de la page,
+  // et son repli s'ouvre pour que le focus ne se pose pas sur un champ invisible.
+  await weight.fill("120");
+  const perOrigin = form.locator('[name="origin_weight"]');
+  await expect(perOrigin).toHaveCount(2);
+  const fold = form.locator('details:has([name="origin_weight"])').first();
+  await fold.locator("summary").click();
+  await perOrigin.nth(1).fill("nc");
+  // Repli refermé avant l'envoi : le refus doit le rouvrir, sinon le focus se poserait sur
+  // un champ invisible.
+  await fold.locator("summary").click();
+  await expect(perOrigin.nth(1)).toBeHidden();
+  await submit.click();
+  await expect(summary).toContainText("Poids par origine invalide.");
+  const originId = await perOrigin.nth(1).getAttribute("id");
+  await expect(perOrigin.nth(1)).toHaveAttribute("aria-invalid", "true");
+  await expect(perOrigin.nth(0)).not.toHaveAttribute("aria-invalid", "true");
+  expect(await focusedId(page)).toBe(originId);
+  await expect(perOrigin.nth(1)).toBeVisible();
+
+  // Un refus local ne consomme aucune transaction du carnet.
+  expect(sent).toBe(0);
+});
+
+// Le chemin nominal ne prévalide plus : chaque saisie coûtait deux transactions
+// complètes au thread unique du carnet.
+test("lot UI 2 : un enregistrement nominal n'envoie qu'une seule requête", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  const posts = [];
+  page.on("request", request => {
+    if (request.method() === "POST" && request.url().includes("/api/v1/cultures")) posts.push(request.url());
+  });
+  await createMother(page, "Mère envoi unique");
+  expect(posts).toEqual([expect.stringContaining("/api/v1/cultures")]);
+  expect(posts.filter(url => url.includes("/preview/"))).toHaveLength(0);
+
+  posts.length = 0;
+  const form = await openObservation(page);
+  await form.getByLabel("Observation", {exact: true}).fill("Observation enregistrée d'un seul envoi.");
+  await form.getByRole("button", {name: "Enregistrer l’observation", exact: true}).click();
+  await expect(page).toHaveURL(/#event-/);
+  expect(posts).toHaveLength(1);
+  expect(posts.filter(url => url.includes("/preview/"))).toHaveLength(0);
+});
