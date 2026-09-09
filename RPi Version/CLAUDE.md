@@ -301,7 +301,14 @@ Conventions d'interface des lots UI 1 et 2 (aucune route ni persistance nouvelle
 (identifiants stables, rejouable après un clonage d'origines), `submitJson` / `submitBinary`
 (CSRF, garde hors ligne, clé d'idempotence conservée tant que la saisie ne change pas) et
 `showError` (résumé en tête + message au champ) ; un formulaire nouveau l'adopte au lieu de refaire
-sa gestion d'erreur. Un refus se rattache au contrôle par son attribut `name`, jamais par un `id`
+sa gestion d'erreur. La passe « photos » y ajoute deux conventions : `register` pose lui-même
+l'**aperçu local** (`data-culture-photo-preview`, `URL.createObjectURL` révoquée au changement, au
+`reset` et au `pagehide`) sur tout champ fichier d'images — aucune page ne le réécrit, et l'aperçu
+n'émet rien —, et `submitBinary` passe par `sendUpload` (`XMLHttpRequest`, pour la seule
+progression d'envoi) qui rend **exactement** les quatre formes de retour de `send`, dont il partage
+les gardes via `withGuards` ; son `Content-Type: application/octet-stream` explicite est vital
+(sans lui, XHR déduit `image/png` et le serveur répond 415), et `img-src` autorise `blob:` pour
+cet aperçu seul. Aucune reprise, aucune file, aucun rejeu d'envoi. Un refus se rattache au contrôle par son attribut `name`, jamais par un `id`
 deviné : `CultureError(message, field, index)`, `index` étant le rang 0-based dans un groupe
 répété ; le serveur n'émet **qu'une erreur par requête** (le socle JS, lui, en affiche N), et un
 503 n'en nomme aucune. Les règles d'action sont **pures** dans `model/culture.py` —

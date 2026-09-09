@@ -78,4 +78,10 @@ const createMother = async (page, name) => {
   return page.url().split("/").pop();
 };
 
-module.exports = {test, expect, AxeBuilder, dates, createMother};
+// PNG 1×1 valide, construit en mémoire : aucune image de l'exploitation n'entre ici.
+// Partagé par toutes les specs photo, pour qu'un même octet soit envoyé partout.
+const PNG_1x1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64");
+
+module.exports = {test, expect, AxeBuilder, dates, createMother, PNG_1x1};

@@ -4,7 +4,7 @@
 // partagée) : l'espace 2 est exclusif et une occupation ouverte n'a pas de fin, donc deux
 // scénarios ne peuvent pas partager une base. Aucune de ces vérifications ne touche un
 // GPIO, un réglage ou le watchdog : le carnet est déclaratif.
-const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
+const {test, expect, AxeBuilder, createMother, PNG_1x1} = require("./culture_fixtures");
 
 // Dates locales : le carnet refuse toute date future, et un rappel « en retard » se
 // fabrique avec une échéance d'hier, pas avec une date figée qui vieillirait mal.
@@ -31,11 +31,6 @@ const detailOf = async (page, id) => {
   expect(response.ok(), await response.text()).toBeTruthy();
   return response.json();
 };
-
-// PNG 1×1 valide, construit en mémoire : aucune image de l'exploitation n'entre ici.
-const PNG_1x1 = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-  "base64");
 
 // Le formulaire d'observation vit dans un repli de la triade d'en-tête.
 const openObservation = async page => {
@@ -196,8 +191,9 @@ test("lot UI 2 : une photo refusée laisse l'observation enregistrée et se rejo
   await form.getByLabel("Légende de la photo", {exact: true}).fill("Cliché synthétique 1×1");
   await form.locator('input[type="file"][name="photo"]')
     .setInputFiles({name: "carnet.png", mimeType: "image/png", buffer: PNG_1x1});
-  await expect(form.locator("[data-observation-preview]")).toBeVisible();
-  await expect(form.locator("[data-observation-preview] img")).toBeVisible();
+  // Le conteneur d'aperçu est désormais créé par le socle sur tout champ photo.
+  await expect(form.locator("[data-culture-photo-preview]")).toBeVisible();
+  await expect(form.locator("[data-culture-photo-preview] img")).toBeVisible();
   await form.getByRole("button", {name: "Enregistrer l’observation", exact: true}).click();
   await expect(page).toHaveURL(/#event-/);
   await expect(page.locator("#photos figure")).toHaveCount(1);

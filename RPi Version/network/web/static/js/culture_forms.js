@@ -135,6 +135,14 @@
         control.addEventListener("input", clear);
         control.addEventListener("change", clear);
       }
+      // L'aperçu local est branché ici, donc sur **tout** champ photo du carnet, et pas
+      // page par page : les trois formulaires photo (observation de fiche, entrée du
+      // journal, photo d'une entrée) le reçoivent sans l'écrire. Le branchement est
+      // idempotent, `register` étant rejoué par `showErrors` et après un clonage.
+      if (isPhotoField(control) && !previewBound.has(control)) {
+        previewBound.add(control);
+        attachPreview(form, control);
+      }
     }
     guard(form);
     return form;
@@ -164,6 +172,66 @@
     const label = control.closest("label");
     return label && label.contains(control) ? label : null;
   };
+
+  // --- Aperçu local d'une photo -------------------------------------------
+
+  // Voir la photo choisie **avant** tout envoi est le seul moyen de vérifier qu'on envoie
+  // la bonne : sur un téléphone, le sélecteur de fichiers ne rend qu'un nom. Cet aperçu
+  // n'émet aucune requête et ne met rien en attente ; il ne fait que lire le fichier local
+  // déjà choisi par l'opérateur. L'URL d'objet est révoquée à chaque changement, à la
+  // remise à zéro du formulaire et au départ de la page : une image de 5 Mio retenue par
+  // une URL oubliée resterait en mémoire tant que le document vit.
+  const previews = new Map();      // formulaire → URL d'objet en cours (itérable pour `pagehide`)
+  const previewBound = new WeakSet();
+  const PREVIEW_ALT = "Aperçu local de la photo choisie, avant tout envoi.";
+
+  const isPhotoField = control => control.type === "file" && /image/i.test(control.accept || "");
+
+  // Le gabarit peut poser le conteneur ; sinon le socle le crée, frère du `<label>`
+  // enveloppant comme le message d'erreur, pour ne pas entrer dans le nom accessible
+  // du champ.
+  function previewZone(form, control) {
+    const existing = form.querySelector("[data-culture-photo-preview]");
+    if (existing) return existing;
+    const zone = document.createElement("figure");
+    zone.className = "culture-photo-preview";
+    zone.setAttribute("data-culture-photo-preview", "");
+    zone.hidden = true;
+    (labelOf(control) || control).after(zone);
+    return zone;
+  }
+
+  function clearPreview(form) {
+    if (!form) return;
+    const url = previews.get(form);
+    if (url) { URL.revokeObjectURL(url); previews.delete(form); }
+    const zone = form.querySelector("[data-culture-photo-preview]");
+    if (!zone) return;
+    zone.replaceChildren();
+    zone.hidden = true;
+  }
+
+  function attachPreview(form, control) {
+    control.addEventListener("change", () => {
+      clearPreview(form);
+      const chosen = control.files && control.files[0];
+      if (!chosen) return;
+      const url = URL.createObjectURL(chosen);
+      previews.set(form, url);
+      const image = document.createElement("img");
+      image.src = url;
+      image.alt = PREVIEW_ALT;
+      const zone = previewZone(form, control);
+      zone.replaceChildren(image);
+      zone.hidden = false;
+    });
+    form.addEventListener("reset", () => clearPreview(form));
+  }
+
+  addEventListener("pagehide", () => {
+    for (const url of previews.values()) URL.revokeObjectURL(url);
+    previews.clear();
+  });
 
   function mark(control, message) {
     const label = labelOf(control);
@@ -344,7 +412,12 @@
     return memo.value;
   }
 
-  async function send(form, url, {headers, body, timeoutMs}) {
+  // Les gardes d'un envoi — hors ligne, envoi déjà en vol, boutons indisponibles pendant
+  // la requête — ne dépendent pas du transport. Elles sont donc écrites une fois et
+  // partagées par le chemin `fetch` (JSON, prévalidation) et le chemin `XMLHttpRequest`
+  // (photo, avec progression). Deux copies auraient fini par diverger sur le seul point
+  // qui compte : la réactivation des boutons dans le `finally`.
+  async function withGuards(form, run) {
     if (isOffline()) {
       status(form, OFFLINE);
       return {ok: false, status: 0, data: {error: OFFLINE}, aborted: false, offline: true};
@@ -354,31 +427,116 @@
     }
     busy.add(form);
     // Seuls les boutons que cet envoi a désactivés sont réactivés : un bouton déjà
-    // indisponible pour une autre raison le reste.
+    // indisponible pour une autre raison le reste. La désactivation passe par la
+    // propriété `disabled` et jamais par `aria-disabled`, qui n'empêcherait pas le clic.
     const disabled = submitButtons(form).filter(node => !node.disabled);
     for (const node of disabled) node.disabled = true;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {"X-CSRF-Token": csrf(), ...headers},
-        body,
-        signal: controller.signal,
-      });
-      const data = await response.json().catch(() => ({error: REFUSED}));
-      return {ok: response.ok, status: response.status, data, aborted: false};
-    } catch (error) {
-      const aborted = error.name === "AbortError";
-      if (!aborted && !(error instanceof TypeError)) {
-        return {ok: false, status: 0, data: {error: error.message}, aborted: false};
-      }
-      return {ok: false, status: 0, data: {error: NO_ANSWER}, aborted};
+      return await run();
     } finally {
-      clearTimeout(timer);
       busy.delete(form);
       for (const node of disabled) node.disabled = false;
     }
+  }
+
+  function send(form, url, {headers, body, timeoutMs}) {
+    return withGuards(form, async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {"X-CSRF-Token": csrf(), ...headers},
+          body,
+          signal: controller.signal,
+        });
+        const data = await response.json().catch(() => ({error: REFUSED}));
+        return {ok: response.ok, status: response.status, data, aborted: false};
+      } catch (error) {
+        const aborted = error.name === "AbortError";
+        if (!aborted && !(error instanceof TypeError)) {
+          return {ok: false, status: 0, data: {error: error.message}, aborted: false};
+        }
+        return {ok: false, status: 0, data: {error: NO_ANSWER}, aborted};
+      } finally {
+        clearTimeout(timer);
+      }
+    });
+  }
+
+  // `fetch` ne rend pas la progression d'un corps envoyé : une photo de 5 Mio sur un Wi-Fi
+  // de serre laissait l'opérateur devant un texte figé, sans savoir si l'envoi avançait.
+  // `XMLHttpRequest` la donne (`xhr.upload`), au prix d'un second transport — d'où le
+  // contrat strict : **exactement** les quatre formes de retour de `send`, pour que les
+  // appelants restent inchangés. Aucun rejeu, aucune file, aucune reprise : un envoi
+  // interrompu se réessaie à la main, avec la même clé d'idempotence.
+  function sendUpload(form, url, {headers, body, timeoutMs, onProgress}) {
+    return withGuards(form, () => new Promise(resolve => {
+      const xhr = new XMLHttpRequest();
+      // `open` avant tout `setRequestHeader` : l'ordre inverse lève une exception.
+      xhr.open("POST", url);
+      xhr.timeout = timeoutMs;
+      for (const [key, value] of Object.entries({"X-CSRF-Token": csrf(), ...headers})) {
+        if (value !== undefined && value !== null) xhr.setRequestHeader(key, String(value));
+      }
+      // Branchés avant `send` : un envoi très court émettrait sinon ses événements avant
+      // que quiconque n'écoute, et la barre resterait indéterminée jusqu'à la réponse.
+      xhr.upload.addEventListener("progress", event => onProgress?.({
+        loaded: event.loaded, total: event.total, lengthComputable: event.lengthComputable,
+      }));
+      xhr.upload.addEventListener("load", () => onProgress?.({done: true}));
+      xhr.addEventListener("load", () => {
+        let data;
+        try { data = JSON.parse(xhr.responseText); } catch { data = {error: REFUSED}; }
+        // 413, 415 et 408 répondent du texte : le refus reste celui du socle.
+        if (!data || typeof data !== "object") data = {error: REFUSED};
+        resolve({ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data, aborted: false});
+      });
+      xhr.addEventListener("error", () =>
+        resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: false}));
+      xhr.addEventListener("timeout", () =>
+        resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: true}));
+      xhr.addEventListener("abort", () =>
+        resolve({ok: false, status: 0, data: {error: NO_ANSWER}, aborted: true}));
+      // Le `File` part tel quel : un `FormData` changerait le type du corps, que le
+      // serveur exige binaire.
+      xhr.send(body);
+    }));
+  }
+
+  // La barre vit dans l'`<output>` du formulaire, à côté du texte d'état déjà posé par
+  // l'appelant, qui n'est pas réécrit. Le pourcentage n'est porté que par `value`,
+  // `aria-valuetext` et un frère `aria-hidden` : la région `aria-live` garde donc le même
+  // texte accessible du début à la fin, sans quoi un lecteur d'écran annoncerait chaque
+  // pour cent reçu.
+  function progressBar(form) {
+    const output = outputOf(form);
+    if (!output) return null;
+    const bar = document.createElement("progress");
+    bar.max = 100;
+    bar.setAttribute("aria-label", "Progression de l’envoi de la photo");
+    // Sans `value`, la barre est indéterminée : c'est l'état honnête tant qu'aucun
+    // événement de progression n'est arrivé.
+    const readout = document.createElement("span");
+    readout.className = "culture-upload-readout";
+    readout.setAttribute("aria-hidden", "true");
+    output.append(bar, readout);
+    return {
+      advance(event) {
+        if (event.done) {
+          bar.value = 100;
+          bar.setAttribute("aria-valuetext", "Envoi terminé");
+          readout.textContent = "Envoi terminé, enregistrement en cours…";
+          return;
+        }
+        if (!event.lengthComputable || !event.total) return;
+        const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+        bar.value = percent;
+        bar.setAttribute("aria-valuetext", `Envoi ${percent} %`);
+        readout.textContent = `Envoi ${percent} %`;
+      },
+      remove() { bar.remove(); readout.remove(); },
+    };
   }
 
   async function submitJson(form, url, body, options = {}) {
@@ -535,16 +693,29 @@
     const signature =
       JSON.stringify(command) + `|${blob?.name || ""}:${blob?.size || 0}:${blob?.lastModified || 0}`;
     command.request_id = requestKey(form, signature);
-    const answer = await send(form, url, {
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "X-Culture-Metadata": encodeURIComponent(JSON.stringify(command)),
-      },
-      body: blob,
-      timeoutMs: options.timeoutMs ?? 45000,
-    });
-    if (answer.ok) disarm(form);
-    return answer;
+    // La barre est retirée quelle que soit l'issue, et avant que l'appelant ne pose son
+    // message : succès, refus, réseau ou hors ligne laissent le même `<output>` propre.
+    // Aucun `form.reset()` ici — en échec, la légende saisie et le fichier choisi restent
+    // en place, donc la clé d'idempotence aussi, et le renvoi vérifie le même
+    // enregistrement au lieu d'en créer un second.
+    const bar = progressBar(form);
+    try {
+      const answer = await sendUpload(form, url, {
+        headers: {
+          // VITAL : sans en-tête explicite, `XMLHttpRequest` déduirait le type du `File`
+          // (`image/png`) et le serveur répondrait 415.
+          "Content-Type": "application/octet-stream",
+          "X-Culture-Metadata": encodeURIComponent(JSON.stringify(command)),
+        },
+        body: blob,
+        timeoutMs: options.timeoutMs ?? 45000,
+        onProgress: event => { bar?.advance(event); options.onProgress?.(event); },
+      });
+      if (answer.ok) disarm(form);
+      return answer;
+    } finally {
+      bar?.remove();
+    }
   }
 
   const clearReviews = () => {
@@ -572,6 +743,9 @@
     showErrors,
     clearErrors,
     clearField,
+    // L'aperçu est posé par le socle : c'est aussi lui qui sait le retirer, et les pages
+    // n'ont plus à connaître l'URL d'objet ni le conteneur.
+    clearPreview,
     resetField,
     // Exposé pour que les pages qui visent une ancre appliquent la **même** règle de
     // dévoilement que les refus : ouvrir un repli, jamais un bloc masqué par une règle

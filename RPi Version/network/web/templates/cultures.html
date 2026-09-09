@@ -228,7 +228,6 @@
 {{ date_fields(value=overview.today) }}
 <label>Photo (facultatif)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
 <label>Légende de la photo<input name="caption" maxlength="500"></label>
-<div class="culture-photo-preview" data-observation-preview hidden></div>
 <p class="card-meta">Une photo par envoi, 5 Mio maximum, JPEG, PNG ou WebP non animé. L’observation est enregistrée d’abord ; un refus de photo ne l’efface pas.</p>
 {{ submit('Enregistrer l’observation') }}</form></details>
 {% else %}

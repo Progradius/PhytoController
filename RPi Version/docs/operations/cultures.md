@@ -81,6 +81,24 @@ sont ouverts et elle affiche « Entrée ajoutée ». C'est la confirmation ; il 
 Le formulaire « Observation / photo » enregistre d'abord la note, puis la photo, en deux envois
 successifs. Un aperçu local de l'image est affiché avant tout envoi.
 
+**L'aperçu est le même sur les trois formulaires photo du carnet** — l'observation d'une fiche,
+« Ajouter une photo à cette entrée » sous une entrée du journal de fiche, et « Ajouter une photo à
+cette observation » sur le journal transversal. Choisir un fichier affiche immédiatement l'image
+sous le champ, avec la mention « Aperçu local de la photo choisie, avant tout envoi. » : rien n'est
+émis, rien n'est mis en attente, et changer de fichier remplace l'aperçu. Sur un téléphone, le
+sélecteur de fichiers ne rend qu'un nom : c'est le seul moyen de vérifier qu'on envoie la bonne
+photo.
+
+Pendant l'envoi, une **barre de progression** apparaît sous le formulaire, à côté du texte d'état.
+Elle est d'abord indéterminée, puis suit les octets réellement partis, et affiche « Envoi terminé,
+enregistrement en cours… » lorsque le serveur prend la main pour vérifier et réencoder l'image.
+Elle disparaît dès que la réponse arrive, quelle qu'elle soit. Un envoi ne peut pas être annulé :
+attendre la réponse ou l'échec est la seule issue, et une réponse perdue ne prouve pas un échec.
+
+En cas d'échec — réseau coupé, délai dépassé, refus du serveur — **la saisie n'est jamais effacée** :
+le fichier choisi, son aperçu et la légende restent en place, et le bouton redevient utilisable.
+Réessayer sans rien modifier vérifie le même enregistrement au lieu d'en créer un second.
+
 Si la photo est refusée alors que la note est passée, le message le dit sans ambiguïté :
 « L'observation est enregistrée ; la photo n'a pas été acceptée ». Les champs de l'observation sont
 alors verrouillés et le bouton devient **« Réessayer la photo »** : seule la photo repart, la note
@@ -462,7 +480,8 @@ ou remplacement du carnet de production n'est effectué par les validations auto
 ## Photos d'un événement
 
 Sur la fiche d'une mère ou d'un lot, ouvrir l'ajout de photo sous l'événement concerné,
-choisir le fichier, ajouter une légende facultative puis enregistrer. La photo reste liée à
+choisir le fichier — l'aperçu local s'affiche aussitôt —, ajouter une légende facultative puis
+enregistrer ; la barre de progression suit l'envoi. La photo reste liée à
 la révision de cet événement ; corriger le journal n'efface pas l'image passée. Le journal
 paginé donne accès aux photos anciennes, même au-delà des 100 images de la galerie des cycles.
 

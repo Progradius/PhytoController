@@ -131,7 +131,12 @@
 details.culture-primary-action > summary { font-weight: 700; }
 .culture-checks { margin: .4rem 0; padding-left: 1.2rem; }
 .culture-checks li { margin-block: .35rem; }
-.culture-photo-preview img { max-width: min(100%, 18rem); height: auto; border-radius: .5rem; }
+/* Le conteneur est un `<figure>` créé par le socle : la marge par défaut du navigateur
+   (40 px de chaque côté) déborderait le profil 320 px. La hauteur est bornée pour qu'un
+   portrait ne repousse pas le bouton d'envoi hors de l'écran. */
+.culture-photo-preview { margin: .4rem 0; }
+.culture-photo-preview img { max-width: min(100%, 18rem); height: auto; max-height: 12rem; object-fit: contain; border-radius: .5rem; }
+.culture-upload-readout { margin-left: .4rem; }
 .culture-trace .card-meta { overflow-wrap: anywhere; }
 /* Cible d'un retour après enregistrement : jamais une couleur seule, le libellé
    « Entrée ajoutée » — rendu `hidden` par le gabarit et révélé par le script au moment du

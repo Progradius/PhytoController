@@ -674,7 +674,14 @@ class Server:
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; script-src 'self'; style-src 'self'; "
-            "font-src 'self'; img-src 'self' data:; connect-src 'self'; "
+            # `blob:` sur les seules images : l'aperçu local d'une photo avant envoi
+            # (`culture_forms.js`) passe par `URL.createObjectURL`, dont l'URL est un
+            # `blob:` de cette origine. Sans lui, l'aperçu du lot UI 2 était bloqué
+            # silencieusement — un `<img>` présent, visible et vide (constaté le
+            # 9 septembre 2026, `naturalWidth == 0`). Un `blob:` ne désigne qu'un
+            # objet créé par ce document : il n'ouvre aucune origine tierce, et rien
+            # d'exécutable — `script-src` reste `'self'` seul.
+            "font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; "
             "worker-src 'self'; manifest-src 'self'; form-action 'self'; "
             "frame-ancestors 'none'; base-uri 'none'",
         )

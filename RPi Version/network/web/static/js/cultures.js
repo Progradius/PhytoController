@@ -424,25 +424,9 @@
   document.querySelectorAll("[data-culture-observation]").forEach(form => {
     forms.register(form);
     const file = form.elements.photo;
-    const preview = form.querySelector("[data-observation-preview]");
+    // L'aperçu local n'est plus écrit ici : `forms.register` le pose sur tout champ photo
+    // du carnet, donc identiquement sur les trois formulaires qui en portent un.
     const button = form.querySelector('[type="submit"]');
-    let objectUrl = null;
-    const clearPreview = () => {
-      if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
-      preview.replaceChildren();
-      preview.hidden = true;
-    };
-    file?.addEventListener("change", () => {
-      clearPreview();
-      const chosen = file.files[0];
-      if (!chosen) return;
-      objectUrl = URL.createObjectURL(chosen);
-      const image = document.createElement("img");
-      image.src = objectUrl;
-      image.alt = "Aperçu local de la photo choisie, avant tout envoi.";
-      preview.append(image);
-      preview.hidden = false;
-    });
     const lockObservation = (retry) => {
       for (const name of ["note", "effective_at", "effective_at_precision"]) {
         const control = form.elements[name];
@@ -526,7 +510,7 @@
         lockObservation(true);
         if (!(await sendPhoto(chosen))) return;
       }
-      clearPreview();
+      forms.clearPreview(form);
       openEntry(saved.subject_id, saved.event_id);
     });
   });

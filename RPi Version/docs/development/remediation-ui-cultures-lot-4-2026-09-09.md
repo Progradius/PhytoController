@@ -288,6 +288,11 @@ rejouée hors ligne. Aucun correctif ne demande de nouvelle persistance.
   (`submitBinary` utilise `fetch`, sans progression). Ce sont des attendus de la ligne « Photos »
   de l'audit, non repris par le lot 2 ni le lot 4 ; une progression réelle demande `XMLHttpRequest`
   dans le socle. À traiter dans une passe photos dédiée, pas ici.
+  **Traité** par la passe photos du 9 septembre 2026 : l'aperçu est posé par `register` sur tout
+  champ photo du carnet, et `submitBinary` passe par `XMLHttpRequest` avec une barre de
+  progression. Voir `docs/development/cultures-ui-photos.md`. Cette passe a aussi trouvé que
+  l'aperçu du lot 2 était bloqué par la politique de sécurité de contenu, faute de `blob:` dans
+  `img-src` : la spec du lot 2 ne vérifiait que la visibilité de l'`<img>`, pas son décodage.
 - Alignement par âge du stade : l'audit propose « par indicateur ou par âge du stade » ; le lot
   a choisi l'indicateur et le dit. Comparer deux cycles décalés dans le temps reste impossible.
   C'est le plafond fonctionnel de la livraison ; toute suite est une décision produit, pas une

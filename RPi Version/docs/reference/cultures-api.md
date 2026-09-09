@@ -637,6 +637,27 @@ le même fichier après un refus rejoue donc la même clé — c'est la vérific
 choisir une autre photo, dont le nom, la taille et la date entrent dans la signature, en produit une
 neuve. Sans `event_id` dans la réponse de la note, aucune photo n'est envoyée.
 
+**Transport côté navigateur (passe photos).** `submitBinary` n'utilise plus `fetch` mais
+`XMLHttpRequest` (`sendUpload` dans `culture_forms.js`), seul moyen d'obtenir la progression du
+corps envoyé (`xhr.upload`). Rien d'autre ne change : la méthode, l'URL, les trois en-têtes
+(`X-CSRF-Token`, `Content-Type: application/octet-stream`, `X-Culture-Metadata`), le corps binaire
+envoyé tel quel — jamais un `FormData`, qui changerait le type du corps et vaudrait 415 — et les
+quatre formes de retour rendues aux appelants (hors ligne, envoi déjà en vol, réponse HTTP,
+absence de réponse) sont identiques à celles du chemin JSON, dont les gardes sont désormais
+partagées. Il n'y a **ni reprise, ni file, ni rejeu automatique** : un envoi interrompu se
+réessaie à la main, et rien ne peut être annulé en cours de route.
+
+La clé d'idempotence est calculée exactement comme avant, **avant** l'envoi et sans que le
+transport la voie : `request_id` vient de la signature `JSON.stringify(métadonnées)` suivie du nom,
+de la taille et de la date de dernière modification du fichier. Renvoyer la même photo après un
+échec rejoue donc la même clé — c'est la vérification voulue —, tandis qu'en choisir une autre en
+produit une neuve. La barre de progression est un rendu, jamais un état métier : elle est retirée
+quelle que soit l'issue et n'est pas persistée.
+
+La politique de sécurité de contenu autorise `blob:` dans `img-src` (et là seulement) : l'aperçu
+local d'une photo passe par `URL.createObjectURL`. Sans cette autorisation, l'aperçu introduit par
+le lot UI 2 était bloqué en silence — un `<img>` présent, visible et vide.
+
 La limite de 5 Mio est vérifiée même sans `Content-Length` ; réception limitée à 30 secondes,
 métadonnées à 7 000 caractères. La limite JSON globale reste 64 Kio. Erreurs spécifiques :
 413 (taille), 415 (type de corps), 408 (réception trop lente), 400 (photo invalide).

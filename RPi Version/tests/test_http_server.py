@@ -1287,3 +1287,8 @@ async def test_gabarits_du_carnet_chargent_le_socle_avant_leur_script(web_contex
         policy = response.headers["Content-Security-Policy"]
         assert "script-src 'self'" in policy
         assert "unsafe-inline" not in policy
+        # L'aperçu local d'une photo est une URL d'objet : sans `blob:` dans `img-src`,
+        # l'image est bloquée sans erreur visible. La permission reste bornée aux images.
+        assert "img-src 'self' data: blob:" in policy
+        assert "blob:" not in policy.split("img-src")[0]
+        assert "blob:" not in policy.split("img-src")[1].split(";", 1)[1]
