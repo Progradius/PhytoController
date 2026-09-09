@@ -23,6 +23,10 @@ def error_response(exc, status):
     là où c'est le carnet qui est absent.
     """
     payload = {"error": str(exc)}
+    # Le refus d'un champ n'a de sens que si un champ est en cause : une indisponibilité
+    # n'en désigne aucun, et l'exception qui la porte peut en traîner un d'un autre lot.
+    if status == 503:
+        return web.json_response(payload, status=status)
     field = getattr(exc, "field", None)
     if field:
         payload["field"] = field
@@ -89,9 +93,23 @@ class CultureViews:
         except CultureUnavailable as exc:
             return error_response(exc, 503)
 
+    @staticmethod
+    def version(request):
+        """Version de fiche que le client affiche déjà, ou None si elle est absente.
+
+        Une valeur illisible n'est pas un refus : elle vaut « je n'en ai pas », et le
+        serveur recalcule. Refuser la requête ne rendrait service à personne — l'aide
+        n'est pas une écriture et la version n'est qu'un moyen d'éviter un calcul.
+        """
+        try:
+            return int(request.query["version"])
+        except (KeyError, ValueError, TypeError):
+            return None
+
     async def assistance(self, request):
         try:
-            return web.json_response(await self.store.call("assistance", request.match_info["subject_id"]))
+            return web.json_response(await self.store.call(
+                "assistance", request.match_info["subject_id"], self.version(request)))
         except CultureError as exc:
             return error_response(exc, 404)
         except CultureUnavailable as exc:

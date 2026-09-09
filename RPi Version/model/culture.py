@@ -140,6 +140,44 @@ def event_payload(kind, raw):
     return result
 
 
+MAX_ORIGINS = 50
+
+
+def validate_origins(origins, kind):
+    """Forme de la liste d'origines : un lot en a, un pied mère n'en a pas.
+
+    Séparer les deux refus était l'objet du correctif : « Renseigner les origines du lot »
+    envoyé à un pied mère demandait exactement le contraire de ce qu'il fallait faire.
+    """
+    if not isinstance(origins, list) or len(origins) > MAX_ORIGINS:
+        raise CultureError(f"Renseigner les origines du lot ({MAX_ORIGINS} maximum).")
+    if kind == "mother" and origins:
+        raise CultureError("Un pied mère n'a pas d'origine à renseigner : il est lui-même "
+                           "l'origine de ses boutures.", "kind")
+    if kind == "lot" and not origins:
+        raise CultureError(f"Renseigner les origines du lot ({MAX_ORIGINS} maximum).")
+
+
+def validate_origin(origin, origin_type, position):
+    """Contrôles purs d'une ligne d'origine ; renvoie `(mère, libellé, effectif)`.
+
+    Règle unique de la création et de la réécriture : elles rendaient les mêmes verdicts
+    dans deux copies, et une seule des deux aurait pu être corrigée. L'existence de la
+    mère reste vérifiée par le magasin — c'est le seul contrôle qui demande la base.
+    """
+    if not isinstance(origin, dict):
+        raise CultureError("Origine invalide.")
+    mother = origin.get("mother_id") or None
+    if mother is not None:
+        mother = text_value(mother, "Identifiant de la mère", field="mother_id", index=position)
+    if (origin_type == "cutting" and not mother) or (origin_type == "seed" and mother):
+        raise CultureError("Les boutures nécessitent une mère ; les semis une origine de semences.",
+                           "mother_id", position)
+    label = text_value(origin.get("label", ""), "Origine", required=not mother,
+                       field="origin_label", index=position)
+    return mother, label, integer(origin.get("count"), field="origin_count", index=position)
+
+
 def stage_path(subject):
     """Ordre des stades d'un lot, déduit de son origine ; un pied mère n'en a pas."""
     if subject["kind"] == "mother":
@@ -161,11 +199,23 @@ def backfill_stages(subject):
     return [stage for stage in path[:path.index(subject["stage"])] if stage not in known]
 
 
-# Rangs du parcours utilisés par la liste des stades proposables : germination et
-# enracinement sont deux entrées du même rang (une seule des deux existe par lot) et
-# `maintien` reste au rang d'entrée, hors parcours des lots.
-STAGE_RANKS = {"germination": 0, "enracinement": 0, "vegetatif": 1, "floraison": 2,
-               "sechage": 3, "maintien": 0}
+def _stage_ranks():
+    """Rangs du parcours **dérivés de `stage_path`**, jamais recopiés à côté.
+
+    Les deux parcours possibles d'un lot ont la même longueur : `germination` et
+    `enracinement` occupent donc le même rang d'entrée, ce qui est exact — une seule des
+    deux existe par lot. `maintien` reste au rang d'entrée, hors parcours des lots.
+    Une table écrite à la main serait une seconde vérité à resynchroniser le jour où le
+    parcours change.
+    """
+    ranks = {"maintien": 0}
+    for origin_type in ("seed", "cutting"):
+        for rank, stage in enumerate(stage_path({"kind": "lot", "origin_type": origin_type})):
+            ranks[stage] = rank
+    return ranks
+
+
+STAGE_RANKS = _stage_ranks()
 
 
 def allowed_actions(subject):
@@ -196,14 +246,19 @@ def allowed_actions(subject):
     return actions
 
 
-def stage_options(subject, current=None):
+def stage_options(subject, correction=False, *, current=None):
     """Stades proposables, dans l'ordre de `STAGES`.
 
-    Un stade déjà saisi (`current`, mode correction) rouvre la liste entière du parcours :
-    corriger une saisie n'est pas progresser, et interdire le retour en arrière rendrait
-    une erreur de stade irréparable. Le séchage n'est jamais proposé ici — il commence par
-    une récolte — et l'entrée du parcours non retenue par l'origine reste exclue.
+    `correction=True` (un stade est déjà saisi et l'opérateur le rectifie) rouvre la liste
+    entière du parcours : corriger une saisie n'est pas progresser, et interdire le retour
+    en arrière rendrait une erreur de stade irréparable. Le séchage n'est jamais proposé
+    ici — il commence par une récolte — et l'entrée du parcours non retenue par l'origine
+    reste exclue.
+
+    `current=` est l'ancien nom du même drapeau, conservé en alias pour les appelants qui
+    y passaient un stade : seule sa véracité comptait déjà.
     """
+    correction = bool(correction or current)
     kind, stage = subject["kind"], subject.get("stage")
     excluded = "germination" if subject.get("origin_type") == "cutting" else "enracinement"
     options = []
@@ -212,7 +267,7 @@ def stage_options(subject, current=None):
             if key == "maintien":
                 options.append(key)
         elif kind == "lot" and key not in ("maintien", "sechage") and key != excluded and (
-                current or STAGE_RANKS[key] > STAGE_RANKS.get(stage, -1)):
+                correction or STAGE_RANKS[key] > STAGE_RANKS.get(stage, -1)):
             options.append(key)
     return options
 

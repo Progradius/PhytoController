@@ -155,8 +155,10 @@ class SolutionStoreMixin:
         if not isinstance(command, dict):
             raise CultureError("Objet JSON attendu.")
         # Copie du catalogue connue à la saisie, comme pour les événements de culture :
-        # renommer un équipement plus tard ne réécrit aucun contexte enregistré.
-        self._equipment_context = json.dumps(equipment or {}, ensure_ascii=False)
+        # renommer un équipement plus tard ne réécrit aucun contexte enregistré. Variable
+        # locale et non attribut d'instance : une prévalidation concurrente écrasait la
+        # copie d'une écriture en cours.
+        equipment_context = json.dumps(equipment or {}, ensure_ascii=False)
         allowed = {"request_id", "operation", "confirm_date", "id", "version", "kind", "reservoir_id", "targets",
                    "effective_at", "precision", "cancelled", "reason", "note", "ph", "ec", "ec_unit", "temperature_c",
                    "volume_l", "context", "compensation", "intervention_id", "recipe_id", "recipe_revision", "ingredients", "name"}
@@ -172,7 +174,13 @@ class SolutionStoreMixin:
             if previous:
                 if previous["fingerprint"] != fingerprint:
                     raise CultureConflict("Cette clé appartient à une autre saisie.")
-                return json.loads(previous["result"])
+                result = json.loads(previous["result"])
+                # Le rejeu est constaté **dans** la transaction, par la seule lecture qui
+                # le décide déjà. Une prévalidation le signale à son appelant plutôt que
+                # de refaire ce `SELECT` avant d'entrer ici.
+                if preview:
+                    result["replayed"] = True
+                return result
             if not self.reliable() and command.get("confirm_date") is not True:
                 raise CultureError("Horloge non fiable : vérifier et confirmer la date.", "confirm_date")
             operation = command.get("operation")
@@ -270,7 +278,7 @@ class SolutionStoreMixin:
                        "note": text_value(command.get("note", ""), "Note", 4000, False), **values,
                        "intervention_id": intervention_id, "recipe_id": recipe_id, "recipe_revision": recipe_revision,
                        "ingredients": json.dumps(frozen, ensure_ascii=False),
-                       "equipment_context": self._equipment_context}
+                       "equipment_context": equipment_context}
                 columns = ",".join(row)
                 self._db.execute(f"INSERT INTO solution_entries ({columns}) VALUES ({','.join('?' for _ in row)})", tuple(row.values()))
                 self._db.executemany("INSERT INTO solution_targets VALUES (?,?,?)", [(identifier, revision, t) for t in targets])
@@ -279,7 +287,15 @@ class SolutionStoreMixin:
             self._db.execute("INSERT INTO requests VALUES (?,?,?)", (key, fingerprint, json.dumps(result)))
         return result
 
-    def _solution_data(self, filters=None, offset=0, export=False, focus=None, search=None, search_offset=0):
+    def _solution_data(self, filters=None, offset=0, export=False, focus=None, search=None, search_offset=0,
+                       subjects=None):
+        """`subjects` : projections déjà calculées par l'appelant, jamais un filtre.
+
+        Une page qui projette déjà tout le carnet ne doit pas le reprojeter pour connaître
+        le dernier relevé de ses cultures. Passer une liste partielle changerait le résultat
+        (`fed_subjects`, cibles inconnues) : ce paramètre n'accepte que la projection
+        complète, ou `None` pour la calculer ici.
+        """
         if search is not None:
             # Mode recherche : réponse bornée au seul bloc d'interventions, sans courbe ni journal.
             search = text_value(search, "Recherche d’intervention", 100, False)
@@ -303,7 +319,7 @@ class SolutionStoreMixin:
             period["preparation"] = dict(renewal) if renewal else None
             period["age"] = age(renewal["effective_at"] if renewal else period["start_at"], period["end_at"], self.now(), self.zone)
         links = [dict(r) for r in self._db.execute("SELECT * FROM solution_links ORDER BY start_at")]
-        subjects = self._projections()
+        subjects = subjects if subjects is not None else self._projections()
         target = filters.get("target", "")
         if target and target not in RESERVOIRS and target not in {s["id"] for s in subjects}:
             raise CultureError("Cible de filtre inconnue.")
@@ -415,9 +431,48 @@ class SolutionStoreMixin:
             writer.writerow(row)
         return output.getvalue()
 
-    def _latest_solution_readings(self):
+    def _latest_reading(self, subject_id):
+        """Dernier relevé mesuré d'**un seul** sujet, en une requête bornée.
+
+        L'accueil a besoin du dernier relevé de toutes ses cultures et paie pour cela un
+        export complet du journal ; une fiche ou l'assistance n'en affichent qu'un, et
+        exporter tout le carnet pour le trouver était le coût que le lot 3 a introduit sur
+        le thread unique du magasin.
+
+        La règle reproduite est exactement celle de `_solution_data` : le sujet est visé
+        directement (`solution_targets`) ou alimenté à la date de l'intervention par une
+        association couvrant cet instant. Le cas d'un relevé « avant » un renouvellement
+        horodaté à la même seconde appartient à la solution **précédente** : la borne y
+        devient `]début ; fin]`, sans quoi la période lue serait la nouvelle.
+        """
+        before = ("EXISTS (SELECT 1 FROM solution_entries i WHERE i.id=e.intervention_id"
+                  " AND i.kind='renewal' AND i.cancelled=0 AND e.context='before'"
+                  " AND i.sort_at=e.sort_at"
+                  " AND i.revision=(SELECT MAX(w.revision) FROM solution_entries w WHERE w.id=i.id))")
+
+        def window(table):
+            return (f"(CASE WHEN {before} THEN {table}.start_at<e.sort_at"
+                    f" AND ({table}.end_at IS NULL OR e.sort_at<={table}.end_at)"
+                    f" ELSE {table}.start_at<=e.sort_at"
+                    f" AND ({table}.end_at IS NULL OR e.sort_at<{table}.end_at) END)")
+
+        row = self._db.execute(
+            "SELECT e.ph, e.ec, e.effective_at, e.precision FROM solution_entries e"
+            " WHERE e.cancelled=0 AND (e.ph IS NOT NULL OR e.ec IS NOT NULL)"
+            " AND e.revision=(SELECT MAX(v.revision) FROM solution_entries v WHERE v.id=e.id)"
+            " AND (EXISTS (SELECT 1 FROM solution_targets t WHERE t.entry_id=e.id"
+            "              AND t.revision=e.revision AND t.subject_id=:subject)"
+            "   OR EXISTS (SELECT 1 FROM solution_links l JOIN solution_periods p ON p.id=l.period_id"
+            "              WHERE l.subject_id=:subject AND p.reservoir_id=e.reservoir_id"
+            f"             AND {window('p')} AND {window('l')}))"
+            " ORDER BY e.sort_at DESC,"
+            " (SELECT MIN(v.sequence) FROM solution_entries v WHERE v.id=e.id) DESC LIMIT 1",
+            {"subject": subject_id}).fetchone()
+        return dict(row) if row else None
+
+    def _latest_solution_readings(self, subjects=None):
         latest = {}
-        for entry in self._solution_data(export=True):
+        for entry in self._solution_data(export=True, subjects=subjects):
             if entry["cancelled"] or (entry["ph"] is None and entry["ec"] is None):
                 continue
             for target in entry["targets"] + entry["fed_subjects"]:

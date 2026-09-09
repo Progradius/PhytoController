@@ -995,11 +995,22 @@ performances sur le Raspberry Pi.
 
 ## Assistance éphémère et prévalidation (lot UI 3)
 
-- `GET /api/v1/cultures/assistance/{subject_id}` : `items` (au plus 4), `version`,
-  `generated_at`, `valid_for_seconds` (30). Chaque item contient `id`, `category`,
-  `target`, `reason`, `action`, `href`, `fact_date`, `expires_when`. La version désigne
-  le parcours ; les rappels, relevés et vérifications sont relus indépendamment.
-  Horloge non fiable : liste vide. Sujet absent : 404 ; carnet indisponible : 503.
+- `GET /api/v1/cultures/assistance/{subject_id}[?version=<entier>]` : `items` (au plus 4),
+  `version`, `generated_at`, `valid_for_seconds` (30). Chaque item contient `id`,
+  `category`, `target`, `reason`, `action`, `href`, `fact_date`, `expires_when`. La
+  version désigne le parcours ; les rappels, relevés et vérifications sont relus
+  indépendamment. Horloge non fiable : liste vide. Sujet absent : 404 ; carnet
+  indisponible : 503.
+- `version` est **facultatif** : c'est la version de fiche que le client affiche déjà.
+  Quand elle est égale à celle du sujet, la réponse est `200` avec le corps
+  `{"unchanged": true, "version": <la même>, "valid_for_seconds": 30, "generated_at": …}`
+  et **aucune** clé `items` : le client conserve les aides qu'il a. Rien n'est mémorisé
+  entre deux requêtes — le serveur compare deux entiers, il ne projette pas le carnet, ne
+  lit ni rappel ni vérification. Une version absente, illisible ou différente déclenche le
+  calcul complet et la réponse habituelle. Un client qui reçoit `unchanged` sans avoir
+  d'aides en mémoire redemande sans `version`.
+  Une réponse doit donc être lue ainsi : `unchanged` présent → ne rien changer à
+  l'affichage ; sinon `items` fait foi, y compris vide.
 - `POST /api/v1/cultures/preview/{domain}`, où `domain` vaut `culture` ou `solution` :
   corps strictement identique à celui de la mutation correspondante, `request_id`
   compris. Protection CSRF et origine identique. Réponse : `valid`, `summary` (phrases
@@ -1015,6 +1026,24 @@ ni clé de requête. Le serveur ne retourne aucun identifiant provisoire à réu
 Les erreurs suivent le contrat commun `error` / `field` / `index` (400, 409, 503).
 La mutation finale refait toujours sa validation ; une prévalidation n’est pas un verrou
 réservant un état futur et ne dispense pas de la clé d’idempotence habituelle.
+
+Quand l’interface l’appelle. La prévalidation n’est **pas** sur le chemin nominal
+d’enregistrement : chaque appel est une transaction complète sur le thread unique du
+carnet, et la mutation revalide tout. Le socle `culture_forms.js` ne l’appelle que dans
+deux cas :
+
+1. le bouton « Vérifier avant d’enregistrer », qui ne demande rien d’autre ;
+2. le premier envoi d’un relevé de solution (`operation: "entry"`, `kind: "reading"`),
+   une seule fois par empreinte de saisie, parce que c’est le seul chemin qui cherche des
+   ressemblances.
+
+Une saisie déjà vérifiée (même empreinte, vérification non expirée au bout de 30 s) part
+directement vers la mutation : un relevé coûte donc au plus deux envois, un enregistrement
+nominal — création, événement, correction, rattrapage, observation, photo — un seul. Une
+prévalidation qui n’aboutit pas pour une raison autre qu’un refus (503 « carnet occupé »,
+réseau, délai dépassé) n’empêche pas l’enregistrement : l’interface l’annonce et envoie la
+mutation, qui refait toutes les validations. Seuls un 400, un 409 et l’état hors ligne
+arrêtent la saisie avant l’envoi.
 
 Les ressemblances sont une aide de l’interface : elles ne bloquent pas une mutation API
 valide. Leur fenêtre est bornée à 200 relevés, révisions courantes non annulées,

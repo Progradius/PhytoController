@@ -10,6 +10,12 @@ REMINDER_STATES = {"planned": "Prévu", "postponed": "Reporté", "done": "Fait",
 CHECKLIST = {"lighting": ("Éclairage vérifié", "/conf#daily-timer-2"),
              "pump": ("Pompe vérifiée", "/conf#cyclic-1"),
              "ventilation": ("Ventilation commune vérifiée", "/conf#motor")}
+# Bloc « Aujourd'hui » de l'accueil : autant de cartes de rappel en retard et autant dues
+# du jour, pas davantage. Même raison que `TODAY_JOURNAL` — l'accueil montre la prochaine
+# action, il n'est pas une seconde page de rappels ; au-delà il renvoie à `/cultures/cycles`.
+# Un carnet de deux ans peut porter des dizaines de rappels en retard, et chacun est un
+# formulaire complet dans la page.
+TODAY_REMINDERS = 10
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
 MAX_PHOTO_PIXELS = 20_000_000
 MAX_MEDIA_BYTES = 256 * 1024 * 1024
@@ -50,12 +56,27 @@ def reminder_buckets(rows, today, zone="UTC"):
     return buckets
 
 
-def local_day(moment, zone):
-    """Date locale d'un horodatage ISO, ou None s'il est absent ou illisible."""
-    if not isinstance(moment, str) or not moment:
+def local_day(value, zone):
+    """Jour local d'une date seule ou d'un instant ISO ; `None` si la valeur est illisible.
+
+    Fonction unique du carnet : il en existait deux, l'une pour les clôtures de rappel
+    (toujours des instants) et l'autre pour les dates de vérification (souvent des dates
+    seules), et elles ne répondaient pas la même chose sur la même entrée. Les deux
+    conventions sont ici explicites et compatibles :
+
+    * une date seule (`AAAA-MM-JJ`) **est déjà** un jour local et reste telle quelle —
+      aucune heure n'est inventée, exactement comme `model.culture.age` ;
+    * un instant est ramené au fuseau du carnet, sans quoi une clôture à 23 h 30 heure
+      d'été changerait de journée ;
+    * une absence ou une chaîne illisible ne devient jamais une date : elle vaut `None`,
+      et l'appelant décide ce qu'une absence signifie chez lui.
+    """
+    if not isinstance(value, str) or not value:
         return None
+    if len(value) == 10:
+        return value
     try:
-        return datetime.fromisoformat(moment.replace("Z", "+00:00")).astimezone(ZoneInfo(zone)).date().isoformat()
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(ZoneInfo(zone)).date().isoformat()
     except (ValueError, TypeError, KeyError):
         return None
 

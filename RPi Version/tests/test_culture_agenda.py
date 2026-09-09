@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from model.culture import CultureConflict
-from model.culture_cycle import reminder_buckets
+from model.culture_cycle import TODAY_REMINDERS, reminder_buckets
 from model.culture_journal import TODAY_JOURNAL
 from tests.test_culture_cycles import photo_bytes, reminder
 from tests.test_cultures import create, cultures, event  # noqa: F401  (fixtures)
@@ -63,9 +63,11 @@ async def test_agenda_absent_par_defaut_present_sur_demande(cultures):
     agenda = (await cultures.call("overview", False, 0, True))["agenda"]
     assert set(agenda) == {"reminders", "journal", "journal_truncated"}
     reminders = agenda["reminders"]
-    assert set(reminders) == {"overdue", "due_today", "upcoming_count", "done_today"}
+    assert set(reminders) == {"overdue", "overdue_more", "due_today", "due_today_more",
+                              "upcoming_count", "done_today"}
     assert [r["due_date"] for r in reminders["overdue"]] == ["2026-09-01"]
     assert [r["due_date"] for r in reminders["due_today"]] == ["2026-09-07"]
+    assert reminders["overdue_more"] == 0 and reminders["due_today_more"] == 0
     assert reminders["upcoming_count"] == 1
     assert set(reminders["overdue"][0]) == REMINDER_KEYS
     assert reminders["overdue"][0]["target"] == {"kind": "culture", "id": lot["subject_id"],
@@ -78,9 +80,29 @@ async def test_agenda_absent_par_defaut_present_sur_demande(cultures):
 
 async def test_agenda_vide_n_invente_aucun_zero(cultures):
     agenda = (await cultures.call("overview", False, 0, True))["agenda"]
-    assert agenda == {"reminders": {"overdue": [], "due_today": [], "upcoming_count": 0,
-                                    "done_today": []},
+    assert agenda == {"reminders": {"overdue": [], "overdue_more": 0, "due_today": [],
+                                    "due_today_more": 0, "upcoming_count": 0, "done_today": []},
                       "journal": [], "journal_truncated": False}
+
+
+async def test_rappels_de_l_accueil_bornes_avec_un_compteur_du_reste(cultures):
+    """Trente rappels en retard : dix cartes et le compte des vingt autres.
+
+    Chaque carte est un formulaire complet ; l'accueil montre les plus urgents et renvoie
+    à la page des cycles pour le reste. Rien n'est perdu, et rien n'est inventé quand il
+    n'y a pas de reste (les compteurs valent 0, jamais `None`).
+    """
+    lot = await cultures.call("mutate", create())
+    for day in range(1, 31):
+        await cultures.call("cycle_mutate", reminder(lot["subject_id"], due_date=f"2026-08-{day:02d}",
+                                                     interval_days=0))
+    reminders = (await cultures.call("overview", False, 0, True))["agenda"]["reminders"]
+    assert len(reminders["overdue"]) == TODAY_REMINDERS and reminders["overdue_more"] == 20
+    # La tranche est bien la plus urgente : `_reminders` classe par échéance croissante.
+    assert [r["due_date"] for r in reminders["overdue"]] == [f"2026-08-{day:02d}" for day in range(1, 11)]
+    assert reminders["due_today"] == [] and reminders["due_today_more"] == 0
+    page = await cultures.call("overview", False, 0, True)
+    assert page["agenda"]["reminders"]["overdue_more"] == 20
 
 
 async def test_agenda_journal_borne_et_enrichi(cultures):
@@ -93,7 +115,9 @@ async def test_agenda_journal_borne_et_enrichi(cultures):
     # Enrichissement identique à celui du journal complet : libellés et cible résolus.
     assert first["note"] == "Observation 7" and first["source_label"] == "Culture"
     assert first["targets"] == [{"kind": "subject", "id": lot["subject_id"], "name": "Semis"}]
-    assert first["link"] == "/cultures/" + lot["subject_id"]
+    # Le lien vise l'opération elle-même : ouvrir la fiche en haut obligeait à retrouver
+    # à la main l'entrée qu'on venait de lire dans le bloc « Aujourd'hui ».
+    assert first["link"] == f"/cultures/{lot['subject_id']}#event-{first['entry_id']}"
 
 
 async def test_agenda_seulement_sur_l_accueil_des_cultures_actives(web_context):

@@ -122,3 +122,101 @@ def test_repere_anterieur_pur_utilise_la_date_effective_pas_l_ordre_de_saisie():
     future = {**common, "sort_at": "2026-09-08"}
     assert previous_reading(command, [old, future, recent], "2026-09-07") == recent
     assert previous_reading({"targets": ["b"]}, [old, recent], "2026-09-07") is None
+
+
+async def test_preview_refuse_un_domaine_ou_une_commande_hors_forme(cultures):
+    for domain, command in (("inconnu", create()), ("culture", []), ("solution", "texte"),
+                            ("cultures", create()), ("culture", None)):
+        with pytest.raises(CultureError, match="Prévalidation de culture ou de solution attendue"):
+            await cultures.call("preview", domain, command)
+
+
+async def test_preview_sous_horloge_non_fiable_designe_la_confirmation(cultures):
+    cultures.reliable = lambda: False
+    for domain, command in (("culture", create()), ("solution", entry())):
+        with pytest.raises(CultureError) as refused:
+            await cultures.call("preview", domain, command)
+        # Le refus désigne la case à cocher, pas une faute de saisie : sans champ, le socle
+        # n'aurait qu'un résumé en tête de formulaire et l'opérateur chercherait ailleurs.
+        assert refused.value.field == "confirm_date"
+    assert (await cultures.call("preview", "culture", {**create(), "confirm_date": True}))["valid"]
+
+
+async def test_bornes_des_ressemblances_et_des_suggestions(cultures):
+    """Trois ressemblances au plus, quatre aides au plus : des repères, pas une liste."""
+    await cultures.call("solution_mutate", entry())
+    command = entry("reading", ph=6, ec=1.2)
+    for _ in range(5):
+        await cultures.call("solution_mutate", {**command, "request_id": str(uuid.uuid4())})
+    preview = await cultures.call("preview", "solution", {**command, "request_id": str(uuid.uuid4())})
+    assert len(preview["similar"]) == 3
+
+    saved = await cultures.call("mutate", create(stage="floraison", space="space_2"))
+    for day in range(1, 7):
+        await cultures.call("cycle_mutate", reminder(saved["subject_id"],
+            due_date=f"2026-09-0{day}", interval_days=0, title=f"Rappel {day}"))
+    items = (await cultures.call("assistance", saved["subject_id"]))["items"]
+    assert len(items) == 4 and all(item["id"].startswith("reminder-") for item in items)
+
+
+async def test_lignes_d_association_de_reservoir_selon_le_nombre_de_liens(cultures):
+    """Zéro, une, puis deux associations : chaque cas produit une ligne, aucune ne manque.
+
+    Le texte de « aucune » et de « plusieurs » est aujourd'hui le même (R3.5 le sépare) ;
+    ce test verrouille la présence de la ligne, pas sa formulation.
+    """
+    lot = await cultures.call("mutate", create(space="space_2"))
+    identifier = lot["subject_id"]
+    reading = {"operation": "entry", "request_id": str(uuid.uuid4()), "kind": "reading",
+               "targets": [identifier], "effective_at": "2026-08-05", "ph": 6.0}
+
+    async def lines():
+        preview = await cultures.call("preview", "solution", {**reading, "request_id": str(uuid.uuid4())})
+        return [line for line in preview["summary"] if "ssociation" in line or "limentation déclarée" in line]
+
+    # Aucune solution déclarée à cette date : l'association est inconnue.
+    assert len(await lines()) == 1 and "inconnue ou non unique" in (await lines())[0]
+    await cultures.call("solution_mutate", entry())
+    assert len(await lines()) == 1 and "Alimentation déclarée" in (await lines())[0]
+
+    # Deux associations simultanées sont hors d'atteinte du parcours normal — un lot
+    # n'occupe qu'un espace — mais la branche existe et doit rendre une ligne.
+    def duplicate():
+        with cultures._db:
+            period = cultures._db.execute("SELECT id FROM solution_periods LIMIT 1").fetchone()[0]
+            row = cultures._db.execute("SELECT * FROM solution_links WHERE subject_id=?", (identifier,)).fetchone()
+            cultures._db.execute("INSERT INTO solution_periods VALUES ('bis','cuttings_1',?,NULL)", (row["start_at"],))
+            cultures._db.execute("INSERT INTO solution_links VALUES ('bis',?,?,?)",
+                                 (identifier, row["start_at"], row["end_at"]))
+        return period
+    cultures._duplicate_link = duplicate
+    await cultures.call("duplicate_link")
+    assert len(await lines()) == 1 and "inconnue ou non unique" in (await lines())[0]
+
+
+def test_resume_de_transition_d_une_recolte_annonce_la_coupe_d_alimentation():
+    from model.culture_assistance import transition_summary
+    before = {"stage": "floraison", "space": "space_2", "archived": False}
+    after = {"stage": "sechage", "space": "space_2", "archived": False}
+    lines = transition_summary(before, after, {"kind": "harvest", "effective_at": "2026-09-07"})
+    assert lines[0].startswith("Avant : Floraison") and lines[1].startswith("Après : Séchage")
+    assert lines[2] == "Date déclarée : 2026-09-07"
+    assert any("coupe l’alimentation déclarée" in line for line in lines)
+    # Sans récolte, aucune ligne n'invente cette conséquence.
+    assert not any("alimentation" in line for line in
+                   transition_summary(before, after, {"kind": "stage", "effective_at": "2026-09-07"}))
+
+
+async def test_http_assistance_version_inchangee_et_fiche_inconnue(web_context):
+    client, server, *_ = web_context
+    saved = await server.cultures.store.call("mutate", create())
+    url = f"/api/v1/cultures/assistance/{saved['subject_id']}"
+    response = await client.get(f"{url}?version={saved['version']}")
+    assert response.status == 200 and response.headers["Cache-Control"] == "no-store"
+    assert await response.json() == {"unchanged": True, "version": saved["version"],
+                                     "valid_for_seconds": 30,
+                                     "generated_at": (await response.json())["generated_at"]}
+    # Une version illisible n'est pas un refus : elle vaut « je n'en ai pas ».
+    for query in ("", "?version=", "?version=abc", "?version=1.5"):
+        assert "items" in await (await client.get(url + query)).json()
+    assert (await client.get("/api/v1/cultures/assistance/inconnu?version=1")).status == 404

@@ -1,30 +1,38 @@
 """Lectures et prévalidation auxiliaires, sur le thread unique du carnet."""
 
-from contextlib import contextmanager
 from zoneinfo import ZoneInfo
 
-from model.culture import CultureError, text_value, stamp
+from model.culture import CultureError, stamp
 from model.culture_assistance import previous_reading, similar_readings, suggestions
 from model.culture_solution import RESERVOIRS
 
 
 class AssistanceStoreMixin:
-    @contextmanager
-    def _culture_transaction(self, preview=False):
-        """Même validation que l'écriture finale ; aucune donnée de prévisualisation conservée."""
-        with self._db:
-            self._db.execute("BEGIN IMMEDIATE")
-            try:
-                yield
-            finally:
-                if preview:
-                    self._db.rollback()
+    def _assistance(self, subject_id, version=None):
+        """Aides éphémères d'une fiche ; `version` évite de tout recalculer pour rien.
 
-    def _assistance(self, subject_id):
+        Une fiche laissée ouverte redemande ses aides à chaque retour de visibilité. Rien
+        n'est mémorisé entre deux requêtes : le client renvoie la version qu'il affiche et
+        le serveur la compare à celle du sujet, par une seule lecture d'un entier. Égales,
+        la réponse est `{"unchanged": true}` — sans projection, sans rappel, sans
+        vérification lues. Les aides ne dépendent que du parcours (dont toute modification
+        incrémente la version), des rappels et de la date du jour ; un changement de jour
+        se traduit dans les faits par un rappel qui devient dû, et la fiche est de toute
+        façon rechargée. Une version absente ou différente refait le calcul complet.
+        """
+        if version is not None:
+            row = self._db.execute("SELECT version FROM subjects WHERE id=?", (subject_id,)).fetchone()
+            if row is None:
+                raise CultureError("Culture introuvable.")
+            if row["version"] == version:
+                return {"unchanged": True, "version": version, "valid_for_seconds": 30,
+                        "generated_at": self.now().isoformat()}
         subject = next((s for s in self._projections() if s["id"] == subject_id), None)
         if subject is None:
             raise CultureError("Culture introuvable.")
-        subject["latest_reading"] = self._latest_solution_readings().get(subject_id)
+        # Le dernier relevé du seul sujet affiché : l'export intégral du journal n'a jamais
+        # servi qu'à en extraire une ligne, et il coûtait une seconde projection complète.
+        subject["latest_reading"] = self._latest_reading(subject_id)
         today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
         # Révisions courantes uniquement : aucune lecture des anciennes révisions pour l'aide.
         checks = [dict(r) for r in self._db.execute(
@@ -38,10 +46,12 @@ class AssistanceStoreMixin:
         if domain not in ("culture", "solution") or not isinstance(command, dict):
             raise CultureError("Prévalidation de culture ou de solution attendue.")
         mutate = self._mutate if domain == "culture" else self._solution_mutate
-        # La clé identique après réponse perdue doit rester rejouable, même si la version a changé.
-        replay = self._db.execute("SELECT 1 FROM requests WHERE key=?", (text_value(command.get("request_id"), "Clé de requête", 100),)).fetchone()
         result = mutate(command, equipment, preview=True)
-        if replay:
+        # La clé identique après réponse perdue doit rester rejouable, même si la version a
+        # changé. Le constat vient de la mutation elle-même, qui lit déjà la table des
+        # requêtes dans sa transaction : un `SELECT` de plus en amont posait la question
+        # deux fois et hors de la transaction qui y répond.
+        if result.get("replayed"):
             return {"valid": True, "replay": True, "summary": [], "similar": []}
         summary = result.get("preview_summary", ["Saisie cohérente avec le carnet actuel. La validation finale sera répétée à l’enregistrement."])
         similar = []

@@ -11,11 +11,10 @@ courante, sans colonne d'acquittement et sans réécriture silencieuse. L'opéra
 en créant une révision — correction ou annulation, toujours motivée.
 """
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 from model.culture import CultureError, text_value
-from model.culture_cycle import CHECKLIST
+# `local_day` est réexporté ici : le lot des vérifications l'importe depuis ce module
+# depuis l'origine, et il n'y a plus qu'une seule fonction pour tout le carnet.
+from model.culture_cycle import CHECKLIST, local_day  # noqa: F401  (réexport)
 
 PRECISIONS = ("date", "approximative", "instant")
 MAX_REASON = 500
@@ -31,17 +30,6 @@ def check_values(raw):
 def reason_value(raw, label):
     """Une correction ou une annulation sans motif ne se relit pas : le motif est obligatoire."""
     return text_value(raw, label, MAX_REASON)
-
-
-def local_day(value, zone):
-    """Jour local d'une date ou d'un instant déjà validé en base.
-
-    Même convention que `model.culture.age` : une date seule reste telle quelle, un instant
-    est ramené au fuseau du carnet. Aucune heure n'est inventée pour une date seule.
-    """
-    if len(value) == 10:
-        return value
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(ZoneInfo(zone)).date().isoformat()
 
 
 def context_at(subject, day, zone):

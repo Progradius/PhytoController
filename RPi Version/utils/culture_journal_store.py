@@ -156,7 +156,10 @@ class JournalStoreMixin:
                 item["kind_label"] = KINDS.get(item["kind"], item["kind"])
                 item["targets"] = [{"kind": "subject", "id": item["subject_id"],
                                     "name": names.get(item["subject_id"], item["subject_id"])}]
-                item["link"] = "/cultures/" + item["subject_id"]
+                # Ancre de l'opération elle-même, comme le lien `?entry=` d'une solution :
+                # ouvrir la fiche en haut obligeait à retrouver à la main l'entrée qu'on
+                # venait de lire. L'ancre est posée par le gabarit de la fiche.
+                item["link"] = f"/cultures/{item['subject_id']}#event-{entry}"
                 item["photos"] = self._media_for_events([entry])
                 item["revisions"] = [dict(old) for old in self._db.execute(
                     "SELECT revision, recorded_at, cancelled, reason FROM events"

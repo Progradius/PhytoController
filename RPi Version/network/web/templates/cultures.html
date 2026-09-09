@@ -83,7 +83,10 @@
    d'accueil montrait des actions possibles au lieu de ce qui est dû. #}
 {% if reminders.overdue or reminders.due_today or reminders.done_today or reminders.upcoming_count %}
 {% for bucket,title in (('overdue','En retard'),('due_today','Aujourd’hui'),('done_today','Terminés aujourd’hui')) %}
-{% if reminders[bucket] %}<h3>{{ title }}</h3><div class="culture-grid">{% for reminder in reminders[bucket] %}{{ reminder_card(reminder, bucket == 'done_today') }}{% endfor %}</div>{% endif %}
+{# Le compteur vient du serveur (`overdue_more`, `due_today_more`) : la page ne rend que la
+   tranche bornée qu'il lui envoie, elle ne compte ni ne tronque rien elle-même. #}
+{% if reminders[bucket] %}<h3>{{ title }}</h3><div class="culture-grid">{% for reminder in reminders[bucket] %}{{ reminder_card(reminder, bucket == 'done_today') }}{% endfor %}</div>
+{% if reminders[bucket ~ '_more'] %}<p><a href="/cultures/cycles#rappels">… et {{ reminders[bucket ~ '_more'] }} autres rappels</a></p>{% endif %}{% endif %}
 {% endfor %}
 {% if reminders.upcoming_count %}<p><a href="/cultures/cycles#rappels">{{ reminders.upcoming_count }} à venir</a></p>{% endif %}
 {% else %}<p>Aucun rappel en cours dans le carnet. <a href="/cultures/cycles#rappels">Créer un rappel</a>.</p>{% endif %}
