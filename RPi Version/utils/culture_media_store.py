@@ -65,7 +65,7 @@ class MediaStoreMixin:
                 "reserve_bytes": MIN_FREE_BYTES, "photo_limit_bytes": MAX_PHOTO_BYTES,
                 "count": self._db.execute("SELECT COUNT(*) FROM culture_media").fetchone()[0]}
 
-    def _media_list(self, subject_id=None, offset=0, owner_kind="event", space=None):
+    def _media_list(self, subject_id=None, offset=0, owner_kind="event", space=None, subjects=None):
         """Galerie bornée d'un propriétaire donné.
 
         Le genre reste `event` par défaut : la galerie des cycles montre les photos de
@@ -73,6 +73,9 @@ class MediaStoreMixin:
         casserait le lien « fiche de culture » d'une vignette dont le sujet est NULL.
         """
         clauses, args = ["owner_kind=?"], [owner_kind]
+        if subjects:
+            clauses.append("subject_id IN (" + ",".join("?" for _ in subjects) + ")")
+            args.extend(subjects)
         if subject_id:
             clauses.append("subject_id=?")
             args.append(subject_id)

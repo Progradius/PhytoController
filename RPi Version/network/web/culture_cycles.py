@@ -53,7 +53,8 @@ class CycleViews:
     async def payload(self, request):
         return await self.store.call("cycle_data", request.query.getall("subject", []), self.views.offset(request),
                                      request.query.get("reminder"), self.bounded(request, "climate_offset", 10 ** 7) or 0,
-                                     self.bounded(request, "climate_at", 4102444800))
+                                     self.bounded(request, "climate_at", 4102444800), request.query.get("q", ""),
+                                     self.bounded(request, "selection_offset", 10 ** 7) or 0)
 
     async def page(self, request):
         data, error, status = None, None, 200

@@ -236,7 +236,7 @@ class CycleStoreMixin:
                 "previous": offset - CLIMATE_PAGE if offset else None,
                 "next": offset + CLIMATE_PAGE if offset + CLIMATE_PAGE < total else None}
 
-    def _cycle_data(self, selected=None, offset=0, focus=None, climate_offset=0, climate_at=None):
+    def _cycle_data(self, selected=None, offset=0, focus=None, climate_offset=0, climate_at=None, search="", selection_offset=0):
         selected = selected or []
         if not isinstance(selected, list) or len(selected) > 4 or any(not isinstance(s, str) for s in selected):
             raise CultureError("Comparer au maximum quatre cultures.")
@@ -257,16 +257,14 @@ class CycleStoreMixin:
             # Le détail horaire n'est paginé que sur une sélection unique : une comparaison
             # de cycles reste bornée à des synthèses dont la granularité est affichée.
             detail = self._climate_detail(start_hour, end_hour, climate_offset, climate_at) if len(chosen) == 1 else None
-            readings = [e for e in self._solution_data({"target": subject["id"]}, export=True) if not e["cancelled"]]
-            measures = {}
-            for metric in ("ph", "ec"):
-                values = [e[metric] for e in readings if e[metric] is not None]
-                measures[metric] = {"count": len(values), "minimum": min(values) if values else None,
-                                    "maximum": max(values) if values else None,
-                                    "mean": sum(values) / len(values) if values else None}
+            measures = self._reading_summary(subject["id"])
             summaries.append({"subject": subject, "climate": climate, "climate_detail": detail,
                               "measures": measures, "periods": subject["periods"],
                               "checklists": self._checklists(subject)})
+        needle = str(search or "").strip()[:120].casefold()
+        matches = [s for s in subjects if needle in (s["name"] + " " + s.get("variety", "")).casefold()]
+        choices = matches[selection_offset:selection_offset + 40]
+        choices = chosen + [s for s in choices if s["id"] not in selected]
         target = selected[0] if len(selected) == 1 else None
         reminders = self._reminders(target)
         reminders.sort(key=lambda r: (r["state"] in ("done", "cancelled"), r["due_date"], r["id"]))
@@ -274,9 +272,12 @@ class CycleStoreMixin:
             position = next((i for i, r in enumerate(reminders) if r["id"] == focus), None)
             if position is not None:
                 offset = position // 40 * 40
-        return {"subjects": [{"id": s["id"], "name": s["name"], "archived": s["archived"]} for s in subjects],
+        return {"comparison_choices": [{key: s[key] for key in ("id", "name", "variety", "archived")} for s in choices],
+                "selection_total": len(matches),
+                "selection_offset": selection_offset, "search": str(search or "").strip()[:120],
+                "subjects": [{"id": s["id"], "name": s["name"], "archived": s["archived"]} for s in subjects],
                 "summaries": summaries, "reminders": reminders[offset:offset + 40], "reminder_total": len(reminders),
-                "offset": offset, "media": self._media_list(target), "storage": self._media_storage(),
+                "offset": offset, "media": self._media_list(subjects=selected), "storage": self._media_storage(),
                 "today": self.now().astimezone(ZoneInfo(self.zone)).date().isoformat(),
                 "timezone": self.zone, "clock_reliable": self.reliable()}
 

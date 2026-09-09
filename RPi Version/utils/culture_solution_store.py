@@ -451,6 +451,40 @@ class SolutionStoreMixin:
             writer.writerow(row)
         return output.getvalue()
 
+    @staticmethod
+    def _subject_readings_sql():
+        """Même attribution datée pour le dernier relevé et le bilan SQL."""
+        before = ("EXISTS (SELECT 1 FROM solution_entries i WHERE i.id=e.intervention_id"
+                  " AND i.kind='renewal' AND i.cancelled=0 AND e.context='before'"
+                  " AND i.sort_at=e.sort_at"
+                  " AND i.revision=(SELECT MAX(w.revision) FROM solution_entries w WHERE w.id=i.id))")
+
+        def window(table):
+            return (f"(CASE WHEN {before} THEN {table}.start_at<e.sort_at"
+                    f" AND ({table}.end_at IS NULL OR e.sort_at<={table}.end_at)"
+                    f" ELSE {table}.start_at<=e.sort_at"
+                    f" AND ({table}.end_at IS NULL OR e.sort_at<{table}.end_at) END)")
+
+        return (
+            " WHERE e.cancelled=0 AND (e.ph IS NOT NULL OR e.ec IS NOT NULL)"
+            " AND e.revision=(SELECT MAX(v.revision) FROM solution_entries v WHERE v.id=e.id)"
+            " AND (EXISTS (SELECT 1 FROM solution_targets t WHERE t.entry_id=e.id"
+            "              AND t.revision=e.revision AND t.subject_id=:subject)"
+            "   OR EXISTS (SELECT 1 FROM solution_links l JOIN solution_periods p ON p.id=l.period_id"
+            "              WHERE l.subject_id=:subject AND p.reservoir_id=e.reservoir_id"
+            f"             AND {window('p')} AND {window('l')}))")
+
+    def _reading_summary(self, subject_id):
+        # Une seule ligne retournée, quel que soit le nombre de relevés ou de révisions.
+        columns = ", ".join(f"{fn}(e.{metric}) AS {metric}_{key}"
+                            for metric in ("ph", "ec")
+                            for fn, key in (("COUNT", "count"), ("MIN", "minimum"),
+                                            ("MAX", "maximum"), ("AVG", "mean")))
+        row = self._db.execute("SELECT " + columns + " FROM solution_entries e" +
+                               self._subject_readings_sql(), {"subject": subject_id}).fetchone()
+        return {metric: {key: row[f"{metric}_{key}"] for key in ("count", "minimum", "maximum", "mean")}
+                for metric in ("ph", "ec")}
+
     def _latest_reading(self, subject_id):
         """Dernier relevé mesuré d'**un seul** sujet, en une requête bornée.
 
@@ -465,26 +499,10 @@ class SolutionStoreMixin:
         horodaté à la même seconde appartient à la solution **précédente** : la borne y
         devient `]début ; fin]`, sans quoi la période lue serait la nouvelle.
         """
-        before = ("EXISTS (SELECT 1 FROM solution_entries i WHERE i.id=e.intervention_id"
-                  " AND i.kind='renewal' AND i.cancelled=0 AND e.context='before'"
-                  " AND i.sort_at=e.sort_at"
-                  " AND i.revision=(SELECT MAX(w.revision) FROM solution_entries w WHERE w.id=i.id))")
-
-        def window(table):
-            return (f"(CASE WHEN {before} THEN {table}.start_at<e.sort_at"
-                    f" AND ({table}.end_at IS NULL OR e.sort_at<={table}.end_at)"
-                    f" ELSE {table}.start_at<=e.sort_at"
-                    f" AND ({table}.end_at IS NULL OR e.sort_at<{table}.end_at) END)")
-
+        predicate = self._subject_readings_sql()
         row = self._db.execute(
             "SELECT e.ph, e.ec, e.effective_at, e.precision FROM solution_entries e"
-            " WHERE e.cancelled=0 AND (e.ph IS NOT NULL OR e.ec IS NOT NULL)"
-            " AND e.revision=(SELECT MAX(v.revision) FROM solution_entries v WHERE v.id=e.id)"
-            " AND (EXISTS (SELECT 1 FROM solution_targets t WHERE t.entry_id=e.id"
-            "              AND t.revision=e.revision AND t.subject_id=:subject)"
-            "   OR EXISTS (SELECT 1 FROM solution_links l JOIN solution_periods p ON p.id=l.period_id"
-            "              WHERE l.subject_id=:subject AND p.reservoir_id=e.reservoir_id"
-            f"             AND {window('p')} AND {window('l')}))"
+            + predicate +
             " ORDER BY e.sort_at DESC,"
             " (SELECT MIN(v.sequence) FROM solution_entries v WHERE v.id=e.id) DESC LIMIT 1",
             {"subject": subject_id}).fetchone()

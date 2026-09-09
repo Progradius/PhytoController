@@ -14,6 +14,15 @@
   // vérifications et les photos rendaient auparavant leurs refus dans la seule zone d'état,
   // sans champ désigné ni annonce ; le texte des messages, lui, ne change pas.
   const forms = window.PhytoCultureForms;
+  document.querySelectorAll("[data-selection-offset]").forEach(link => {
+    const query = new URLSearchParams(location.search); query.set("selection_offset", link.dataset.selectionOffset);
+    link.search = query.toString(); link.hash = "comparaison";
+    link.addEventListener("click", () => {
+      query.delete("subject");
+      document.querySelectorAll('[data-comparison-selection] [name="subject"]:checked').forEach(input => query.append("subject", input.value));
+      link.search = query.toString();
+    });
+  });
   document.querySelectorAll("[data-cycle-offset]").forEach(link => {
     const query = new URLSearchParams(location.search); query.set("offset", link.dataset.cycleOffset); link.search = query.toString();
   });
@@ -135,6 +144,7 @@
       const missing = all.filter(p => p.missing);
       caption.textContent = `${all[0].label} (${all[0].unit}) · commun à la serre · synthèse par ${granularity} · ${valid.length} période(s) avec valeur fiable, ${missing.length} lacune(s) sur ${all.length}`;
       const svg = node("svg", {viewBox: "0 0 600 240", role: "img", "aria-label": caption.textContent}); figure.append(caption, svg); container.append(figure);
+      const refreshSelection = window.PhytoCultureAnalysis.chart(svg, all.map(p => ({text: `${p.at} · ${p.mean === null ? "Aucune valeur fiable — lacune" : `${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}`} · ${p.valid_count} valeurs fiables sur ${p.span_hours} h · couverture ${(p.coverage * 100).toFixed(0)} %`})), caption.textContent);
       const draw = () => {
         svg.replaceChildren();
         const width = svg.getBoundingClientRect().width || 240, right = width - 20;
@@ -149,14 +159,15 @@
         // Les barres min/max et points moyens ne relient jamais une lacune.
         for (const p of valid) {
           const line = node("path", {d: `M${x(p)} ${y(p.minimum)}V${y(p.maximum)}`, class: "solution-range"});
-          const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot"});
+          const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot", "data-analysis-index": all.indexOf(p)});
           dot.append(node("title", {}, `${p.at} : ${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables sur ${p.span_hours} h de période, couverture ${(p.coverage*100).toFixed(0)} %`)); svg.append(line, dot);
         }
         // Une période sans agrégat reste une lacune signalée, jamais une valeur nulle tracée.
         for (const p of missing) {
-          const tick = node("path", {d: `M${x(p)} 185V193`, class: "climate-gap"});
+          const tick = node("path", {d: `M${x(p)} 185V193`, class: "climate-gap", "data-analysis-index": all.indexOf(p)});
           tick.append(node("title", {}, `${p.at} : aucun agrégat sur ${p.span_hours} h de période`)); svg.append(tick);
         }
+        refreshSelection();
       };
       let lastWidth = 0;
       new ResizeObserver(() => {

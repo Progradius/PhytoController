@@ -1,0 +1,52 @@
+{
+  "wsl": {
+    "cultures": 44,
+    "releves": 12001,
+    "jours": 729,
+    "mesures": {
+      "1": {
+        "lecture_mediane_ms": 45.7,
+        "lecture_max_ms": 63.7,
+        "rendu_jinja_mediane_ms": 10.6,
+        "rendu_jinja_max_ms": 123.3,
+        "html_octets": 134683,
+        "points_climat": 210,
+        "choix_affiches": 41
+      },
+      "4": {
+        "lecture_mediane_ms": 167.2,
+        "lecture_max_ms": 186.3,
+        "rendu_jinja_mediane_ms": 12.9,
+        "rendu_jinja_max_ms": 13.4,
+        "html_octets": 438943,
+        "points_climat": 840,
+        "choix_affiches": 44
+      }
+    }
+  },
+  "pi_aarch64_python_3_11_2": {
+    "cultures": 44,
+    "releves": 12001,
+    "jours": 729,
+    "mesures": {
+      "1": {
+        "lecture_mediane_ms": 203.0,
+        "lecture_max_ms": 212.1,
+        "rendu_jinja_mediane_ms": 17.2,
+        "rendu_jinja_max_ms": 408.6,
+        "html_octets": 134682,
+        "points_climat": 210,
+        "choix_affiches": 41
+      },
+      "4": {
+        "lecture_mediane_ms": 759.3,
+        "lecture_max_ms": 762.5,
+        "rendu_jinja_mediane_ms": 33.4,
+        "rendu_jinja_max_ms": 33.5,
+        "html_octets": 438942,
+        "points_climat": 840,
+        "choix_affiches": 44
+      }
+    }
+  }
+}

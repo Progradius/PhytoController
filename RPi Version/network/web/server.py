@@ -582,6 +582,7 @@ class Server:
         ])
         app.add_routes(self.cultures.routes())
         app.on_cleanup.append(self.cultures.close)
+        app.router.add_get("/static/js/culture_analysis.js", self._culture_analysis_js)
         app.router.add_get("/static/js/culture_cycles.js", self._culture_cycles_js)
         app.router.add_get("/static/js/culture_solutions.js", self._culture_solutions_js)
         app.router.add_get("/static/js/culture_targets.js", self._culture_targets_js)
@@ -2031,6 +2032,7 @@ class Server:
             f"/static/css/cultures.css?v={ASSET_VERSIONS['cultures_style']}",
             f"/static/js/cultures.js?v={ASSET_VERSIONS['cultures']}",
             f"/static/js/culture_solutions.js?v={ASSET_VERSIONS['culture_solutions']}",
+            f"/static/js/culture_analysis.js?v={ASSET_VERSIONS['culture_analysis']}",
             f"/static/js/culture_cycles.js?v={ASSET_VERSIONS['culture_cycles']}",
             f"/static/js/culture_targets.js?v={ASSET_VERSIONS['culture_targets']}",
             f"/static/js/culture_light.js?v={ASSET_VERSIONS['culture_light']}",
@@ -2069,6 +2071,8 @@ class Server:
     async def _pwa_js(self, request): return await self._asset("js/pwa.js", "application/javascript")
     async def _theme_js(self, request): return await self._asset("js/theme.js", "application/javascript")
     async def _dashboard_js(self, request): return await self._asset("js/dashboard.js", "application/javascript")
+    async def _culture_analysis_js(self, request): return await self._asset("js/culture_analysis.js", "application/javascript")
+
     async def _culture_cycles_js(self, request): return await self._asset("js/culture_cycles.js", "application/javascript")
 
     async def _culture_solutions_js(self, request): return await self._asset("js/culture_solutions.js", "application/javascript")

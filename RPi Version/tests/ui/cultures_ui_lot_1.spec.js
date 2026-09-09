@@ -22,7 +22,7 @@ test("lot UI 1 : fiche, relevé, cycles et ressources conservent la culture", as
   await expect(page).toHaveURL(new RegExp(`target=${id}`));
   await navigation(page).getByRole("link", {name: "Cycles et rappels", exact: true}).click();
   await expect(page).toHaveURL(new RegExp(`subject=${id}`));
-  await expect(page.locator('select[name="subject"]')).toHaveValues([id]);
+  await expect(page.locator('[data-comparison-selection] input[name="subject"]:checked')).toHaveValue(id);
   const reminders = await page.locator("#rappels").boundingBox();
   const compare = await page.getByText("Comparer les cycles", {exact: true}).boundingBox();
   expect(reminders.y).toBeLessThan(compare.y);

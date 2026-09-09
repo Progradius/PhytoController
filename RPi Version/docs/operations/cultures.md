@@ -563,8 +563,29 @@ dans les saisies restent des contextes de saisie, sans date de réaffectation in
 
 ## Lire et comparer les cycles
 
-Sélectionner jusqu'à quatre cultures dans **Comparer les cycles**, puis afficher les cycles.
-La vue rassemble parcours datés, effectifs, bilan, statistiques pH/EC et climat commun à la serre.
+Dans **Comparer les cycles**, rechercher par nom ou variété puis cocher jusqu’à quatre
+cultures, actives ou archivées. La recherche parcourt tout le carnet ; chaque page présente
+40 résultats au plus, en conservant les cultures sélectionnées. Le filtre des choix affichés
+sert seulement à réduire la liste déjà chargée. Cliquer sur **Afficher les cycles**.
+
+Le tableau aligne les durées par stade, les statistiques pH/EC, le poids et les enseignements,
+avec une colonne par culture. Les mesures portent sur les parcours propres à chaque culture,
+pas nécessairement sur une même durée ni un même nombre de relevés. Les absences restent
+« non renseigné » ; une durée ouverte indique « à ce jour ». Les parcours datés détaillés
+restent sous le tableau. La fiche et les archives donnent aussi un accès direct au bilan.
+
+Pour explorer une courbe de solutions ou de climat, toucher le point souhaité ou utiliser
+le curseur et les boutons **Point précédent / Point suivant**. Au clavier, les flèches du
+curseur parcourent les données ; le tableau dépliable reprend les mêmes valeurs, dates et
+lacunes. Les valeurs des bandes de référence sont consultables séparément.
+
+Cliquer sur une photo ouvre la galerie de son groupe, avec sa légende et son contexte.
+**Photo précédente / Photo suivante**, les flèches clavier et **Échap** permettent de
+naviguer puis de revenir au lien d’origine. Une photo indisponible laisse les commandes
+accessibles. La galerie des cycles ne contient que les cultures sélectionnées, ou toutes
+les cultures en vue globale, dans la limite des 100 photos les plus récentes. Les photos
+plus anciennes restent dans le journal paginé et la sauvegarde complète.
+
 Le bilan de fin de séchage accepte des enseignements pour le prochain cycle et des poids secs
 facultatifs par origine ; leur somme ne peut pas dépasser le total lorsqu'il est renseigné.
 Les mesures détaillées restent accessibles dans les solutions contextualisées.

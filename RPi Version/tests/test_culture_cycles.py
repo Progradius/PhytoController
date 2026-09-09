@@ -439,3 +439,20 @@ async def test_verification_le_jour_du_changement_horodate(cultures):
     assert (await cultures.call("cycle_mutate", command))["saved"]
     with pytest.raises(CultureError, match="précède"):
         await cultures.call("cycle_mutate", {**command, "request_id": str(uuid.uuid4()), "effective_at": "2026-09-05"})
+
+
+async def test_galerie_comparaison_exclut_les_cultures_non_selectionnees(cultures):
+    identifiers = []
+    photos = []
+    for name in ("Mère A", "Mère B", "Mère hors comparaison"):
+        result = await cultures.call("mutate", create(name, "mother"))
+        identifier = result["subject_id"]
+        identifiers.append(identifier)
+        detail = await cultures.call("detail", identifier)
+        source = detail["events"][0]
+        photos.append(await cultures.call("media_add", {"request_id": str(uuid.uuid4()),
+            "subject_id": identifier, "event_id": source["id"], "event_revision": source["revision"],
+            "caption": name}, photo_bytes()))
+    data = await cultures.call("cycle_data", identifiers[:2])
+    assert {photo["subject_id"] for photo in data["media"]} == set(identifiers[:2])
+    assert len((await cultures.call("cycle_data"))["media"]) == 3

@@ -242,6 +242,9 @@
   // Lot E : bandes de référence des plages cibles, fournies par période résolue.
   const bands = JSON.parse(charts?.dataset.targetBands || "[]");
   document.querySelectorAll("svg[data-metric]").forEach(svg => {
+    const metric = svg.dataset.metric;
+    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : p[metric]} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""} · ${p.annotations.join(', ')}`;
+    const refreshSelection = window.PhytoCultureAnalysis.chart(svg, points.map(p => ({text: describe(p)})), svg.getAttribute("aria-label"));
     const draw = () => {
       svg.replaceChildren();
       const width = svg.getBoundingClientRect().width || 240;
@@ -293,9 +296,10 @@
         if (p[metric + "_count"]) {
           svg.append(svgNode("path", {d: `M${x(p)} ${y({...p, [metric]: p[metric + "_min"]})}V${y({...p, [metric]: p[metric + "_max"]})}`, class: "solution-range"}));
         }
-        const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: "solution-dot"});
+        const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: "solution-dot", "data-analysis-index": points.indexOf(p)});
         dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
       });
+      refreshSelection();
     };
     let lastWidth = 0;
     new ResizeObserver(() => {

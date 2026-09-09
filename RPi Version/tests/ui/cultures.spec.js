@@ -302,7 +302,8 @@ test("cycles : PWA datée en lecture seule et aucune mutation rejouée", async (
   await expect(page.getByRole("heading", {name: "Rappel PWA"})).toBeVisible();
   await expect(page.locator("#pwa-connection-banner")).toContainText("lecture seule");
   await expect(page.locator('meta[name="phyto-offline-snapshot"]')).toHaveCount(1);
-  await expect(page.getByRole("button", {name: "Enregistrer le suivi"})).toBeDisabled();
+  await expect(page.getByRole("button", {name: "Fait", exact: true})).toBeDisabled();
+  await expect(page.getByRole("button", {name: "Reporter", exact: true})).toBeDisabled();
   const cachedApis = await page.evaluate(async () => {
     const urls = [];
     for (const name of await caches.keys()) for (const key of await (await caches.open(name)).keys()) urls.push(new URL(key.url).pathname);
@@ -312,6 +313,7 @@ test("cycles : PWA datée en lecture seule et aucune mutation rejouée", async (
   await page.context().setOffline(false);
   await page.reload();
   await expect(page.locator('meta[name="phyto-offline-snapshot"]')).toHaveCount(0);
-  await expect(page.getByRole("button", {name: "Enregistrer le suivi"})).toBeEnabled();
+  await expect(page.getByRole("button", {name: "Fait", exact: true})).toBeEnabled();
+  await expect(page.getByRole("button", {name: "Reporter", exact: true})).toBeEnabled();
   expect(posts).toBe(0);
 });

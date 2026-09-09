@@ -160,6 +160,14 @@ async def test_dernier_releve_d_un_sujet_egale_la_lecture_integrale(cultures):
         for subject in (fed, direct, orphan):
             identifier = subject["subject_id"]
             assert await cultures.call("latest_reading", identifier) == full.get(identifier), identifier
+            rows = await cultures.call("solution_data", {"target": identifier}, 0, True)
+            summary = await cultures.call("reading_summary", identifier)
+            for metric in ("ph", "ec"):
+                values = [row[metric] for row in rows if not row["cancelled"] and row[metric] is not None]
+                assert summary[metric] == {"count": len(values), "minimum": min(values) if values else None,
+                    "maximum": max(values) if values else None,
+                    "mean": pytest.approx(sum(values) / len(values)) if values else None}
+
 
     await cultures.call("solution_mutate", entry())
     await compare()
@@ -207,3 +215,43 @@ async def test_dernier_releve_annule_ou_corrige_suit_la_revision_courante(cultur
         "cancelled": True, "reason": "Mesure saisie par erreur"})
     assert await cultures.call("latest_reading", lot["subject_id"]) is None
     assert (await cultures.call("latest_solution_readings")).get(lot["subject_id"]) is None
+
+
+async def test_comparaison_agrege_sans_export_ni_projection_repetee(counted):
+    store, counter = counted
+    lot = await seeded(store)
+    identifier = lot["subject_id"]
+    command = entry("reading", "2026-08-06", ph=0, ec=0)
+    saved = await store.call("solution_mutate", command)
+    await store.call("solution_mutate", {**command, "operation": "correct", "request_id": str(uuid.uuid4()),
+        "id": saved["id"], "version": saved["version"], "ph": 6.3, "reason": "Correction"})
+    expected = await store.call("solution_data", {"target": identifier}, 0, True)
+    expected = [row for row in expected if not row["cancelled"]]
+    original = store._solution_data
+    def forbidden(*args, **kwargs):
+        raise AssertionError("La comparaison ne doit pas exporter les relevés")
+    store._solution_data = forbidden
+    counter.calls = 0
+    try:
+        summary = (await store.call("cycle_data", [identifier]))["summaries"][0]
+        assert counter.calls == 1
+        for metric in ("ph", "ec"):
+            values = [row[metric] for row in expected if row[metric] is not None]
+            assert summary["measures"][metric] == {"count": len(values), "minimum": min(values),
+                "maximum": max(values), "mean": pytest.approx(sum(values) / len(values))}
+    finally:
+        store._solution_data = original
+
+
+async def test_recherche_comparaison_bornee_conserve_selection(cultures):
+    for i in range(43):
+        await cultures.call("mutate", create(f"Mère {i:02}", "mother"))
+    first = await cultures.call("cycle_data")
+    assert len(first["comparison_choices"]) == 40
+    chosen = first["comparison_choices"][0]["id"]
+    second = await cultures.call("cycle_data", [chosen], 0, None, 0, None, "", 40)
+    assert len(second["comparison_choices"]) == 4
+    assert second["comparison_choices"][0]["id"] == chosen
+    filtered = await cultures.call("cycle_data", [chosen], 0, None, 0, None, "introuvable")
+    assert filtered["selection_total"] == 0
+    assert [s["id"] for s in filtered["comparison_choices"]] == [chosen]

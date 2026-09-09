@@ -504,9 +504,19 @@ Les actions restent déclaratives et n'écrivent ni configuration ni GPIO.
 
 La réponse cycles contient `subjects`, `summaries`, `reminders`, `reminder_total`, `offset`,
 `media`, `storage`, `today`, `timezone` et `clock_reliable`. Une seule culture sélectionnée filtre
-ses rappels/photos ; sinon leur vue est globale. Les rappels sont paginés par 40, les actifs avant
+ses rappels ; sinon les rappels restent globaux. Les photos sont filtrées sur **toutes** les
+cultures sélectionnées ; seule une sélection vide ouvre la galerie globale. Les rappels sont paginés par 40, les actifs avant
 les clos, et incluent leurs anciennes `revisions`. La galerie montre au plus 100 photos récentes.
 Le détail de culture inclut les photos de tous les événements de sa page de journal, même anciens.
+
+Lot UI 4 : `q` filtre les choix de comparaison par nom/variété (120 caractères maximum
+retenus) et `selection_offset` les pagine (entier de 0 à 10⁷). Ces paramètres ne changent
+pas les `subject` sélectionnés ni leurs synthèses. La réponse ajoute `comparison_choices`
+(40 résultats maximum plus les quatre sélections éventuelles), `selection_total`,
+`selection_offset` et `search`. Les statistiques `summaries[].measures` gardent leur contrat,
+avec un calcul SQL sur les révisions courantes et les associations datées ; les `COUNT`
+ignorent les absences, les moyennes et extrema restent `null` en l’absence de mesure.
+
 
 ### Rappels
 
@@ -994,7 +1004,7 @@ contourner par le client. Mesures faites hors matériel, sans qualification sur 
 | Refus sans champ | Tous les domaines rattachent leurs refus de valeur à un champ ; restent sans `field`, délibérément, l'entité introuvable, le conflit de version, le conflit d'occupation d'un espace, l'indisponibilité du carnet et les commandes malformées. Le refus s'affiche alors en résumé de formulaire |
 | Origines de boutures sans JavaScript | Dans le formulaire de création, le champ « Pied mère » de chaque origine est rendu avec l'attribut `hidden` et n'est révélé que par le script (`syncOrigins` dans `cultures.js`) : sans JavaScript, la ligne « bouture » reste masquée et un lot de boutures ne peut pas désigner sa mère depuis cette page. Limite antérieure au lot UI 2 |
 | Bornes de l'agenda | `agenda.journal` est plafonné à `TODAY_JOURNAL = 5` entrées et `upcoming_count` remplace la liste des rappels à venir : l'accueil n'est pas une seconde page de journal ni un second écran de rappels |
-| Photos d'une fiche | `detail.media` est borné à 100 photos, sans pagination : au-delà, la galerie des cycles reste la vue complète |
+| Photos d'une fiche | `detail.media` est borné à 100 photos, sans pagination : au-delà, le journal paginé et la sauvegarde complète conservent les photos anciennes |
 | `event_id` d'un rejeu ancien | Le rejeu d'une clé d'idempotence enregistrée avant le lot UI 2 rend le résultat mémorisé tel quel, donc sans `event_id` ni `event_revision` ; un client ne peut pas en déduire qu'aucune entrée n'a été écrite |
 
 Volumétrie observée hors matériel avec 12 000 agrégats horaires : page des cycles 258 217 octets,
