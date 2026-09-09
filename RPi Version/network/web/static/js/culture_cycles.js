@@ -1,5 +1,12 @@
 (() => {
   "use strict";
+  // Un lien d'assistance ouvre la vérification du bon sujet, sans cocher de case.
+  const openChecks = () => {
+    if (!location.hash.startsWith("#verifications-")) return;
+    const node = document.getElementById(location.hash.slice(1));
+    if (node?.tagName === "DETAILS") { node.open = true; node.querySelector("summary")?.focus(); }
+  };
+  openChecks(); addEventListener("hashchange", openChecks);
   // Envoi, clé d'idempotence et restitution des refus : le socle partagé. Les rappels, les
   // vérifications et les photos rendaient auparavant leurs refus dans la seule zone d'état,
   // sans champ désigné ni annonce ; le texte des messages, lui, ne change pas.

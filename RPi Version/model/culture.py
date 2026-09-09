@@ -386,7 +386,10 @@ def validate_spaces(subjects):
             if period["end"] is not None and period["end"] <= period["start"]:
                 continue
             if period["space"] == "space_2":
-                for other_id, other in occupied:
+                for other_id, other_name, other in occupied:
                     if other_id != subject["id"] and period["start"] < (other["end"] or "9999") and other["start"] < (period["end"] or "9999"):
-                        raise CultureError("L'espace 2 est déjà occupé sur cette période.")
-                occupied.append((subject["id"], period))
+                        raise CultureError(f"L'espace 2 est déjà occupé sur cette période : {other_name} "
+                                           f"({other['start']} → {other['end'] or 'sans fin déclarée'}) et "
+                                           f"{subject['name']} ({period['start']} → {period['end'] or 'sans fin déclarée'}). "
+                                           "Corriger la date ou déclarer la libération réelle de l’espace.")
+                occupied.append((subject["id"], subject["name"], period))

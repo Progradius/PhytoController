@@ -164,6 +164,7 @@
 </header>
 <p class="card-meta">J0 correspond à la date locale de début ; les jours sont calendaires ({{ overview.timezone }}), pas des périodes de 24 h.</p>
 <p class="card-meta" data-device-timezone>Les heures précises sont saisies dans le fuseau de votre appareil.</p>
+<section class="culture-section" data-culture-assistance="{{ subject.id }}" hidden aria-label="Suggestions expliquées"></section>
 <section class="culture-section" aria-labelledby="actions-title"><h2 id="actions-title">Que faire maintenant ?</h2>
 <div class="culture-grid">
 {% for action in actions.primary %}

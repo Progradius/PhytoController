@@ -32,6 +32,8 @@ from utils.culture_targets_store import TargetsStoreMixin
 from utils.culture_light_store import LightStoreMixin
 from utils.culture_equipment_store import EquipmentStoreMixin
 from utils.culture_journal_store import JOURNAL_ORDER, JournalStoreMixin
+from utils.culture_assistance_store import AssistanceStoreMixin
+from model.culture_assistance import transition_summary
 from utils.culture_schema_v4 import SCHEMA4_SQL, V4_TABLES
 
 SCHEMA_VERSION = 4
@@ -67,7 +69,7 @@ class CultureUnavailable(RuntimeError):
 
 
 class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, ChecklistStoreMixin,
-                   TargetsStoreMixin, LightStoreMixin, EquipmentStoreMixin, JournalStoreMixin):
+                   TargetsStoreMixin, LightStoreMixin, EquipmentStoreMixin, JournalStoreMixin, AssistanceStoreMixin):
     FILE = Path(__file__).resolve().parents[1] / "param" / "cultures.sqlite3"
 
     def __init__(self, path=None, *, now=None, reliable=None, zone="Europe/Paris"):
@@ -341,7 +343,7 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         # photo peut être rattachée à cette révision précise, sans relire le journal.
         return {"id": event_id, "revision": revision}
 
-    def _mutate(self, command, equipment=None):
+    def _mutate(self, command, equipment=None, *, preview=False):
         if not isinstance(command, dict):
             raise CultureError("Objet JSON attendu.")
         self._equipment_context = json.dumps(equipment or {}, ensure_ascii=False)
@@ -356,8 +358,7 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
             fingerprint = hashlib.sha256(json.dumps(command, sort_keys=True, allow_nan=False).encode()).hexdigest()
         except (ValueError, TypeError):
             raise CultureError("Valeurs JSON invalides.") from None
-        with self._db:
-            self._db.execute("BEGIN IMMEDIATE")
+        with self._culture_transaction(preview):
             previous = self._db.execute("SELECT * FROM requests WHERE key=?", (key,)).fetchone()
             if previous:
                 if previous["fingerprint"] != fingerprint:
@@ -367,6 +368,7 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                 raise CultureError("Horloge non fiable : vérifier les dates puis confirmer explicitement.", "confirm_date")
             operation = command.get("operation")
             now = self.now()
+            before = next((s for s in self._projections() if s["id"] == command.get("subject_id")), None) if preview else None
             inserted = None
             if operation == "create":
                 subject_id = self._create(command, now)
@@ -407,6 +409,8 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                 result["event_id"] = inserted["id"]
                 result["event_revision"] = inserted["revision"]
             self._db.execute("INSERT INTO requests VALUES (?,?,?)", (key, fingerprint, json.dumps(result)))
+            if preview:
+                result["preview_summary"] = transition_summary(before, next(s for s in projections if s["id"] == subject_id), command)
         return result
 
     def _backfill(self, subject_id, command, now):

@@ -42,6 +42,50 @@
   };
   if (preview) { refreshPreview(); setInterval(refreshPreview, 60000); window.addEventListener("focus", refreshPreview); }
 
+  // Aides éphémères : retirées à expiration, hors ligne, à l'échec et pendant l'actualisation.
+  const assistance = document.querySelector("[data-culture-assistance]");
+  if (assistance) {
+    let generation = 0;
+    let expiry;
+    const clear = () => { generation++; assistance.replaceChildren(); assistance.hidden = true; clearTimeout(expiry); };
+    const refresh = async () => {
+      clear();
+      if (!navigator.onLine || document.body.classList.contains("is-offline") || document.visibilityState === "hidden") return;
+      const current = generation;
+      const started = performance.now();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await fetch(`/api/v1/cultures/assistance/${encodeURIComponent(assistance.dataset.cultureAssistance)}`, {cache: "no-store", signal: controller.signal});
+        if (!response.ok) return;
+        const data = await response.json();
+        if (current !== generation || !navigator.onLine || document.body.classList.contains("is-offline")) return;
+        const remaining = data.valid_for_seconds * 1000 - (performance.now() - started);
+        if (remaining <= 0) return;
+        const title = document.createElement("h2"); title.textContent = "Pour cette culture";
+        assistance.append(title);
+        for (const item of data.items) {
+          const article = document.createElement("article"); article.className = "card";
+          const h = document.createElement("h3"); h.textContent = `${item.category} · ${item.target}`;
+          const p = document.createElement("p"); p.textContent = item.reason;
+          const link = document.createElement("a"); link.href = item.href; link.textContent = item.action;
+          const details = document.createElement("details");
+          const summary = document.createElement("summary"); summary.textContent = "Source et validité";
+          const fact = document.createElement("p"); fact.textContent = `Carnet version ${data.version}, fait daté du ${item.fact_date}. ${item.expires_when}`;
+          details.append(summary, fact); article.append(h, p, link, details); assistance.append(article);
+        }
+        assistance.hidden = !data.items.length;
+        expiry = setTimeout(clear, remaining);
+      } catch { if (current === generation) clear(); }
+      finally { clearTimeout(timeout); }
+    };
+    refresh(); setInterval(refresh, 30000);
+    addEventListener("focus", refresh); addEventListener("offline", clear);
+    document.addEventListener("visibilitychange", refresh);
+    new MutationObserver(() => { if (document.body.classList.contains("is-offline")) clear(); })
+      .observe(document.body, {attributes: true, attributeFilter: ["class"]});
+  }
+
   const stamp = (form, name) => {
     const input = form.elements[name];
     const value = input.value;
@@ -314,7 +358,7 @@
       }
       forms.status(form, "Enregistrement…");
       const result = await forms.submitJson(form, "/api/v1/cultures", command);
-      if (result.offline || result.busy) return;
+      if (result.offline || result.busy || result.preview) return;
       if (!result.ok) {
         if (result.status === 409) showConflict(form, result.data.error);
         else forms.showError(form, translate(form, result.data));
@@ -372,7 +416,7 @@
         event_revision: Number(form.dataset.eventRevision),
         caption: form.elements.caption?.value || "",
         confirm_date: form.elements.confirm_date?.checked || false});
-      if (result.offline || result.busy) return false;
+      if (result.offline || result.busy || result.preview) return false;
       if (!result.ok) {
         const conflict = result.status === 409;
         lockObservation(!conflict);
@@ -412,7 +456,7 @@
         kind: "note", effective_at: effective.value, precision: effective.precision,
         payload: {note: form.elements.note.value},
         confirm_date: form.elements.confirm_date?.checked || false});
-      if (result.offline || result.busy) return;
+      if (result.offline || result.busy || result.preview) return;
       if (!result.ok) {
         if (result.status === 409) showConflict(form, result.data.error);
         else forms.showError(form, result.data);

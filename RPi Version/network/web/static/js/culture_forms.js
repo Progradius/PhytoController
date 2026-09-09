@@ -13,6 +13,8 @@
   let counter = 0;
   const bound = new WeakSet();   // contrôles dont l'effacement à la saisie est déjà branché
   const busy = new WeakSet();    // formulaires dont un envoi est en vol
+  const reviewOnly = new WeakMap();
+  const reviews = new WeakMap();
   const keys = new WeakMap();    // formulaire → {signature, value} de la clé d'idempotence
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content;
@@ -39,6 +41,26 @@
   function register(form) {
     if (!form || form.tagName !== "FORM") return form;
     if (!form.dataset.formKey) form.dataset.formKey = `cf-${++counter}`;
+    if (!form.dataset.cfReview && form.matches("[data-culture-create], [data-culture-event], [data-culture-correct], [data-culture-backfill], .solution-form")) {
+      form.dataset.cfReview = "1";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button button-secondary";
+      button.textContent = "Vérifier avant d’enregistrer";
+      form.querySelector('[type="submit"]')?.after(button);
+      let verifying = false;
+      button.addEventListener("click", () => {
+        verifying = true;
+        try { form.requestSubmit(); } finally { verifying = false; }
+      });
+      form.addEventListener("submit", () => reviewOnly.set(form, verifying), true);
+      const invalidate = () => {
+        reviews.delete(form);
+        form.querySelector(".culture-review")?.remove();
+      };
+      form.addEventListener("input", invalidate);
+      form.addEventListener("change", invalidate);
+    }
     const prefix = form.dataset.formKey;
     const list = controlsOf(form);
     const totals = new Map();
@@ -272,8 +294,77 @@
   async function submitJson(form, url, body, options = {}) {
     register(form);
     const command = {...body};
+    let changed = false;
+    const change = () => { changed = true; };
     const signature = JSON.stringify(command);
     command.request_id = requestKey(form, signature);
+    const domain = url === "/api/v1/cultures" ? "culture" : url === "/api/v1/cultures/solutions" ? "solution" : null;
+    if (domain) {
+      form.addEventListener("input", change);
+      form.addEventListener("change", change);
+      const checked = await send(form, `/api/v1/cultures/preview/${domain}`, {
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify(command),
+        timeoutMs: options.timeoutMs ?? 15000,
+      });
+      form.removeEventListener("input", change);
+      form.removeEventListener("change", change);
+      if (changed) {
+        status(form, "Saisie modifiée pendant la vérification : vérifiez à nouveau avant d’enregistrer.");
+        return {ok: false, preview: true};
+      }
+      if (!checked.ok) return checked;
+      if (isOffline()) {
+        status(form, OFFLINE);
+        return {ok: false, offline: true};
+      }
+      // Une réponse tardive ne peut qualifier une saisie modifiée pendant la requête.
+      // Les événements de saisie invalident également toute confirmation précédente.
+      const previous = reviews.get(form);
+      const matches = JSON.stringify(checked.data.similar || []);
+      const acknowledged = previous?.signature === signature && previous?.matches === matches && previous?.confirmed;
+      if (reviewOnly.get(form) || (checked.data.similar?.length && !acknowledged)) {
+        form.querySelector(".culture-review")?.remove();
+        const panel = document.createElement("section");
+        panel.className = "notice culture-review";
+        panel.tabIndex = -1;
+        const title = document.createElement("h3");
+        title.textContent = "Vérification avant enregistrement";
+        panel.append(title);
+        for (const line of checked.data.summary || []) {
+          const p = document.createElement("p"); p.textContent = line; panel.append(p);
+        }
+        const memo = {signature, matches, confirmed: false};
+        reviews.set(form, memo);
+        if (checked.data.similar?.length) {
+          const explanation = document.createElement("p");
+          explanation.textContent = `Saisie ressemblante : vérifiez les entrées ci-dessous. ${checked.data.similar_scope} Une ressemblance ne prouve pas un doublon.`;
+          panel.append(explanation);
+          for (const entry of checked.data.similar) {
+            const link = document.createElement("a");
+            link.href = `/cultures/solutions?entry=${encodeURIComponent(entry.id)}#entry-${encodeURIComponent(entry.id)}`;
+            link.target = "_blank"; link.rel = "noopener";
+            link.textContent = `${entry.effective_at} · pH ${entry.ph ?? "—"} · EC ${entry.ec ?? "—"} mS/cm`;
+            const p = document.createElement("p"); p.append(link); panel.append(p);
+          }
+          const label = document.createElement("label"); label.className = "culture-confirm";
+          const check = document.createElement("input"); check.type = "checkbox";
+          // Ce choix n'est pas une donnée métier et n'invalide pas le formulaire.
+          for (const event of ["input", "change"]) check.addEventListener(event, e => e.stopPropagation());
+          check.addEventListener("change", () => { memo.confirmed = check.checked; });
+          label.append(check, " Je confirme qu’il s’agit d’un autre relevé."); panel.append(label);
+        }
+        const note = document.createElement("p");
+        note.textContent = "Rien n’est enregistré. Utilisez le bouton d’enregistrement pour confirmer ; le serveur vérifiera à nouveau le carnet.";
+        panel.append(note); form.prepend(panel); status(form, ""); focusOn(panel);
+        setTimeout(() => {
+          if (reviews.get(form) !== memo) return;
+          reviews.delete(form); panel.remove();
+          status(form, "Vérification expirée : vérifiez à nouveau les données du carnet avant d’enregistrer.");
+        }, 30000);
+        reviewOnly.delete(form);
+        return {ok: false, preview: true};
+      }
+    }
     return send(form, url, {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(command),
@@ -297,6 +388,16 @@
       timeoutMs: options.timeoutMs ?? 45000,
     });
   }
+
+  const clearReviews = () => {
+    document.querySelectorAll(".culture-review").forEach(panel => {
+      const form = panel.closest("form");
+      reviews.delete(form); panel.remove();
+    });
+  };
+  addEventListener("offline", clearReviews);
+  new MutationObserver(() => { if (isOffline()) clearReviews(); })
+    .observe(document.body, {attributes: true, attributeFilter: ["class"]});
 
   window.PhytoCultureForms = {
     register,

@@ -151,7 +151,7 @@ class SolutionStoreMixin:
                     if start < end:
                         self._db.execute("INSERT INTO solution_links VALUES (?,?,?,?)", (period["id"], subject["id"], start, None if end == "9999" else end))
 
-    def _solution_mutate(self, command, equipment=None):
+    def _solution_mutate(self, command, equipment=None, *, preview=False):
         if not isinstance(command, dict):
             raise CultureError("Objet JSON attendu.")
         # Copie du catalogue connue à la saisie, comme pour les événements de culture :
@@ -167,8 +167,7 @@ class SolutionStoreMixin:
             fingerprint = hashlib.sha256(json.dumps(command, sort_keys=True, allow_nan=False).encode()).hexdigest()
         except (ValueError, TypeError):
             raise CultureError("Valeurs JSON invalides.") from None
-        with self._db:
-            self._db.execute("BEGIN IMMEDIATE")
+        with self._culture_transaction(preview):
             previous = self._db.execute("SELECT * FROM requests WHERE key=?", (key,)).fetchone()
             if previous:
                 if previous["fingerprint"] != fingerprint:

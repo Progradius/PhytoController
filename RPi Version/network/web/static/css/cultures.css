@@ -172,3 +172,11 @@ details.culture-primary-action > summary { font-weight: 700; }
   .culture-reminder .culture-form label { gap: .25rem; }
   .culture-reminder .culture-form-actions { gap: .4rem; }
 }
+
+/* La vérification regroupe des phrases et des liens, y compris à 320 px. */
+.culture-review { display: grid; gap: .75rem; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.culture-review > * { min-width: 0; }
+.culture-review h3 { margin: 0; font-size: 1.05rem; }
+.culture-review .culture-confirm { min-height: 44px; align-items: center; }
+[data-culture-assistance] .card { margin-bottom: .65rem; }
+[data-culture-assistance] h3 { font-size: 1rem; }

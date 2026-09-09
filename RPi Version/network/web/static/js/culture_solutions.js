@@ -198,7 +198,7 @@
       forms.status(form, "Enregistrement…");
       const answer = await forms.submitJson(form, "/api/v1/cultures/solutions", command);
       // Hors ligne et envoi déjà en vol : le socle a posé son message, la saisie reste intacte.
-      if (answer.offline || answer.busy) return;
+      if (answer.offline || answer.busy || answer.preview) return;
       if (!answer.ok) {
         const data = answer.data || {};
         const rank = ["product", "quantity", "unit"].includes(data.field) && typeof data.index === "number"

@@ -55,6 +55,8 @@ class CultureViews:
                 web.get("/cultures", self.page), web.get("/cultures/{subject_id}", self.page),
                 web.get("/api/v1/cultures", self.overview),
                 web.get("/api/v1/cultures/export", self.export),
+                web.get("/api/v1/cultures/assistance/{subject_id}", self.assistance),
+                web.post("/api/v1/cultures/preview/{domain}", self.preview),
                 web.get("/api/v1/cultures/{subject_id}", self.detail),
                 web.post("/api/v1/cultures", self.mutate)]
 
@@ -84,6 +86,27 @@ class CultureViews:
             return web.json_response(await self.store.call("detail", request.match_info["subject_id"], self.offset(request)))
         except CultureError as exc:
             return error_response(exc, 404)
+        except CultureUnavailable as exc:
+            return error_response(exc, 503)
+
+    async def assistance(self, request):
+        try:
+            return web.json_response(await self.store.call("assistance", request.match_info["subject_id"]))
+        except CultureError as exc:
+            return error_response(exc, 404)
+        except CultureUnavailable as exc:
+            return error_response(exc, 503)
+
+    async def preview(self, request):
+        try:
+            return web.json_response(await self.store.call("preview", request.match_info["domain"],
+                await request.json(), self.server.equipment_store.payload()))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return web.json_response({"error": "JSON invalide."}, status=400)
+        except CultureConflict as exc:
+            return error_response(exc, 409)
+        except CultureError as exc:
+            return error_response(exc, 400)
         except CultureUnavailable as exc:
             return error_response(exc, 503)
 
