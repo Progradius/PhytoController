@@ -55,31 +55,32 @@
       }
     }
   },
+  "pi_lot_4_semis_initial": {
+    "commentaire": "Repère historique du lot 4 (Pi aarch64, Python 3.11.2, 9 septembre 2026) : semis sans renouvellement ni association datée, la branche la plus chère n'était jamais parcourue. Non comparable aux blocs Pi ci-dessous.",
+    "mesures": {
+      "1": {"lecture_mediane_ms": 203.0, "lecture_max_ms": 212.1, "rendu_jinja_mediane_ms": 17.2, "rendu_jinja_max_ms": 408.6, "html_octets": 134682, "points_climat": 210, "choix_affiches": 41},
+      "4": {"lecture_mediane_ms": 759.3, "lecture_max_ms": 762.5, "rendu_jinja_mediane_ms": 33.4, "rendu_jinja_max_ms": 33.5, "html_octets": 438942, "points_climat": 840, "choix_affiches": 44}
+    }
+  },
+  "pi_avant_remediation": {
+    "commentaire": "Pi aarch64, Python 3.11.2, 9 septembre 2026 : nouveau semis (25 renouvellements, 100 associations datées), magasin du commit 183189b transféré dans un répertoire temporaire de /tmp, base synthétique temporaire, service phyto actif et inchangé pendant la mesure.",
+    "mesures": {
+      "1": {"lecture_mediane_ms": 485.4, "lecture_max_ms": 493.6, "rendu_jinja_mediane_ms": 17.6, "rendu_jinja_max_ms": 369.6, "html_octets": 134712, "points_climat": 210, "choix_affiches": 41},
+      "4": {"lecture_mediane_ms": 1720.9, "lecture_max_ms": 1750.1, "rendu_jinja_mediane_ms": 32.8, "rendu_jinja_max_ms": 36.7, "html_octets": 438972, "points_climat": 840, "choix_affiches": 44}
+    }
+  },
   "pi_aarch64_python_3_11_2": {
-    "commentaire": "PÉRIMÉ : mesuré avant la remédiation, avec un semis sans renouvellement ni association datée. À remesurer sur le Raspberry Pi avec `python3 scripts/benchmark-cultures-analysis.py` lancé depuis la racine du dépôt avec l'interpréteur du venv, hors service en marche. Les chiffres ci-dessous ne valent plus que comme repère historique.",
-    "perime": true,
+    "commentaire": "Pi aarch64, Python 3.11.2, 9 septembre 2026 : même semis, magasin après R2.1 et R2.2 (commit 1dc848d), mêmes conditions (répertoire temporaire, base temporaire supprimée, service phyto actif). Commande : venv/bin/python3 scripts/benchmark-cultures-analysis.py depuis la racine de l'arbre transféré.",
     "cultures": 44,
     "releves": 12001,
+    "releves_vises": 6001,
+    "solution_periods": 25,
+    "solution_links": 100,
+    "agregats_horaires": 31810,
     "jours": 729,
     "mesures": {
-      "1": {
-        "lecture_mediane_ms": 203.0,
-        "lecture_max_ms": 212.1,
-        "rendu_jinja_mediane_ms": 17.2,
-        "rendu_jinja_max_ms": 408.6,
-        "html_octets": 134682,
-        "points_climat": 210,
-        "choix_affiches": 41
-      },
-      "4": {
-        "lecture_mediane_ms": 759.3,
-        "lecture_max_ms": 762.5,
-        "rendu_jinja_mediane_ms": 33.4,
-        "rendu_jinja_max_ms": 33.5,
-        "html_octets": 438942,
-        "points_climat": 840,
-        "choix_affiches": 44
-      }
+      "1": {"lecture_mediane_ms": 288.0, "lecture_max_ms": 318.9, "rendu_jinja_mediane_ms": 17.0, "rendu_jinja_max_ms": 367.6, "html_octets": 134736, "points_climat": 210, "choix_affiches": 40},
+      "4": {"lecture_mediane_ms": 721.0, "lecture_max_ms": 722.0, "rendu_jinja_mediane_ms": 31.4, "rendu_jinja_max_ms": 31.5, "html_octets": 438414, "points_climat": 840, "choix_affiches": 40}
     }
   }
 }
