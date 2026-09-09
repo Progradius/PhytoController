@@ -278,3 +278,92 @@ async def test_journal_http_expose_page_donnees_mutation_et_export(web_context):
     # Le carnet reste déclaratif : aucune écriture de configuration, aucune commande.
     assert config.current.to_json() == original
     assert (await client.get("/health/ready")).status == 200
+
+
+async def test_recherche_du_journal_ignore_accents_et_neutralise_les_jokers(cultures):
+    plant = await cultures.call("mutate", create("Épinard géant", stage="vegetatif", space="space_2"))
+    await event(cultures, plant, "note", "2026-09-03", {"note": "Feuillage dense"})
+    await observation(cultures, "space_1", "Dosage à 100% du volume prévu")
+    await observation(cultures, "space_1", "Bac rincé sans produit")
+    complete = (await cultures.call("journal", {}))["total"]
+    # « epinard » trouve « Épinard » : la normalisation retire les diacritiques des deux côtés.
+    accents = await cultures.call("journal", {"q": "epinard"})
+    assert accents["total"] == complete - 2 and {item["source"] for item in accents["items"]} == {"event"}
+    assert all(item["subject_id"] == plant["subject_id"] for item in accents["items"])
+    assert accents["filters"]["q"] == "epinard"
+    # Le joker `%` du texte cherché est littéral : il ne balaie pas tout le journal.
+    assert (await cultures.call("journal", {"q": "100%"}))["total"] == 1
+    joker = await cultures.call("journal", {"q": "%"})
+    assert joker["total"] == 1 and "100%" in joker["items"][0]["note"]
+    assert (await cultures.call("journal", {"q": "_"}))["total"] == 0
+    # La recherche porte aussi sur le libellé français du type d'opération.
+    assert (await cultures.call("journal", {"q": "Espace · Observation"}))["total"] == 2
+    # Un filtre vide ne filtre pas ; une saisie réduite à des accents non plus.
+    assert (await cultures.call("journal", {"q": ""}))["total"] == complete
+    assert (await cultures.call("journal", {"q": "́"}))["total"] == complete
+    # La recherche se combine avec les autres filtres au lieu de les remplacer.
+    assert (await cultures.call("journal", {"q": "bac", "target": "space_1"}))["total"] == 1
+    assert (await cultures.call("journal", {"q": "bac", "target": "space_2"}))["total"] == 0
+
+
+async def test_recherche_du_journal_est_bornee_a_120_caracteres_par_troncature(cultures):
+    await observation(cultures, "space_1", "Repère " + "a" * 130)
+    long = "a" * 121
+    # Une saisie trop longue n'est ni une erreur ni une 500 : elle est tronquée, et c'est
+    # la valeur tronquée qui est renvoyée au formulaire.
+    page = await cultures.call("journal", {"q": long})
+    assert page["total"] == 1 and page["filters"]["q"] == "a" * 120
+    # Au-delà de la borne, deux saisies différentes cherchent la même chose.
+    assert (await cultures.call("journal", {"q": "a" * 400}))["total"] == 1
+    assert (await cultures.call("journal", {"q": "b" * 121}))["total"] == 0
+    with pytest.raises(CultureError):
+        await cultures.call("journal", {"q": 12})
+
+
+async def test_recherche_du_journal_pagine_sur_le_compte_reellement_filtre(cultures):
+    for day in range(1, 42):
+        await observation(cultures, "space_1", f"Passage numéroté {day:02d}",
+                          effective_at=f"2026-07-{day:02d}" if day <= 31 else f"2026-08-{day - 31:02d}")
+    await observation(cultures, "space_1", "Hors recherche")
+    first = await cultures.call("journal", {"q": "passage numerote"})
+    assert first["total"] == 41 and len(first["items"]) == 40 and first["offset"] == 0
+    second = await cultures.call("journal", {"q": "passage numerote"}, 40)
+    # Le compte et la seconde page décrivent le filtre, pas la page : un post-filtrage
+    # Python de la seule page affichée aurait annoncé 42 et rendu la page 2 vide.
+    assert second["total"] == 41 and len(second["items"]) == 1 and second["offset"] == 40
+    assert (await cultures.call("journal", {"q": "passage numerote"}, 10**7))["offset"] == 40
+    # Le raccourci de période est calculé sur la date du carnet, sans en inventer une seconde.
+    assert first["today"] == "2026-09-07"
+    assert first["quick"] == [{"days": 7, "start": "2026-09-01", "end": "2026-09-07"},
+                              {"days": 30, "start": "2026-08-09", "end": "2026-09-07"}]
+
+
+async def test_journal_http_reconduit_recherche_et_periodes_rapides(web_context):
+    client, server, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    body = {"request_id": str(uuid.uuid4()), "operation": "space_event", "space": "space_2",
+            "kind": "observation", "effective_at": "2026-09-01", "note": "Épinard tacheté"}
+    assert (await client.post("/api/v1/cultures/journal", json=body, headers=headers)).status == 200
+    data = await (await client.get("/api/v1/cultures/journal?q=epinard")).json()
+    assert data["total"] == 1 and data["filters"]["q"] == "epinard"
+    assert (await client.get("/api/v1/cultures/journal?q=" + "z" * 200)).status == 200
+    page = await client.get("/cultures/journal?q=epinard&target=space_2")
+    assert page.status == 200
+    html = await page.text()
+    # La saisie est réaffichée et les raccourcis de période reconduisent tous les filtres.
+    assert 'name="q" maxlength="120" value="epinard"' in html
+    assert 'href="?target=space_2&amp;q=epinard&amp;start=2026-09-01&amp;end=2026-09-07"' in html
+    assert 'href="?target=space_2&amp;q=epinard&amp;start=2026-08-09&amp;end=2026-09-07"' in html
+    assert 'href="?target=space_2&amp;q=epinard"' in html
+    # L'export du filtre courant tient compte de la recherche comme la page.
+    export = await client.get("/api/v1/cultures/journal/export?q=epinard")
+    assert export.status == 200 and "tacheté" in await export.text()
+    # Les liens de pagination reconduisent la recherche : sans elle, « plus anciennes »
+    # ramènerait à un journal non filtré et perdrait le contexte de lecture.
+    store = server.cultures.store
+    for day in range(1, 42):
+        await observation(store, "space_2", f"Épinard tacheté {day:02d}", effective_at=f"2026-07-{day:02d}"
+                          if day <= 31 else f"2026-08-{day - 31:02d}")
+    paginated = await (await client.get("/cultures/journal?q=epinard&target=space_2")).text()
+    assert 'data-journal-offset="40" href="?target=space_2&amp;q=epinard&amp;offset=40"' in paginated
+    assert "42 opération(s) pour ce filtre" in paginated

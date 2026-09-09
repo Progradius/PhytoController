@@ -14,7 +14,13 @@ from model.culture import CultureConflict, CultureError
 from network.web.culture_cycles import CycleViews
 from network.web.cultures import error_response
 from network.web.pages import render_template
+from utils.culture_journal_store import journal_search
 from utils.culture_store import CultureUnavailable
+
+# Paramètres de requête du journal. `q` est la recherche libre : elle traverse la route
+# telle quelle, bornée par la même règle que le magasin, pour que le formulaire réaffiche
+# exactement le texte qui a filtré.
+JOURNAL_QUERY = ("start", "end", "target", "type", "q")
 
 
 class JournalViews:
@@ -32,8 +38,20 @@ class JournalViews:
 
     @staticmethod
     def filters(request):
-        """Filtres repris tels quels : leur validation appartient au modèle, pas à la route."""
-        return {key: request.query[key] for key in ("start", "end", "target", "type") if request.query.get(key)}
+        """Filtres repris tels quels : leur validation appartient au modèle, pas à la route.
+
+        Seule exception, la borne de `q` : elle est appliquée par la règle partagée du
+        magasin, donc à un seul endroit, parce que le gabarit réaffiche ces valeurs-là
+        même quand la requête est refusée et qu'aucune donnée n'est revenue.
+        """
+        values = {key: request.query[key] for key in JOURNAL_QUERY if request.query.get(key)}
+        if "q" in values:
+            search = journal_search(values["q"])
+            if search:
+                values["q"] = search
+            else:
+                del values["q"]
+        return values
 
     async def payload(self, request):
         return await self.store.call("journal", self.filters(request), self.views.offset(request),

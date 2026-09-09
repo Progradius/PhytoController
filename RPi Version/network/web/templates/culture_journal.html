@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% macro confirm() %}{% if data and not data.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié la date malgré l’horloge non synchronisée.</label>{% endif %}{% endmacro %}
-{% macro query(extra={}) %}{% set parts = [] %}{% for key in ('start','end','target','type') %}{% if filters.get(key) %}{% set _ = parts.append(key ~ '=' ~ filters[key]|urlencode) %}{% endif %}{% endfor %}{% for key,value in extra.items() %}{% set _ = parts.append(key ~ '=' ~ value|string|urlencode) %}{% endfor %}{{ '?' ~ parts|join('&') if parts else '' }}{% endmacro %}
+{# Les filtres courants sont reconduits dans tous les liens ; `extra` les remplace clé par clé, sinon un raccourci de période ajouterait un second `start`. #}
+{% macro query(extra={}) %}{% set parts = [] %}{% for key in ('start','end','target','type','q') %}{% if filters.get(key) and key not in extra %}{% set _ = parts.append(key ~ '=' ~ filters[key]|urlencode) %}{% endif %}{% endfor %}{% for key,value in extra.items() %}{% if value not in (none, '') %}{% set _ = parts.append(key ~ '=' ~ value|string|urlencode) %}{% endif %}{% endfor %}{{ '?' ~ parts|join('&') if parts else '' }}{% endmacro %}
 {% block content %}
 <h1>Journal du carnet</h1>
 {% set culture_section = 'journal' %}{% include 'culture_navigation.html' %}
@@ -12,6 +13,7 @@
 <details class="card culture-section culture-filters"><summary>Filtrer le journal</summary>
 <form method="get" class="culture-form" data-journal-filters>
 <div class="culture-grid">
+<label>Rechercher<input type="search" name="q" maxlength="{{ data.search_max if data else 120 }}" value="{{ filters.get('q','') }}" aria-describedby="journal-search-help"></label>
 <label>Depuis le<input type="date" name="start" value="{{ filters.get('start','') }}"></label>
 <label>Jusqu’au<input type="date" name="end" value="{{ filters.get('end','') }}"></label>
 <label>Cible<select name="target"><option value="">Toutes les cibles</option>
@@ -23,9 +25,11 @@
 {% if data %}{% for key,label in data.types.items() %}<option value="{{ key }}"{% if filters.get('type') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
 {% elif filters.get('type') %}<option value="{{ filters['type'] }}" selected>Type conservé</option>{% endif %}</select></label>
 </div>
+<p id="journal-search-help">La recherche porte sur les notes, les cibles et les types d’opération. Elle ignore la casse et les accents : « epinard » trouve « Épinard ».</p>
 <button class="button" type="submit">Afficher le journal</button>
 <a class="button button-secondary" href="/cultures/journal">Retirer les filtres</a></form>
 </details>
+{% if data %}<nav class="culture-links" aria-label="Périodes rapides">{% for window in data.quick %}<a href="{{ query({'start': window.start, 'end': window.end}) }}">{{ window.days }} jours</a>{% endfor %}<a href="{{ query({'start': '', 'end': ''}) }}">Toute la période</a></nav>{% endif %}
 {% if data %}<p><a href="/api/v1/cultures/journal/export{{ query() }}">Exporter ce filtre en CSV</a></p>{% endif %}
 {% if data %}
 

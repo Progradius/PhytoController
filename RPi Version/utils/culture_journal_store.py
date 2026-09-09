@@ -13,19 +13,55 @@ même réencodage, même budget disque, une seule voie d'écriture.
 La pagination est faite **en SQL** sur la vue (`LIMIT/OFFSET` plus un `COUNT(*)` séparé) :
 l'enrichissement — libellés, cibles, photos, révisions précédentes — ne porte que sur les
 40 lignes réellement affichées. Une entrée multi-cibles reste une ligne et compte pour 1.
+
+La recherche libre `q` est filtrée **dans la même requête**, pour la même raison : un
+post-filtrage Python de la page affichée donnerait un compte et des liens de pagination
+qui ne décrivent pas ce qui est montré. Elle est bornée à 120 caractères, insensible à la
+casse et aux diacritiques, et ses jokers `LIKE` sont neutralisés.
 """
 
 import csv
 import io
 import json
 import uuid
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from model.culture import KINDS, SPACES, CultureConflict, CultureError, stamp, text_value
+from model.culture_text import search_key
 from model.culture_journal import (JOURNAL_PAGE, JOURNAL_SOURCES, JOURNAL_TYPES,
                                    SPACE_EVENT_KINDS, journal_filters, journal_target_kind,
                                    journal_window, space_event_payload, validate_space_events)
 from model.culture_solution import RESERVOIRS, SOLUTION_KINDS
+
+# Recherche libre du journal : borne de saisie et fenêtres rapides de la page.
+JOURNAL_SEARCH_MAX = 120
+JOURNAL_QUICK_DAYS = (7, 30)
+# `q` est du texte d'opérateur : il n'entre jamais dans le SQL autrement que par un
+# paramètre lié, et les jokers de `LIKE` y sont neutralisés par cette échappée.
+LIKE_ESCAPE = "ESCAPE '\\'"
+
+
+def journal_search(raw):
+    """Recherche libre du journal, bornée à 120 caractères par **troncature**.
+
+    Une saisie plus longue vient d'un collage, pas d'une faute de frappe : la refuser
+    rendrait une page vide de résultats là où l'opérateur en attend. La valeur renvoyée
+    est celle qui a réellement filtré, et c'est elle que le formulaire réaffiche, pour que
+    la page ne montre jamais autre chose que ce qu'elle a cherché.
+    """
+    if raw in (None, ""):
+        return ""
+    if not isinstance(raw, str):
+        raise CultureError("Recherche du journal : texte attendu.", "q")
+    return raw.strip()[:JOURNAL_SEARCH_MAX]
+
+
+def _like_pattern(text):
+    """Motif `LIKE` contenant : les jokers `%` et `_` du texte cherché sont neutralisés."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
 
 # Colonnes écrites par une saisie ou une correction d'observation d'espace.
 SPACE_EVENT_COLUMNS = ("id", "revision", "space", "kind", "effective_at", "precision", "sort_at",
@@ -93,8 +129,63 @@ class JournalStoreMixin:
             return {"saved": True, "id": identifier, "version": revision, "space": space}
         return self._aux_transaction(command, work)
 
+    def _journal_search_clause(self, text):
+        """Clause de recherche libre sur la vue : note, cible et type, sans diacritiques.
+
+        La normalisation est faite **en SQL**, par une fonction déterministe enregistrée
+        sur la connexion. Le post-filtrage Python de la seule page affichée aurait été
+        moins coûteux mais faux : le `COUNT(*)` et les liens « plus récentes / plus
+        anciennes » compteraient des lignes que la page n'affiche pas. Le balayage reste
+        borné par la fenêtre de dates du filtre, appliquée dans le même `WHERE`.
+
+        Les libellés français des types, des espaces et des réservoirs sont des constantes
+        Python et non des colonnes : ils sont rapprochés ici, et seules les clés déjà
+        connues entrent dans le SQL, liées comme paramètres.
+        """
+        self._db.create_function("phyto_norm", 1, search_key, deterministic=True)
+        params = {"q": _like_pattern(text)}
+        catalogues = []
+        for prefix, catalogue, column in (("qt", JOURNAL_TYPES, "j.source || ':' || j.kind"),
+                                          ("qs", SPACES, "j.space"),
+                                          ("qr", RESERVOIRS, "j.reservoir_id")):
+            names = []
+            for key, label in catalogue.items():
+                label = label[0] if isinstance(label, tuple) else label
+                if text in search_key(label):
+                    name = f"{prefix}{len(names)}"
+                    params[name] = key
+                    names.append(":" + name)
+            catalogues.append(f"{column} IN ({','.join(names)})" if names else "0")
+        # La note vit dans la table source, jamais dans la vue : chaque source est lue par
+        # un sous-select gardé par `j.source`, pour ne pas rapprocher deux identifiants
+        # homonymes de tables différentes.
+        note = """COALESCE(
+              (SELECT COALESCE(json_extract(ev.payload,'$.note'), json_extract(ev.payload,'$.lessons'), '')
+                 FROM events ev WHERE j.source = 'event' AND ev.id = j.entry_id AND ev.revision = j.revision),
+              (SELECT COALESCE(se.note,'') FROM solution_entries se
+                WHERE j.source = 'solution' AND se.id = j.entry_id AND se.revision = j.revision),
+              (SELECT COALESCE(json_extract(sp.payload,'$.note'),'') FROM space_events sp
+                WHERE j.source = 'space_event' AND sp.id = j.entry_id AND sp.revision = j.revision), '')"""
+        clause = f"""(phyto_norm({note}) LIKE :q {LIKE_ESCAPE}
+              OR EXISTS(SELECT 1 FROM subjects sb WHERE sb.id = j.subject_id
+                          AND phyto_norm(sb.name) LIKE :q {LIKE_ESCAPE})
+              OR EXISTS(SELECT 1 FROM solution_targets t JOIN subjects sb ON sb.id = t.subject_id
+                         WHERE t.entry_id = j.entry_id AND t.revision = j.revision
+                           AND phyto_norm(sb.name) LIKE :q {LIKE_ESCAPE})
+              OR {catalogues[0]} OR {catalogues[1]} OR {catalogues[2]})"""
+        return clause, params
+
     def _journal_where(self, filters):
         """Clause SQL du filtre, cibles comprises ; une ligne reste unique quel qu'en soit le nombre."""
+        if filters is None:
+            filters = {}
+        if not isinstance(filters, dict):
+            raise CultureError("Filtre de journal inconnu.")
+        # `q` ne fait pas partie des filtres du modèle : il est extrait avant validation
+        # puis réinjecté dans le filtre rendu, pour que la page le reconduise comme les
+        # autres sans qu'une recherche libre devienne une clé de schéma.
+        filters = dict(filters)
+        search = journal_search(filters.pop("q", ""))
         filters = journal_filters(filters)
         clauses, params = [], {}
         start, end = journal_window(filters, self.zone)
@@ -121,6 +212,14 @@ class JournalStoreMixin:
                          WHERE l.subject_id = :target AND p.reservoir_id = j.reservoir_id
                            AND p.start_at <= j.sort_at AND j.sort_at < COALESCE(p.end_at,'9999')
                            AND l.start_at <= j.sort_at AND j.sort_at < COALESCE(l.end_at,'9999')))""")
+        normalised = search_key(search)
+        if normalised:
+            # Une saisie réduite à des marques diacritiques ne filtre pas : elle ne
+            # désigne aucun texte, et un filtre vide vaut mieux qu'un résultat vide.
+            filters["q"] = search
+            clause, extra = self._journal_search_clause(normalised)
+            clauses.append(clause)
+            params.update(extra)
         return (" WHERE " + " AND ".join(clauses)) if clauses else "", params, filters
 
     def _journal_position(self, where, params, focus):
@@ -226,13 +325,20 @@ class JournalStoreMixin:
             {**params, "limit": JOURNAL_PAGE, "offset": offset}).fetchall()
         subjects = [{"id": s["id"], "name": s["name"], "kind": s["kind"]} for s in
                     self._db.execute("SELECT id, name, kind FROM subjects ORDER BY name")]
+        # Filtres rapides : deux fenêtres calculées à partir de **la** date du carnet, la
+        # même que `today`. Une seconde date, fût-elle du même jour, ferait deux vérités ;
+        # et une date calculée en Jinja mettrait une règle dans le gabarit.
+        today = self.now().astimezone(ZoneInfo(self.zone)).date()
+        quick = [{"days": days, "start": (today - timedelta(days=days - 1)).isoformat(),
+                  "end": today.isoformat()} for days in JOURNAL_QUICK_DAYS]
         return {"items": self._journal_enrich(rows), "total": total, "offset": offset,
+                "quick": quick, "search_max": JOURNAL_SEARCH_MAX,
                 "page": JOURNAL_PAGE, "filters": filters, "focus": focus or "",
                 "subjects": subjects, "spaces": SPACES, "types": JOURNAL_TYPES,
                 "reservoirs": {key: value[0] for key, value in RESERVOIRS.items()},
                 "kinds": SPACE_EVENT_KINDS, "storage": self._media_storage(),
                 "timezone": self.zone, "clock_reliable": self.reliable(),
-                "today": self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()}
+                "today": today.isoformat()}
 
     def _journal_csv(self, filters=None):
         """Export du filtre courant : une ligne par opération, cibles en JSON, textes neutralisés."""
