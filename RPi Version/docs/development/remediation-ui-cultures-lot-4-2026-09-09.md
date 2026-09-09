@@ -361,3 +361,64 @@ A et C et `culture_solution_store.py` partagé entre B et C : ces deux fichiers 
 deux fois ou se mentionnent dans le message. Le lot E suit les quatre autres. Validation de
 sortie : pytest complet, spec du lot 4 sur tous les profils, garde externe multi-specs, banc
 rejoué sur le Pi et rapport mis à jour.
+
+## Bilan de la remédiation (9 septembre 2026)
+
+| Exigence | Commit | Statut |
+| --- | --- | --- |
+| R1.1 bouton désactivé sous le focus | `2ff0180` (A) | livré |
+| R1.2 pagination du sélecteur de comparaison | `1dc848d` (B) | livré ; le constat « 40 choix » est **démenti**, voir plus bas |
+| R1.3 lacune sélectionnée visible | `2ff0180` (A) | livré |
+| R1.4 dessin sans l'explorateur | `2ff0180` (A) | livré |
+| R1.5 lien de contexte de la galerie | `932b2fc` (C) | livré ; le constat (a) est **nuancé**, voir plus bas |
+| R1.6 point le plus proche | `2ff0180` (A) | livré |
+| R1.7 curseur et boutons | `2ff0180` (A) | livré |
+| R2.1 synthèse climatique mémoïsée | `1dc848d` (B) | livré ; −55 % de lecture à quatre cultures sur le Pi |
+| R2.2 statistiques pH/EC sans balayage complet | `1dc848d` (B) | livré |
+| R2.3 banc représentatif | `1dc848d` (B), mesures `017605b` | livré ; le repère « 759 ms Pi » est **démenti**, voir plus bas |
+| R2.4 coût quadratique dans le navigateur | `2ff0180` (A) | livré ; seuils devenus des `expect` |
+| R3.1 légende des courbes de solutions | `932b2fc` (C) | livré |
+| R3.2 tableau équivalent structuré | `2ff0180` (A) | livré, sept colonnes |
+| R3.3 synthèse textuelle des courbes | `932b2fc` (C) | livré |
+| R3.4 recherche du journal transversal | `c7ddf8c` (D) | livré, avec les raccourcis 7 / 30 jours |
+| R3.5 bilan des cartes d'archives | `932b2fc` (C) | livré |
+| R3.6 défauts d'accessibilité groupés | `2ff0180` (A), `932b2fc` (C) | livré |
+| R3.7 bornage serveur | `1dc848d` (B) | livré |
+| R4.1 branche « relevé avant renouvellement » | `1dc848d` (B) | livré, mutation rejouée |
+| R4.2 couverture de la spec | lot E | livré : 9 scénarios au lieu de 8, assertions ajoutées sur le plafond de quatre, le filtre local, la pagination en navigateur, la sélection au redessin, l'arrêt de tabulation unique et l'explorateur climatique ; trois mutations temporaires prouvent leur pouvoir discriminant |
+| R4.3 documentation et rédaction | lot E | livré : `cultures-api.md`, `cultures.md`, `cultures-ui-lot-4.md`, `docs/index.md` |
+| R4.4 méthode | lot E | **partiellement** : la fixture supprime son répertoire ; le `webServer` de `playwright.config.js` en laisse toujours un par exécution (fichier hors périmètre du lot) |
+| Comparaison alignée par âge du stade | — | **non livrée**, écart assumé du lot 4, à arbitrer |
+
+### Constats démentis ou nuancés
+
+- **R1.2, « 40 choix affichés ».** Le sélecteur n'en affichait pas 40 mais 4 sur la dernière
+  page d'un carnet de 44 cultures : le découpage n'était pas borné, mais la page réellement
+  servie restait celle des résultats restants. Le défaut de pagination était bien réel ; sa
+  formulation, non.
+- **R1.5 (a), « focus volé ».** Le vol de focus n'existait que pour une destination **non
+  focalisable** (`#photos`, une section sans `tabindex`). Vers une ancre `tabindex="-1"`,
+  Chromium focalisait déjà la destination, et le retour à la vignette ne se produisait pas.
+  Le correctif reste juste, son constat était trop large.
+- **R2.3, « les 759 ms Pi ».** Ce chiffre était un **plancher** : le semis ne créait ni
+  `solution_periods` ni `solution_links`, donc l'`EXISTS` d'alimentation datée portait sur
+  zéro ligne. Le vrai « avant » du semis représentatif est **1 720,9 ms** à quatre cultures
+  (485,4 ms à une), contre 721,0 ms (288,0 ms) après R2.1 et R2.2. Le repère historique est
+  conservé dans le JSON sous `pi_lot_4_semis_initial`, étiqueté non comparable.
+- **R4.4, « répertoire vide ».** Les `/tmp/phyto-ui-*` abandonnés ne sont **pas** vides :
+  188 répertoires y occupent 16,5 Mio, chacun avec un `param.json` recopié de
+  `param.example.json` et, pour une partie d'entre eux, la base `cultures.sqlite3` du test et
+  son journal WAL. La fuite est donc plus lourde que décrite. Aucun n'étant vide, aucun n'a
+  été supprimé par le lot E : leur nettoyage reste une décision de l'exploitant.
+
+### Reliquats
+
+- Hors lot, à arbitrer : aperçu de photo avant envoi, progression d'envoi, alignement de la
+  comparaison par âge du stade.
+- Mineur, doute du lot C : la légende des courbes de solutions est calculée sur **tous** les
+  points de la figure, pas métrique par métrique — une source qui n'apporte que de l'EC
+  apparaît donc aussi dans la légende du pH. Et la colonne « Cible ou capteur » du tableau
+  équivalent affiche l'identifiant technique de la cible, alors que la légende et le texte du
+  curseur en montrent le nom : deux vocabulaires pour la même colonne.
+- Méthode : le `webServer` de `playwright.config.js` reste le dernier producteur de
+  `/tmp/phyto-ui-*` (un par exécution non externe).

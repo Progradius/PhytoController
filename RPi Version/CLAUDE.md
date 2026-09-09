@@ -329,6 +329,16 @@ interdiction métier ; le rejeu d'une clé déjà acceptée contourne cette aide
 vérification de son empreinte. Aucune suggestion n'est conservée hors ligne, aucune
 mesure n'est préremplie et aucune vérification n'est cochée automatiquement.
 
+Lot UI 4 : `network/web/static/js/culture_analysis.js` est l'**unique** explorateur de
+graphique du carnet ; son contrat avec les scripts hôtes est
+`chart(svg, rows, label, columns) → refresh(positions)`, où `rows[i] = {text, cells}` et
+`positions[i] = {x, y}` **dans le repère du `viewBox`**, calculé par l'hôte : l'explorateur
+ne mesure jamais le DOM point par point. Une figure nouvelle adopte ce contrat au lieu de
+refaire son curseur. `model/culture_text.search_key` (NFD, marques retirées, casse pliée,
+sans locale) est la **seule** définition de l'équivalence de recherche côté serveur ; sa
+réplique JavaScript dans `culture_analysis.js` doit rester alignée, sans quoi le filtre du
+navigateur masquerait un choix que le serveur a retenu.
+
 Ne pas copier naïvement un SQLite vivant en WAL : l'export utilise l'API de sauvegarde ; le ZIP
 réunit base, médias et manifeste SHA-256, et `scripts/restore-cultures.py [--bundle]` ne publie
 jamais que vers une copie isolée nouvelle. Les photos sont réencodées sans métadonnées et bornées

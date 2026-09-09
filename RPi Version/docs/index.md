@@ -95,6 +95,8 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 - [Carnet de cultures, bilan du lot UI 2](development/cultures-ui-lot-2-2026-09-08.md)
 - [Carnet de cultures, bilan du lot UI 3](development/cultures-ui-lot-3.md)
 - [Carnet de cultures, plan de remédiation des lots UI 2 et 3](development/remediation-ui-cultures-lots-2-3-2026-09-09.md)
+- [Carnet de cultures, bilan du lot UI 4](development/cultures-ui-lot-4.md)
+- [Carnet de cultures, plan et bilan de remédiation du lot UI 4](development/remediation-ui-cultures-lot-4-2026-09-09.md)
 - [Décisions d'architecture](decisions/README.md)
 - [Registre vivant des risques](risk-register.md)
 - [Roadmap consolidée](roadmap.md)

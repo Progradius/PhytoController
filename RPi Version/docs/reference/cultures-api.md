@@ -512,10 +512,54 @@ Le détail de culture inclut les photos de tous les événements de sa page de j
 Lot UI 4 : `q` filtre les choix de comparaison par nom/variété (120 caractères maximum
 retenus) et `selection_offset` les pagine (entier de 0 à 10⁷). Ces paramètres ne changent
 pas les `subject` sélectionnés ni leurs synthèses. La réponse ajoute `comparison_choices`
-(40 résultats maximum plus les quatre sélections éventuelles), `selection_total`,
-`selection_offset` et `search`. Les statistiques `summaries[].measures` gardent leur contrat,
+(`selection_page` résultats maximum plus les sélections éventuelles), `selection_total`,
+`selection_offset`, `search`, ainsi que `selection_page` (40) et `comparison_max` (4) : les
+deux constantes sont **servies**, jamais recopiées dans le gabarit ni dans le JS.
+Les statistiques `summaries[].measures` gardent leur contrat,
 avec un calcul SQL sur les révisions courantes et les associations datées ; les `COUNT`
 ignorent les absences, les moyennes et extrema restent `null` en l’absence de mesure.
+
+Ordre et bornage des choix, documentés parce qu'ils sont observables :
+
+- les choix sont classés par **nom normalisé** (NFD, marques retirées, casse pliée : la clé
+  de `model/culture_text.search_key`) puis par identifiant. Le classement est stable et
+  indépendant de l'ordre d'insertion ; un `rowid` décroissant ne veut rien dire pour une
+  recherche par nom ;
+- `q` compare **la même clé** : « epinard » trouve « Épinard » et réciproquement, sans
+  locale, pour que le verdict ne dépende pas de la langue du navigateur. Chaque choix porte
+  sa clé dans `search`, ce qui permet au filtre local de ne jamais masquer un résultat que
+  le serveur a retenu ;
+- `selection_offset` est **borné aux résultats** puis aligné sur le pas de `selection_page` ;
+  la valeur normalisée est renvoyée. Une page hors des résultats ramenait une liste vide dont
+  le gabarit tirait encore un lien « Choix précédents ».
+
+Journal transversal — `GET /cultures/journal` et son export acceptent `q` :
+
+- la recherche porte sur la note, les cibles et le libellé de type, en « contient »,
+  insensible à la casse et aux diacritiques ; elle est appliquée **en SQL dans la même
+  requête** que le reste du filtre, donc `total` et la pagination restent justes ;
+- les jokers `%` et `_` du texte cherché sont littéraux : `q=%` ne ramène pas tout le journal ;
+- `q` est borné à 120 caractères **par troncature**, et la valeur tronquée est renvoyée dans
+  `filters.q` ; un `q` vide ne filtre pas ; le tri, la page et l'offset sont inchangés ;
+- le même `q` s'applique à l'export CSV du journal, pour que l'export corresponde à l'écran.
+
+La réponse du journal porte aussi `quick`, les deux fenêtres calculées par le serveur à partir
+de l'unique date du carnet — `[{"days": 7, "start": …, "end": …}, {"days": 30, …}]` avec
+`end = today` et `start = today − (days − 1)` — et `search_max` (120). Aucune de ces deux
+valeurs n'est recalculée côté navigateur : une seconde date divergerait au passage de minuit.
+
+Solutions : `solution_data` publie `chart_sources` (`{variant, label}`) et `chart_summaries`
+(`{ph, ec}`, déjà en texte), et chaque point de `chart` porte `variant`, entier ≤ 6 où 6 est
+le repli partagé annoncé comme tel. La synthèse est calculée par le serveur : une absence y
+reste « aucune mesure », jamais un zéro.
+
+Contrat JS de l'explorateur, unique et volontairement minimal (en-tête de
+`network/web/static/js/culture_analysis.js`) : `chart(svg, rows, label, columns)` rend
+l'explorateur et renvoie `refresh(positions)`. `rows[i]` vaut `{text, cells}` — `text` est la
+phrase du curseur, `cells` les valeurs alignées sur `columns` pour le tableau équivalent ;
+`positions[i]` vaut `{x, y}` **dans le repère du `viewBox`**, calculé par l'hôte avec ses
+propres `x(p)`/`y(p)`, ou est absent quand le point n'est pas dessiné. L'explorateur ne mesure
+jamais le DOM point par point, et n'interpole ni ne demande aucune donnée.
 
 
 ### Rappels
@@ -1007,9 +1051,13 @@ contourner par le client. Mesures faites hors matériel, sans qualification sur 
 | Photos d'une fiche | `detail.media` est borné à 100 photos, sans pagination : au-delà, le journal paginé et la sauvegarde complète conservent les photos anciennes |
 | `event_id` d'un rejeu ancien | Le rejeu d'une clé d'idempotence enregistrée avant le lot UI 2 rend le résultat mémorisé tel quel, donc sans `event_id` ni `event_revision` ; un client ne peut pas en déduire qu'aucune entrée n'a été écrite |
 
-Volumétrie observée hors matériel avec 12 000 agrégats horaires : page des cycles 258 217 octets,
-JSON 178 966 octets, sous le plafond de cache de la PWA. Ces valeurs ne qualifient pas les
-performances sur le Raspberry Pi.
+Volumétrie observée hors matériel avec 12 000 agrégats horaires : JSON 178 966 octets, sous le
+plafond de cache de la PWA. Pour la page des cycles, la valeur de 258 217 octets était périmée :
+le banc du 9 septembre 2026 (44 cultures, 12 001 relevés, 31 810 agrégats horaires) mesure
+**438 414 octets** à quatre cultures et 134 736 octets à une seule. La page reste sous le
+plafond de 4 Mio par page de la PWA. Ces valeurs ne qualifient pas les performances sur le
+Raspberry Pi ; les mesures correspondantes sont dans
+[cultures-ui-lot-4-mesures.json](../development/cultures-ui-lot-4-mesures.json).
 
 ## Assistance éphémère et prévalidation (lot UI 3)
 

@@ -173,8 +173,43 @@ test("explorateur : bornage sans désactivation, tap borné et tableau structur�
   // R1.6 : à dix pixels d'un point, ce point est choisi.
   const dot = figure.locator("circle").first();
   const target = await dot.boundingBox();
-  await page.mouse.click(target.x + target.width / 2 + 10, target.y + target.height / 2);
+  const frame = await svg.boundingBox();
+  // Le geste vise le dessin, à dix pixels du point, et non des coordonnées absolues : en
+  // paysage 568 × 320 la figure passe sous la barre mobile fixe, et un `mouse.click` brut y
+  // atteignait le lien d'accueil de cette barre au lieu du graphique — la page changeait.
+  // Une position **relative au `svg`** fait faire à Playwright le défilement et le contrôle
+  // de cible : le clic touche le dessin ou échoue en le disant, jamais un autre élément.
+  await svg.click({position: {x: target.x + target.width / 2 + 10 - frame.x,
+    y: target.y + target.height / 2 - frame.y}});
   await expect(output).toContainText("1 / 3");
+  // R4.2 : « un seul arrêt de tabulation ». Aucun point n'est un arrêt — ce qui, à 2 000
+  // points, ferait 2 000 tabulations pour traverser une figure — et la zone en compte trois :
+  // le curseur puis les deux boutons. La borne des trois pas suffit : un point focalisable
+  // s'intercalerait forcément dans les premiers.
+  await expect(figure.locator("circle[tabindex]")).toHaveCount(0);
+  const slider = figure.getByRole("slider");
+  await slider.focus();
+  const stops = [];
+  for (let step = 0; step < 3; step += 1) {
+    await page.keyboard.press("Tab");
+    stops.push(await page.evaluate(() => {
+      const node = document.activeElement;
+      return `${node.tagName.toLowerCase()}:${node.textContent.trim().slice(0, 20)}`;
+    }));
+  }
+  expect(stops.filter(stop => stop.startsWith("circle"))).toEqual([]);
+  expect(stops.slice(0, 2)).toEqual(["button:Point précédent", "button:Point suivant"]);
+  // R4.2 : la sélection est conservée au redessin. Le changement de largeur déclenche le
+  // `ResizeObserver` du dessin, donc de nouveaux nœuds : c'est l'index de donnée, pas le
+  // nœud, qui doit survivre — et le texte du curseur ne doit pas être réécrit.
+  const announced = await output.textContent();
+  const chosen = await figure.locator("circle.culture-selected-point").getAttribute("data-analysis-index");
+  const viewport = page.viewportSize();
+  await page.setViewportSize({width: viewport.width - 60, height: viewport.height});
+  await expect(figure.locator("circle.culture-selected-point")).toHaveCount(1);
+  await expect(figure.locator("circle.culture-selected-point")).toHaveAttribute("data-analysis-index", chosen);
+  await expect(output).toHaveText(announced);
+  await page.setViewportSize(viewport);
   // R3.2 : tableau de données, pas une liste numérotée ; une lacune n'est jamais 0.
   await figure.getByText("Tableau des données du graphique", {exact: true}).click();
   const table = figure.locator("table");
@@ -208,8 +243,12 @@ test("courbe climatique : lacune sélectionnée visible et dessin sans l’explo
   const plain = await gap.evaluate(node => getComputedStyle(node).strokeWidth);
   // R1.3 : le curseur atteint la lacune et le tracé change réellement d'aspect.
   const slider = figure.getByRole("slider");
+  // R4.2 : la courbe climatique a bien son explorateur, et un seul. L'annonce passe par
+  // `aria-valuetext` — la sortie n'étant pas une région live, c'est le seul canal.
+  await expect(slider).toHaveCount(1);
   await slider.focus(); await slider.press("ArrowRight");
   await expect(figure.locator(".culture-analysis-output")).toContainText("Aucune valeur fiable");
+  await expect(slider).toHaveAttribute("aria-valuetext", /2 \/ 3 · .*Aucune valeur fiable/);
   await expect(gap).toHaveClass(/culture-selected-point/);
   const marked = await gap.evaluate(node => getComputedStyle(node).strokeWidth);
   expect(marked).not.toBe(plain);
@@ -351,4 +390,85 @@ test("archives : occupation persistante signalée et durées par stade", async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
   await page.screenshot({path: testInfo.outputPath("archives.png"), fullPage: true});
+});
+
+// R4.2 : le sélecteur de comparaison en navigateur — plafond de quatre visible avant l'envoi,
+// filtre local qui masque sans recharger, et pagination des choix. Le carnet est semé par
+// l'API : quarante-cinq saisies au formulaire ne mesureraient que la vitesse du formulaire,
+// et c'est la restitution qui est en cause ici.
+test("sélecteur de comparaison : plafond de quatre, filtre local et pagination des choix", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+  test.setTimeout(180000);
+  await page.goto("/cultures");
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  const create = name => page.request.post("/api/v1/cultures", {headers: {"X-CSRF-Token": csrf},
+    data: {request_id: require("node:crypto").randomUUID(), operation: "create", kind: "mother",
+      name, origin_at: "2026-08-01", space_at: "2026-08-01", stage_at: "2026-08-01",
+      stage: "maintien", origins: []}});
+  // « Épinard géant » se classe avant les « Zone … » par la clé normalisée du serveur : il
+  // reste sur la première page, celle où le filtre local est éprouvé. Quarante-cinq cultures
+  // font deux pages de quarante, la seconde en comptant cinq — assez pour cocher quatre
+  // cases et en trouver une cinquième refusée.
+  const names = ["Épinard géant"].concat(
+    Array.from({length: 44}, (_, i) => `Zone ${String(i + 1).padStart(2, "0")}`));
+  for (const name of names) expect((await create(name)).ok()).toBe(true);
+
+  await page.goto("/cultures/cycles#comparaison");
+  const zone = page.locator("[data-comparison-selection]");
+  const boxes = zone.locator('input[name="subject"]');
+  const labels = zone.locator("fieldset label");
+  await expect(boxes).toHaveCount(40);
+  await expect(labels.first()).toContainText("Épinard géant");
+
+  // R4.2 : le filtre client masque réellement des libellés. Sans cette assertion, un filtre
+  // qui ne ferait rien laissait le scénario vert.
+  const filter = page.getByLabel("Filtrer les choix affichés");
+  const before = page.url();
+  await filter.fill("inconnue");
+  await expect(zone.locator("fieldset label[hidden]")).toHaveCount(40);
+  // La clé du navigateur est celle du serveur : « epinard » trouve « Épinard ».
+  await filter.fill("epinard");
+  await expect(zone.locator("fieldset label[hidden]")).toHaveCount(39);
+  await expect(labels.filter({hasText: "Épinard géant"}).first()).toBeVisible();
+  // Le champ de filtre n'appartient pas au formulaire : Entrée n'envoie rien et ne navigue
+  // pas. Une navigation reperdrait le filtre, qui n'a pas de `name`.
+  await filter.press("Enter");
+  await expect(zone.locator("fieldset label[hidden]")).toHaveCount(39);
+  expect(page.url()).toBe(before);
+  await filter.fill("");
+  await expect(zone.locator("fieldset label[hidden]")).toHaveCount(0);
+
+  // R1.2 : seconde page des choix, cinq résultats, classés par nom normalisé.
+  await page.getByRole("link", {name: "Choix suivants"}).click();
+  await expect(page).toHaveURL(/selection_offset=40/);
+  await expect(boxes).toHaveCount(5);
+  await expect(labels.first()).toContainText("Zone 40");
+
+  // R4.2 : le plafond de quatre est tenu côté client, et la case refusée dit pourquoi.
+  for (let index = 0; index < 4; index += 1) await boxes.nth(index).check();
+  await expect(zone.locator("output")).toHaveText("4 / 4 cultures sélectionnées");
+  await expect(boxes.nth(4)).toBeDisabled();
+  const described = await boxes.nth(4).getAttribute("aria-describedby");
+  expect(described.split(" ")).toHaveLength(2);
+  const targets = await page.evaluate(ids => ids.split(" ").map(id => {
+    const node = document.getElementById(id);
+    return node && [node.tagName.toLowerCase(), node.hasAttribute("data-comparison-cap")];
+  }), described);
+  // Le compte, puis la phrase qui motive le plafond : une case désactivée sans explication
+  // serait un refus muet.
+  expect(targets).toEqual([["output", false], ["p", true]]);
+  // Le plafond n'est jamais définitif : libérer une place rend la cinquième case disponible.
+  await boxes.nth(0).uncheck();
+  await expect(boxes.nth(4)).toBeEnabled();
+  await boxes.nth(0).check();
+
+  // R1.2 : cocher depuis la page 2 ne renvoie pas page 1.
+  await zone.getByRole("button", {name: "Afficher les cycles"}).click();
+  await expect(page).toHaveURL(/selection_offset=40/);
+  await expect(boxes).toHaveCount(5);
+  await expect(zone.locator('input[name="subject"]:checked')).toHaveCount(4);
+  await expect(page.locator(".culture-comparison thead th")).toHaveCount(5);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await page.screenshot({path: testInfo.outputPath("selecteur-comparaison.png"), fullPage: true});
 });

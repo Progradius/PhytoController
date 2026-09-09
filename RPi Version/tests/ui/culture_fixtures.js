@@ -3,6 +3,9 @@
 const {test: base, expect} = require("@playwright/test");
 const {spawn} = require("node:child_process");
 const {once} = require("node:events");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const AxeBuilder = require("@axe-core/playwright").default;
 
 // Chaque test possède son carnet : l'espace 2 est exclusif et une occupation en
@@ -19,8 +22,16 @@ const test = base.extend({
     test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Aucune création de culture sur une cible externe.");
     const port = 39123 + testInfo.workerIndex;
     const url = `http://127.0.0.1:${port}`;
+    // `tests/ui_server.py` pose sa configuration et sa base dans un `TemporaryDirectory`,
+    // dont le nettoyage est un `atexit` : le SIGTERM de fin de test ne l'exécute jamais et le
+    // poste accumulait un `/tmp/phyto-ui-*` vide par scénario (≈ 160 constatés le 9 septembre
+    // 2026). La fixture lui impose donc SON répertoire par `TMPDIR` — que `tempfile` de CPython
+    // consulte en premier — et ne supprime que celui-là, créé par elle et par personne d'autre :
+    // aucun répertoire préexistant n'est touché, même s'il porte le même préfixe.
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "phyto-ui-fixture-"));
     const server = spawn(process.env.PHYTO_TEST_PYTHON || "python3", ["tests/ui_server.py"], {
-      env: {...process.env, PHYTO_UI_TEST_PORT: String(port)}, stdio: ["ignore", "pipe", "pipe"],
+      env: {...process.env, PHYTO_UI_TEST_PORT: String(port), TMPDIR: scratch},
+      stdio: ["ignore", "pipe", "pipe"],
     });
     let diagnostic = "";
     server.stdout.on("data", data => { diagnostic += data; });
@@ -37,6 +48,9 @@ const test = base.extend({
     } finally {
       server.kill("SIGTERM");
       await exited;
+      // Après la sortie du serveur seulement : supprimer plus tôt laisserait le processus
+      // écrire dans un répertoire disparu, et la base est encore ouverte tant qu'il vit.
+      fs.rmSync(scratch, {recursive: true, force: true});
     }
   // Le démarrage du serveur (interpréteur, schéma, WAL) a son propre délai, distinct du
   // délai du test : sous contention (suite complète, autre charge sur la machine) il a

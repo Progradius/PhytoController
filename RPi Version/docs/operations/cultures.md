@@ -564,27 +564,62 @@ dans les saisies restent des contextes de saisie, sans date de réaffectation in
 ## Lire et comparer les cycles
 
 Dans **Comparer les cycles**, rechercher par nom ou variété puis cocher jusqu’à quatre
-cultures, actives ou archivées. La recherche parcourt tout le carnet ; chaque page présente
-40 résultats au plus, en conservant les cultures sélectionnées. Le filtre des choix affichés
-sert seulement à réduire la liste déjà chargée. Cliquer sur **Afficher les cycles**.
+cultures, actives ou archivées. La recherche parcourt tout le carnet et ignore accents et
+casse : « epinard » trouve « Épinard ». Les choix sont **classés par nom** ; chaque page
+présente 40 résultats au plus, en conservant les cultures sélectionnées, et une page demandée
+au-delà des résultats est **ramenée dans les résultats** au lieu d'afficher une liste vide.
+Le filtre des choix affichés sert seulement à réduire la liste déjà chargée : il ne recharge
+rien, ne masque jamais une case cochée, et la touche Entrée n'y déclenche aucun affichage.
+Au-delà de quatre cases, les autres se désactivent en indiquant pourquoi. Cocher depuis la
+deuxième page y laisse la lecture. Cliquer sur **Afficher les cycles**.
 
 Le tableau aligne les durées par stade, les statistiques pH/EC, le poids et les enseignements,
 avec une colonne par culture. Les mesures portent sur les parcours propres à chaque culture,
-pas nécessairement sur une même durée ni un même nombre de relevés. Les absences restent
-« non renseigné » ; une durée ouverte indique « à ce jour ». Les parcours datés détaillés
-restent sous le tableau. La fiche et les archives donnent aussi un accès direct au bilan.
+pas nécessairement sur une même durée ni un même **nombre de mesures** — la ligne compte des
+valeurs de pH ou d'EC, pas des relevés saisis : un relevé sans pH ne compte pas en pH. Les
+absences restent « non renseigné » ; une durée ouverte indique « à ce jour ». Les parcours
+datés détaillés restent sous le tableau. La fiche et les archives donnent aussi un accès
+direct au bilan.
 
 Pour explorer une courbe de solutions ou de climat, toucher le point souhaité ou utiliser
 le curseur et les boutons **Point précédent / Point suivant**. Au clavier, les flèches du
-curseur parcourent les données ; le tableau dépliable reprend les mêmes valeurs, dates et
-lacunes. Les valeurs des bandes de référence sont consultables séparément.
+curseur parcourent les données. Aux extrémités, le texte du point annonce la butée
+(« premier point », « dernier point ») et **les boutons ne sont jamais désactivés** : un
+bouton qui se désactive sous le doigt ou sous le focus fait perdre la place. Un geste à plus
+de 44 px de tout point ne change pas la sélection — il ne vise rien —, et la sélection est
+conservée quand le dessin est refait, rotation de l'écran comprise.
+Le tableau dépliable reprend les mêmes valeurs, dates et lacunes, en **sept colonnes** :
+Date, Valeur, Unité, Cible ou capteur, Période, Agrégats, Lacune. Une absence y est écrite
+« mesure absente » et la colonne Lacune vaut « oui » : jamais un zéro.
+Sous chaque courbe pH et EC, une **synthèse en texte** donne la période, le nombre de mesures,
+le minimum, la moyenne pondérée, le maximum, les lacunes et les cibles ; sans mesure, elle dit
+« aucune mesure » et n'affiche aucun zéro. La **légende** qui l'accompagne nomme les tracés —
+bande de plage cible, tiret long de renouvellement, tiret composé de stade, barre verticale
+de minimum/maximum du jour, point de mesure — et donne un repère par cible ou période de
+solution ; au-delà de six repères, un repère partagé est annoncé comme tel. Les valeurs des
+bandes de référence restent consultables en texte.
 
 Cliquer sur une photo ouvre la galerie de son groupe, avec sa légende et son contexte.
 **Photo précédente / Photo suivante**, les flèches clavier et **Échap** permettent de
-naviguer puis de revenir au lien d’origine. Une photo indisponible laisse les commandes
+naviguer puis de revenir au lien d’origine ; aux extrémités, la légende annonce « première
+photo » ou « dernière photo » et les boutons restent actifs. Un clic sur le voile ferme la
+galerie et rend aussi le focus au lien d'origine. Le lien **Ouvrir l’entrée liée**, lui,
+emmène ailleurs : il ferme la galerie et laisse le focus à l'endroit atteint, pas à la
+vignette. Une photo indisponible laisse les commandes
 accessibles. La galerie des cycles ne contient que les cultures sélectionnées, ou toutes
 les cultures en vue globale, dans la limite des 100 photos les plus récentes. Les photos
 plus anciennes restent dans le journal paginé et la sauvegarde complète.
+
+Sur la page **Archives**, chaque carte porte les durées par stade et, si la culture tient
+encore un espace, la mention « Espace encore occupé · à libérer » : une culture archivée sans
+libération déclarée reste visible comme telle.
+
+Dans le **journal transversal**, le champ **Rechercher** filtre sur la note, les cibles et le
+type d'opération, sans tenir compte des accents ni de la casse, et se combine aux autres
+filtres au lieu de les remplacer ; il est borné à 120 caractères et s'applique aussi à
+l'export CSV. Les raccourcis **7 jours** et **30 jours** remplissent les deux dates à partir
+de la date du carnet en conservant le reste du filtre ; **Toute la période** retire les deux
+dates sans rien changer d'autre.
 
 Le bilan de fin de séchage accepte des enseignements pour le prochain cycle et des poids secs
 facultatifs par origine ; leur somme ne peut pas dépasser le total lorsqu'il est renseigné.
