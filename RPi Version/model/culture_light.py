@@ -19,13 +19,18 @@ LIGHT_PRESETS = {"vegetatif": (1080, 360), "floraison": (720, 720)}
 MAX_LIGHT_ROWS = 200
 
 
-def light_minutes(on_minutes, off_minutes):
-    """Cycle journalier strict : deux entiers dont la somme fait exactement 24 h."""
+def light_minutes(on_minutes, off_minutes, *, field=None):
+    """Cycle journalier strict : deux entiers dont la somme fait exactement 24 h.
+
+    `field` n'est donné que par la saisie : le formulaire n'expose que la durée
+    d'éclairage — l'obscurité en est déduite — donc les deux refus y désignent ce seul
+    contrôle. Relire une ligne déjà écrite ne vient d'aucun champ.
+    """
     for value in (on_minutes, off_minutes):
         if type(value) is not int or not 0 <= value <= DAY_MINUTES:
-            raise CultureError("Durées d'éclairage : entiers de 0 à 1440 minutes.")
+            raise CultureError("Durées d'éclairage : entiers de 0 à 1440 minutes.", field)
     if on_minutes + off_minutes != DAY_MINUTES:
-        raise CultureError("Le repère doit couvrir 24 h : éclairage + obscurité = 1440 minutes.")
+        raise CultureError("Le repère doit couvrir 24 h : éclairage + obscurité = 1440 minutes.", field)
     return on_minutes, off_minutes
 
 

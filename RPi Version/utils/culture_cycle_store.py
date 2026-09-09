@@ -35,6 +35,22 @@ CREATE TABLE culture_media (id TEXT PRIMARY KEY, subject_id TEXT NOT NULL REFERE
 """
 
 
+# `reminder_values` et `planned_date` restent les règles pures des rappels, avec leurs
+# libellés : le magasin ne fait que rattacher leur refus au contrôle du formulaire qui le
+# porte. La clé est le premier mot du message, celui que ces règles placent en tête ; le
+# contrat est vérifié par `tests/test_culture_errors.py`, qui échoue si un libellé change.
+REMINDER_FIELDS = {"Rappel": "title", "Échéance": "due_date",
+                   "Récurrence": "interval_days", "Note": "note"}
+
+
+def reminder_rule(work):
+    """Applique une règle pure de rappel en nommant le contrôle fautif d'un refus."""
+    try:
+        return work()
+    except CultureError as exc:
+        raise CultureError(str(exc), REMINDER_FIELDS.get(str(exc).split(" ", 1)[0])) from None
+
+
 class CycleStoreMixin:
     def _aux_transaction(self, command, work):
         if not isinstance(command, dict):
@@ -112,14 +128,14 @@ class CycleStoreMixin:
             if operation == "reminder":
                 if old and old["state"] in ("done", "cancelled"):
                     raise CultureError("Un rappel clos conserve son historique ; créer un nouveau rappel.")
-                values = reminder_values(command)
-                target = text_value(command.get("target"), "Cible")
+                values = reminder_rule(lambda: reminder_values(command))
+                target = text_value(command.get("target"), "Cible", field="target")
                 if target in RESERVOIRS:
                     subject_id, reservoir_id = None, target
                 elif self._db.execute("SELECT id FROM subjects WHERE id=?", (target,)).fetchone():
                     subject_id, reservoir_id = target, None
                 else:
-                    raise CultureError("Cible de rappel inconnue.")
+                    raise CultureError("Cible de rappel inconnue.", "target")
                 row = {"id": identifier, "revision": revision, "parent_id": old["parent_id"] if old else None,
                        "subject_id": subject_id, "reservoir_id": reservoir_id, **values,
                        "state": old["state"] if old else "planned", "recorded_at": now, "completed_at": None}
@@ -128,13 +144,14 @@ class CycleStoreMixin:
                     raise CultureError("Ce rappel est déjà clos.")
                 action = command.get("action")
                 if action not in ("done", "postponed", "cancelled"):
-                    raise CultureError("Action attendue : fait, reporté ou annulé.")
+                    raise CultureError("Action attendue : fait, reporté ou annulé.", "action")
                 row = {**dict(old), "revision": revision, "state": action, "recorded_at": now,
-                       "note": text_value(command.get("note", ""), "Note", 4000, False)}
+                       "note": text_value(command.get("note", ""), "Note", 4000, False, field="note")}
                 if action == "postponed":
-                    row["due_date"] = planned_date(command.get("due_date"))
+                    row["due_date"] = reminder_rule(lambda: planned_date(command.get("due_date")))
                     if row["due_date"] <= old["due_date"]:
-                        raise CultureError("Un report doit déplacer l’échéance vers une date ultérieure.")
+                        raise CultureError("Un report doit déplacer l’échéance vers une date ultérieure.",
+                                           "due_date")
                 if action == "done":
                     row["completed_at"] = now
             columns = ",".join(row)

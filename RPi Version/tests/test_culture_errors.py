@@ -4,7 +4,9 @@ Le message reste inchangé et premier ; `field` porte le `name` du contrôle et 
 rang parmi les contrôles homonymes. Une indisponibilité du carnet n'a jamais de champ.
 """
 
+import json
 import uuid
+from urllib.parse import quote
 
 import pytest
 
@@ -173,6 +175,143 @@ async def test_champ_et_index_traversent_l_api(web_context):
                                        "kind": "reading", "reservoir_id": "reservoir_2",
                                        "effective_at": "2026-09-01", "ph": 99})
     assert response.status == 400 and (await response.json())["field"] == "ph"
+
+
+# --- Lots D à H : plages, éclairage, équipements, vérifications, rappels, photos --------
+
+TARGET = {"operation": "target", "target": "reservoir_2", "start_at": "2026-08-01",
+          "ph_min": "5,8", "ph_max": "6,4"}
+LIGHT = {"operation": "light", "scope": "global", "label": "Végétatif 18/6",
+         "on_minutes": 1080, "off_minutes": 360, "start_at": "2026-08-01"}
+EQUIPMENT = {"operation": "link", "equipment_id": "cyclic_2", "usage": "irrigation espace 2",
+             "scope": "space", "space": "space_2", "start_at": "2026-06-01"}
+REMINDER = {"operation": "reminder", "target": "reservoir_2", "title": "Renouveler le bac",
+            "due_date": "2026-09-30", "interval_days": 7}
+
+
+async def refuse(client, route, body):
+    """Commande refusée par l'API : le statut est 400 et le corps porte le refus."""
+    response = await client.post(route, json={"request_id": str(uuid.uuid4()), **body}, headers=HEADERS)
+    assert response.status == 400, await response.text()
+    return await response.json()
+
+
+@pytest.mark.parametrize("route, body, field", [
+    # Plages cibles (lot E) : bornes, unité, cible, fenêtre et contexte.
+    ("/api/v1/cultures/targets", {**TARGET, "ph_min": 99}, "ph_min"),
+    ("/api/v1/cultures/targets", {**TARGET, "ph_min": None, "ph_max": None}, "ph_min"),
+    ("/api/v1/cultures/targets", {**TARGET, "ec_unit": "ppm"}, "ec_unit"),
+    ("/api/v1/cultures/targets", {**TARGET, "target": "fantome"}, "target"),
+    ("/api/v1/cultures/targets", {**TARGET, "stage": "inconnu"}, "stage"),
+    ("/api/v1/cultures/targets", {**TARGET, "end_at": "2026-07-01"}, "end_at"),
+    ("/api/v1/cultures/targets", {**TARGET, "start_at": "2027-01-01"}, "start_at"),
+    # Repères d'éclairage (lot F) : le formulaire n'expose que la durée d'éclairage.
+    ("/api/v1/cultures/light", {**LIGHT, "on_minutes": 2000, "off_minutes": -560}, "on_minutes"),
+    ("/api/v1/cultures/light", {**LIGHT, "on_minutes": 900}, "on_minutes"),
+    ("/api/v1/cultures/light", {**LIGHT, "scope": "ailleurs"}, "scope"),
+    ("/api/v1/cultures/light", {**LIGHT, "scope": "space", "space": "space_9"}, "space"),
+    ("/api/v1/cultures/light", {**LIGHT, "scope": "subject", "subject_id": "fantome"}, "subject_id"),
+    ("/api/v1/cultures/light", {**LIGHT, "label": ""}, "label"),
+    ("/api/v1/cultures/light", {**LIGHT, "stage": "inconnu"}, "stage"),
+    ("/api/v1/cultures/light", {**LIGHT, "start_at": "2027-01-01"}, "start_at"),
+    # Affectations d'équipements (lot G) : catalogue, portée, cible, usage et fenêtre.
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "equipment_id": "inconnu"}, "equipment_id"),
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "scope": "ailleurs"}, "scope"),
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "space": ""}, "space"),
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "scope": "reservoir", "space": None,
+                                    "reservoir_id": "fantome"}, "reservoir_id"),
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "usage": ""}, "usage"),
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "source": "ailleurs"}, "source"),
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "end_at": "2026-05-01"}, "end_at"),
+    ("/api/v1/cultures/equipment", {**EQUIPMENT, "note": "n" * 5000}, "note"),
+    # Rappels (lot D) : les libellés viennent des règles pures, le champ du formulaire.
+    ("/api/v1/cultures/cycles", {**REMINDER, "title": ""}, "title"),
+    ("/api/v1/cultures/cycles", {**REMINDER, "due_date": "30/09/2026"}, "due_date"),
+    ("/api/v1/cultures/cycles", {**REMINDER, "interval_days": 400}, "interval_days"),
+    ("/api/v1/cultures/cycles", {**REMINDER, "note": "n" * 5000}, "note"),
+    ("/api/v1/cultures/cycles", {**REMINDER, "target": "fantome"}, "target"),
+])
+async def test_champ_fautif_des_lots_d_a_h_traverse_l_api(web_context, route, body, field):
+    client, *_ = web_context
+    payload = await refuse(client, route, body)
+    # Ces domaines n'ont aucun groupe répété : aucun rang n'est inventé.
+    assert payload["field"] == field and "index" not in payload
+    assert list(payload)[0] == "error" and payload["error"]
+
+
+async def test_champ_fautif_d_une_verification(web_context):
+    client, *_ = web_context
+    created = await client.post("/api/v1/cultures", headers=HEADERS,
+                                json=create("Lot vérifié", space="space_1"))
+    assert created.status == 200, await created.text()
+    lot = await created.json()
+    saisie = {"operation": "checklist", "subject_id": lot["subject_id"], "version": lot["version"],
+              "effective_at": "2026-09-06",
+              "checks": {"lighting": True, "pump": True, "ventilation": True}}
+    # Le groupe entier manque : le refus vise sa première case, jamais un champ inventé.
+    assert (await refuse(client, "/api/v1/cultures/cycles",
+                         {**saisie, "checks": {"lighting": True}}))["field"] == "lighting"
+    assert (await refuse(client, "/api/v1/cultures/cycles",
+                         {**saisie, "effective_at": "2026-07-01"}))["field"] == "effective_at"
+    assert (await refuse(client, "/api/v1/cultures/cycles",
+                         {**saisie, "note": "n" * 5000}))["field"] == "note"
+    response = await client.post("/api/v1/cultures/cycles", headers=HEADERS,
+                                 json={"request_id": str(uuid.uuid4()), **saisie})
+    assert response.status == 200, await response.text()
+    verification = await response.json()
+    correction = {"operation": "checklist_correct", "id": verification["id"],
+                  "version": verification["revision"], "effective_at": "2026-09-06",
+                  "checks": saisie["checks"], "note": "", "reason": ""}
+    assert (await refuse(client, "/api/v1/cultures/cycles", correction))["field"] == "reason"
+    annulation = {"operation": "checklist_cancel", "id": verification["id"],
+                  "version": verification["revision"], "reason": ""}
+    assert (await refuse(client, "/api/v1/cultures/cycles", annulation))["field"] == "reason"
+
+
+async def test_champ_fautif_d_une_photo(web_context):
+    client, *_ = web_context
+    response = await client.post("/api/v1/cultures/journal", headers=HEADERS,
+                                 json={"request_id": str(uuid.uuid4()), "operation": "space_event",
+                                       "space": "space_2", "kind": "observation",
+                                       "effective_at": "2026-09-01", "note": "Bac nettoyé"})
+    assert response.status == 200, await response.text()
+    observation = await response.json()
+
+    async def envoi(metadata, raw):
+        return await client.post(
+            "/api/v1/cultures/journal/photos", data=raw,
+            headers={**HEADERS, "Content-Type": "application/octet-stream",
+                     "X-Culture-Metadata": quote(json.dumps(
+                         {"request_id": str(uuid.uuid4()), **metadata}))})
+
+    base = {"space_event_id": observation["id"], "space_event_revision": observation["version"]}
+    refus = await envoi({**base, "caption": "l" * 600}, b"x")
+    assert refus.status == 400 and (await refus.json())["field"] == "caption"
+    # Le fichier choisi est une saisie : son refus désigne le contrôle qui le porte.
+    refus = await envoi({**base, "caption": ""}, b"<svg></svg>")
+    assert refus.status == 400 and (await refus.json())["field"] == "photo"
+
+
+def test_libelles_des_refus_de_rappel_restent_rattachables():
+    """Garde-fou du seul rattachement par libellé du carnet.
+
+    `reminder_values` et `planned_date` restent les règles pures ; le magasin en déduit le
+    contrôle fautif à partir du premier mot du message. Si un libellé change sans que la
+    table suive, ce test échoue au lieu de laisser un refus sans champ.
+    """
+    from model.culture_cycle import planned_date, reminder_values
+    from utils.culture_cycle_store import REMINDER_FIELDS, reminder_rule
+
+    valide = {"title": "Rappel", "due_date": "2026-09-30", "interval_days": 7, "note": ""}
+    for faute, field in ((("title", ""), "title"), (("due_date", "hier"), "due_date"),
+                         (("interval_days", 400), "interval_days"), (("note", "n" * 5000), "note")):
+        with pytest.raises(CultureError) as raised:
+            reminder_rule(lambda: reminder_values({**valide, faute[0]: faute[1]}))
+        assert raised.value.field == field
+    with pytest.raises(CultureError) as raised:
+        reminder_rule(lambda: planned_date("hier"))
+    assert raised.value.field == "due_date"
+    assert set(REMINDER_FIELDS.values()) == set(valide)
 
 
 async def test_indisponibilite_reste_sans_champ(web_context, monkeypatch):

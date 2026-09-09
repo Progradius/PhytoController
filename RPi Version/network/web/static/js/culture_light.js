@@ -2,8 +2,6 @@
   "use strict";
   // Lot F : saisie des repères d'éclairage. Aucune commande d'équipement, aucune
   // écriture de configuration, aucune mise en attente hors ligne.
-  const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-  const identifier = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), n => n.toString(16).padStart(2, "0")).join("");
   const DAY = 1440;
   const PRESETS = {vegetatif: 1080, floraison: 720};
   const duration = minutes => {
@@ -11,15 +9,11 @@
     return rest ? `${hours} h ${String(rest).padStart(2, "0")}` : `${hours} h`;
   };
 
-  // Socle partagé : identifiants de champs et restitution des refus au champ concerné.
+  // Envoi, clé d'idempotence, garde hors ligne et restitution des refus : le socle partagé.
   const forms = window.PhytoCultureForms;
-  const refuser = (form, output, message, result) => {
-    if (forms) forms.showError(form, {...result, error: message});
-    else output.textContent = message;
-  };
 
   document.querySelectorAll("[data-light-form]").forEach(form => {
-    forms?.register(form);
+    forms.register(form);
     const minutes = form.querySelector("[data-light-minutes]");
     const stage = form.querySelector("[data-light-stage]");
     const preview = form.querySelector("[data-light-preview]");
@@ -45,57 +39,42 @@
     propose();
     describe();
 
-    let busy = false, previous = null, key = identifier();
     const get = name => form.elements[name]?.value || "";
     form.addEventListener("submit", async event => {
       event.preventDefault();
-      if (busy) return;
-      const output = form.querySelector("output"), button = form.querySelector('[type="submit"]');
-      if (!navigator.onLine || document.body.classList.contains("is-offline")) {
-        output.textContent = "Hors ligne : saisie conservée dans cette page, aucun envoi en attente.";
-        return;
-      }
-      forms?.clearErrors(form);
-      try {
-        const command = {operation: form.dataset.operation, confirm_date: form.elements.confirm_date?.checked || false};
-        if (form.dataset.id) Object.assign(command, {id: form.dataset.id, version: Number(form.dataset.version)});
-        if (command.operation === "light") {
-          const on = Number(get("on_minutes"));
-          if (!Number.isInteger(on) || on < 0 || on > DAY) throw new Error("Durée d’éclairage attendue : de 0 à 1440 minutes.");
-          Object.assign(command, {scope: get("scope"), subject_id: get("subject_id"), space: get("space"),
-            stage: get("stage"), label: get("label"), on_minutes: on, off_minutes: DAY - on,
-            start_at: get("start_at"), end_at: get("end_at"), note: get("note")});
-        }
-        if (command.operation === "light_close") command.end_at = get("end_at");
-        if (form.elements.reason) command.reason = get("reason");
-        const signature = JSON.stringify(command);
-        if (previous !== null && previous !== signature) key = identifier();
-        previous = signature; command.request_id = key;
-        busy = true; button.disabled = true; output.textContent = "Enregistrement…";
-        const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 45000);
-        let response;
-        try {
-          response = await fetch("/api/v1/cultures/light", {method: "POST",
-            headers: {"X-CSRF-Token": csrf, "Content-Type": "application/json"},
-            body: JSON.stringify(command), signal: controller.signal});
-        } finally { clearTimeout(timeout); }
-        const result = await response.json().catch(() => ({error: "Requête refusée. Vérifier la connexion."}));
-        if (!response.ok) {
-          refuser(form, output,
-            `${result.error} Saisie conservée.${response.status === 409 ? " Ouvrir la page actuelle dans un nouvel onglet." : ""}`,
-            result);
+      const command = {operation: form.dataset.operation, confirm_date: form.elements.confirm_date?.checked || false};
+      if (form.dataset.id) Object.assign(command, {id: form.dataset.id, version: Number(form.dataset.version)});
+      if (command.operation === "light") {
+        const on = Number(get("on_minutes"));
+        // Refus local : il désigne le champ fautif comme n'importe quel refus du serveur.
+        if (!Number.isInteger(on) || on < 0 || on > DAY) {
+          forms.showError(form, {error: "Durée d’éclairage attendue : de 0 à 1440 minutes.", field: "on_minutes"});
           return;
         }
-        output.textContent = "Enregistré. Actualisation…";
-        const next = new URL(location.href);
-        next.hash = `repere-${result.id}`;
-        if (next.search === location.search) { location.hash = next.hash; location.reload(); }
-        else location.assign(next.href);
-      } catch (error) {
-        output.textContent = error instanceof TypeError || error.name === "AbortError"
-          ? "Réponse non reçue. Saisie conservée : réessayer sans modification pour vérifier le même enregistrement."
-          : error.message;
-      } finally { busy = false; button.disabled = false; }
+        Object.assign(command, {scope: get("scope"), subject_id: get("subject_id"), space: get("space"),
+          stage: get("stage"), label: get("label"), on_minutes: on, off_minutes: DAY - on,
+          start_at: get("start_at"), end_at: get("end_at"), note: get("note")});
+      }
+      if (command.operation === "light_close") command.end_at = get("end_at");
+      if (form.elements.reason) command.reason = get("reason");
+      forms.clearErrors(form);
+      forms.status(form, "Enregistrement…");
+      const answer = await forms.submitJson(form, "/api/v1/cultures/light", command, {timeoutMs: 45000});
+      // Hors ligne et envoi déjà en vol : le socle a posé son message, la saisie reste intacte.
+      if (answer.offline || answer.busy || answer.preview) return;
+      if (!answer.ok) {
+        const data = answer.data || {};
+        forms.showError(form, {...data, error: answer.status
+          ? `${data.error} Saisie conservée.${answer.status === 409 ? " Ouvrir la page actuelle dans un nouvel onglet." : ""}`
+          : data.error});
+        return;
+      }
+      const result = answer.data;
+      forms.status(form, "Enregistré. Actualisation…");
+      const next = new URL(location.href);
+      next.hash = `repere-${result.id}`;
+      if (next.search === location.search) { location.hash = next.hash; location.reload(); }
+      else location.assign(next.href);
     });
   });
 })();

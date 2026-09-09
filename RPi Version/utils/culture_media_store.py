@@ -24,13 +24,15 @@ def image_bytes(raw):
         from utils.culture_store import CultureUnavailable
         raise CultureUnavailable("Module photo absent ; installer les dépendances du carnet.") from None
     if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_PHOTO_BYTES:
-        raise CultureError("Photo vide ou supérieure à 5 Mio.")
+        # Le fichier choisi est une saisie comme une autre : le refus désigne son contrôle.
+        raise CultureError("Photo vide ou supérieure à 5 Mio.", "photo")
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(io.BytesIO(raw), formats=("JPEG", "PNG", "WEBP")) as picture:
                 if max(picture.size) > 8192 or picture.width * picture.height > MAX_PHOTO_PIXELS or getattr(picture, "n_frames", 1) != 1:
-                    raise CultureError("Photo limitée à 20 mégapixels, 8 192 pixels par côté, sans animation.")
+                    raise CultureError("Photo limitée à 20 mégapixels, 8 192 pixels par côté, sans animation.",
+                                       "photo")
                 picture.verify()
             with Image.open(io.BytesIO(raw), formats=("JPEG", "PNG", "WEBP")) as picture:
                 picture.load()
@@ -48,7 +50,7 @@ def image_bytes(raw):
     except CultureError:
         raise
     except (UnidentifiedImageError, OSError, ValueError, SyntaxError, EOFError, Image.DecompressionBombError, Image.DecompressionBombWarning):
-        raise CultureError("Photo invalide : JPEG, PNG ou WebP non animé attendu.") from None
+        raise CultureError("Photo invalide : JPEG, PNG ou WebP non animé attendu.", "photo") from None
 
 
 class MediaStoreMixin:
@@ -95,14 +97,14 @@ class MediaStoreMixin:
                 "event_id", "event_revision", "space_event_id", "space_event_revision", "caption"}:
             raise CultureError("Métadonnées de photo invalides.")
         if not isinstance(raw, bytes) or len(raw) > MAX_PHOTO_BYTES:
-            raise CultureError("Photo limitée à 5 Mio.")
+            raise CultureError("Photo limitée à 5 Mio.", "photo")
         # Les deux propriétaires sont exclusifs, comme les deux clés étrangères de la table.
         space_owner = bool(command.get("space_event_id"))
         if space_owner and (command.get("event_id") or command.get("subject_id")):
             raise CultureError("Une photo appartient à un événement de culture ou à une observation d’espace, jamais aux deux.")
         written = []
         def work():
-            caption = text_value(command.get("caption", ""), "Légende", 500, False)
+            caption = text_value(command.get("caption", ""), "Légende", 500, False, field="caption")
             if space_owner:
                 space_event_id = text_value(command.get("space_event_id"), "Observation")
                 observation = self._db.execute("SELECT * FROM space_events WHERE id=? ORDER BY revision DESC LIMIT 1",

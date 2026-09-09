@@ -31,30 +31,35 @@ def bounds(raw):
         raise CultureError("Plage cible invalide.")
     unit = raw.get("ec_unit", "mS/cm")
     if unit not in EC_UNITS:
-        raise CultureError("EC : choisir mS/cm ou µS/cm ; les ppm ne sont pas convertis.")
+        raise CultureError("EC : choisir mS/cm ou µS/cm ; les ppm ne sont pas convertis.", "ec_unit")
     maximum = 100000 if unit == "µS/cm" else 100
     values = {
-        "ph_min": number(raw.get("ph_min"), "pH minimum", maximum=14),
-        "ph_max": number(raw.get("ph_max"), "pH maximum", maximum=14),
-        "ec_min": number(raw.get("ec_min"), "EC minimum", maximum=maximum),
-        "ec_max": number(raw.get("ec_max"), "EC maximum", maximum=maximum),
+        "ph_min": number(raw.get("ph_min"), "pH minimum", maximum=14, field="ph_min"),
+        "ph_max": number(raw.get("ph_max"), "pH maximum", maximum=14, field="ph_max"),
+        "ec_min": number(raw.get("ec_min"), "EC minimum", maximum=maximum, field="ec_min"),
+        "ec_max": number(raw.get("ec_max"), "EC maximum", maximum=maximum, field="ec_max"),
     }
     if unit == "µS/cm":
         for key in ("ec_min", "ec_max"):
             if values[key] is not None:
                 values[key] = values[key] / 1000
     if all(values[key] is None for key in BOUNDS):
-        raise CultureError("Renseigner au moins une borne de pH ou d’EC.")
-    check_bounds(values)
+        # La première borne du formulaire porte le message : c'est là que la saisie manque.
+        raise CultureError("Renseigner au moins une borne de pH ou d’EC.", "ph_min")
+    check_bounds(values, saisie=True)
     return values
 
 
-def check_bounds(values):
-    """Ordre des bornes : un minimum ne peut pas dépasser son maximum."""
+def check_bounds(values, saisie=False):
+    """Ordre des bornes : un minimum ne peut pas dépasser son maximum.
+
+    `saisie` distingue la validation d'un formulaire — le refus désigne alors le contrôle
+    fautif — de la relecture d'une ligne déjà écrite, qui ne vient d'aucun champ.
+    """
     if values["ph_min"] is not None and values["ph_max"] is not None and values["ph_min"] > values["ph_max"]:
-        raise CultureError("pH : le minimum dépasse le maximum.")
+        raise CultureError("pH : le minimum dépasse le maximum.", "ph_min" if saisie else None)
     if values["ec_min"] is not None and values["ec_max"] is not None and values["ec_min"] > values["ec_max"]:
-        raise CultureError("EC : le minimum dépasse le maximum.")
+        raise CultureError("EC : le minimum dépasse le maximum.", "ec_min" if saisie else None)
 
 
 def validate_target_windows(rows):

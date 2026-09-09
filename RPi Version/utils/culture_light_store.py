@@ -124,7 +124,7 @@ class LightStoreMixin:
                 raise CultureError("Identifiant de repère obligatoire.")
             else:
                 identifier = str(uuid.uuid4())
-            reason = text_value(command.get("reason", ""), "Motif", 500, revision > 1)
+            reason = text_value(command.get("reason", ""), "Motif", 500, revision > 1, field="reason")
             if operation == "light":
                 row = self._light_row(command, now)
             else:
@@ -132,7 +132,7 @@ class LightStoreMixin:
                 if operation == "light_close":
                     end_at = command.get("end_at")
                     end_precision = command.get("end_precision", "date")
-                    row["end_sort_at"] = stamp(end_at, end_precision, self.zone, now)[0]
+                    row["end_sort_at"] = stamp(end_at, end_precision, self.zone, now, field="end_at")[0]
                     row.update(end_at=end_at, end_precision=end_precision)
                 else:
                     row["cancelled"] = 1
@@ -152,34 +152,35 @@ class LightStoreMixin:
         """Repère complet issu de la commande ; aucune valeur par défaut n'est inventée."""
         scope = command.get("scope")
         if scope not in LIGHT_SCOPES:
-            raise CultureError("Portée attendue : toutes les cultures, un espace ou une culture.")
+            raise CultureError("Portée attendue : toutes les cultures, un espace ou une culture.", "scope")
         subject_id, space = None, None
         if scope == "subject":
-            subject_id = text_value(command.get("subject_id"), "Culture visée", 100)
+            subject_id = text_value(command.get("subject_id"), "Culture visée", 100, field="subject_id")
             if self._db.execute("SELECT id FROM subjects WHERE id=?", (subject_id,)).fetchone() is None:
-                raise CultureError("Culture visée introuvable.")
+                raise CultureError("Culture visée introuvable.", "subject_id")
         if scope == "space":
             space = command.get("space")
             if space not in SPACES:
-                raise CultureError("Espace visé inconnu.")
+                raise CultureError("Espace visé inconnu.", "space")
         stage = command.get("stage") or None
         if stage is not None and stage not in STAGES:
-            raise CultureError("Stade de repère inconnu.")
-        on_minutes, off_minutes = light_minutes(command.get("on_minutes"), command.get("off_minutes"))
+            raise CultureError("Stade de repère inconnu.", "stage")
+        on_minutes, off_minutes = light_minutes(command.get("on_minutes"), command.get("off_minutes"),
+                                                field="on_minutes")
         start_at = command.get("start_at")
         start_precision = command.get("start_precision", "date")
-        start_sort_at = stamp(start_at, start_precision, self.zone, now)[0]
+        start_sort_at = stamp(start_at, start_precision, self.zone, now, field="start_at")[0]
         end_at = command.get("end_at") or None
         end_precision, end_sort_at = None, None
         if end_at is not None:
             end_precision = command.get("end_precision", "date")
-            end_sort_at = stamp(end_at, end_precision, self.zone, now)[0]
+            end_sort_at = stamp(end_at, end_precision, self.zone, now, field="end_at")[0]
         return {"id": None, "revision": 1, "scope": scope, "subject_id": subject_id, "space": space,
-                "stage": stage, "label": text_value(command.get("label"), "Nom du repère", 160),
+                "stage": stage, "label": text_value(command.get("label"), "Nom du repère", 160, field="label"),
                 "on_minutes": on_minutes, "off_minutes": off_minutes,
                 "start_at": start_at, "start_precision": start_precision, "start_sort_at": start_sort_at,
                 "end_at": end_at, "end_precision": end_precision, "end_sort_at": end_sort_at,
-                "note": text_value(command.get("note", ""), "Note", 4000, False),
+                "note": text_value(command.get("note", ""), "Note", 4000, False, field="note"),
                 "reason": "", "cancelled": 0, "recorded_at": now.isoformat(),
                 "clock_reliable": int(self.reliable())}
 

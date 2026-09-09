@@ -34,41 +34,53 @@ PROVENANCES = {"link": "affectation datée du carnet",
                "unknown": "association inconnue à cette date"}
 
 
-def equipment_value(value):
-    """Identifiant validé en Python contre le catalogue : le schéma ne fige rien."""
+def equipment_value(value, *, field=None):
+    """Identifiant validé en Python contre le catalogue : le schéma ne fige rien.
+
+    `field` n'est donné que par une saisie de formulaire ; la relecture d'une ligne déjà
+    écrite ne vient d'aucun contrôle et reste sans champ.
+    """
     if not isinstance(value, str) or value not in EQUIPMENT_IDS:
-        raise CultureError("Équipement inconnu du catalogue.")
+        raise CultureError("Équipement inconnu du catalogue.", field)
     return value
 
 
-def usage_value(value):
-    return text_value(value, "Usage de l'équipement", USAGE_MAXIMUM)
+def usage_value(value, *, field=None):
+    return text_value(value, "Usage de l'équipement", USAGE_MAXIMUM, field=field)
 
 
-def scope_target(scope, space, reservoir_id):
-    """Portée et cible cohérentes : un espace, un réservoir, ou la serre entière."""
+def scope_target(scope, space, reservoir_id, *, saisie=False):
+    """Portée et cible cohérentes : un espace, un réservoir, ou la serre entière.
+
+    `saisie` rattache chaque refus au contrôle qui le porte ; la revalidation d'une ligne
+    enregistrée ne désigne aucun champ.
+    """
     if not isinstance(scope, str) or scope not in EQUIPMENT_SCOPES:
-        raise CultureError("Portée attendue : espace, réservoir ou serre entière.")
+        raise CultureError("Portée attendue : espace, réservoir ou serre entière.",
+                           "scope" if saisie else None)
     space = space or None
     reservoir_id = reservoir_id or None
     if scope == "space":
         if not isinstance(space, str) or space not in SPACES or reservoir_id:
-            raise CultureError("Choisir l'espace desservi par cet équipement.")
+            raise CultureError("Choisir l'espace desservi par cet équipement.",
+                               "space" if saisie else None)
         return scope, space, None
     if scope == "reservoir":
         if not isinstance(reservoir_id, str) or reservoir_id not in RESERVOIRS or space:
-            raise CultureError("Choisir le réservoir desservi par cet équipement.")
+            raise CultureError("Choisir le réservoir desservi par cet équipement.",
+                               "reservoir_id" if saisie else None)
         return scope, None, reservoir_id
     if space or reservoir_id:
-        raise CultureError("Une affectation à la serre entière ne vise ni espace ni réservoir.")
+        raise CultureError("Une affectation à la serre entière ne vise ni espace ni réservoir.",
+                           "scope" if saisie else None)
     return scope, None, None
 
 
-def source_value(value):
+def source_value(value, *, field=None):
     if value in (None, ""):
         return "operator"
     if not isinstance(value, str) or value not in EQUIPMENT_SOURCES:
-        raise CultureError("Origine attendue : déclaration ou reprise du catalogue.")
+        raise CultureError("Origine attendue : déclaration ou reprise du catalogue.", field)
     return value
 
 

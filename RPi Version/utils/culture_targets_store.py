@@ -115,27 +115,27 @@ class TargetsStoreMixin:
         """
         if old is not None and old["cancelled"]:
             raise CultureError("Une plage annulée conserve son historique ; créer une nouvelle plage.")
-        target = text_value(command.get("target"), "Cible")
+        target = text_value(command.get("target"), "Cible", field="target")
         if target in RESERVOIRS:
             scope, subject_id, reservoir_id = "reservoir", None, target
         elif self._db.execute("SELECT id FROM subjects WHERE id=?", (target,)).fetchone():
             scope, subject_id, reservoir_id = "subject", target, None
         else:
-            raise CultureError("Cible de plage cible inconnue.")
+            raise CultureError("Cible de plage cible inconnue.", "target")
         stage = command.get("stage") or None
         if stage is not None and stage not in STAGES:
-            raise CultureError("Stade de contexte inconnu.")
+            raise CultureError("Stade de contexte inconnu.", "stage")
         start_precision = command.get("start_precision", "date")
-        start_sort_at = stamp(command.get("start_at"), start_precision, self.zone, now)[0]
+        start_sort_at = stamp(command.get("start_at"), start_precision, self.zone, now, field="start_at")[0]
         end_at, end_precision, end_sort_at = self._target_end(command, start_sort_at, now)
         return {"id": identifier, "revision": revision, "scope": scope, "subject_id": subject_id,
                 "reservoir_id": reservoir_id, "stage": stage,
-                "label": text_value(command.get("label", ""), "Intitulé", 120, False),
+                "label": text_value(command.get("label", ""), "Intitulé", 120, False, field="label"),
                 **bounds(command), "start_at": command.get("start_at"), "start_precision": start_precision,
                 "start_sort_at": start_sort_at, "end_at": end_at, "end_precision": end_precision,
                 "end_sort_at": end_sort_at,
-                "note": text_value(command.get("note", ""), "Note", 4000, False),
-                "reason": text_value(command.get("reason", ""), "Motif", 500, False),
+                "note": text_value(command.get("note", ""), "Note", 4000, False, field="note"),
+                "reason": text_value(command.get("reason", ""), "Motif", 500, False, field="reason"),
                 "cancelled": 0, "recorded_at": now.isoformat(),
                 "clock_reliable": int(self.reliable())}
 
@@ -144,9 +144,9 @@ class TargetsStoreMixin:
         if not command.get("end_at"):
             return None, None, None
         precision = command.get("end_precision", "date")
-        key = stamp(command["end_at"], precision, self.zone, now)[0]
+        key = stamp(command["end_at"], precision, self.zone, now, field="end_at")[0]
         if key <= start_sort_at:
-            raise CultureError("La fin de validité doit suivre le début de la plage.")
+            raise CultureError("La fin de validité doit suivre le début de la plage.", "end_at")
         return command["end_at"], precision, key
 
     def _target_action(self, command, old, revision, now):
@@ -158,7 +158,8 @@ class TargetsStoreMixin:
             raise CultureError("Cette plage cible est déjà annulée.")
         row = {**old, "revision": revision, "recorded_at": now.isoformat(),
                "clock_reliable": int(self.reliable()),
-               "reason": text_value(command.get("reason", ""), "Motif", 500, action == "cancel")}
+               "reason": text_value(command.get("reason", ""), "Motif", 500, action == "cancel",
+                                    field="reason")}
         if action == "cancel":
             row["cancelled"] = 1
             return row
@@ -166,7 +167,7 @@ class TargetsStoreMixin:
             raise CultureError("Une plage annulée ne se clôt pas ; créer une nouvelle plage.")
         end_at, end_precision, end_sort_at = self._target_end(command, old["start_sort_at"], now)
         if end_sort_at is None:
-            raise CultureError("Renseigner la date de fin de validité.")
+            raise CultureError("Renseigner la date de fin de validité.", "end_at")
         row.update(end_at=end_at, end_precision=end_precision, end_sort_at=end_sort_at)
         return row
 

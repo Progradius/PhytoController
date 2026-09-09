@@ -128,7 +128,8 @@ class EquipmentStoreMixin:
                 raise CultureError("Cette affectation est annulée ; en saisir une nouvelle.")
             if operation == "cancel":
                 row = {**old, "revision": revision, "cancelled": 1,
-                       "reason": text_value(command.get("reason"), "Motif d'annulation", 500),
+                       "reason": text_value(command.get("reason"), "Motif d'annulation", 500,
+                                            field="reason"),
                        "recorded_at": now.isoformat(), "clock_reliable": int(self.reliable())}
             elif operation == "close":
                 if old["end_at"]:
@@ -136,17 +137,19 @@ class EquipmentStoreMixin:
                 end_at = command.get("end_at")
                 end_precision = command.get("end_precision", "date")
                 if not end_at:
-                    raise CultureError("Renseigner la date de fin de l'affectation.")
-                end_key = stamp(end_at, end_precision, self.zone, now)[0]
+                    raise CultureError("Renseigner la date de fin de l'affectation.", "end_at")
+                end_key = stamp(end_at, end_precision, self.zone, now, field="end_at")[0]
                 if end_key <= old["start_sort_at"]:
-                    raise CultureError("La fin d'une affectation suit son début.")
+                    raise CultureError("La fin d'une affectation suit son début.", "end_at")
                 row = {**old, "revision": revision, "end_at": end_at, "end_precision": end_precision,
                        "end_sort_at": end_key, "recorded_at": now.isoformat(),
                        "clock_reliable": int(self.reliable()),
-                       "reason": text_value(command.get("reason", ""), "Motif", 500, False)}
+                       "reason": text_value(command.get("reason", ""), "Motif", 500, False,
+                                            field="reason")}
             else:
                 base = old or {}
-                equipment_id = equipment_value(command.get("equipment_id") or base.get("equipment_id"))
+                equipment_id = equipment_value(command.get("equipment_id") or base.get("equipment_id"),
+                                               field="equipment_id")
                 # Une correction muette conserve la valeur précédente ; changer la portée
                 # impose de redonner sa cible, sinon un espace resterait accroché à un
                 # réservoir.
@@ -156,11 +159,12 @@ class EquipmentStoreMixin:
                 else:
                     scope, space, reservoir_id = (base.get("scope"), base.get("space"),
                                                   base.get("reservoir_id"))
-                scope, space, reservoir_id = scope_target(scope, space, reservoir_id)
-                usage = usage_value(command.get("usage") if command.get("usage") is not None else base.get("usage"))
+                scope, space, reservoir_id = scope_target(scope, space, reservoir_id, saisie=True)
+                usage = usage_value(command.get("usage") if command.get("usage") is not None else base.get("usage"),
+                                    field="usage")
                 start_at = command.get("start_at") or base.get("start_at")
                 start_precision = command.get("start_precision") or base.get("start_precision") or "date"
-                start_key = stamp(start_at, start_precision, self.zone, now)[0]
+                start_key = stamp(start_at, start_precision, self.zone, now, field="start_at")[0]
                 if "end_at" in command:
                     end_at = command.get("end_at") or None
                     end_precision = command.get("end_precision", "date") if end_at else None
@@ -168,9 +172,9 @@ class EquipmentStoreMixin:
                     end_at, end_precision = base.get("end_at"), base.get("end_precision")
                 end_key = None
                 if end_at:
-                    end_key = stamp(end_at, end_precision, self.zone, now)[0]
+                    end_key = stamp(end_at, end_precision, self.zone, now, field="end_at")[0]
                     if end_key <= start_key:
-                        raise CultureError("La fin d'une affectation suit son début.")
+                        raise CultureError("La fin d'une affectation suit son début.", "end_at")
                 else:
                     end_at, end_precision = None, None
                 # Le libellé est figé à la saisie : il n'est recopié du catalogue que pour
@@ -182,9 +186,10 @@ class EquipmentStoreMixin:
                        "display_name": previous_name or str(entry.get("display_name", ""))[:64],
                        "start_at": start_at, "start_precision": start_precision, "start_sort_at": start_key,
                        "end_at": end_at, "end_precision": end_precision, "end_sort_at": end_key,
-                       "source": source_value(command.get("source") or base.get("source")),
-                       "note": text_value(command.get("note", base.get("note", "")), "Note", 4000, False),
-                       "reason": text_value(command.get("reason", ""), "Motif", 500, False),
+                       "source": source_value(command.get("source") or base.get("source"), field="source"),
+                       "note": text_value(command.get("note", base.get("note", "")), "Note", 4000, False,
+                                          field="note"),
+                       "reason": text_value(command.get("reason", ""), "Motif", 500, False, field="reason"),
                        "cancelled": 0, "recorded_at": now.isoformat(),
                        "clock_reliable": int(self.reliable())}
             values = tuple(row[column] for column in EQUIPMENT_COLUMNS)

@@ -83,11 +83,11 @@ class ChecklistStoreMixin:
         if type(command.get("version")) is not int or command["version"] != subject["version"]:
             raise CultureConflict("Le parcours du lot a changé ; relire la liste de vérification.")
         effective = command.get("effective_at")
-        stamp(effective, "date", self.zone, self.now())
+        stamp(effective, "date", self.zone, self.now(), field="effective_at")
         # Une date sans heure peut désigner le jour même d'un changement horodaté.
         stage_date = context_at(subject, effective, self.zone)
         if stage_date is None or subject["stage"] != stage_date["stage"]:
-            raise CultureError("La vérification précède le début du stade actuel.")
+            raise CultureError("La vérification précède le début du stade actuel.", "effective_at")
         checks = check_values(command.get("checks"))
         return self._checklist_insert({
             "id": str(uuid.uuid4()), "revision": 1, "subject_id": subject["id"],
@@ -95,7 +95,7 @@ class ChecklistStoreMixin:
             "stage_precision": subject["stage_precision"], "subject_version": subject["version"],
             "effective_at": effective, "precision": "date", "recorded_at": self.now().isoformat(),
             "clock_reliable": int(self.reliable()), **checks,
-            "note": text_value(command.get("note", ""), "Note", 4000, False),
+            "note": text_value(command.get("note", ""), "Note", 4000, False, field="note"),
             "reason": "", "cancelled": 0, "equipment_context": "{}"})
 
     def _checklist_revise(self, command, operation):
@@ -120,17 +120,18 @@ class ChecklistStoreMixin:
         if operation == "checklist_cancel":
             if set(command) - {"request_id", "operation", "confirm_date", "id", "version", "reason"}:
                 raise CultureError("Une annulation ne porte qu'un motif.")
-            row.update(cancelled=1, reason=reason_value(command.get("reason"), "Motif de l'annulation"))
+            row.update(cancelled=1, reason=reason_value(command.get("reason"), "Motif de l'annulation",
+                                                       field="reason"))
             return self._checklist_insert(row)
         subject = self._checklist_subject(old["subject_id"])
         effective = command.get("effective_at", old["effective_at"])
-        stamp(effective, "date", self.zone, self.now())
+        stamp(effective, "date", self.zone, self.now(), field="effective_at")
         context = context_at(subject, effective, self.zone)
         if context is None:
-            raise CultureError("La vérification précède l'origine de la culture.")
+            raise CultureError("La vérification précède l'origine de la culture.", "effective_at")
         row.update(effective_at=effective, subject_version=subject["version"], cancelled=0,
-                   reason=reason_value(command.get("reason"), "Motif de la correction"),
-                   note=text_value(command.get("note", ""), "Note", 4000, False),
+                   reason=reason_value(command.get("reason"), "Motif de la correction", field="reason"),
+                   note=text_value(command.get("note", ""), "Note", 4000, False, field="note"),
                    **context, **check_values(command.get("checks")))
         return self._checklist_insert(row)
 

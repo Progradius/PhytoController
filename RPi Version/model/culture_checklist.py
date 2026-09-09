@@ -21,15 +21,19 @@ MAX_REASON = 500
 
 
 def check_values(raw):
-    """Les trois cases exactement, strictement booléennes ; une absence n'est jamais un zéro."""
+    """Les trois cases exactement, strictement booléennes ; une absence n'est jamais un zéro.
+
+    Le refus vise la première case du groupe : c'est le groupe entier qui manque, et le
+    formulaire n'a pas de contrôle qui le porte à lui seul.
+    """
     if not isinstance(raw, dict) or set(raw) != set(CHECKLIST) or any(type(value) is not bool for value in raw.values()):
-        raise CultureError("Renseigner les trois vérifications déclaratives.")
+        raise CultureError("Renseigner les trois vérifications déclaratives.", next(iter(CHECKLIST)))
     return {key: int(raw[key]) for key in CHECKLIST}
 
 
-def reason_value(raw, label):
+def reason_value(raw, label, *, field=None):
     """Une correction ou une annulation sans motif ne se relit pas : le motif est obligatoire."""
-    return text_value(raw, label, MAX_REASON)
+    return text_value(raw, label, MAX_REASON, field=field)
 
 
 def context_at(subject, day, zone):
