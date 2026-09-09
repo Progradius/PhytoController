@@ -10,6 +10,10 @@ const CURRENT = "2026-09-07";
 test("reprise en floraison : étapes et occupation passées complétées", async ({page}, testInfo) => {
   test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name), "Reprise exercée sur deux formats.");
   test.setTimeout(45000);
+  let mutations = 0;
+  page.on("request", request => {
+    if (request.method() === "POST" && request.url().endsWith("/api/v1/cultures")) mutations++;
+  });
   const name = `Reprise ${testInfo.project.name} ${Date.now()}`;
   await page.goto("/cultures");
   const details = page.locator("details.culture-create").filter({hasText: "Créer un lot"});
@@ -34,7 +38,11 @@ test("reprise en floraison : étapes et occupation passées complétées", async
     await entry.locator("..").locator(":scope > summary").click();
     await entry.locator('[name="effective_at"]').fill(date);
     if (fill) await fill(entry);
-    const answer = page.waitForResponse(r => r.url().endsWith("/api/v1/cultures") && r.request().method() === "POST");
+    // Une saisie incohérente est désormais refusée dès la prévalidation ; aucune
+    // mutation finale ne part dans ce cas. Un succès attend toujours l'écriture réelle.
+    const answer = page.waitForResponse(r => r.request().method() === "POST" &&
+      (r.url().endsWith("/api/v1/cultures") ||
+       (r.url().endsWith("/api/v1/cultures/preview/culture") && r.status() >= 400)));
     await entry.locator('[type="submit"]').click();
     return {entry, answer: await answer};
   };
@@ -57,10 +65,12 @@ test("reprise en floraison : étapes et occupation passées complétées", async
     .toHaveText(["Germination"]);
 
   // Chronologie impossible : refus sans écriture ni navigation, la saisie reste dans le formulaire.
+  const beforeRefusal = mutations;
   const refused = await backfill("stage", CURRENT, f => f.locator('[name="stage"]').selectOption("germination"));
   expect(refused.answer.status()).toBe(400);
   // Lot UI 2 : un refus s'affiche dans le résumé d'erreur du socle commun, pas dans l'état.
   await expect(refused.entry.locator(".culture-form-errors")).toContainText("précéder");
+  expect(mutations).toBe(beforeRefusal);
   await expect(refused.entry.locator('[name="effective_at"]')).toHaveValue(CURRENT);
   await expect(page.locator("article.card", {hasText: "Parcours"}).locator("ol li")).toHaveCount(2);
 
