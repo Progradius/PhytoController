@@ -212,3 +212,49 @@ aucune mutation rejouée hors ligne.
 3. Compteurs de requêtes : un enregistrement nominal = un `POST` ; ouverture d'une fiche = une projection ; assistance à version inchangée = aucune projection.
 4. Mesure sur Pi avec un carnet simulé de deux ans (fiche, accueil, assistance) consignée dans le bilan.
 5. `diff -u CLAUDE.md AGENTS.md` vide, `git diff --check` vide, pyflakes sans alerte sur le carnet, `docs/index.md` à jour.
+
+## Bilan de réalisation — 9 septembre 2026
+
+Commits `5430116..a50acf1` (huit après le plan), sept lots d'agents sur fichiers disjoints,
+chaque rendu vérifié (pytest complet, diff contre la liste de fichiers, Playwright ciblé) et
+commité séparément, puis revue indépendante du diff complet et lot de correction en worktree
+isolé. Aucune intervention sur le Pi ni sur des données de production ; schéma 4 intact.
+
+| Priorité | Statut | Preuve |
+| --- | --- | --- |
+| P0 R0.1 | Fait | garde dans la fixture ; 41 exclusions, zéro requête, douze fichiers en une commande |
+| P1 R1.1–R1.6 | Fait | `resetField`, index retiré sans rang, poids au champ, note verrouillée avant la photo, `reveal` restreint, ancre `#backfill` |
+| P2 R2.1–R2.5 | Fait | prévalidation sur « Vérifier », premier relevé et transition guidée seulement ; assistance sans sondage, jeton opaque `?version=` ; une projection par requête, deux par fiche ; rappels bornés à dix par seau |
+| P3 R3.1–R3.10 | Fait | `stage_checks`, deux boutons avec « Reporter » comme bouton par défaut, `field` sur tous les domaines, plage et écart, alimentation 0/1/N avec liens et ligne sous le champ Cible, suggestions après récolte, catégories strictes, transitions guidées, raccourci et recherche `?q=`, garde `beforeunload` |
+| P3 R3.11 | Documentaire | bilans corrigés : le carnet ne fonctionne pas sans JavaScript |
+| P4 R4.1–R4.3 | Fait, deux résidus | tests d'infrastructure, dette, contrat API, index, leçons |
+
+Mesures finales sur l'arbre `a50acf1` plus la fixture durcie :
+
+| Suite | Résultat |
+| --- | --- |
+| pytest | 797 réussites, 0 échec |
+| Playwright ciblé bureau (lots 2, 3, C, E, F, H, cultures) | 34 réussites, 0 échec |
+| Playwright complet, cinq profils, 335 cas | 228 réussites, 97 exclusions déclarées, 10 échecs tous « Démarrage du carnet temporaire isolé » (serveur de test au-delà de 20 s sous contention, aucun échec de code) ; les dix scénarios rejoués verts après durcissement de la fixture |
+| Statique | miroir CLAUDE.md/AGENTS.md vide, `git diff --check` vide, pyflakes sans alerte sur le carnet |
+
+Défauts trouvés par la revue indépendante puis corrigés dans `a50acf1` : Entrée dans la
+nouvelle échéance clôturait le rappel au lieu de le reporter (bouton par défaut) ; page des
+cycles encore au sélecteur ; `send()` ne désactivait qu'un bouton ; `//hôte` accepté dans les
+liens ; `focusTarget` dévoilait tout `hidden` ; `?q=` trop long hors contrat JSON ; jeton
+`unchanged` aveugle aux rappels, vérifications, relevés et photos ; contrat et bilans en
+retard d'un cas de prévalidation.
+
+Un défaut du lot 2 découvert en cours de remédiation : le message d'erreur était inséré dans
+le `<label>` et entrait dans le nom accessible du champ (« Photo Photo invalide… »). Il est
+désormais un frère du label, en pleine ligne dans les grilles.
+
+Résidus, hors périmètre de ce plan :
+
+- `culture_solutions.js:91-100` : règles d'intention encore dupliquées en JS ; à exposer en
+  `data-*` depuis le serveur comme les stades.
+- `tests/ui_server.py` conserve l'horloge système, volontairement : les specs saisissent des
+  dates du jour. `cultures_lot_c.spec.js` garde une date `CURRENT` en dur.
+- Aucun repli natif sans JavaScript : choix d'architecture à décider séparément.
+- Performances non mesurées sur Raspberry Pi avec un carnet de plusieurs années ; les
+  compteurs de projections sont testés, pas le temps de rendu.

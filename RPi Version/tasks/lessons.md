@@ -169,3 +169,32 @@ configuration le hook s'attache toujours au fichier courant, et la garde paraît
 3. Un test qui écrit vers une cible désignée par une variable d'environnement est une commande de
    production tant que la garde n'est pas prouvée : la preuve fait partie du livrable, au même titre
    que la garde.
+
+## 2026-09-09 — Remédiation des lots UI 2 et 3 : quatre pièges d'orchestration et un d'accessibilité
+
+**Ce qui s'est passé.** (1) Un agent a fait `git stash`/`stash pop` pour prouver qu'un échec était
+préexistant pendant qu'un autre agent écrivait dans le même arbre. (2) Un `git add <fichier>` de
+l'orchestrateur a emporté dans un commit la modification d'un autre lot sur le même fichier
+(`cultures-api.md`), sans mention dans le message. (3) La suite Playwright complète lancée pendant
+qu'un agent exécutait pytest a produit dix échecs « Démarrage du carnet temporaire isolé » : le
+serveur de test dépassait le délai global de 20 s, qui couvre aussi la fixture. (4) Le plan
+affirmait qu'un second classement des rappels « n'était jamais lu » ; l'agent a vérifié et trouvé
+le gabarit qui le lit. (5) Le socle insérait le message d'erreur dans le `<label>` : le nom
+accessible du champ devenait « Photo Photo invalide… », révélé seulement quand un refus a reçu
+un `field`.
+
+**Règles.**
+1. Agents parallèles sur un arbre partagé : `git stash`, `checkout`, `reset` interdits dans la
+   consigne, et « préexistant » se prouve par `git stash push -m <tag>` **jamais**, mais par une
+   lecture du dernier commit (`git show <commit>:<fichier>`) ou un worktree.
+2. Un commit de lot ajoute ses fichiers par liste explicite **et** l'orchestrateur relit
+   `git diff --cached --stat` : un fichier partagé entre deux lots se commite en deux fois ou se
+   mentionne dans le message.
+3. Un agent de correction lancé pendant une suite navigateur travaille en worktree isolé
+   (`isolation: worktree`) ; la fixture qui démarre un serveur a son propre `timeout`, distinct du
+   délai du test.
+4. Un constat du plan est une hypothèse pour l'agent qui l'applique : « vérifie avant de
+   supprimer » fait partie de la consigne, et un constat démenti se signale au lieu d'être exécuté.
+5. Un message d'erreur ne va jamais **dans** un `<label>` enveloppant : il entre dans le nom
+   accessible du champ. Frère du label + `aria-describedby`, et un test `getByLabel(..., {exact:
+   true})` après un refus est la preuve.

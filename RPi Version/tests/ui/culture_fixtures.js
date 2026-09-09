@@ -32,13 +32,16 @@ const test = base.extend({
         if (server.exitCode !== null) throw new Error(`Serveur de carnet arrêté : ${diagnostic}`);
         try { return (await fetch(`${url}/health/ready`)).status; }
         catch { return 0; }
-      }, {timeout: 20000, message: "Démarrage du carnet temporaire isolé"}).toBe(200);
+      }, {timeout: 45000, message: "Démarrage du carnet temporaire isolé"}).toBe(200);
       await use(url);
     } finally {
       server.kill("SIGTERM");
       await exited;
     }
-  }, {scope: "test"}],
+  // Le démarrage du serveur (interpréteur, schéma, WAL) a son propre délai, distinct du
+  // délai du test : sous contention (suite complète, autre charge sur la machine) il a
+  // dépassé les 20 s du délai global et faisait échouer des scénarios sans rapport.
+  }, {scope: "test", timeout: 60000}],
   baseURL: async ({cultureBaseURL}, use) => use(cultureBaseURL),
 });
 
