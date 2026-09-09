@@ -11,9 +11,15 @@ from model.culture_cycle import (CLIMATE_PAGE, MAX_SUMMARY_POINTS, REMINDER_STAT
                                  climate_granularity, climate_point, climate_span, planned_date,
                                  reminder_buckets, reminder_values, trusted_value)
 from model.culture_solution import RESERVOIRS
+from model.culture_text import search_key
 from utils.culture_checklist_store import CHECKLIST_OPERATIONS
 
 CYCLE_TABLES = ("reminders", "culture_checklists", "climate_hours", "climate_minutes", "culture_media")
+# Bornes du sélecteur de comparaison, exposées dans la réponse : le gabarit et le JS les
+# lisent au lieu de les recopier, pour qu'un changement de pas ne laisse pas une pagination
+# ou un compteur « x / 4 » sur l'ancienne valeur.
+COMPARISON_PAGE = 40
+COMPARISON_MAX = 4
 CYCLE_SCHEMA = """
 CREATE TABLE reminders (id TEXT NOT NULL, revision INTEGER NOT NULL, parent_id TEXT,
  subject_id TEXT REFERENCES subjects(id), reservoir_id TEXT REFERENCES reservoirs(id),
@@ -238,7 +244,7 @@ class CycleStoreMixin:
 
     def _cycle_data(self, selected=None, offset=0, focus=None, climate_offset=0, climate_at=None, search="", selection_offset=0):
         selected = selected or []
-        if not isinstance(selected, list) or len(selected) > 4 or any(not isinstance(s, str) for s in selected):
+        if not isinstance(selected, list) or len(selected) > COMPARISON_MAX or any(not isinstance(s, str) for s in selected):
             raise CultureError("Comparer au maximum quatre cultures.")
         subjects = self._projections()
         by_id = {s["id"]: s for s in subjects}
@@ -246,6 +252,11 @@ class CycleStoreMixin:
             raise CultureError("Culture inconnue.")
         chosen = [by_id[identifier] for identifier in selected]
         summaries = []
+        # Mémoïsation locale à cette lecture : deux cultures de même fenêtre partagent une
+        # seule agrégation climatique, la plus chère de la page. Le dictionnaire meurt avec
+        # l'appel — le magasin est un objet long-vécu et ses agrégats changent chaque minute,
+        # un cache d'instance servirait une synthèse périmée.
+        climate_summaries = {}
         for subject in chosen:
             start = stamp(subject["origin_at"], subject["origin_precision"], self.zone, self.now())[0]
             end = stamp(subject["stage_end"], "date" if len(subject["stage_end"]) == 10 else "instant", self.zone, self.now())[0] if subject.get("stage_end") else self.now().isoformat()
@@ -253,7 +264,9 @@ class CycleStoreMixin:
             end_epoch = int(datetime.fromisoformat(end).timestamp())
             start_hour = start_epoch // 3600 * 3600
             end_hour = end_epoch // 3600 * 3600
-            climate = self._climate_summary(start_hour, end_hour)
+            if (start_hour, end_hour) not in climate_summaries:
+                climate_summaries[(start_hour, end_hour)] = self._climate_summary(start_hour, end_hour)
+            climate = climate_summaries[(start_hour, end_hour)]
             # Le détail horaire n'est paginé que sur une sélection unique : une comparaison
             # de cycles reste bornée à des synthèses dont la granularité est affichée.
             detail = self._climate_detail(start_hour, end_hour, climate_offset, climate_at) if len(chosen) == 1 else None
@@ -261,9 +274,19 @@ class CycleStoreMixin:
             summaries.append({"subject": subject, "climate": climate, "climate_detail": detail,
                               "measures": measures, "periods": subject["periods"],
                               "checklists": self._checklists(subject)})
-        needle = str(search or "").strip()[:120].casefold()
-        matches = [s for s in subjects if needle in (s["name"] + " " + s.get("variety", "")).casefold()]
-        choices = matches[selection_offset:selection_offset + 40]
+        search = str(search or "").strip()[:120]
+        # Recherche insensible à la casse **et** aux signes diacritiques, avec la même clé
+        # que le filtre du navigateur : « epinard » trouve « Épinard » et réciproquement.
+        needle = search_key(search)
+        haystack = {s["id"]: search_key(s["name"] + " " + (s.get("variety") or "")) for s in subjects}
+        matches = [s for s in subjects if needle in haystack[s["id"]]]
+        # Classement documenté : nom normalisé puis identifiant, stable et indépendant de
+        # l'ordre d'insertion — un `rowid DESC` ne veut rien dire pour une recherche par nom.
+        matches.sort(key=lambda s: (search_key(s["name"]), s["id"]))
+        # Décalage borné comme celui du détail horaire : une page hors des résultats ramenait
+        # une liste vide dont le gabarit tirait encore un lien « Choix précédents ».
+        selection_offset = max(0, min(int(selection_offset), max(len(matches) - 1, 0))) // COMPARISON_PAGE * COMPARISON_PAGE
+        choices = matches[selection_offset:selection_offset + COMPARISON_PAGE]
         choices = chosen + [s for s in choices if s["id"] not in selected]
         target = selected[0] if len(selected) == 1 else None
         reminders = self._reminders(target)
@@ -272,9 +295,15 @@ class CycleStoreMixin:
             position = next((i for i, r in enumerate(reminders) if r["id"] == focus), None)
             if position is not None:
                 offset = position // 40 * 40
-        return {"comparison_choices": [{key: s[key] for key in ("id", "name", "variety", "archived")} for s in choices],
+        # `search` est la clé normalisée servie au filtre du navigateur : le texte à comparer
+        # est calculé une seule fois, ici, avec la règle du serveur ; le JS n'a plus qu'à
+        # normaliser la saisie. Deux normalisations divergentes masqueraient des choix que
+        # cette réponse a pourtant retenus.
+        return {"comparison_choices": [{**{key: s[key] for key in ("id", "name", "variety", "archived")},
+                                        "search": haystack[s["id"]]} for s in choices],
                 "selection_total": len(matches),
-                "selection_offset": selection_offset, "search": str(search or "").strip()[:120],
+                "selection_offset": selection_offset, "search": search,
+                "selection_page": COMPARISON_PAGE, "comparison_max": COMPARISON_MAX,
                 "subjects": [{"id": s["id"], "name": s["name"], "archived": s["archived"]} for s in subjects],
                 "summaries": summaries, "reminders": reminders[offset:offset + 40], "reminder_total": len(reminders),
                 "offset": offset, "media": self._media_list(subjects=selected), "storage": self._media_storage(),

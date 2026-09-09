@@ -293,6 +293,41 @@ async def test_comparaison_de_quatre_cycles_bornee_et_granularite_explicite(cult
         await cultures.call("cycle_data", [lot["subject_id"] for lot in lots] + [lots[0]["subject_id"]])
 
 
+async def test_formulaire_de_comparaison_reconduit_sa_page_et_sort_le_filtre(web_context):
+    """Deux défauts du sélecteur, visibles dans le seul balisage (R1.2 b et c).
+
+    (b) Le formulaire reconduisait `q` mais pas `selection_offset` : valider une coche depuis
+    la page 2 des choix renvoyait page 1. (c) Le champ « Filtrer les choix affichés » n'a pas
+    de `name` — il ne fait que masquer des cases dans le navigateur — mais il était **dans**
+    le formulaire, donc la touche Entrée y déclenchait « Afficher les cycles ».
+    """
+    client, server, *_ = web_context
+    store = server.cultures.store
+    for index in range(44):
+        await store.call("mutate", create(f"Mère {index:02}", "mother"))
+
+    response = await client.get("/cultures/cycles?selection_offset=10000000")
+    assert response.status == 200
+    html = await response.text()
+
+    form = html.index('<form method="get" class="culture-form">')
+    end = html.index("</form>", form)
+    # Le décalage normalisé par le magasin, pas celui de la requête, est reconduit.
+    assert '<input type="hidden" name="selection_offset" value="40">' in html[form:end]
+    # Le champ de filtre est hors du formulaire, mais dans la zone lue par le script.
+    assert "data-comparison-filter" in html and html.index("data-comparison-filter") < form
+    assert "data-comparison-filter" not in html[form:end]
+    zone = html.index("data-comparison-selection")
+    assert zone < html.index("data-comparison-filter")
+    # Les bornes viennent de la réponse : plus de 4 ni de 40 recopiés dans le gabarit.
+    assert 'data-comparison-max="4"' in html
+    assert "40 résultats au plus par page de choix" in html
+    choices = html.index('<fieldset class="culture-comparison-choices">')
+    fieldset = html[choices:html.index("</fieldset>", choices)]
+    # Dernière page réelle des 44 cultures : les quatre restantes, pas une page vide.
+    assert "Mère 43" in fieldset and "Mère 39" not in fieldset
+
+
 async def test_taille_des_reponses_de_cycle_sous_le_plafond_du_cache_pwa(web_context):
     client, server, *_ = web_context
     store = server.cultures.store

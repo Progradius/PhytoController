@@ -200,6 +200,111 @@ async def test_dernier_releve_d_un_sujet_egale_la_lecture_integrale(cultures):
     assert (await cultures.call("latest_reading", fed["subject_id"]))["ph"] == 5.7
 
 
+async def test_alimentation_close_a_la_seconde_du_renouvellement(cultures):
+    """Branche `]début ; fin]` du prédicat, rendue **observable** (R4.1).
+
+    Le scénario d'équivalence gardait le lot alimenté avant *et* après le renouvellement :
+    la période lue changeait, mais l'appartenance du relevé, non — neutraliser le `CASE`
+    laissait la suite verte. Il faut que l'association se **ferme** à la seconde du
+    renouvellement, ce que produit une récolte le jour du renouvellement : le relevé
+    « avant » n'appartient plus qu'à la période précédente, et la fenêtre `[début ; fin[`
+    ne le rattacherait à rien.
+    """
+    lot = await cultures.call("mutate", create(space="space_2"))
+    identifier = lot["subject_id"]
+    await cultures.call("solution_mutate", entry("renewal", "2026-08-01"))
+    await cultures.call("solution_mutate", entry("reading", "2026-08-05", ph=6.1))
+    lot = await event(cultures, lot, "harvest", "2026-08-10")
+    renewal = await cultures.call("solution_mutate", entry("renewal", "2026-08-10"))
+    await cultures.call("solution_mutate", entry("reading", "2026-08-10", ph=5.4,
+                                                 intervention_id=renewal["id"], context="before"))
+
+    # L'association s'arrête exactement à l'instant du renouvellement : c'est ce qui rend la
+    # borne haute observable. Sans la récolte, elle resterait ouverte des deux côtés et le
+    # relevé « avant » appartiendrait au sujet quelle que soit la période retenue.
+    rows = await cultures.call("solution_data", {"target": identifier}, 0, True)
+    reading = next(row for row in rows if row["ph"] == 5.4)
+    earlier = next(row for row in rows if row["ph"] == 6.1)
+    assert reading["sort_at"] > earlier["sort_at"]
+    assert reading["period_id"] == earlier["period_id"], "le relevé « avant » reste sur la solution précédente"
+    # Le renouvellement de la même seconde n'est plus attribué au sujet : son association est
+    # close, donc seule la borne `]début ; fin]` peut encore rattacher le relevé « avant ».
+    assert not [row for row in rows if row["kind"] == "renewal" and row["sort_at"] == reading["sort_at"]]
+
+    full = await cultures.call("latest_solution_readings")
+    latest = await cultures.call("latest_reading", identifier)
+    assert latest == full.get(identifier)
+    assert latest["ph"] == 5.4
+    summary = await cultures.call("reading_summary", identifier)
+    values = sorted(row["ph"] for row in rows if not row["cancelled"] and row["ph"] is not None)
+    assert values == [5.4, 6.1]
+    assert summary["ph"] == {"count": 2, "minimum": 5.4, "maximum": 6.1,
+                             "mean": pytest.approx(sum(values) / len(values))}
+
+
+async def test_bilan_ne_compte_pas_deux_fois_un_releve_atteint_par_deux_chemins(cultures):
+    """Le prédicat réunit deux chemins d'attribution : l'agrégat doit rester une somme d'unités.
+
+    Les invariants du carnet interdisent aujourd'hui deux associations couvrant le même
+    instant, mais la requête ne doit pas *en dépendre* : un `UNION ALL` qui remonterait le
+    même rang deux fois doublerait silencieusement `COUNT` et fausserait la moyenne. La
+    seconde association est donc insérée directement, pour obtenir l'état que la requête
+    doit savoir absorber.
+    """
+    lot = await cultures.call("mutate", create(space="space_2"))
+    identifier = lot["subject_id"]
+    await cultures.call("solution_mutate", entry("renewal", "2026-08-01"))
+    await cultures.call("solution_mutate", entry("reading", "2026-08-05", ph=6.1, ec=1.4))
+    before = await cultures.call("reading_summary", identifier)
+
+    def twin():
+        row = cultures._db.execute("SELECT * FROM solution_links ORDER BY start_at LIMIT 1").fetchone()
+        cultures._db.execute("INSERT INTO solution_links VALUES (?,?,?,?)",
+                             (row["period_id"], row["subject_id"], "2000-01-01T00:00:00+00:00", row["end_at"]))
+        cultures._db.commit()
+    cultures._doubler_association = twin
+    await cultures.call("doubler_association")
+
+    assert await cultures.call("reading_summary", identifier) == before
+    assert before["ph"]["count"] == 1 and before["ec"]["count"] == 1
+    assert (await cultures.call("latest_reading", identifier))["ph"] == 6.1
+
+
+async def test_synthese_climatique_partagee_par_les_cultures_de_meme_fenetre(cultures):
+    """Une agrégation climatique par fenêtre, pas par culture comparée (R2.1).
+
+    L'agrégation balaie tous les agrégats horaires du cycle ; quatre cultures nées le même
+    jour la refaisaient à l'identique quatre fois, ce qui dominait le temps de lecture de la
+    page. La mémoïsation est locale à l'appel : le compteur ci-dessous vérifie aussi qu'une
+    fenêtre différente reste calculée pour elle-même.
+    """
+    same = [(await cultures.call("mutate", create(f"Mère {index}", "mother")))["subject_id"] for index in range(4)]
+    other = (await cultures.call("mutate", create("Ancienne", "mother", origin_at="2026-07-01",
+                                                  space_at="2026-07-01", stage_at="2026-07-01")))["subject_id"]
+    windows = []
+    original = cultures._climate_summary
+
+    def counted(start_hour, end_hour):
+        windows.append((start_hour, end_hour))
+        return original(start_hour, end_hour)
+
+    cultures._climate_summary = counted
+    try:
+        data = await cultures.call("cycle_data", same)
+        assert len(data["summaries"]) == 4
+        assert len(windows) == 1, f"une seule agrégation attendue, {len(windows)} exécutées"
+        windows.clear()
+        mixed = await cultures.call("cycle_data", same[:3] + [other])
+        assert len(mixed["summaries"]) == 4
+        assert len(windows) == 2 and len(set(windows)) == 2
+    finally:
+        cultures._climate_summary = original
+
+    # Les synthèses partagées restent identiques : la mémoïsation ne doit rien recopier de
+    # travers d'une culture à l'autre.
+    assert data["summaries"][0]["climate"] == data["summaries"][3]["climate"]
+
+
 async def test_dernier_releve_annule_ou_corrige_suit_la_revision_courante(cultures):
     lot = await cultures.call("mutate", create(space="space_2"))
     await cultures.call("solution_mutate", entry())
@@ -255,3 +360,55 @@ async def test_recherche_comparaison_bornee_conserve_selection(cultures):
     filtered = await cultures.call("cycle_data", [chosen], 0, None, 0, None, "introuvable")
     assert filtered["selection_total"] == 0
     assert [s["id"] for s in filtered["comparison_choices"]] == [chosen]
+
+
+async def test_page_des_choix_hors_bornes_est_ramenee_dans_les_resultats(cultures):
+    """Décalage borné comme le détail horaire (R1.2 a).
+
+    Non borné, il produisait une page vide dont le gabarit tirait encore un lien « Choix
+    précédents » calculé sur la valeur brute : depuis 10⁷, l'opérateur revenait sur une page
+    tout aussi vide. La borne est celle des résultats, alignée sur le pas de page.
+    """
+    for index in range(44):
+        await cultures.call("mutate", create(f"Mère {index:02}", "mother"))
+
+    far = await cultures.call("cycle_data", [], 0, None, 0, None, "", 10 ** 7)
+    assert far["selection_total"] == 44
+    assert far["selection_page"] == 40 and far["comparison_max"] == 4
+    # Dernière page réelle : 44 résultats, pas de 40, donc décalage 40 et les 4 restants —
+    # et non « 40 choix », qui supposerait 80 cultures.
+    assert far["selection_offset"] == 40
+    assert [s["name"] for s in far["comparison_choices"]] == ["Mère 40", "Mère 41", "Mère 42", "Mère 43"]
+
+    negative = await cultures.call("cycle_data", [], 0, None, 0, None, "", -10)
+    assert negative["selection_offset"] == 0
+    assert len(negative["comparison_choices"]) == 40
+
+    # Une recherche qui ne ramène rien ne peut pas rester sur une page lointaine.
+    empty = await cultures.call("cycle_data", [], 0, None, 0, None, "introuvable", 10 ** 7)
+    assert empty["selection_total"] == 0 and empty["selection_offset"] == 0
+
+
+async def test_recherche_de_comparaison_ignore_les_accents_et_classe_par_nom(cultures):
+    """Normalisation NFD sans marques, des deux côtés (R3.7), et ordre documenté.
+
+    « epinard » ne trouvait pas « Épinard » : `casefold()` plie la casse, pas les signes
+    diacritiques. L'ordre était celui des projections (`rowid` décroissant), qui ne veut rien
+    dire pour une recherche par nom.
+    """
+    for name, variety in (("Épinard", ""), ("epinard tardif", ""), ("Basilic", "Génovèse"), ("Menthe", "")):
+        await cultures.call("mutate", create(name, "mother", variety=variety))
+
+    for needle in ("epinard", "Epinard", "Épinard", "ÉPINARD"):
+        found = await cultures.call("cycle_data", [], 0, None, 0, None, needle)
+        assert [s["name"] for s in found["comparison_choices"]] == ["Épinard", "epinard tardif"], needle
+
+    # La variété est cherchée comme le nom, avec la même clé.
+    variety = await cultures.call("cycle_data", [], 0, None, 0, None, "genovese")
+    assert [s["name"] for s in variety["comparison_choices"]] == ["Basilic"]
+
+    # Classement par nom normalisé puis identifiant, indépendant de l'ordre d'insertion.
+    everything = await cultures.call("cycle_data")
+    assert [s["name"] for s in everything["comparison_choices"]] == ["Basilic", "Épinard", "epinard tardif", "Menthe"]
+    # La clé servie au filtre du navigateur est celle du serveur : une seule normalisation.
+    assert {s["name"]: s["search"] for s in everything["comparison_choices"]}["Basilic"] == "basilic genovese"

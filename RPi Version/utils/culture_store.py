@@ -25,6 +25,7 @@ from model.culture_cycle import REMINDER_STATES, TODAY_REMINDERS, reminder_bucke
 from model.culture_journal import TODAY_JOURNAL
 
 from model.culture_solution import RESERVOIRS
+from model.culture_text import search_key
 from utils.culture_solution_store import SolutionStoreMixin, SOLUTION_SCHEMA, SOLUTION_TABLES
 
 from utils.culture_cycle_store import CycleStoreMixin, CYCLE_SCHEMA, CYCLE_TABLES
@@ -309,9 +310,10 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         # projection déjà faite pour cette page — aucune lecture de plus — et la tranche
         # de quarante reste celle de la pagination existante. Un `%` ou un `_` tapés dans
         # la recherche y restent des caractères ordinaires, sans échappement à inventer.
-        needle = (search or "").strip().casefold()
+        # Même clé que le sélecteur de comparaison et le journal : sans accents ni casse.
+        needle = search_key((search or "").strip())
         if needle:
-            selected = [s for s in selected if needle in f"{s['name']} {s['variety']}".casefold()]
+            selected = [s for s in selected if needle in search_key(f"{s['name']} {s['variety']}")]
         today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
         overview = {"available": True, "timezone": self.zone, "clock_reliable": self.reliable(),
                     "today": today, "search": (search or "").strip(),

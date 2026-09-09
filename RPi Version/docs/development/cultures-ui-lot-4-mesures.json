@@ -1,30 +1,63 @@
 {
-  "wsl": {
+  "semis": {
+    "commentaire": "Le banc exerce désormais les deux chemins d'attribution d'un relevé : la visée directe (solution_targets) et l'alimentation datée (solution_links jointes à solution_periods). Avant la remédiation R2.3, solution_periods et solution_links étaient vides et la branche la plus chère n'était jamais parcourue : les temps publiés étaient un plancher. Les volumétries ci-dessous sont comptées en base, plus reprises des constantes du semis.",
     "cultures": 44,
     "releves": 12001,
-    "jours": 729,
+    "releves_vises": 6001,
+    "solution_periods": 25,
+    "solution_links": 100,
+    "agregats_horaires": 31810,
+    "jours": 729
+  },
+  "wsl_avant_remediation": {
+    "commentaire": "Même semis, magasin du commit 183189b (synthèse climatique recalculée par culture, prédicat pH/EC en balayage de solution_entries). Rejoué le 9 septembre 2026 sur ce poste, gabarit courant.",
     "mesures": {
       "1": {
-        "lecture_mediane_ms": 45.7,
-        "lecture_max_ms": 63.7,
-        "rendu_jinja_mediane_ms": 10.6,
-        "rendu_jinja_max_ms": 123.3,
-        "html_octets": 134683,
+        "lecture_mediane_ms": 104.2,
+        "lecture_max_ms": 133.9,
+        "rendu_jinja_mediane_ms": 11.1,
+        "rendu_jinja_max_ms": 110.7,
+        "html_octets": 133904,
         "points_climat": 210,
         "choix_affiches": 41
       },
       "4": {
-        "lecture_mediane_ms": 167.2,
-        "lecture_max_ms": 186.3,
-        "rendu_jinja_mediane_ms": 12.9,
-        "rendu_jinja_max_ms": 13.4,
-        "html_octets": 438943,
+        "lecture_mediane_ms": 382.9,
+        "lecture_max_ms": 407.9,
+        "rendu_jinja_mediane_ms": 13.1,
+        "rendu_jinja_max_ms": 13.5,
+        "html_octets": 438083,
         "points_climat": 840,
         "choix_affiches": 44
       }
     }
   },
+  "wsl": {
+    "commentaire": "Après R2.1 (une agrégation climatique par fenêtre) et R2.2 (sélection pilotée par les deux chemins d'attribution). Le nombre de choix affichés passe de 44 à 40 : les cultures sélectionnées appartiennent maintenant à la première page, classée par nom, donc ne sont plus ajoutées en double.",
+    "mesures": {
+      "1": {
+        "lecture_mediane_ms": 70.3,
+        "lecture_max_ms": 75.8,
+        "rendu_jinja_mediane_ms": 9.8,
+        "rendu_jinja_max_ms": 104.1,
+        "html_octets": 134737,
+        "points_climat": 210,
+        "choix_affiches": 40
+      },
+      "4": {
+        "lecture_mediane_ms": 172.0,
+        "lecture_max_ms": 173.2,
+        "rendu_jinja_mediane_ms": 12.4,
+        "rendu_jinja_max_ms": 14.6,
+        "html_octets": 438415,
+        "points_climat": 840,
+        "choix_affiches": 40
+      }
+    }
+  },
   "pi_aarch64_python_3_11_2": {
+    "commentaire": "PÉRIMÉ : mesuré avant la remédiation, avec un semis sans renouvellement ni association datée. À remesurer sur le Raspberry Pi avec `python3 scripts/benchmark-cultures-analysis.py` lancé depuis la racine du dépôt avec l'interpréteur du venv, hors service en marche. Les chiffres ci-dessous ne valent plus que comme repère historique.",
+    "perime": true,
     "cultures": 44,
     "releves": 12001,
     "jours": 729,

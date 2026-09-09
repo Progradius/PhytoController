@@ -453,26 +453,54 @@ class SolutionStoreMixin:
 
     @staticmethod
     def _subject_readings_sql():
-        """Même attribution datée pour le dernier relevé et le bilan SQL."""
-        before = ("EXISTS (SELECT 1 FROM solution_entries i WHERE i.id=e.intervention_id"
-                  " AND i.kind='renewal' AND i.cancelled=0 AND e.context='before'"
-                  " AND i.sort_at=e.sort_at"
-                  " AND i.revision=(SELECT MAX(w.revision) FROM solution_entries w WHERE w.id=i.id))")
+        """Même attribution datée pour le dernier relevé et le bilan SQL.
 
-        def window(table):
-            return (f"(CASE WHEN {before} THEN {table}.start_at<e.sort_at"
-                    f" AND ({table}.end_at IS NULL OR e.sort_at<={table}.end_at)"
-                    f" ELSE {table}.start_at<=e.sort_at"
-                    f" AND ({table}.end_at IS NULL OR e.sort_at<{table}.end_at) END)")
+        Source **unique** du prédicat : `_reading_summary` et `_latest_reading` ne peuvent pas
+        diverger, et l'équivalence avec l'export est testée.
 
+        La sélection est pilotée par les deux chemins d'attribution — visée directe
+        (`solution_targets`, index `solution_targets_subject`) et alimentation datée
+        (`solution_links` joint à `solution_periods`) — et non plus par un balayage du journal
+        entier assorti d'une sous-requête corrélée par relevé : le coût suivait le nombre de
+        relevés du carnet, pas celui des relevés du sujet.
+
+        Les deux chemins sont réunis par `UNION ALL`, qui peut renvoyer le même rang deux fois
+        (un relevé à la fois visé et alimenté, ou couvert par deux associations) ; c'est le
+        `IN` qui le consomme qui rend l'ensemble : chaque mesure est comptée une seule fois.
+        `sequence` est la clé primaire entière de `solution_entries`, donc le rang est repris
+        par rowid.
+        """
+        def before(entry):
+            return (f"EXISTS (SELECT 1 FROM solution_entries i WHERE i.id={entry}.intervention_id"
+                    f" AND i.kind='renewal' AND i.cancelled=0 AND {entry}.context='before'"
+                    f" AND i.sort_at={entry}.sort_at"
+                    " AND i.revision=(SELECT MAX(w.revision) FROM solution_entries w WHERE w.id=i.id))")
+
+        def window(table, entry):
+            return (f"(CASE WHEN {before(entry)} THEN {table}.start_at<{entry}.sort_at"
+                    f" AND ({table}.end_at IS NULL OR {entry}.sort_at<={table}.end_at)"
+                    f" ELSE {table}.start_at<={entry}.sort_at"
+                    f" AND ({table}.end_at IS NULL OR {entry}.sort_at<{table}.end_at) END)")
+
+        # Bornes larges redondantes avec la fenêtre : les deux bras du `CASE` sont inclus dans
+        # [début ; fin], donc elles ne changent aucun résultat, mais elles donnent au moteur un
+        # intervalle sur `sort_at` et rendent l'index `solution_date(sort_at, reservoir_id)`
+        # utilisable là où il ne restait qu'un balayage.
+        bounds = ("f.sort_at>=p.start_at AND (p.end_at IS NULL OR f.sort_at<=p.end_at)"
+                  " AND f.sort_at>=l.start_at AND (l.end_at IS NULL OR f.sort_at<=l.end_at)")
         return (
-            " WHERE e.cancelled=0 AND (e.ph IS NOT NULL OR e.ec IS NOT NULL)"
-            " AND e.revision=(SELECT MAX(v.revision) FROM solution_entries v WHERE v.id=e.id)"
-            " AND (EXISTS (SELECT 1 FROM solution_targets t WHERE t.entry_id=e.id"
-            "              AND t.revision=e.revision AND t.subject_id=:subject)"
-            "   OR EXISTS (SELECT 1 FROM solution_links l JOIN solution_periods p ON p.id=l.period_id"
-            "              WHERE l.subject_id=:subject AND p.reservoir_id=e.reservoir_id"
-            f"             AND {window('p')} AND {window('l')}))")
+            " WHERE e.sequence IN ("
+            "  SELECT d.sequence FROM solution_targets t"
+            "   JOIN solution_entries d ON d.id=t.entry_id AND d.revision=t.revision"
+            "   WHERE t.subject_id=:subject"
+            "  UNION ALL"
+            "  SELECT f.sequence FROM solution_links l"
+            "   JOIN solution_periods p ON p.id=l.period_id"
+            "   JOIN solution_entries f ON f.reservoir_id=p.reservoir_id"
+            f"  WHERE l.subject_id=:subject AND {bounds}"
+            f"   AND {window('p', 'f')} AND {window('l', 'f')})"
+            " AND e.cancelled=0 AND (e.ph IS NOT NULL OR e.ec IS NOT NULL)"
+            " AND e.revision=(SELECT MAX(v.revision) FROM solution_entries v WHERE v.id=e.id)")
 
     def _reading_summary(self, subject_id):
         # Une seule ligne retournée, quel que soit le nombre de relevés ou de révisions.

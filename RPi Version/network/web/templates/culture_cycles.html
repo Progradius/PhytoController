@@ -39,15 +39,25 @@
 <section id="comparaison" class="culture-section"><h2>Comparer les cycles</h2>
 <p>Choisir jusqu’à quatre cultures, actives ou archivées. Les indicateurs portent sur tout leur parcours : les durées et le nombre de mesures peuvent différer. Une absence n’est jamais un zéro.</p>
 <form method="get" class="culture-search">{% for id in selected %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}<label>Rechercher pour comparer (nom ou variété)<input type="search" name="q" value="{{ data.search }}" maxlength="120"></label><button class="button button-secondary">Rechercher</button></form>
-<form method="get" class="culture-form" data-comparison-selection>
+{# La zone `data-comparison-selection` est la portée lue par `culture_analysis.js` ; elle
+   n'est plus le formulaire lui-même. Le champ de filtre n'a pas de `name` : il ne fait que
+   masquer des cases dans le navigateur, et tant qu'il était **dans** le formulaire la touche
+   Entrée y déclenchait « Afficher les cycles » au lieu de filtrer. Son texte à comparer vient
+   du serveur (`subject.search`), déjà normalisé, et le script normalise la saisie avec la
+   même clé : le filtre local ne peut pas masquer un choix que la recherche du serveur a
+   retenu. #}
+<div data-comparison-selection data-comparison-max="{{ data.comparison_max }}">
+<label>Filtrer les choix affichés<input type="search" maxlength="120" data-comparison-filter></label>
+<form method="get" class="culture-form">
 <input type="hidden" name="q" value="{{ data.search }}">
-<label>Filtrer les choix affichés<input type="search" maxlength="120"></label>
-<fieldset class="culture-comparison-choices"><legend>Cultures à comparer (quatre maximum)</legend>
-{% for subject in data.comparison_choices %}<label class="culture-confirm"><input type="checkbox" name="subject" value="{{ subject.id }}" data-search="{{ (subject.name ~ ' ' ~ subject.variety)|lower }}"{% if subject.id in selected %} checked{% endif %}>{{ subject.name }}{% if subject.variety %} · {{ subject.variety }}{% endif %}{{ ' (archivée)' if subject.archived else '' }}</label>{% else %}<p>Aucune culture trouvée.</p>{% endfor %}</fieldset>
+{# Page courante des choix reconduite : sans elle, cocher depuis la page 2 renvoyait page 1. #}
+<input type="hidden" name="selection_offset" value="{{ data.selection_offset }}">
+<fieldset class="culture-comparison-choices"><legend>Cultures à comparer ({{ data.comparison_max }} maximum)</legend>
+{% for subject in data.comparison_choices %}<label class="culture-confirm"><input type="checkbox" name="subject" value="{{ subject.id }}" data-search="{{ subject.search }}"{% if subject.id in selected %} checked{% endif %}>{{ subject.name }}{% if subject.variety %} · {{ subject.variety }}{% endif %}{{ ' (archivée)' if subject.archived else '' }}</label>{% else %}<p>Aucune culture trouvée.</p>{% endfor %}</fieldset>
 <output role="status"></output><button class="button" type="submit">Afficher les cycles</button></form>
-<p>40 résultats maximum par page, plus les cultures sélectionnées.</p>
+<p data-comparison-cap>Le plafond est de {{ data.comparison_max }} cultures : au-delà, les colonnes du tableau aligné ne restent pas lisibles sur un téléphone. {{ data.selection_page }} résultats au plus par page de choix, plus les cultures déjà sélectionnées. Les choix sont classés par nom.</p></div>
 {% set selection_query %}{% for id in selected %}&amp;subject={{ id|urlencode }}{% endfor %}&amp;q={{ data.search|urlencode }}{% endset %}
-<nav class="culture-links" aria-label="Pagination des choix de comparaison">{% if data.selection_offset %}<a data-selection-offset="{{ [0,data.selection_offset-40]|max }}" href="?selection_offset={{ [0,data.selection_offset-40]|max }}{{ selection_query }}#comparaison">Choix précédents</a>{% endif %}{% if data.selection_offset+40 < data.selection_total %}<a data-selection-offset="{{ data.selection_offset+40 }}" href="?selection_offset={{ data.selection_offset+40 }}{{ selection_query }}#comparaison">Choix suivants</a>{% endif %}</nav>
+<nav class="culture-links" aria-label="Pagination des choix de comparaison">{% if data.selection_offset %}<a data-selection-offset="{{ [0,data.selection_offset-data.selection_page]|max }}" href="?selection_offset={{ [0,data.selection_offset-data.selection_page]|max }}{{ selection_query }}#comparaison">Choix précédents</a>{% endif %}{% if data.selection_offset+data.selection_page < data.selection_total %}<a data-selection-offset="{{ data.selection_offset+data.selection_page }}" href="?selection_offset={{ data.selection_offset+data.selection_page }}{{ selection_query }}#comparaison">Choix suivants</a>{% endif %}</nav>
 {% if data.summaries %}<p>Faire défiler le tableau horizontalement pour voir les autres cultures.</p><div class="culture-table-scroll" tabindex="0" role="group" aria-label="Comparaison alignée des cycles"><table class="culture-comparison"><caption>Indicateurs par culture</caption>
 <thead><tr><th scope="col">Indicateur</th>{% for summary in data.summaries %}<th scope="col"><a href="/cultures/{{ summary.subject.id }}">{{ summary.subject.name }}</a></th>{% endfor %}</tr></thead><tbody>
 <tr><th scope="row">Stade actuel</th>{% for summary in data.summaries %}<td>{{ summary.subject.stage_label }}{{ ' · archivée' if summary.subject.archived else '' }}</td>{% endfor %}</tr>
