@@ -38,12 +38,18 @@ MAX_SPACE_PHOTOS = 4
 
 
 def space_event_payload(kind, raw):
-    """Contenu d'une observation d'espace : une note bornée, rien d'autre."""
+    """Contenu d'une observation d'espace : une note bornée, rien d'autre.
+
+    Les refus nomment le contrôle de `culture_journal.html` qui les porte : `kind` pour
+    le genre observé, `note` pour l'observation elle-même (le formulaire de correction
+    l'appelle « Observation corrigée », sous le même `name`). Un contenu hors forme, lui,
+    ne vient d'aucun champ : c'est la commande qui est malformée.
+    """
     if not isinstance(kind, str) or kind not in SPACE_EVENT_KINDS:
-        raise CultureError("Genre d'observation inconnu.")
+        raise CultureError("Genre d'observation inconnu.", "kind")
     if not isinstance(raw, dict) or set(raw) - {"note"}:
         raise CultureError("Contenu d'observation invalide.")
-    return {"note": text_value(raw.get("note"), "Note d'observation", 4000)}
+    return {"note": text_value(raw.get("note"), "Note d'observation", 4000, field="note")}
 
 
 def journal_filters(filters):

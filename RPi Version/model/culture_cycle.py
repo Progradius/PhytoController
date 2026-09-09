@@ -67,14 +67,21 @@ MAX_MEDIA_BYTES = 256 * 1024 * 1024
 MIN_FREE_BYTES = 128 * 1024 * 1024
 
 
-def planned_date(value):
+def planned_date(value, field="due_date"):
+    """Échéance d'un rappel ; le refus nomme le contrôle qui la porte.
+
+    Le champ est nommé **ici**, dans la règle qui connaît la valeur refusée. Le magasin
+    déduisait auparavant le contrôle du premier mot du message : le libellé devenait un
+    contrat implicite, qu'une reformulation cassait sans rien faire échouer d'autre.
+    Le formulaire de création et celui de report portent tous deux `name="due_date"`.
+    """
     try:
         parsed = date.fromisoformat(value)
         if parsed.isoformat() != value or not 2000 <= parsed.year <= 2100:
             raise ValueError()
         return value
     except (ValueError, TypeError):
-        raise CultureError("Échéance attendue : date ISO de 2000 à 2100.") from None
+        raise CultureError("Échéance attendue : date ISO de 2000 à 2100.", field) from None
 
 
 def reminder_buckets(rows, today, zone="UTC"):
@@ -127,12 +134,19 @@ def local_day(value, zone):
 
 
 def reminder_values(raw):
+    """Valeurs d'un rappel, chaque refus désignant le contrôle du formulaire qui le porte.
+
+    Les `name` sont ceux de `culture_cycles.html` (création d'un rappel) : `title`,
+    `due_date`, `interval_days` et `note`. `_cycle_validate` revalide des lignes déjà
+    écrites avec la même fonction : le champ y désigne alors une saisie qui n'existe plus,
+    mais ce refus-là ne remonte pas à un formulaire, il fait échouer une restauration.
+    """
     interval = raw.get("interval_days", 0)
     if type(interval) is not int or not 0 <= interval <= 366:
-        raise CultureError("Récurrence : nombre entier de jours, de 0 (ponctuel) à 366.")
-    return {"title": text_value(raw.get("title"), "Rappel", 160),
+        raise CultureError("Récurrence : nombre entier de jours, de 0 (ponctuel) à 366.", "interval_days")
+    return {"title": text_value(raw.get("title"), "Rappel", 160, field="title"),
             "due_date": planned_date(raw.get("due_date")), "interval_days": interval,
-            "note": text_value(raw.get("note", ""), "Note", 4000, False)}
+            "note": text_value(raw.get("note", ""), "Note", 4000, False, field="note")}
 
 
 # Synthèse climatique d'un cycle : seaux alignés sur des multiples entiers de leur

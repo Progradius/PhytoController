@@ -67,10 +67,13 @@ class JournalStoreMixin:
             space = command.get("space", old["space"] if old else None)
             kind = command.get("kind", old["kind"] if old else "observation")
             if space not in SPACES:
-                raise CultureError("Espace d'observation inconnu.")
+                raise CultureError("Espace d'observation inconnu.", "space")
             if old is not None and (space != old["space"] or kind != old["kind"]):
                 # L'identité de la cible et du genre fait la trace : la déplacer réécrirait
                 # l'histoire au lieu de la corriger. Annuler puis ressaisir reste possible.
+                # Aucun champ : le formulaire de correction ne porte ni « Espace observé »
+                # ni « Genre », et désigner un contrôle absent enverrait chercher une faute
+                # de saisie là où c'est la commande entière qui n'a pas de sens.
                 raise CultureError("L'espace et le genre d'une observation ne se corrigent pas ; annuler puis ressaisir.")
             effective = command.get("effective_at", old["effective_at"] if old else None)
             precision = command.get("precision", old["precision"] if old else "date")

@@ -292,26 +292,32 @@ async def test_champ_fautif_d_une_photo(web_context):
     assert refus.status == 400 and (await refus.json())["field"] == "photo"
 
 
-def test_libelles_des_refus_de_rappel_restent_rattachables():
-    """Garde-fou du seul rattachement par libellé du carnet.
+async def test_champ_fautif_d_une_observation_d_espace(web_context):
+    """Observations d'espace (lot H) : le refus désigne le contrôle du formulaire.
 
-    `reminder_values` et `planned_date` restent les règles pures ; le magasin en déduit le
-    contrôle fautif à partir du premier mot du message. Si un libellé change sans que la
-    table suive, ce test échoue au lieu de laisser un refus sans champ.
+    Les `name` sont ceux de `culture_journal.html` : `space`, `kind`, `effective_at`,
+    `note` (« Observation », « Observation corrigée ») et `reason`.
     """
-    from model.culture_cycle import planned_date, reminder_values
-    from utils.culture_cycle_store import REMINDER_FIELDS, reminder_rule
-
-    valide = {"title": "Rappel", "due_date": "2026-09-30", "interval_days": 7, "note": ""}
-    for faute, field in ((("title", ""), "title"), (("due_date", "hier"), "due_date"),
-                         (("interval_days", 400), "interval_days"), (("note", "n" * 5000), "note")):
-        with pytest.raises(CultureError) as raised:
-            reminder_rule(lambda: reminder_values({**valide, faute[0]: faute[1]}))
-        assert raised.value.field == field
-    with pytest.raises(CultureError) as raised:
-        reminder_rule(lambda: planned_date("hier"))
-    assert raised.value.field == "due_date"
-    assert set(REMINDER_FIELDS.values()) == set(valide)
+    client, *_ = web_context
+    saisie = {"operation": "space_event", "space": "space_2", "kind": "observation",
+              "effective_at": "2026-09-01", "note": "Bac nettoyé"}
+    route = "/api/v1/cultures/journal"
+    for body, field in (({**saisie, "space": "space_9"}, "space"),
+                        ({**saisie, "kind": "inconnu"}, "kind"),
+                        ({**saisie, "effective_at": "2027-01-01"}, "effective_at"),
+                        ({**saisie, "note": "n" * 5000}, "note")):
+        payload = await refuse(client, route, body)
+        assert payload["field"] == field and "index" not in payload
+        assert list(payload)[0] == "error" and payload["error"]
+    response = await client.post(route, headers=HEADERS,
+                                 json={"request_id": str(uuid.uuid4()), **saisie})
+    assert response.status == 200, await response.text()
+    observation = await response.json()
+    # Une correction sans motif : le refus vise « Motif de la correction ».
+    correction = {"operation": "correct", "id": observation["id"], "version": observation["version"],
+                  "space": "space_2", "kind": "observation", "effective_at": "2026-09-01",
+                  "note": "Bac nettoyé et rincé", "reason": ""}
+    assert (await refuse(client, route, correction))["field"] == "reason"
 
 
 async def test_indisponibilite_reste_sans_champ(web_context, monkeypatch):

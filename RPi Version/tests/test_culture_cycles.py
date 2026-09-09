@@ -18,7 +18,7 @@ from controllers.CultureService import CultureService
 from model.culture import CultureConflict, CultureError, event_payload
 from model.culture_cycle import MAX_PHOTO_BYTES
 from tests.test_cultures import NOW, create, cultures, event
-from tests.test_http_server import CSRF_TOKEN, web_context
+from tests.test_http_server import CSRF_TOKEN, CULTURE_NOW, web_context
 from utils.culture_backup import restore_bundle, restore_copy
 from utils.culture_cycle_store import CYCLE_TABLES
 from utils.culture_media_store import image_bytes
@@ -296,7 +296,12 @@ async def test_comparaison_de_quatre_cycles_bornee_et_granularite_explicite(cult
 async def test_taille_des_reponses_de_cycle_sous_le_plafond_du_cache_pwa(web_context):
     client, server, *_ = web_context
     store = server.cultures.store
-    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    # Le magasin du serveur de test a une horloge **figée** (`CULTURE_NOW`) : c'est elle qui
+    # borne la fin du cycle. Semer à partir de l'heure réelle faisait donc dépendre du moment
+    # d'exécution le nombre d'agrégats compris entre le début du cycle et cette fin — les
+    # heures postérieures à `CULTURE_NOW` tombaient hors bornes et le total variait
+    # (11 862 au lieu de 12 000). Le semis part de la même horloge que le carnet.
+    now = CULTURE_NOW.replace(minute=0, second=0, microsecond=0)
     origin = (now - timedelta(hours=4000)).date().isoformat()
     lot = await store.call("mutate", create(origin_at=origin, space_at=origin, stage_at=origin))
     base = int(now.timestamp()) // 3600 * 3600 - 3600 * 3999

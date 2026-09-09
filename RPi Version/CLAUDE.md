@@ -315,8 +315,14 @@ un rappel actionné depuis l'accueil) : l'élément focalisé **est** la confirm
 `aria-live` de plus.
 
 Lot UI 3 : `model/culture_assistance.py` porte les suggestions et le rapprochement de
-relevés ; `culture_assistance_store` expose des aides éphémères (4 maximum, 30 s) et
-la prévalidation. Celle-ci réutilise les mutations culture/solution dans une transaction
+relevés ; `culture_assistance_store` expose des aides éphémères (4 maximum, validité de
+30 s) et la prévalidation. Les aides sont redemandées à l'ouverture et au retour sur la
+page, jamais plus d'une fois par 30 s — **aucun sondage périodique** —, et une fiche dont
+la version est inchangée reçoit `{"unchanged": true}` sans qu'aucune projection ne soit
+refaite. La prévalidation n'est **pas** sur le chemin nominal d'enregistrement : elle ne
+part que sur « Vérifier avant d'enregistrer » et au premier envoi d'un relevé de solution,
+une fois par empreinte de saisie ; un échec autre qu'un refus n'empêche pas d'enregistrer.
+Celle-ci réutilise les mutations culture/solution dans une transaction
 **annulée même au succès**, sans clé ni version persistée ; la mutation finale revalide
 normalement. Une ressemblance (fenêtre de 200 relevés, 3 liens maximum) n'est jamais une
 interdiction métier ; le rejeu d'une clé déjà acceptée contourne cette aide, pas la

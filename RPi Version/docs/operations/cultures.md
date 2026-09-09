@@ -792,14 +792,20 @@ motif, le fait daté et l’action permettant de le consulter ou de le renseigne
 Une étape inconnue ou une mesure absente reste inconnue. L’ancienneté d’un relevé
 ne constitue pas un diagnostic agronomique.
 
-Ces aides sont recalculées à l’ouverture, au retour sur la page et toutes les
-30 secondes. Elles disparaissent hors ligne, à expiration ou si l’actualisation
+Ces aides sont recalculées à l’ouverture de la fiche et au retour sur la page — retour
+d’onglet ou de fenêtre —, jamais plus d’une fois par 30 secondes. Il n’y a **aucun
+sondage périodique** : une fiche laissée ouverte n’interroge plus le carnet toute la
+journée. Elles disparaissent hors ligne, à expiration ou si l’actualisation
 échoue. Une horloge non fiable suspend les suggestions. Les formulaires déjà
 ouverts restent soumis à la validation de version du serveur.
 
 Les formulaires de création, de parcours et de solutions proposent **Vérifier avant
-d’enregistrer**. Cette action expose les conséquences déclaratives ou les erreurs
-sans enregistrer la saisie. Une transition présente l’état avant/après, sa date et,
+d’enregistrer**. Cette vérification est **à la demande** : elle ne part que sur ce
+bouton, et sur le premier envoi d’un relevé de solution, une seule fois par saisie —
+le seul chemin qui cherche des relevés ressemblants. Enregistrer directement n’en
+déclenche aucune, et un échec de vérification qui n’est pas un refus (carnet occupé,
+réseau) n’empêche pas l’enregistrement, qui revalide tout. Cette action expose les
+conséquences déclaratives ou les erreurs sans enregistrer la saisie. Une transition présente l’état avant/après, sa date et,
 pour une récolte, la coupure de l’alimentation déclarée et le maintien de l’occupation
 jusqu’à sa libération. Les règles de validation sont les mêmes que pour l’enregistrement
 final. Une autre saisie intervenue entre les deux étapes peut donc encore provoquer

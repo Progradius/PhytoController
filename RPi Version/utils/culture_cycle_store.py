@@ -35,22 +35,6 @@ CREATE TABLE culture_media (id TEXT PRIMARY KEY, subject_id TEXT NOT NULL REFERE
 """
 
 
-# `reminder_values` et `planned_date` restent les règles pures des rappels, avec leurs
-# libellés : le magasin ne fait que rattacher leur refus au contrôle du formulaire qui le
-# porte. La clé est le premier mot du message, celui que ces règles placent en tête ; le
-# contrat est vérifié par `tests/test_culture_errors.py`, qui échoue si un libellé change.
-REMINDER_FIELDS = {"Rappel": "title", "Échéance": "due_date",
-                   "Récurrence": "interval_days", "Note": "note"}
-
-
-def reminder_rule(work):
-    """Applique une règle pure de rappel en nommant le contrôle fautif d'un refus."""
-    try:
-        return work()
-    except CultureError as exc:
-        raise CultureError(str(exc), REMINDER_FIELDS.get(str(exc).split(" ", 1)[0])) from None
-
-
 class CycleStoreMixin:
     def _aux_transaction(self, command, work):
         if not isinstance(command, dict):
@@ -128,7 +112,7 @@ class CycleStoreMixin:
             if operation == "reminder":
                 if old and old["state"] in ("done", "cancelled"):
                     raise CultureError("Un rappel clos conserve son historique ; créer un nouveau rappel.")
-                values = reminder_rule(lambda: reminder_values(command))
+                values = reminder_values(command)
                 target = text_value(command.get("target"), "Cible", field="target")
                 if target in RESERVOIRS:
                     subject_id, reservoir_id = None, target
@@ -148,7 +132,7 @@ class CycleStoreMixin:
                 row = {**dict(old), "revision": revision, "state": action, "recorded_at": now,
                        "note": text_value(command.get("note", ""), "Note", 4000, False, field="note")}
                 if action == "postponed":
-                    row["due_date"] = reminder_rule(lambda: planned_date(command.get("due_date")))
+                    row["due_date"] = planned_date(command.get("due_date"))
                     if row["due_date"] <= old["due_date"]:
                         raise CultureError("Un report doit déplacer l’échéance vers une date ultérieure.",
                                            "due_date")

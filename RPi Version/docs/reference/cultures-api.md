@@ -46,18 +46,26 @@ date de stade → espace → date d'espace). Les insertions qui suivent conserve
 métier (`create`, puis `move`, puis `stage`/`harvest`) : sans cette passe, une commande cumulant deux
 fautes aurait désigné la plus tardive, donc un champ plus bas que le premier vraiment fautif.
 
-Champs actuellement nommés, par API (les autres refus restent globaux et s'affichent en résumé) :
+**Tous les domaines du carnet rattachent désormais leurs refus de valeur à un champ.** Restent
+sans `field`, et c'est délibéré : l'entité introuvable (`404`), le conflit de version (`409`),
+le conflit d'occupation d'un espace, l'indisponibilité du carnet (`503`) et les commandes
+malformées. Aucun de ces refus ne vise une saisie : en désigner une enverrait chercher une faute
+là où il n'y en a pas.
+
+Champs nommés, par API :
 
 | API | `field` possibles |
 | --- | --- |
 | `POST /api/v1/cultures`, `operation: create` | `name`, `variety`, `origin_type`, `mother_id`*, `origin_label`*, `origin_count`*, `origin_at`, `stage`, `stage_at`, `space`, `space_at`, `confirm_date` |
 | `POST /api/v1/cultures`, `event` / `correct` / `backfill` | `effective_at`, `drying_at`, `reason`, `stage`, `space`, `count`, `origin_id`, `weight_g`, `origin_weight`*, `confirm_date` |
 | `POST /api/v1/cultures/solutions` | `name`, `volume_l`, `product`*, `quantity`*, `unit`*, `kind`, `target`, `ph`, `ec`, `ec_unit`, `temperature_c`, `context`, `compensation`, `recipe_id`, `effective_at`, `reason`, `confirm_date` |
-| `POST /api/v1/cultures/journal` | `effective_at`, `reason` |
-| `POST /api/v1/cultures/cycles` | `confirm_date` (horloge non fiable, contrôlé dans `_aux_transaction`, donc valable aussi pour les vérifications) |
-| `POST /api/v1/cultures/cycles`, `checklist` / `checklist_correct` / `checklist_cancel` | Aucun au-delà de `confirm_date` : `utils/culture_checklist_store.py` lève ses `CultureError` sans champ et appelle `stamp` sans `field=` |
-| `POST /api/v1/cultures/photos` | Aucun : `utils/culture_media_store.py` ne lève aucune erreur portant un champ, et ses appels à `text_value` sont sans `field=`. Le message « Choisir une photo de 5 Mio maximum. » désignant `photo` est produit **par le client**, avant tout envoi |
-| `POST /api/v1/cultures/targets`, `/light`, `/equipment` | Aucun à ce jour : ces refus sont globaux |
+| `POST /api/v1/cultures/journal` | `space`, `kind`, `effective_at`, `note`, `reason`, `confirm_date`. L'espace et le genre d'une observation ne se corrigeant pas, ce refus-là ne nomme aucun champ : le formulaire de correction ne porte ni l'un ni l'autre |
+| `POST /api/v1/cultures/cycles`, `reminder` / `reminder_action` | `title`, `due_date`, `interval_days`, `note`, `target`, `action`, `confirm_date`. Ces champs sont nommés **dans les règles pures** `reminder_values` / `planned_date` (`model/culture_cycle.py`), pas déduits du libellé du message |
+| `POST /api/v1/cultures/cycles`, `checklist` / `checklist_correct` / `checklist_cancel` | `lighting` (première case du groupe quand le groupe entier manque), `effective_at`, `note`, `reason`, `confirm_date` |
+| `POST /api/v1/cultures/photos` | `caption`, `photo` (fichier vide, trop lourd, trop grand ou d'un format refusé) |
+| `POST /api/v1/cultures/targets` | `target`, `label`, `stage`, `ph_min`, `ph_max`, `ec_min`, `ec_max`, `ec_unit`, `note`, `start_at`, `end_at`, `reason`, `confirm_date` |
+| `POST /api/v1/cultures/light` | `scope`, `space`, `subject_id`, `label`, `stage`, `on_minutes`, `note`, `start_at`, `end_at`, `reason`, `confirm_date`. Le formulaire n'expose que la durée d'éclairage : l'obscurité s'en déduit, et son refus désigne donc `on_minutes` |
+| `POST /api/v1/cultures/equipment` | `equipment_id`, `scope`, `space`, `reservoir_id`, `usage`, `source`, `note`, `start_at`, `end_at`, `reason`, `confirm_date` |
 
 (*) Champ répétable : le refus est accompagné d'`index`.
 
@@ -983,7 +991,7 @@ contourner par le client. Mesures faites hors matériel, sans qualification sur 
 | Sujet alimenté à l'instant d'un renouvellement | Un relevé « avant renouvellement » saisi à l'instant exact du renouvellement suit, pour le filtre par sujet alimenté, la période ouverte à cet instant ; la page des solutions reste la référence pour ce cas de bord |
 | Résolution d'équipement d'une page | `GET /api/v1/cultures/equipment?at=…` renvoie dans `resolved` **toutes** les affectations couvrant cette date, tous équipements confondus ; le filtre `equipment` restreint `equipments`, pas `resolved`. La résolution par saisie (`items[].equipment` des solutions) reste, elle, propre à sa date effective |
 | Une seule erreur par requête | La validation s'arrête au premier refus : un formulaire portant deux fautes doit être corrigé et renvoyé deux fois. Le client (`culture_forms.js`) accepte déjà N erreurs, c'est le serveur qui n'en produit qu'une |
-| Champs nommés partiels | `field` n'existe que pour les API listées dans « Forme des erreurs métier » ; plages cibles, éclairage, équipements, photos et vérifications refusent encore sans désigner de champ — seul `confirm_date` reste nommé pour les vérifications —, et le refus s'affiche alors en résumé de formulaire |
+| Refus sans champ | Tous les domaines rattachent leurs refus de valeur à un champ ; restent sans `field`, délibérément, l'entité introuvable, le conflit de version, le conflit d'occupation d'un espace, l'indisponibilité du carnet et les commandes malformées. Le refus s'affiche alors en résumé de formulaire |
 | Origines de boutures sans JavaScript | Dans le formulaire de création, le champ « Pied mère » de chaque origine est rendu avec l'attribut `hidden` et n'est révélé que par le script (`syncOrigins` dans `cultures.js`) : sans JavaScript, la ligne « bouture » reste masquée et un lot de boutures ne peut pas désigner sa mère depuis cette page. Limite antérieure au lot UI 2 |
 | Bornes de l'agenda | `agenda.journal` est plafonné à `TODAY_JOURNAL = 5` entrées et `upcoming_count` remplace la liste des rappels à venir : l'accueil n'est pas une seconde page de journal ni un second écran de rappels |
 | Photos d'une fiche | `detail.media` est borné à 100 photos, sans pagination : au-delà, la galerie des cycles reste la vue complète |
@@ -1018,6 +1026,37 @@ performances sur le Raspberry Pi.
   `similar_scope`, `generated_at`. Pour une clé déjà enregistrée identique :
   `replay: true`, résumé et ressemblances vides. Une clé réutilisée pour une autre
   commande reste un conflit 409.
+
+**`POST /api/v1/cultures/preview/solution` — champ `links`.** La réponse porte, à côté de
+`summary` (liste de chaînes) et de `similar`, une liste `links` d'objets `{label, href}` : les
+actions nommées correspondant aux constats du résumé. Un `href` pointe une page et une ancre
+existantes (`/cultures/solutions#saisie`, `/cultures/solutions?target=<réservoir>#reservoirs`,
+`/cultures/solutions#reservoirs`). Aucun lien n'est une commande. Une prévalidation rejouée
+(`replay`) renvoie `links: []`.
+
+**Lignes de plage cible du résumé.** Pour un relevé, le résumé ajoute une ligne par mesure
+renseignée (pH, EC) et aucune pour une mesure absente. La plage est résolue à la date effective de
+la saisie par l'ordre strict du carnet (cible directe → sujet alimenté → réservoir), sans fusion ni
+rétroactivité. Forme : `Plage applicable pH 5,8–6,4 (source : …, plage du 2026-08-01) ; écart :
++0,1.` ; à l'intérieur des bornes : `écart : aucun, la mesure est dans la plage`. Sans plage
+applicable : `Aucune plage applicable à cette cible à cette date (pH).` Aucune ligne ne préremplit
+un champ.
+
+**Lignes d'alimentation déclarée.** Pour chaque culture visée : `Aucune alimentation déclarée à
+cette date pour <culture>.`, `Alimentation déclarée à cette date pour <culture> : <réservoir>
+(association depuis <date>).`, ou `Plusieurs alimentations déclarées à cette date pour <culture> :
+<réservoir>, <réservoir>.`, chacune avec son entrée dans `links`. La cible saisie est conservée.
+
+**`GET /api/v1/cultures/assistance/{id}` — `category`.** Valeurs exactes : `À faire`,
+`À vérifier`, `Information manquante`, dans cet ordre de priorité, quatre items au plus.
+`Aucun relevé disponible` est une information manquante ; l'ancienneté du dernier relevé
+(`Dernier relevé saisi il y a N jours (le …).`) est une vérification sans seuil. Un lot en séchage
+sans poids sec ni photo depuis ce stade produit l'item `balance` pointant `#action-finish`. Le
+paramètre `?version=` et la réponse `{"unchanged": true}` sont décrits plus haut.
+
+**`GET /api/v1/cultures/{id}` — `stage_checks`.** Liste des vérifications pertinentes au stade et à
+l'espace : `key`, `label`, `href`, `reason`. Une culture archivée en a zéro. Ces liens
+n'enregistrent rien.
 
 La prévalidation appelle la mutation réelle dans une transaction `BEGIN IMMEDIATE`
 annulée à la sortie, succès comme erreur. Elle conserve donc toutes les validations,

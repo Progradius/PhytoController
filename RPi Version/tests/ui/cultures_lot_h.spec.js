@@ -60,6 +60,9 @@ test("journal : observation d’un espace vide, filtre et correction tracée", a
 
 test("journal : un filtre refusé conserve les champs saisis", async ({page}, testInfo) => {
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
+  // Dates en dur assumées : elles ne filtrent aucune saisie de la spec et ne sont jamais
+  // comparées au jour courant. Seul compte leur ordre — la fin précède le début —, qui est
+  // vrai à toute date, et leur restitution telle quelle dans les champs après le refus.
   const response = await page.goto("/cultures/journal?start=2026-09-05&end=2026-09-01&type=space_event:incident");
   expect(response.status()).toBe(400);
   await expect(page.locator("p.culture-warning")).toContainText("précède son début");
