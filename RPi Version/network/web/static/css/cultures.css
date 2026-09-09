@@ -208,12 +208,20 @@ details.culture-primary-action > summary { font-weight: 700; }
 
 /* Lot UI 4 : exploration avec commandes natives, galerie et comparaison alignée. */
 .culture-analysis-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .75rem; }
-.culture-analysis-controls button, .culture-gallery > button { min-height: 44px; }
+/* Cible tactile complète : une hauteur seule laissait des boutons de 30 px de large. */
+.culture-analysis-controls button, .culture-gallery > button { min-height: 44px; min-width: 44px; }
 .culture-chart-explorer { margin-top: .75rem; overflow-wrap: anywhere; }
 .culture-chart-explorer label { display: grid; gap: .5rem; }
 .culture-chart-explorer input[type="range"] { width: 100%; min-height: 44px; }
-.solution-dot.culture-selected-point { stroke: currentColor; stroke-width: 3px; r: 7px; }
-.culture-gallery { width: min(900px, 94vw); max-height: 90dvh; overflow: auto; background: var(--bg, #fff); color: var(--text, #172b20); border-radius: 1rem; padding: 1rem; }
+.culture-analysis-table { width: 100%; border-collapse: collapse; }
+/* La surbrillance vaut pour tout point indexé, y compris les tics de lacune, qui sont des
+   `path` : la règle n'est plus réservée à `.solution-dot`. Le rayon d'un cercle est posé
+   en attribut par le JS, la propriété géométrique CSS `r` manquant à Firefox avant 128. */
+.culture-selected-point { stroke: currentColor; stroke-width: 3px; }
+path.culture-selected-point { stroke-width: 4px; stroke-dasharray: none; opacity: 1; }
+/* Mêmes jetons visuels que `.confirm-dialog` : sur `var(--bg)` sans bordure ni ombre, le
+   dialogue se confondait avec son voile en thème sombre. */
+.culture-gallery { width: min(900px, 94vw); max-height: 90dvh; overflow: auto; padding: 1rem; border: 1px solid var(--border-strong); border-radius: var(--radius, 14px); background: var(--raised, #fff); color: var(--text, #172b20); box-shadow: 0 30px 100px rgb(0 0 0 / 70%); }
 .culture-gallery::backdrop { background: rgb(0 0 0 / 75%); }
 .culture-gallery img { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; margin: 1rem auto; object-fit: contain; }
 .culture-comparison { min-width: 560px; width: 100%; border-collapse: collapse; }

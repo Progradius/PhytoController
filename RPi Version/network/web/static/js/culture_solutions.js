@@ -244,14 +244,32 @@
   document.querySelectorAll("svg[data-metric]").forEach(svg => {
     const metric = svg.dataset.metric;
     const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : p[metric]} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""} · ${p.annotations.join(', ')}`;
-    const refreshSelection = window.PhytoCultureAnalysis.chart(svg, points.map(p => ({text: describe(p)})), svg.getAttribute("aria-label"));
+    // Tableau équivalent : une colonne par nature de donnée. Une lacune s'écrit
+    // « mesure absente » dans la colonne valeur, jamais 0.
+    const columns = ["Date", "Valeur", "Unité", "Cible ou capteur", "Période", "Agrégats", "Lacune"];
+    const cells = p => [
+      p.at,
+      p[metric] === null ? "mesure absente" : String(p[metric]),
+      metric === "ec" ? "mS/cm" : "sans unité",
+      p.target,
+      p.period || "manuelle",
+      p[metric + "_count"]
+        ? `${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}`
+        : "aucun agrégat",
+      p[metric] === null ? "oui" : "non",
+    ];
+    const rows = points.map(p => ({text: describe(p), cells: cells(p)}));
+    // Le dessin ne dépend jamais de l'explorateur : un asset manquant (précache partiel,
+    // 404 après déploiement) ne doit pas priver la page de ses courbes.
+    const refreshSelection = window.PhytoCultureAnalysis?.chart?.(svg, rows,
+      svg.getAttribute("aria-label"), columns) ?? (() => {});
     const draw = () => {
       svg.replaceChildren();
       const width = svg.getBoundingClientRect().width || 240;
       svg.setAttribute("viewBox", `0 0 ${width} 220`);
       const right = width - 20, span = right - 60;
       const metric = svg.dataset.metric, measured = points.filter(p => p[metric] !== null);
-      if (!measured.length) { svg.append(svgNode("text", {x: 30, y: 100}, "Aucune mesure")); return; }
+      if (!measured.length) { svg.append(svgNode("text", {x: 30, y: 100}, "Aucune mesure")); refreshSelection([]); return; }
       const times = points.map(p => Date.parse(p.at)), low = Math.min(...times), high = Math.max(...times);
       // Lot E : les bornes cibles n'écrasent pas l'échelle des mesures ; elles l'élargissent
       // seulement quand elles sont présentes, pour rester lisibles sans déformer la courbe.
@@ -292,14 +310,22 @@
         const line = svgNode("path", {d: `M${x(p)} 25V170`, class: "solution-stage"});
         line.append(svgNode("title", {}, `${p.label} · ${p.at}`)); svg.append(line);
       });
-      measured.forEach(p => {
+      // L'index vient de la boucle : `points.indexOf(p)` coûtait jusqu'à 4·10⁶ comparaisons
+      // par redessin à la borne de 2 000 points.
+      const places = [];
+      points.forEach((p, i) => {
+        if (p[metric] === null) return;
         if (p[metric + "_count"]) {
           svg.append(svgNode("path", {d: `M${x(p)} ${y({...p, [metric]: p[metric + "_min"]})}V${y({...p, [metric]: p[metric + "_max"]})}`, class: "solution-range"}));
         }
-        const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: "solution-dot", "data-analysis-index": points.indexOf(p)});
+        // Une classe supplémentaire par cible ou période viendra s'ajouter ici sans
+        // toucher au reste du dessin ni à la position transmise à l'explorateur.
+        const classes = ["solution-dot"];
+        const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: classes.join(" "), "data-analysis-index": i});
         dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
+        places[i] = {x: x(p), y: y(p)};
       });
-      refreshSelection();
+      refreshSelection(places);
     };
     let lastWidth = 0;
     new ResizeObserver(() => {

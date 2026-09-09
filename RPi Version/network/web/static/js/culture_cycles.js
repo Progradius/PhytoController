@@ -144,30 +144,53 @@
       const missing = all.filter(p => p.missing);
       caption.textContent = `${all[0].label} (${all[0].unit}) · commun à la serre · synthèse par ${granularity} · ${valid.length} période(s) avec valeur fiable, ${missing.length} lacune(s) sur ${all.length}`;
       const svg = node("svg", {viewBox: "0 0 600 240", role: "img", "aria-label": caption.textContent}); figure.append(caption, svg); container.append(figure);
-      const refreshSelection = window.PhytoCultureAnalysis.chart(svg, all.map(p => ({text: `${p.at} · ${p.mean === null ? "Aucune valeur fiable — lacune" : `${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}`} · ${p.valid_count} valeurs fiables sur ${p.span_hours} h · couverture ${(p.coverage * 100).toFixed(0)} %`})), caption.textContent);
+      // Tableau équivalent : mêmes colonnes que les courbes de solutions ; une période sans
+      // agrégat s'écrit « mesure absente », jamais 0.
+      const columns = ["Date", "Valeur", "Unité", "Cible ou capteur", "Période", "Agrégats", "Lacune"];
+      const cells = p => [
+        p.at,
+        p.mean === null ? "mesure absente" : p.mean.toFixed(2),
+        p.unit,
+        `${p.label} · commun à la serre`,
+        `${p.span_hours} h`,
+        p.mean === null
+          ? "aucun agrégat"
+          : `min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables, couverture ${(p.coverage * 100).toFixed(0)} %`,
+        p.missing ? "oui" : "non",
+      ];
+      const rows = all.map(p => ({cells: cells(p), text: `${p.at} · ${p.mean === null ? "Aucune valeur fiable — lacune" : `${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}`} · ${p.valid_count} valeurs fiables sur ${p.span_hours} h · couverture ${(p.coverage * 100).toFixed(0)} %`}));
+      // Le dessin ne dépend jamais de l'explorateur : un asset manquant ne doit pas
+      // interrompre ce script, qui rend aussi l'inventaire hors ligne plus bas.
+      const refreshSelection = window.PhytoCultureAnalysis?.chart?.(svg, rows, caption.textContent, columns) ?? (() => {});
       const draw = () => {
         svg.replaceChildren();
         const width = svg.getBoundingClientRect().width || 240, right = width - 20;
         svg.setAttribute("viewBox", `0 0 ${width} 255`);
-        if (!valid.length) { svg.append(node("text", {x: 30, y: 100}, "Aucune valeur fiable")); return; }
+        if (!valid.length) { svg.append(node("text", {x: 30, y: 100}, "Aucune valeur fiable")); refreshSelection([]); return; }
         const start = Math.min(...all.map(p => p.hour)), end = Math.max(...all.map(p => p.hour));
         const min = Math.min(...valid.map(p => p.minimum)), max = Math.max(...valid.map(p => p.maximum));
         const x = p => 65 + (right - 65) * (end === start ? 0.5 : (p.hour - start) / (end - start));
         const y = value => 175 - 120 * (min === max ? 0.5 : (value - min) / (max - min));
         svg.append(node("path", {d: `M65 30V185H${right}`, class: "solution-axis"}), node("text", {x: 0, y: 55}, max.toFixed(1)), node("text", {x: 0, y: 175}, min.toFixed(1)));
         svg.append(node("text", {x: 65, y: 220}, new Date(start*1000).toLocaleDateString("fr-FR")), node("text", {x: right, y: 238, "text-anchor": "end"}, new Date(end*1000).toLocaleDateString("fr-FR")));
-        // Les barres min/max et points moyens ne relient jamais une lacune.
-        for (const p of valid) {
+        // Les barres min/max et points moyens ne relient jamais une lacune. L'index vient
+        // de la boucle : `all.indexOf(p)` coûtait un balayage complet par point dessiné.
+        const places = [];
+        all.forEach((p, i) => {
+          if (p.mean === null) return;
           const line = node("path", {d: `M${x(p)} ${y(p.minimum)}V${y(p.maximum)}`, class: "solution-range"});
-          const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot", "data-analysis-index": all.indexOf(p)});
+          const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot", "data-analysis-index": i});
           dot.append(node("title", {}, `${p.at} : ${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables sur ${p.span_hours} h de période, couverture ${(p.coverage*100).toFixed(0)} %`)); svg.append(line, dot);
-        }
+          places[i] = {x: x(p), y: y(p.mean)};
+        });
         // Une période sans agrégat reste une lacune signalée, jamais une valeur nulle tracée.
-        for (const p of missing) {
-          const tick = node("path", {d: `M${x(p)} 185V193`, class: "climate-gap", "data-analysis-index": all.indexOf(p)});
+        all.forEach((p, i) => {
+          if (!p.missing) return;
+          const tick = node("path", {d: `M${x(p)} 185V193`, class: "climate-gap", "data-analysis-index": i});
           tick.append(node("title", {}, `${p.at} : aucun agrégat sur ${p.span_hours} h de période`)); svg.append(tick);
-        }
-        refreshSelection();
+          places[i] = {x: x(p), y: 189};
+        });
+        refreshSelection(places);
       };
       let lastWidth = 0;
       new ResizeObserver(() => {
