@@ -431,3 +431,89 @@ async def test_raccourci_observation_selon_le_nombre_de_cultures(web_context):
     picker = picker[:picker.index("</details>")]
     for subject_id in (first["subject_id"], second["subject_id"]):
         assert f'href="/cultures/{subject_id}#observation"' in picker
+
+
+async def test_archives_signalent_l_espace_encore_occupe_et_les_durees_par_stade(web_context):
+    """R3.5 : le signalement et le bilan de durées vivent sur la carte d'archive.
+
+    Le marqueur d'occupation n'existait que dans le bloc d'accueil, absent de la page
+    Archives : un lot terminé sans libération n'y disait plus qu'il tenait l'espace 2. Les
+    durées viennent des périodes déjà projetées ; aucune projection nouvelle n'est faite.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create(
+        "Lot archivé", stage="floraison", space="space_2"), headers=headers)).json()
+    harvest = {"request_id": str(uuid.uuid4()), "operation": "event", "subject_id": saved["subject_id"],
+               "version": saved["version"], "kind": "harvest", "effective_at": "2026-08-20",
+               "payload": {"drying_at": "2026-08-20", "drying_precision": "date"}}
+    saved = await (await client.post("/api/v1/cultures", json=harvest, headers=headers)).json()
+    finish = {"request_id": str(uuid.uuid4()), "operation": "event", "subject_id": saved["subject_id"],
+              "version": saved["version"], "kind": "finish", "effective_at": "2026-09-01",
+              "payload": {"release": False, "weight_g": 42, "lessons": "Séchage lent"}}
+    assert (await client.post("/api/v1/cultures", json=finish, headers=headers)).status == 200
+
+    page = await (await client.get("/cultures?archives=1")).text()
+    assert "<h1>Archives</h1>" in page and "Lot archivé" in page
+    assert "Espace encore occupé · à libérer : Espace 2" in page
+    assert "Durées par stade : Floraison 19 j, Séchage 12 j" in page
+    # L'accueil garde son propre signalement : la page Archives ne l'a pas déplacé.
+    home = await (await client.get("/cultures")).text()
+    assert 'aria-label="Occupation des espaces"' in home and "Espace encore occupé" in home
+
+
+async def test_courbes_de_solutions_portent_synthese_et_legende(web_context):
+    """R3.1 et R3.3 : chaque figure annonce ce qu'elle montre et la clé de ses tracés.
+
+    La synthèse est calculée côté serveur ; la légende nomme les encodages et une entrée par
+    source. La consigne d'usage n'est plus dupliquée : le fragment de l'explorateur la rend.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    lot = await (await client.post("/api/v1/cultures", json=create("Lot courbes"), headers=headers)).json()
+    renewal = {"request_id": str(uuid.uuid4()), "operation": "entry", "kind": "renewal",
+               "reservoir_id": "reservoir_2", "effective_at": "2026-08-01", "volume_l": 20}
+    assert (await client.post("/api/v1/cultures/solutions", json=renewal, headers=headers)).status == 200
+    for day, ph in (("2026-08-02", 6.1), ("2026-08-03", 6.5)):
+        reading = {"request_id": str(uuid.uuid4()), "operation": "entry", "kind": "reading",
+                   "targets": [lot["subject_id"]], "effective_at": day, "ph": ph}
+        assert (await client.post("/api/v1/cultures/solutions", json=reading, headers=headers)).status == 200
+
+    page = await (await client.get("/cultures/solutions")).text()
+    assert 'id="resume-ph"' in page and 'id="legende-ph"' in page
+    assert 'aria-describedby="resume-ph legende-ph"' in page
+    assert "2 mesures · minimum 6.10, moyenne 6.30, maximum 6.50" in page
+    # Une absence reste une absence : aucune moyenne d'EC n'est inventée à 0.
+    assert "EC · du 01/08/2026 au 03/08/2026 · aucune mesure · 3 lacunes" in page
+    assert "Bande : plage cible résolue à la date des mesures." in page
+    assert "Barre verticale : minimum et maximum du jour." in page
+    assert "Lot courbes · solution manuelle" in page
+    assert 'class="legend-mark legend-dot solution-source-0"' in page
+    # La consigne d'usage est rendue une seule fois, par le fragment de l'explorateur.
+    assert "Toucher le graphique pour choisir le point le plus proche" not in page
+
+
+async def test_journal_relie_chaque_photo_a_son_entree_focalisable(web_context):
+    """R1.5 b : la légende d'une photo du journal porte le lien vers son entrée.
+
+    Sans lien dans la légende, le bouton « Ouvrir l’entrée liée » de la galerie restait caché
+    précisément là où il était revendiqué. L'entrée visée est focalisable (`tabindex="-1"`),
+    sans quoi le retour de focus décrit par la convention du lot 2 n'aurait nulle part où aller.
+    """
+    from urllib.parse import quote
+    from tests.test_culture_cycles import photo_bytes
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    body = {"request_id": str(uuid.uuid4()), "operation": "space_event", "space": "space_2",
+            "kind": "observation", "effective_at": "2026-09-01", "note": "Traces d’humidité"}
+    saved = await (await client.post("/api/v1/cultures/journal", json=body, headers=headers)).json()
+    metadata = quote(json.dumps({"request_id": str(uuid.uuid4()), "space_event_id": saved["id"],
+                                 "space_event_revision": 1, "caption": "Coin nord"}))
+    response = await client.post("/api/v1/cultures/journal/photos", data=photo_bytes(),
+                                 headers={**headers, "Content-Type": "application/octet-stream",
+                                          "X-Culture-Metadata": metadata})
+    assert response.status == 200, await response.text()
+
+    page = await (await client.get("/cultures/journal")).text()
+    assert f'id="entry-{saved["id"]}" tabindex="-1"' in page
+    assert f'<a href="#entry-{saved["id"]}">Ouvrir l’entrée liée</a>' in page

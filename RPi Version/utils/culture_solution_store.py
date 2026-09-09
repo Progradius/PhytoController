@@ -9,7 +9,8 @@ from zoneinfo import ZoneInfo
 
 from model.culture import CultureConflict, CultureError, age, stamp, text_value
 from model.culture_assistance import feeding_lines
-from model.culture_solution import RESERVOIRS, SOLUTION_KINDS, ingredients, measurements, number
+from model.culture_solution import (RESERVOIRS, SOLUTION_KINDS, chart_sources, chart_summary,
+                                    ingredients, measurements, number)
 # Lot E : la plage cible d'un relevé est résolue à la date de ce relevé, jamais rétroactivement.
 from model.culture_targets import resolve_targets, target_bands, target_text
 
@@ -391,6 +392,18 @@ class SolutionStoreMixin:
         # Lot E : bandes de référence dérivées des plages réellement résolues, jamais prolongées
         # sur une période sans cible ni inventées avant la première plage saisie.
         bands = target_bands([{"at": point["at"], "target": point.pop("target_range")} for point in chart])
+        # Lot C : repères de lecture et synthèse littérale des courbes. Calculés ici pour que la
+        # légende, les points et le texte du curseur nomment la même source, au lieu de laisser
+        # chaque script inventer sa convention. Aucune lecture de plus : les réservoirs sont lus
+        # une fois pour la page et les projections sont déjà faites.
+        reservoirs = [dict(r) for r in self._db.execute("SELECT * FROM reservoirs")]
+        chart_names = {r["id"]: r["name"] for r in reservoirs}
+        chart_names.update({s["id"]: s["name"] for s in subjects})
+        sources = chart_sources(chart, chart_names)
+        for point, variant in zip(chart, sources["variants"]):
+            point["variant"] = variant
+        summaries = {metric: chart_summary(chart, metric, label, unit, self.zone, chart_names)
+                     for metric, label, unit in (("ph", "pH", ""), ("ec", "EC", "mS/cm"))}
         chart_start = min((p["at"] for p in chart), default="9999")
         chart_end = max((p["at"] for p in chart), default="")
         stage_subjects = {s["id"] for s in subjects if s["id"] == target or any(link["subject_id"] == s["id"] and
@@ -426,7 +439,8 @@ class SolutionStoreMixin:
             name = next((s["name"] for s in subjects if s["id"] == target), target)
             feeding = [{"text": line, "link": action} for line, action in feeding_lines(name, declared)]
         return {"items": page, "feeding": feeding, "chart": chart, "chart_targets": bands, "chart_aggregated": aggregated, "chart_truncated": truncated, "stages": stages, "total": len(selected), "offset": offset, "periods": periods, "links": links,
-                "reservoirs": [dict(r) for r in self._db.execute("SELECT * FROM reservoirs")],
+                "chart_sources": sources["legend"], "chart_summaries": summaries,
+                "reservoirs": reservoirs,
                 "recipes": self._recipes(), "subjects": [{"id": s["id"], "name": s["name"], "kind": s["kind"], "archived": s["archived"]} for s in subjects],
                 **self._solution_interventions(entries, subjects, "", 0, linked),
                 "latest": next((e for e in selected if not e["cancelled"] and (e["ph"] is not None or e["ec"] is not None)), None),

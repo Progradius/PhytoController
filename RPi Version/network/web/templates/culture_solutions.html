@@ -92,9 +92,22 @@
 {% if data.chart_truncated %}Affichage limité aux 2 000 derniers groupes journaliers ; réduire la période ou exporter toutes les données.{% endif %}</p>
 {# Lot E : bandes de référence des plages cibles, résolues par période et jamais par défaut. #}
 <p class="card-meta">Les bandes de référence proviennent des <a href="/cultures/targets{% if filters.get('target') %}?target={{ filters['target']|urlencode }}{% endif %}">plages cibles</a> résolues à la date de chaque mesure. Une période sans plage reste sans bande ; aucune plage n’est appliquée rétroactivement ni proposée par défaut.</p>
-<p class="card-meta">Toucher le graphique pour choisir le point le plus proche, ou utiliser le curseur et ses flèches au clavier. Le tableau reprend les valeurs et les absences du graphique.</p>
+{# La consigne d'usage des courbes est rendue par le fragment de `PhytoCultureAnalysis.chart`,
+   pour toutes les pages à la fois : la répéter ici en donnait deux versions à entretenir. #}
 <details class="card"><summary>Valeurs des bandes de référence</summary><ul>{% for band in data.chart_targets %}<li>{{ band.label }} · {{ band.start|culture_date(data.timezone) }} → {{ band.end|culture_date(data.timezone) }}{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %} · {{ label }} : {{ band[metric ~ '_min'] if band[metric ~ '_min'] is not none else 'sans minimum' }} à {{ band[metric ~ '_max'] if band[metric ~ '_max'] is not none else 'sans maximum' }}{% endfor %}</li>{% else %}<li>Aucune plage de référence pour ces mesures.</li>{% endfor %}</ul></details>
-<div id="courbes" class="culture-grid" data-solution-charts data-chart="{{ data.chart|tojson|forceescape }}" data-stages="{{ data.stages|tojson|forceescape }}" data-target-bands="{{ data.chart_targets|tojson|forceescape }}">{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %}<figure class="card solution-chart"><figcaption>{{ label }}</figcaption><svg viewBox="0 0 600 220" role="img" aria-label="Points mesurés : {{ label }}" data-metric="{{ metric }}"></svg></figure>{% endfor %}</div>
+<div id="courbes" class="culture-grid" data-solution-charts data-chart="{{ data.chart|tojson|forceescape }}" data-stages="{{ data.stages|tojson|forceescape }}" data-target-bands="{{ data.chart_targets|tojson|forceescape }}" data-chart-sources="{{ data.chart_sources|tojson|forceescape }}">{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %}<figure class="card solution-chart"><figcaption>{{ label }}</figcaption>
+{# Synthèse et clé de lecture calculées par le magasin : le gabarit ne décide de rien, il
+   les rend. Le graphique les désigne par `aria-describedby`, comme la légende du climat. #}
+<p class="card-meta solution-summary" id="resume-{{ metric }}">{{ data.chart_summaries[metric] }}</p>
+<svg viewBox="0 0 600 220" role="img" aria-label="Points mesurés : {{ label }}" aria-describedby="resume-{{ metric }} legende-{{ metric }}" data-metric="{{ metric }}"></svg>
+<ul class="culture-chart-legend" id="legende-{{ metric }}">
+<li><span class="legend-mark legend-band" aria-hidden="true"></span>Bande : plage cible résolue à la date des mesures.</li>
+<li><span class="legend-mark legend-renewal" aria-hidden="true"></span>Tiret long : renouvellement de solution.</li>
+<li><span class="legend-mark legend-stage" aria-hidden="true"></span>Tiret composé : changement de stade.</li>
+<li><span class="legend-mark legend-range" aria-hidden="true"></span>Barre verticale : minimum et maximum du jour.</li>
+<li><span class="legend-mark legend-dot" aria-hidden="true"></span>Point : une mesure. Sa forme et sa teinte disent la source ; aucun trait ne relie deux sources.</li>
+{% for source in data.chart_sources %}<li><span class="legend-mark legend-dot solution-source-{{ source.variant }}" aria-hidden="true"></span>{{ source.label }}</li>{% else %}<li>Aucune source de mesure sur ce filtre.</li>{% endfor %}
+</ul></figure>{% endfor %}</div>
 <details class="card"><summary>Repères des interventions et stades</summary><ul>{% for point in data.chart if point.annotations %}<li>{{ point.at|culture_date(data.timezone) }} · {{ point.annotations|join(', ') }} · {{ point.target }}</li>{% endfor %}{% for stage in data.stages %}<li>{{ stage.at|culture_date(data.timezone) }} · {{ stage.label }}</li>{% endfor %}</ul></details>
 <div class="culture-links"><a data-solution-export href="/api/v1/cultures/solutions/export">Exporter les relevés et interventions CSV du filtre</a><a href="/api/v1/cultures/export?format=sqlite3">Base SQLite seule (sans photos)</a></div>
 {% for entry in data["items"] %}<article class="card culture-journal solution-journal" id="entry-{{ entry.id }}" tabindex="-1" data-point="{{ {'ph':entry.ph,'ec':entry.ec,'at':entry.sort_at,'cancelled':entry.cancelled,'kind':entry.kind,'period':entry.period_id,'target':entry.reservoir_id or entry.targets|join(','),'label':kinds[entry.kind],'number':loop.index}|tojson|forceescape }}">

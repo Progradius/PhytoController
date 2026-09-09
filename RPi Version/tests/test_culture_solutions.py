@@ -358,3 +358,70 @@ async def test_migration_interrompue_ne_publie_pas_un_schema_partiel(cultures):
     assert path.with_name(path.name + ".before-v2.sqlite3").exists()
     with pytest.raises(CultureUnavailable, match="Sauvegarde"):
         await cultures.call("overview")
+
+
+# Lot C de la remédiation UI 4 : légende (R3.1) et synthèse textuelle (R3.3) des courbes.
+
+
+def test_repere_par_source_borne_et_repli_annonce():
+    """Une variante par couple (cible, période), dans l'ordre d'apparition, jamais fondue.
+
+    Au-delà de la borne, les sources restantes partagent la variante de repli, et la légende
+    le dit au lieu de laisser croire à un repère propre à chacune.
+    """
+    from model.culture_solution import CHART_SOURCE_VARIANTS, chart_sources
+    names = {"reservoir_2": "Réservoir de l’espace 2", "lot-a": "Épinard", "lot-b": "Basilic"}
+    points = [{"target": "reservoir_2", "period": "abcdefgh1234"},
+              {"target": "reservoir_2", "period": "abcdefgh1234"},
+              {"target": "reservoir_2", "period": "zzzzzzzz9999"},
+              {"target": "lot-a,lot-b", "period": None}]
+    sources = chart_sources(points, names)
+    assert sources["variants"] == [0, 0, 1, 2]
+    assert [entry["label"] for entry in sources["legend"]] == [
+        "Réservoir de l’espace 2 · solution abcdefgh",
+        "Réservoir de l’espace 2 · solution zzzzzzzz",
+        "Épinard et Basilic · solution manuelle"]
+    crowd = [{"target": f"cible-{i}", "period": None} for i in range(CHART_SOURCE_VARIANTS + 3)]
+    crowded = chart_sources(crowd, {})
+    assert crowded["variants"][-3:] == [CHART_SOURCE_VARIANTS] * 3
+    assert crowded["legend"][-1] == {"variant": CHART_SOURCE_VARIANTS,
+                                     "label": "3 autres sources · même repère, faute de variantes distinctes"}
+
+
+def test_synthese_de_courbe_compte_les_mesures_sans_inventer_de_zero():
+    """Période, mesures, min/moyenne/max, lacunes et cibles ; une absence reste une absence.
+
+    La moyenne est pondérée par le nombre de mesures de chaque point : un agrégat journalier
+    de trois mesures ne pèse pas comme une mesure isolée, et une lacune n'entre nulle part.
+    """
+    from model.culture_solution import chart_summary
+    names = {"reservoir_2": "Réservoir de l’espace 2", "lot-a": "Épinard"}
+    points = [{"at": "2026-08-01T22:00:00+00:00", "target": "reservoir_2", "period": "p1", "ph": 6.0, "ec": None},
+              {"at": "2026-08-02T22:00:00+00:00", "target": "reservoir_2", "period": "p1", "ph": None, "ec": None},
+              {"at": "2026-08-03T22:00:00+00:00", "target": "lot-a", "period": None, "ph": 6.4, "ec": None,
+               "ph_count": 3, "ph_min": 6.2, "ph_max": 6.6}]
+    # Les clés sont UTC : minuit local du 2 août en heure d'été, pas le 1er.
+    assert chart_summary(points, "ph", "pH", "", "Europe/Paris", names) == (
+        "pH · du 02/08/2026 au 04/08/2026 · 4 mesures · minimum 6.00, moyenne 6.30, maximum 6.60"
+        " · 1 lacune · cibles : Réservoir de l’espace 2, Épinard.")
+    # Aucune mesure d'EC : c'est « aucune mesure », jamais une moyenne de 0.
+    absent = chart_summary(points, "ec", "EC", "mS/cm", "Europe/Paris", names)
+    assert "aucune mesure · 3 lacunes" in absent and "0.00" not in absent
+    assert chart_summary([], "ph", "pH", "", "Europe/Paris", names) == "pH · aucune mesure sur ce filtre."
+
+
+async def test_courbes_portent_leur_synthese_et_leurs_reperes(cultures):
+    """Le magasin livre variantes, légende et synthèses : le gabarit et le script les rendent."""
+    lot = await cultures.call("mutate", create("Lot repère"))
+    await cultures.call("solution_mutate", entry("renewal", "2026-08-01"))
+    await cultures.call("solution_mutate", entry("reading", "2026-08-02", ph=6.1))
+    await cultures.call("solution_mutate", entry("reading", "2026-08-03", reservoir_id=None,
+                                                 targets=[lot["subject_id"]], ph=6.5))
+    data = await cultures.call("solution_data")
+    assert {point["variant"] for point in data["chart"]} == {0, 1}
+    labels = [source["label"] for source in data["chart_sources"]]
+    assert any(label.startswith("Réservoir de l’espace 2 · solution ") for label in labels)
+    assert "Lot repère · solution manuelle" in labels
+    assert "2 mesures" in data["chart_summaries"]["ph"]
+    assert "minimum 6.10" in data["chart_summaries"]["ph"] and "maximum 6.50" in data["chart_summaries"]["ph"]
+    assert data["chart_summaries"]["ec"].startswith("EC · ") and "aucune mesure" in data["chart_summaries"]["ec"]

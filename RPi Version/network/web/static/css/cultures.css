@@ -229,3 +229,42 @@ path.culture-selected-point { stroke-width: 4px; stroke-dasharray: none; opacity
 .culture-comparison th[scope="row"] { min-width: 150px; }
 .culture-comparison-choices { max-height: 18rem; overflow: auto; }
 .culture-comparison-choices label { min-height: 44px; }
+
+/* Lot C de la remédiation UI 4 : clé de lecture et synthèse des courbes de solutions. */
+/* La ligne des durées par stade s'enroule : `.culture-duration` interdit la coupure, ce qui
+   pousserait une carte d'archive hors de l'écran sur téléphone. */
+.culture-stage-durations { overflow-wrap: anywhere; }
+.solution-summary { overflow-wrap: anywhere; }
+.culture-chart-legend { list-style: none; margin: .75rem 0 0; padding: 0; font-size: .95rem; }
+.culture-chart-legend li { display: flex; align-items: center; gap: .5rem; margin-block: .35rem; overflow-wrap: anywhere; }
+/* Chaque repère reprend le tracé qu'il désigne : mêmes tirets, même barre, même bande. */
+.legend-mark { flex: 0 0 1.5rem; height: .9rem; }
+.legend-band { background: currentColor; opacity: .25; border-radius: 2px; }
+.legend-renewal { background: repeating-linear-gradient(to right, currentColor 0 8px, transparent 8px 12px) center/100% 3px no-repeat; }
+.legend-stage { background: repeating-linear-gradient(to right, currentColor 0 12px, transparent 12px 15px, currentColor 15px 17px, transparent 17px 20px) center/100% 3px no-repeat; opacity: .7; }
+.legend-range { background: linear-gradient(currentColor, currentColor) center/3px 100% no-repeat; }
+.legend-dot { flex: 0 0 .9rem; width: .9rem; height: .9rem; border-radius: 50%; background: currentColor; border: 2px solid currentColor; box-sizing: border-box; }
+/* Repères de source. Chaque variante change de FORME (point plein ou évidé) et de MOTIF de
+   contour (continu, tirets, pointillés) autant que de teinte : un lecteur qui ne distingue
+   pas les couleurs, une impression en noir et blanc ou le mode contrastes forcés gardent
+   trois distinctions lisibles. Les teintes viennent des jetons du thème, donc déjà
+   contrastées en sombre comme en plein jour. */
+.solution-source-0 { --source-ink: currentColor; }
+.solution-source-1 { --source-ink: var(--blue, #075ea8); }
+.solution-source-2 { --source-ink: var(--amber, #7a4b00); }
+.solution-source-3 { --source-ink: var(--red, #b42323); }
+.solution-source-4 { --source-ink: var(--green, #0b7c3d); }
+.solution-source-5 { --source-ink: var(--muted, #4f685a); }
+.solution-source-6 { --source-ink: currentColor; }
+circle.solution-source-0, circle.solution-source-2, circle.solution-source-4 { fill: var(--source-ink); stroke: var(--source-ink); stroke-width: 1.5; }
+circle.solution-source-1, circle.solution-source-3, circle.solution-source-5, circle.solution-source-6 { fill: var(--raised, #fff); stroke: var(--source-ink); stroke-width: 2.5; }
+circle.solution-source-2, circle.solution-source-3 { stroke-dasharray: 5 3; }
+circle.solution-source-4, circle.solution-source-5 { stroke-dasharray: 2 2; }
+circle.solution-source-6 { stroke-dasharray: 1 2; }
+.legend-dot.solution-source-0, .legend-dot.solution-source-2, .legend-dot.solution-source-4 { background: var(--source-ink); border-color: var(--source-ink); }
+.legend-dot.solution-source-1, .legend-dot.solution-source-3, .legend-dot.solution-source-5, .legend-dot.solution-source-6 { background: var(--raised, #fff); border-color: var(--source-ink); }
+.legend-dot.solution-source-2, .legend-dot.solution-source-3 { border-style: dashed; }
+.legend-dot.solution-source-4, .legend-dot.solution-source-5, .legend-dot.solution-source-6 { border-style: dotted; }
+/* La surbrillance du curseur reste prioritaire sur la variante de source, qui a la même
+   spécificité : sans cette règle, un point évidé ne changerait plus d'aspect une fois choisi. */
+circle.culture-selected-point { stroke: currentColor; stroke-width: 3px; stroke-dasharray: none; }

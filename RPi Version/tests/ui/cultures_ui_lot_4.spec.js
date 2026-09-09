@@ -223,3 +223,132 @@ test("courbe climatique : lacune sélectionnée visible et dessin sans l’explo
   await expect(figure.locator("path.climate-gap")).toHaveCount(1);
   await expect(page.locator(".culture-chart-explorer")).toHaveCount(0);
 });
+
+// Lot C de la remédiation UI 4 : retour de focus du lien de contexte (R1.5), clé de lecture
+// et synthèse des courbes de solutions (R3.1, R3.3), bilan des cartes d'archives (R3.5).
+
+const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1sAAAAASUVORK5CYII=";
+
+test("galerie : le lien de contexte focalise l’ancre, jamais la vignette", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations et interception HTTP, hors service worker.");
+  test.setTimeout(90000);
+  const id = await createMother(page, "Mère contexte");
+  const detail = await (await page.request.get(`/api/v1/cultures/${id}`)).json();
+  const eventId = detail.events[0].id;
+  // La légende porte le lien que le gabarit rend désormais : c'est lui que la galerie reprend.
+  await page.route(`**/cultures/${id}`, async route => {
+    const response = await route.fetch();
+    let html = await response.text();
+    // Deux destinations : une ancre focalisable (`#event-…`) et une section qui ne l'est pas.
+    const picture = (name, href) => `<figure class="culture-photo"><a href="/cultures/photos/test-1"><img src="/cultures/photos/test-1" alt="${name}" width="100" height="100"></a><figcaption>Légende · <a href="${href}">Ouvrir l’entrée liée</a></figcaption></figure>`;
+    const figures = picture("Photo contexte", `#event-${eventId}`) + picture("Photo section", "#photos");
+    html = html.replace('<section id="photos"', `<div class="culture-grid">${figures}</div><section id="photos"`);
+    await route.fulfill({response, body: html});
+  });
+  await page.route("**/cultures/photos/test-*", route => route.fulfill({contentType: "image/png", body: Buffer.from(PIXEL, "base64")}));
+  await page.reload();
+  const link = page.getByRole("link", {name: "Photo contexte", exact: true});
+  await link.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  const context = dialog.getByRole("link", {name: "Ouvrir l’entrée liée"});
+  // `href` reflété par le DOM : la valeur est résolue en URL absolue de la page courante.
+  await expect(context).toHaveAttribute("href", new RegExp(`#event-${eventId}$`));
+  // R1.5 a : la fermeture par le lien ne rend pas le focus à la vignette ; c'est l'ancre
+  // `tabindex="-1"` visée qui le reçoit, l'élément focalisé étant la confirmation.
+  await context.click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(`#event-${eventId}`)).toBeFocused();
+  await expect(link).not.toBeFocused();
+  // Destination non focalisable : la navigation par fragment n'a personne à focaliser, et
+  // c'est là que la re-focalisation de la vignette était visible — elle ramenait la lecture
+  // à la photo au lieu de la laisser à l'endroit atteint.
+  const other = page.getByRole("link", {name: "Photo section", exact: true});
+  await other.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("link", {name: "Ouvrir l’entrée liée"}).click();
+  await expect(dialog).toBeHidden();
+  await expect(other).not.toBeFocused();
+  // La fermeture par Échap garde l'autre convention : retour à la vignette.
+  await link.click();
+  await expect(dialog).toBeVisible();
+  await dialog.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(link).toBeFocused();
+});
+
+test("courbes de solutions : légende par source et synthèse textuelle", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+  test.setTimeout(90000);
+  const id = await createMother(page, "Mère légende");
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  const entry = data => page.request.post("/api/v1/cultures/solutions",
+    {headers: {"X-CSRF-Token": csrf}, data: {operation: "entry",
+      request_id: require("node:crypto").randomUUID(), ...data}});
+  // Un relevé de réservoir suppose la solution présente : le renouvellement ouvre la période.
+  expect((await entry({kind: "renewal", reservoir_id: "reservoir_2", effective_at: "2026-08-01",
+    volume_l: 20})).ok()).toBe(true);
+  expect((await entry({kind: "reading", reservoir_id: "reservoir_2", effective_at: "2026-08-02",
+    ph: 6.1})).ok()).toBe(true);
+  expect((await entry({kind: "reading", targets: [id], effective_at: "2026-08-03", ph: 6.5})).ok()).toBe(true);
+  await page.goto("/cultures/solutions");
+  const figure = page.locator(".solution-chart").first();
+  // R3.3 : la synthèse vient du serveur ; une absence reste une absence, jamais un zéro.
+  await expect(figure.locator("#resume-ph")).toContainText("2 mesures");
+  await expect(figure.locator("#resume-ph")).toContainText("minimum 6.10, moyenne 6.30, maximum 6.50");
+  const ec = page.locator(".solution-chart").nth(1);
+  await expect(ec.locator("#resume-ec")).toContainText("aucune mesure");
+  await expect(ec.locator("#resume-ec")).not.toContainText("0.00");
+  await expect(figure.locator("svg")).toHaveAttribute("aria-describedby", "resume-ph legende-ph");
+  // R3.1 : la légende nomme les encodages et les deux sources du filtre.
+  const legend = figure.locator("#legende-ph");
+  await expect(legend).toContainText("Bande : plage cible");
+  await expect(legend).toContainText("Barre verticale : minimum et maximum du jour.");
+  await expect(legend).toContainText(/Réservoir de l’espace 2 · solution \w{8}/);
+  await expect(legend).toContainText("Mère légende · solution manuelle");
+  // Deux sources, deux classes distinctes : jamais la seule couleur, la forme change aussi.
+  await expect(figure.locator("circle.solution-source-0")).toHaveCount(1);
+  await expect(figure.locator("circle.solution-source-1")).toHaveCount(1);
+  const shapes = await figure.locator("circle").evaluateAll(nodes => nodes.map(node => {
+    const style = getComputedStyle(node);
+    return [style.fill, style.strokeDasharray, style.strokeWidth].join("|");
+  }));
+  expect(new Set(shapes).size).toBe(2);
+  // Le texte du curseur nomme la même source que la légende.
+  const slider = figure.getByRole("slider");
+  await slider.focus();
+  await expect(figure.locator(".culture-analysis-output")).toContainText(/repère : Réservoir de l’espace 2 · solution \w{8}/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await page.screenshot({path: testInfo.outputPath("legende-courbes.png"), fullPage: true});
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "daylight"));
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await page.screenshot({path: testInfo.outputPath("legende-courbes-plein-jour.png"), fullPage: true});
+});
+
+test("archives : occupation persistante signalée et durées par stade", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+  test.setTimeout(90000);
+  await page.goto("/cultures");
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  const post = data => page.request.post("/api/v1/cultures", {headers: {"X-CSRF-Token": csrf}, data});
+  let saved = await (await post({request_id: require("node:crypto").randomUUID(), operation: "create",
+    kind: "lot", name: "Lot archivé", origin_at: "2026-08-01", space_at: "2026-08-01",
+    stage_at: "2026-08-01", stage: "floraison", space: "space_2",
+    origins: [{label: "Semences A", count: 8}]})).json();
+  saved = await (await post({request_id: require("node:crypto").randomUUID(), operation: "event",
+    subject_id: saved.subject_id, version: saved.version, kind: "harvest", effective_at: "2026-08-20",
+    payload: {drying_at: "2026-08-20", drying_precision: "date"}})).json();
+  // Séchage terminé sans libération : le lot est archivé et tient toujours l'espace 2.
+  const finished = await post({request_id: require("node:crypto").randomUUID(), operation: "event",
+    subject_id: saved.subject_id, version: saved.version, kind: "finish", effective_at: "2026-09-01",
+    payload: {release: false, weight_g: 42, lessons: "Séchage lent"}});
+  expect(finished.ok()).toBe(true);
+  await page.goto("/cultures?archives=1");
+  const card = page.locator(".culture-grid .card").filter({hasText: "Lot archivé"});
+  await expect(card).toContainText("Espace encore occupé · à libérer : Espace 2");
+  await expect(card).toContainText("Durées par stade : Floraison 19 j, Séchage 12 j");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+  await page.screenshot({path: testInfo.outputPath("archives.png"), fullPage: true});
+});

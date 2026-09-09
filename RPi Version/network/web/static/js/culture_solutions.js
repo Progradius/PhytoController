@@ -241,9 +241,15 @@
   };
   // Lot E : bandes de référence des plages cibles, fournies par période résolue.
   const bands = JSON.parse(charts?.dataset.targetBands || "[]");
+  // Lot C : la variante de repère d'un point et son libellé viennent du serveur, comme la
+  // légende rendue sous la figure. Le script ne décide ni des sources ni de leur ordre ; il
+  // pose la classe et recopie le nom, pour que légende, dessin et curseur disent la même chose.
+  const sourceLabels = new Map(JSON.parse(charts?.dataset.chartSources || "[]")
+    .map(source => [source.variant, source.label]));
+  const sourceMark = p => sourceLabels.has(p.variant) ? ` · repère : ${sourceLabels.get(p.variant)}` : "";
   document.querySelectorAll("svg[data-metric]").forEach(svg => {
     const metric = svg.dataset.metric;
-    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : p[metric]} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""} · ${p.annotations.join(', ')}`;
+    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : p[metric]} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""} · ${p.annotations.join(', ')}${sourceMark(p)}`;
     // Tableau équivalent : une colonne par nature de donnée. Une lacune s'écrit
     // « mesure absente » dans la colonne valeur, jamais 0.
     const columns = ["Date", "Valeur", "Unité", "Cible ou capteur", "Période", "Agrégats", "Lacune"];
@@ -318,9 +324,10 @@
         if (p[metric + "_count"]) {
           svg.append(svgNode("path", {d: `M${x(p)} ${y({...p, [metric]: p[metric + "_min"]})}V${y({...p, [metric]: p[metric + "_max"]})}`, class: "solution-range"}));
         }
-        // Une classe supplémentaire par cible ou période viendra s'ajouter ici sans
-        // toucher au reste du dessin ni à la position transmise à l'explorateur.
+        // Une classe par cible et période de solution, calculée côté serveur : deux sources
+        // ne se distinguent jamais par la seule teinte, la forme du point change aussi.
         const classes = ["solution-dot"];
+        if (p.variant !== undefined && p.variant !== null) classes.push(`solution-source-${p.variant}`);
         const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: classes.join(" "), "data-analysis-index": i});
         dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${p.target} · solution ${p.period || "manuelle"}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
         places[i] = {x: x(p), y: y(p)};

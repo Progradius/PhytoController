@@ -223,11 +223,35 @@
       dialog.showModal();
       close.focus();
     }));
+    // Échap, bouton « Fermer et revenir » et clic sur le voile ramènent le focus à la
+    // vignette : rien n'a été ouvert, la lecture reprend où elle s'est arrêtée. Le lien de
+    // contexte, lui, emmène ailleurs ; y ramener le focus contredirait la convention du
+    // lot 2, où l'élément focalisé **est** la confirmation de l'endroit atteint.
+    let followed = false;
     close.addEventListener("click", () => dialog.close());
-    dialog.addEventListener("close", () => origin?.focus());
+    dialog.addEventListener("close", () => {
+      const back = followed ? null : origin;
+      followed = false;
+      back?.focus();
+    });
     previous.addEventListener("click", () => show(index - 1));
     next.addEventListener("click", () => show(index + 1));
-    context.addEventListener("click", () => dialog.close());
+    context.addEventListener("click", event => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const destination = new URL(context.href, location.href);
+      const here = destination.pathname === location.pathname && destination.search === location.search;
+      followed = true;
+      dialog.close();
+      // Vers une autre page (journal → fiche), la navigation fait le travail. Sur la même
+      // page, un dialogue qui se ferme ne laisse ni défilement ni focus au fragment : c'est
+      // donc ici que l'ancre `tabindex="-1"` reçoit le focus, quand elle existe.
+      if (!here || !destination.hash) return;
+      const anchor = document.getElementById(destination.hash.slice(1));
+      if (!anchor) return;
+      event.preventDefault();
+      location.hash = destination.hash;
+      anchor.focus();
+    });
     dialog.addEventListener("click", event => {
       // Un clic sur le voile atteint le `dialog` lui-même, jamais son contenu.
       if (event.target === dialog) dialog.close();
