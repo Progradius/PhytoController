@@ -171,22 +171,37 @@ Après la remédiation du 9 septembre 2026 (lot E, `tests/ui/cultures_ui_lot_4.s
   `dashboard`, `visual`, `cultures`…) ne fuit plus non plus. `tests/ui_server.py` crée un
   `tempfile.TemporaryDirectory(prefix="phyto-ui-")` que Playwright ne laisse jamais nettoyer :
   il tue le serveur en fin de session, donc ni `atexit` ni le finaliseur ne s'exécutent.
-  Le mécanisme est le même que celui de la fixture — imposer un `TMPDIR` qui nous appartient —
-  mais réparti sur trois points, parce que Playwright 1.62.1 démarre le `webServer` **avant**
-  `globalSetup` (ordre `clear output` → `plugin setup` → `globalSetup`) :
+  Le mécanisme est le même que celui de la fixture — imposer un `TMPDIR` qui nous appartient,
+  et ne le supprimer qu'**après** la mort du serveur :
   * `tests/ui/global_setup.js` définit le chemin `os.tmpdir()/phyto-ui-webserver-<PID>`, seule
     vérité partagée. Il est **déterministe** et non mémorisé : la config est réévaluée dans
-    chaque worker, donc un `mkdtempSync` dans la config créerait un répertoire par worker,
-    tandis que le teardown tourne dans le processus principal, celui qui a évalué la config ;
-  * `playwright.config.js` le passe en `webServer.env.TMPDIR` et préfixe la commande d'un
-    `mkdir -p "$TMPDIR"` — indispensable, `TemporaryDirectory` échouant si `TMPDIR` n'existe
-    pas et `globalSetup` arrivant trop tard ;
-  * `tests/ui/global_teardown.js` supprime le répertoire, sous quatre gardes : chemin nommé par
-    `webServerScratchDir()`, enfant direct de `os.tmpdir()`, préfixe `phyto-ui-webserver-`,
-    existant. Les `/tmp/phyto-ui-*` historiques ne portent pas ce préfixe et sont épargnés.
+    chaque worker, donc un `mkdtempSync` dans la config créerait un répertoire par worker ;
+    seul le processus principal lance le `webServer`, et c'est son PID qui nomme le répertoire ;
+  * `playwright.config.js` le passe en `webServer.env.TMPDIR` et confie création **et**
+    suppression à la commande elle-même :
+    `trap 'rm -rf "$TMPDIR"' EXIT INT TERM HUP; mkdir -p "$TMPDIR" && … tests/ui_server.py`,
+    avec `gracefulShutdown: {signal: "SIGTERM", timeout: 5000}`. Le `mkdir -p` est indispensable
+    ici et pas dans `globalSetup` : Playwright 1.62.1 démarre le `webServer` **avant** les hooks
+    globaux (ordre `clear output` → `plugin setup` → `globalSetup`), et `TemporaryDirectory`
+    échoue si `TMPDIR` n'existe pas.
+
+  Le nettoyage n'est **pas** un `globalTeardown`, et c'est délibéré. Dans le même ordre de
+  tâches, les teardowns globaux se jouent avant l'arrêt du `webServer` : un teardown effacerait
+  le répertoire d'un serveur encore vivant, ce que la fixture du carnet s'interdit
+  explicitement, et il ne serait même jamais atteint si le serveur échouait à démarrer (port
+  occupé, `PHYTO_TEST_PYTHON` absent), sa tâche n'ayant pas été enregistrée alors que le
+  `mkdir -p` a déjà eu lieu. Le `trap` appartient au processus qu'il nettoie : il couvre les
+  deux cas. Deux détails vérifiés sur un projet Playwright jetable, et sans lesquels il ne
+  nettoie rien : sans `gracefulShutdown`, Playwright arrête le serveur par un `SIGKILL` au
+  groupe de processus, qu'aucun `trap` ne voit ; et `/bin/sh` (dash) ne joue pas le `trap EXIT`
+  quand il meurt d'un signal non capté, d'où les quatre signaux. Parce que le shell capte
+  `TERM`, POSIX lui impose de différer le trap jusqu'à la fin de la commande au premier plan :
+  la suppression suit la mort du serveur, jamais l'inverse — vérifié sur `tests/ui_server.py`,
+  qui s'éteint bien sur `SIGTERM` (aiohttp) avant que le répertoire ne disparaisse. Un serveur
+  qui ne sortirait pas dans les 5 s retombe sur le `SIGKILL` d'avant.
 
   Avec `PHYTO_UI_BASE_URL`, aucun serveur n'est lancé : `webServerScratchDir()` rend `null`,
-  les deux hooks ne font rien, rien n'est créé ni supprimé. `--list` n'exécute aucun hook et ne
+  `globalSetup` ne fait rien, rien n'est créé ni supprimé. `--list` n'exécute aucun hook et ne
   crée donc rien. Vérification :
 
   ```bash

@@ -569,7 +569,10 @@ de repli ne compte que les sources de repli présentes sur cette mesure (aucune 
 en a pas). **Invariant** : la variante, elle, est calculée sur l'ensemble des points et reste
 **commune aux deux figures** — même source, même repère sur le pH et sur l'EC ; seule
 l'appartenance à une légende dépend de la mesure. Un même `variant` porte donc le même `label`
-dans les deux listes. `all` n'est la légende d'aucune figure : c'est la table de noms complète,
+dans les deux listes, à l'exception de l'entrée de repli (`variant` 6), dont le libellé compte
+les sources de repli de sa propre mesure. Une figure peut ainsi n'afficher que cette entrée
+alors que les variantes 0 à 5 n'y sont utilisées par aucun point : limite acceptée, prix de
+l'invariant. `all` n'est la légende d'aucune figure : c'est la table de noms complète,
 toutes sources confondues, dont le script se sert pour nommer une ligne **sans mesure** du
 tableau équivalent — un point de renouvellement ne figure dans aucune des deux légendes et
 retomberait sinon sur l'identifiant technique de sa cible.

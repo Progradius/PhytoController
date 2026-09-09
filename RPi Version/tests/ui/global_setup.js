@@ -10,9 +10,8 @@
 //
 // Le chemin est **déterministe** (dérivé du PID) et non stocké : `playwright.config.js` est
 // réévaluée dans chaque worker (vérifié sur @playwright/test 1.62.1), donc mémoriser un
-// `mkdtempSync` dans la config créerait un répertoire par worker. Le teardown, lui, tourne
-// dans le processus principal, celui-là même qui a évalué la config en premier : il retrouve
-// donc le chemin en appelant simplement cette fonction.
+// `mkdtempSync` dans la config créerait un répertoire par worker. Seul le processus principal
+// lance le `webServer`, et c'est son PID qui nomme le répertoire.
 //
 // Ordre réel des tâches de Playwright 1.62.1 (`createGlobalSetupTasks`) :
 // `clear output` → `plugin setup` (c'est là que le `webServer` démarre) → `globalSetup`.
@@ -20,6 +19,10 @@
 // répertoire (`mkdir -p "$TMPDIR"`), juste avant le serveur qui en a besoin. Le `mkdirSync`
 // ci-dessous est idempotent ; il garantit l'invariant « le répertoire existe » si cet ordre
 // interne venait à changer.
+//
+// La suppression n'appartient pas à un hook global : elle est portée par le `trap` de la
+// commande du `webServer`, seul point du dispositif qui se déclenche **après** la mort du
+// serveur et qui survit à un serveur mort au démarrage. Voir `playwright.config.js`.
 
 const fs = require("fs");
 const os = require("os");
@@ -47,4 +50,3 @@ module.exports = async function globalSetup() {
 };
 
 module.exports.webServerScratchDir = webServerScratchDir;
-module.exports.SCRATCH_PREFIX = SCRATCH_PREFIX;

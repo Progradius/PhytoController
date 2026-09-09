@@ -120,6 +120,12 @@ def chart_sources(points, names, metric=None):
     le même repère sur les deux figures, sans quoi la couleur d'un point changerait de sens
     d'une courbe à l'autre. L'entrée de repli ne compte que les sources de repli présentes
     sur cette mesure, et disparaît quand il n'y en a aucune.
+
+    Limite acceptée du couple « rang global, légende filtrée » : une figure peut n'afficher
+    que l'entrée de repli alors que les variantes 0 à 5 n'y sont utilisées par aucun point,
+    les sources les mieux classées ne mesurant pas cette grandeur. C'est le prix de
+    l'invariant « même source, même repère » — renuméroter par mesure donnerait deux sens à
+    une même couleur d'une figure à l'autre, ce qui trompe davantage qu'une variante inutilisée.
     """
     ranks, measured = {}, set()
     for point in points:

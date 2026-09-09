@@ -1,3 +1,4 @@
+import html
 import json
 import uuid
 
@@ -508,18 +509,40 @@ async def test_courbes_de_solutions_portent_synthese_et_legende(web_context):
     assert "Lot EC seul" not in legendes["ph"]
     assert "Lot courbes · solution manuelle" in legendes["ph"]
     assert "Lot courbes" not in legendes["ec"]
-    assert "Aucune source de mesure sur ce filtre." not in legendes["ph"]
+    assert "Aucune source ne mesure cette grandeur sur ce filtre." not in legendes["ph"]
     assert "Réservoir de l’espace 2" not in legendes["ph"] and "Réservoir de l’espace 2" not in legendes["ec"]
     # La source du renouvellement n'est dans aucune légende, mais reste nommée dans la table
     # complète : c'est d'elle que le tableau équivalent tire le nom de sa ligne sans mesure,
     # au lieu d'y afficher l'identifiant technique de la cible.
-    attribut = json.loads(page.split('data-chart-sources="', 1)[1].split('"', 1)[0].replace("&#34;", '"'))
+    attribut = json.loads(html.unescape(page.split('data-chart-sources="', 1)[1].split('"', 1)[0]))
     assert [source["target"] for source in attribut["all"]] == [
         "Réservoir de l’espace 2", "Lot courbes", "Lot EC seul"]
     # Une absence reste une absence : les points sans pH sont comptés en lacunes, pas en zéros.
     assert "maximum 6.50 · 2 lacunes" in page
     # La consigne d'usage est rendue une seule fois, par le fragment de l'explorateur.
     assert "Toucher le graphique pour choisir le point le plus proche" not in page
+
+
+async def test_legende_d_une_grandeur_non_mesuree_le_dit_sans_parler_du_filtre(web_context):
+    """Une figure dont la grandeur n'est mesurée par aucune source annonce cette absence-là.
+
+    Le filtre, lui, n'est pas vide : il porte des relevés de pH. Dire « aucune source de
+    mesure sur ce filtre » sous la courbe d'EC laissait croire à un filtre sans relevé, alors
+    que c'est cette **grandeur** que personne ne mesure.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    lot = await (await client.post("/api/v1/cultures", json=create("Lot pH seul"), headers=headers)).json()
+    reading = {"request_id": str(uuid.uuid4()), "operation": "entry", "kind": "reading",
+               "targets": [lot["subject_id"]], "effective_at": "2026-08-02", "ph": 6.2}
+    assert (await client.post("/api/v1/cultures/solutions", json=reading, headers=headers)).status == 200
+
+    page = await (await client.get("/cultures/solutions")).text()
+    legendes = {metric: page.split(f'id="legende-{metric}"', 1)[1].split("</ul>", 1)[0]
+                for metric in ("ph", "ec")}
+    assert "Aucune source ne mesure cette grandeur sur ce filtre." in legendes["ec"]
+    assert "Lot pH seul · solution manuelle" in legendes["ph"]
+    assert "Aucune source ne mesure cette grandeur sur ce filtre." not in legendes["ph"]
 
 
 async def test_journal_relie_chaque_photo_a_son_entree_focalisable(web_context):

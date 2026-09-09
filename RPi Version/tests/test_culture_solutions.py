@@ -433,6 +433,10 @@ def test_repli_de_legende_ne_compte_que_les_sources_de_la_mesure():
               for index in range(CHART_SOURCE_VARIANTS)]
     points += [{"target": f"repli-{index}", "period": None, "ph": None, "ec": 1.2} for index in range(3)]
 
+    # Limite acceptée, visible ici : la légende de l'EC n'a que son entrée de repli alors que
+    # les variantes 0 à 5 n'y portent aucun point, les six premières sources ne mesurant que le
+    # pH. C'est le prix de l'invariant « même source, même repère » — renuméroter par mesure
+    # donnerait deux sens à une même couleur d'une figure à l'autre.
     ph = chart_sources(points, {}, "ph")
     ec = chart_sources(points, {}, "ec")
     assert len(ph["legend"]) == CHART_SOURCE_VARIANTS
