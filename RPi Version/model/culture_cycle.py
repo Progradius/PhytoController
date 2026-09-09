@@ -10,6 +10,51 @@ REMINDER_STATES = {"planned": "Prévu", "postponed": "Reporté", "done": "Fait",
 CHECKLIST = {"lighting": ("Éclairage vérifié", "/conf#daily-timer-2"),
              "pump": ("Pompe vérifiée", "/conf#cyclic-1"),
              "ventilation": ("Ventilation commune vérifiée", "/conf#motor")}
+# Espace 1 : mêmes organes, autres réglages. L'éclairage et la sortie locale y ont leur
+# propre minuterie ; la ventilation est commune aux deux espaces et ne change pas de lien.
+# Le gabarit portait cette table en clair ; elle est ici pour que la règle et la page ne
+# puissent plus diverger.
+SPACE_1_CHECKLIST = {"lighting": ("Éclairage vérifié", "/conf#daily-timer-1"),
+                     "pump": ("Sortie locale vérifiée", "/conf#cyclic-2")}
+# Vérifications pertinentes stade par stade, motif compris. Chaque stade nomme
+# explicitement ses organes : aucun défaut implicite, aucune liste « toutes les cases »
+# héritée d'un autre stade. Le séchage ne retient que la ventilation — la récolte a coupé
+# l'alimentation déclarée et l'éclairage n'a plus d'objet —, et le maintien d'un pied mère
+# ne dépend que de sa photopériode.
+STAGE_CHECKS = {
+    "germination": (("lighting", "La photopériode de levée est déclarée dans les minuteries."),
+                    ("pump", "L’apport de solution conditionne la levée.")),
+    "enracinement": (("lighting", "La photopériode d’enracinement est déclarée dans les minuteries."),
+                     ("pump", "L’apport de solution conditionne la reprise des boutures.")),
+    "vegetatif": (("lighting", "La photopériode végétative est déclarée dans les minuteries."),
+                  ("pump", "L’apport de solution conditionne la croissance.")),
+    "floraison": (("lighting", "La photopériode de floraison est déclarée dans les minuteries."),
+                  ("pump", "L’apport de solution conditionne la floraison."),
+                  ("ventilation", "Le renouvellement d’air limite l’humidité en floraison.")),
+    "sechage": (("ventilation", "Le séchage dépend du seul renouvellement d’air : "
+                                "l’alimentation est coupée depuis la récolte."),),
+    "maintien": (("lighting", "Le maintien d’un pied mère dépend de sa photopériode."),),
+}
+
+
+def stage_checks(subject):
+    """Vérifications pertinentes d'une culture, selon son stade **et** son espace.
+
+    Règle pure : ni matériel, ni disque, ni horloge. Elle ne déclare rien et ne coche rien
+    — elle nomme les réglages à relire et pourquoi, avec le lien de la page existante.
+
+    Une culture archivée n'en a aucune : son parcours est clos, relire ses minuteries ne
+    dirait plus rien de vrai. Un stade inconnu ou absent ne rend pas une liste par défaut :
+    une absence reste une absence.
+    """
+    if subject.get("archived"):
+        return []
+    space_1 = subject.get("space") == "space_1"
+    checks = []
+    for key, reason in STAGE_CHECKS.get(subject.get("stage") or "", ()):
+        label, href = (SPACE_1_CHECKLIST.get(key) or CHECKLIST[key]) if space_1 else CHECKLIST[key]
+        checks.append({"key": key, "label": label, "href": href, "reason": reason})
+    return checks
 # Bloc « Aujourd'hui » de l'accueil : autant de cartes de rappel en retard et autant dues
 # du jour, pas davantage. Même raison que `TODAY_JOURNAL` — l'accueil montre la prochaine
 # action, il n'est pas une seconde page de rappels ; au-delà il renvoie à `/cultures/cycles`.

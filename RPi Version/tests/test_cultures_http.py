@@ -101,6 +101,12 @@ async def test_backfill_http_complete_le_passe_sans_toucher_au_stade(web_context
     assert [space["space"] for space in detail["subject"]["occupations"]] == ["space_1", "space_2"]
     page = await (await client.get("/cultures/" + saved["subject_id"])).text()
     assert "Compléter le parcours passé" in page and "Ajouter une étape passée" in page
+    # La section est atteignable : c'est l'ancre que vise la suggestion de rattrapage.
+    assert 'id="backfill"' in page
+    aid = await (await client.get("/api/v1/cultures/assistance/" + saved["subject_id"])).json()
+    row = next(item for item in aid["items"] if item["id"] == "backfill")
+    assert row["href"] == f"/cultures/{saved['subject_id']}#backfill"
+    assert row["category"] == "Information manquante"
 
 
 async def test_panne_carnet_ne_degrade_pas_controle(web_context, monkeypatch):
@@ -238,3 +244,28 @@ async def test_changement_de_stade_rend_exactement_les_options_pures(web_context
     select = page[page.index('<select name="stage">'):]
     rendered = [line.split('"')[0] for line in select[:select.index("</select>")].split('<option value="')[1:]]
     assert rendered == detail["stage_options"] == stage_options(detail["subject"])
+
+
+async def test_fiche_rend_les_verifications_du_stade_et_annonce_ses_aides(web_context):
+    """Vérifications propres au stade et à l'espace, zone d'aides annoncée aux lecteurs.
+
+    Un semis en germination à l'espace 1 ne relit ni la ventilation (le stade ne la
+    concerne pas) ni les réglages de l'espace 2 : la page ne propose plus une liste fixe.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Lot vérifs"), headers=headers)).json()
+    page = await (await client.get("/cultures/" + saved["subject_id"])).text()
+    assert "Vérifications pertinentes à ce stade" in page
+    assert '<a href="/conf#daily-timer-1">Éclairage vérifié</a>' in page
+    assert '<a href="/conf#cyclic-2">Sortie locale vérifiée</a>' in page
+    assert "Ventilation commune vérifiée" not in page and "/conf#daily-timer-2" not in page
+    detail = await (await client.get("/api/v1/cultures/" + saved["subject_id"])).json()
+    assert detail["stage_checks"] == [
+        {"key": "lighting", "label": "Éclairage vérifié", "href": "/conf#daily-timer-1",
+         "reason": "La photopériode de levée est déclarée dans les minuteries."},
+        {"key": "pump", "label": "Sortie locale vérifiée", "href": "/conf#cyclic-2",
+         "reason": "L’apport de solution conditionne la levée."}]
+    aid = await (await client.get(f"/api/v1/cultures/assistance/{saved['subject_id']}")).json()
+    assert {item["category"] for item in aid["items"]} <= {"À faire", "À vérifier", "Information manquante"}
+    assert 'aria-live="polite"' in page

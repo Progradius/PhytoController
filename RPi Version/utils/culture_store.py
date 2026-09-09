@@ -21,7 +21,7 @@ from model.culture import (SPACES, STAGES, CultureConflict, CultureError, backfi
                            creation_stages, event_payload, fiche_actions, project, stamp,
                            stage_options, text_value, validate_origin, validate_origins,
                            validate_spaces)
-from model.culture_cycle import TODAY_REMINDERS, reminder_buckets
+from model.culture_cycle import TODAY_REMINDERS, reminder_buckets, stage_checks
 from model.culture_journal import TODAY_JOURNAL
 
 from model.culture_solution import RESERVOIRS
@@ -336,6 +336,9 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                     self._reminders(subject_id, revisions=False), names, today),
                 "media": self._media_list(subject_id),
                 "actions": fiche_actions(subject),
+                # Vérifications pertinentes au stade et à l'espace : règle pure, le gabarit
+                # n'a plus de condition de stade ni de table de liens `/conf#…`.
+                "stage_checks": stage_checks(subject),
                 # Stades proposables pour une progression : la règle reste dans le modèle pur,
                 # le gabarit n'a plus de rang de stade à connaître.
                 "stage_options": stage_options(subject),

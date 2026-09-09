@@ -15,6 +15,7 @@ import pytest
 
 from model.culture import (KINDS, STAGES, allowed_actions, creation_stages, fiche_actions,
                            first_stage, stage_options)
+from model.culture_cycle import stage_checks
 from utils.culture_store import CultureStore
 
 # Horloge figée, postérieure à toutes les dates saisies ici : le vert d'aujourd'hui ne doit
@@ -33,6 +34,10 @@ PRIMARY_ACTION = re.compile(r'id="action-([a-z]+)"')
 # des <option>, il faut donc borner l'extraction au sélecteur de stade lui-même.
 STAGE_SELECT = re.compile(r'<select name="stage">(.*?)</select>', re.S)
 OPTION = re.compile(r'<option value="([a-z]+)"')
+# Vérifications pertinentes : la liste rendue, lien et libellé, sans condition de stade en
+# Jinja. Le bloc n'existe dans la page que si la règle pure a produit quelque chose.
+CHECK_LIST = re.compile(r'<ul class="culture-checks">(.*?)</ul>', re.S)
+CHECK_LINK = re.compile(r'<a href="([^"]+)">([^<]+)</a>')
 
 
 def subject(kind="lot", stage="vegetatif", space="space_1", archived=False, origin_type="seed"):
@@ -60,6 +65,7 @@ def build_detail(item, **overrides):
     detail = {"subject": item, "events": [], "total": 0, "offset": 0, "photos": [],
               "descendants": [], "backfill": {"stages": [], "spaces": [], "before": None},
               "reminders": EMPTY_BUCKETS, "media": [], "actions": fiche_actions(item),
+              "stage_checks": stage_checks(item),
               "stage_options": stage_options(item),
               "stage_options_full": stage_options(item, current=True)}
     detail.update(overrides)
@@ -103,6 +109,26 @@ MATRIX = [subject(kind, stage, space, archived, origin_type)
                          f"{item['origin_type']}-{item['stage']}-{item['space']}-{int(item['archived'])}")
 def test_actions_pures_equivalentes_au_gabarit(item):
     assert_equivalence(render(item), item)
+
+
+@pytest.mark.parametrize("item", MATRIX, ids=lambda item:
+                         f"{item['origin_type']}-{item['stage']}-{item['space']}-{int(item['archived'])}")
+def test_verifications_pertinentes_equivalentes_au_gabarit(item):
+    """Sur toute la matrice, les liens rendus sont exactement `stage_checks(item)`.
+
+    Le gabarit portait la table des liens `/conf#…` et la condition « lot non archivé » ;
+    la règle pure décide désormais des deux, et la page ne peut plus proposer de relire un
+    organe que le stade ne concerne pas — ni en oublier un.
+    """
+    html = render(item)
+    checks = stage_checks(item)
+    block = CHECK_LIST.search(html)
+    assert (block is not None) == bool(checks)
+    assert "Vérifications pertinentes à ce stade" in html if checks else True
+    rendered = CHECK_LINK.findall(block.group(1)) if block else []
+    assert rendered == [(check["href"], check["label"]) for check in checks]
+    for check in checks:
+        assert check["reason"] in html
 
 
 STAGE_CASES = [item for item in MATRIX if "stage" in allowed_actions(item)]
@@ -206,6 +232,7 @@ async def test_vue_detail_publie_les_regles_pures(tmp_path, label, overrides):
         await store.close()
     item = detail["subject"]
     assert detail["actions"] == fiche_actions(item)
+    assert detail["stage_checks"] == stage_checks(item)
     assert detail["stage_options"] == stage_options(item)
     assert detail["stage_options_full"] == stage_options(item, current=True)
     assert_equivalence(render(item, detail=detail), item)

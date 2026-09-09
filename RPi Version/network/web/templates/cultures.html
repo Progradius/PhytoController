@@ -167,7 +167,7 @@
 </header>
 <p class="card-meta">J0 correspond à la date locale de début ; les jours sont calendaires ({{ overview.timezone }}), pas des périodes de 24 h.</p>
 <p class="card-meta" data-device-timezone>Les heures précises sont saisies dans le fuseau de votre appareil.</p>
-<section class="culture-section" data-culture-assistance="{{ subject.id }}" hidden aria-label="Suggestions expliquées"></section>
+<section class="culture-section" data-culture-assistance="{{ subject.id }}" hidden aria-live="polite" aria-label="Suggestions expliquées"></section>
 <section class="culture-section" aria-labelledby="actions-title"><h2 id="actions-title">Que faire maintenant ?</h2>
 <div class="culture-grid">
 {% for action in actions.primary %}
@@ -202,13 +202,11 @@
 {% if subject_reminders[bucket] %}<h4>{{ title }}</h4><div class="culture-grid">{% for reminder in subject_reminders[bucket] %}{{ reminder_card(reminder, bucket == 'done_today') }}{% endfor %}</div>{% endif %}
 {% endfor %}
 {% else %}<p>Aucun rappel rattaché à cette culture. <a href="/cultures/cycles?subject={{ subject.id|urlencode }}#rappels">Créer un rappel</a>.</p>{% endif %}
-{% if subject.kind == 'lot' and not subject.archived %}
+{% if detail.stage_checks %}
 <h3>Vérifications pertinentes à ce stade</h3>
 <p class="card-meta">Ces liens ouvrent les réglages existants ; rien n’est enregistré ici. La vérification elle-même se déclare depuis les cycles.</p>
 <ul class="culture-checks">
-<li><a href="{{ '/conf#daily-timer-1' if subject.space == 'space_1' else '/conf#daily-timer-2' }}">Éclairage vérifié</a></li>
-<li><a href="{{ '/conf#cyclic-2' if subject.space == 'space_1' else '/conf#cyclic-1' }}">{{ 'Sortie locale vérifiée' if subject.space == 'space_1' else 'Pompe vérifiée' }}</a></li>
-<li><a href="/conf#motor">Ventilation commune vérifiée</a></li>
+{% for check in detail.stage_checks %}<li><a href="{{ check.href }}">{{ check.label }}</a> <span class="card-meta">{{ check.reason }}</span></li>{% endfor %}
 </ul>
 <p><a href="/cultures/cycles?subject={{ subject.id|urlencode }}">Déclarer une vérification pour cette culture</a></p>
 {% endif %}
@@ -229,7 +227,7 @@
 {% if subject.balance is defined %}<p>{{ subject.balance.note }}</p>{% if subject.balance.weight_g is defined and subject.balance.weight_g is not none %}<p>Poids sec : {{ subject.balance.weight_g }} g</p>{% endif %}{% if subject.balance.get('lessons','') %}<p class="culture-note">{{ subject.balance.get('lessons','') }}</p>{% endif %}
 {% else %}<p>Le bilan s’écrit à la fin du séchage : il n’y en a pas encore pour cette culture.</p>{% endif %}</section>
 {% if detail.backfill.before %}
-<section class="culture-section culture-backfill"><h2>Compléter le parcours passé</h2>
+<section id="backfill" class="culture-section culture-backfill" tabindex="-1"><h2>Compléter le parcours passé</h2>
 <p class="card-meta">Pour une culture reprise en cours de cycle : ces étapes sont antérieures au début du stade courant ({{ stages[subject.stage] }} depuis le {{ subject.stage_at|culture_date(overview.timezone) }}). Elles ne changent ni ce stade, ni son compteur, ni la clôture de la fiche. Une étape à la même date que le stade courant est refusée : préciser une date antérieure.</p>
 <div class="culture-grid">
 {% if detail.backfill.stages %}

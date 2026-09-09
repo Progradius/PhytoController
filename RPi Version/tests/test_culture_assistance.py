@@ -160,27 +160,38 @@ async def test_bornes_des_ressemblances_et_des_suggestions(cultures):
 
 
 async def test_lignes_d_association_de_reservoir_selon_le_nombre_de_liens(cultures):
-    """Zéro, une, puis deux associations : chaque cas produit une ligne, aucune ne manque.
+    """Zéro, une, puis deux associations : trois constats distincts, jamais confondus.
 
-    Le texte de « aucune » et de « plusieurs » est aujourd'hui le même (R3.5 le sépare) ;
-    ce test verrouille la présence de la ligne, pas sa formulation.
+    « Rien n'est déclaré » appelle une saisie, « deux choses le sont » une correction : les
+    réunir sous « inconnue ou non unique » répondait la même chose aux deux (R3.5).
     """
     lot = await cultures.call("mutate", create(space="space_2"))
     identifier = lot["subject_id"]
     reading = {"operation": "entry", "request_id": str(uuid.uuid4()), "kind": "reading",
                "targets": [identifier], "effective_at": "2026-08-05", "ph": 6.0}
 
-    async def lines():
-        preview = await cultures.call("preview", "solution", {**reading, "request_id": str(uuid.uuid4())})
-        return [line for line in preview["summary"] if "ssociation" in line or "limentation déclarée" in line]
+    async def preview():
+        return await cultures.call("preview", "solution", {**reading, "request_id": str(uuid.uuid4())})
 
-    # Aucune solution déclarée à cette date : l'association est inconnue.
-    assert len(await lines()) == 1 and "inconnue ou non unique" in (await lines())[0]
+    async def lines():
+        return [line for line in (await preview())["summary"] if "limentation" in line]
+
+    # Aucune solution déclarée à cette date : l'absence est nommée, avec l'action qui la lève.
+    assert await lines() == ["Aucune alimentation déclarée à cette date pour Semis. "
+                             "La cible saisie est conservée."]
+    assert {"label": "Déclarer la solution présente",
+            "href": "/cultures/solutions#saisie"} in (await preview())["links"]
+
     await cultures.call("solution_mutate", entry())
-    assert len(await lines()) == 1 and "Alimentation déclarée" in (await lines())[0]
+    assert len(await lines()) == 1
+    single = (await lines())[0]
+    assert single.startswith("Alimentation déclarée à cette date pour Semis : Réservoir de l’espace 2")
+    assert "(association depuis 2026-07-31)" in single
+    assert {"label": "Ouvrir Réservoir de l’espace 2",
+            "href": "/cultures/solutions?target=reservoir_2#reservoirs"} in (await preview())["links"]
 
     # Deux associations simultanées sont hors d'atteinte du parcours normal — un lot
-    # n'occupe qu'un espace — mais la branche existe et doit rendre une ligne.
+    # n'occupe qu'un espace — mais la branche existe et doit les nommer toutes les deux.
     def duplicate():
         with cultures._db:
             period = cultures._db.execute("SELECT id FROM solution_periods LIMIT 1").fetchone()[0]
@@ -191,7 +202,11 @@ async def test_lignes_d_association_de_reservoir_selon_le_nombre_de_liens(cultur
         return period
     cultures._duplicate_link = duplicate
     await cultures.call("duplicate_link")
-    assert len(await lines()) == 1 and "inconnue ou non unique" in (await lines())[0]
+    several = (await lines())[0]
+    assert len(await lines()) == 1 and several.startswith("Plusieurs alimentations déclarées à cette date pour Semis : ")
+    assert "Réservoir de l’espace 2" in several and "Bac de bouturage de l’espace 1" in several
+    assert {"label": "Vérifier les solutions déclarées",
+            "href": "/cultures/solutions#reservoirs"} in (await preview())["links"]
 
 
 def test_resume_de_transition_d_une_recolte_annonce_la_coupe_d_alimentation():
@@ -220,3 +235,113 @@ async def test_http_assistance_version_inchangee_et_fiche_inconnue(web_context):
     for query in ("", "?version=", "?version=abc", "?version=1.5"):
         assert "items" in await (await client.get(url + query)).json()
     assert (await client.get("/api/v1/cultures/assistance/inconnu?version=1")).status == 404
+
+
+async def test_plages_applicables_ordre_strict_ecart_et_absence(cultures):
+    """Une ligne par mesure renseignée, la source nommée, l'absence dite (R3.4).
+
+    L'ordre de résolution est celui du carnet et il est strict : cible directe, puis sujet
+    alimenté, puis réservoir, sans qu'aucune borne ne soit fusionnée entre deux sources.
+    """
+    from tests.test_culture_targets import target
+
+    lot = await cultures.call("mutate", create(space="space_2"))
+    identifier = lot["subject_id"]
+    await cultures.call("solution_mutate", entry())
+
+    async def lines(command, **extra):
+        preview = await cultures.call("preview", "solution",
+                                      {**command, "request_id": str(uuid.uuid4()), **extra})
+        return [line for line in preview["summary"] if "lage applicable" in line]
+
+    # Relevé du réservoir : le lot de l'espace 2 en est le sujet alimenté à cette date.
+    measured = entry("reading", "2026-08-05", ph=6.5)
+    # Aucune plage enregistrée : l'absence est explicite et ne devient jamais un zéro.
+    assert await lines(measured) == ["Aucune plage applicable à cette cible à cette date (pH)."]
+
+    await cultures.call("target_mutate", target(ph_min="5,8", ph_max="6,4"))
+    assert await lines(measured) == ["Plage applicable pH 5,8–6,4 (source : Réservoir de la mesure "
+                                     "— Réservoir de l’espace 2, plage du 2026-08-01) ; écart : +0,1."]
+
+    # Une plage du sujet alimenté l'emporte sur celle du réservoir, sans mélange des bornes.
+    await cultures.call("target_mutate", target(target=identifier, ph_min="5,5", ph_max="6"))
+    fed = ("Plage applicable pH 5,5–6 (source : Sujet alimenté par la solution — Semis, "
+           "plage du 2026-08-01) ; écart : +0,5.")
+    assert await lines(measured) == [fed]
+    # Écart négatif, et EC non renseignée : aucune ligne d'EC, donc aucun écart inventé.
+    assert await lines(measured, ph=5.0) == ["Plage applicable pH 5,5–6 (source : Sujet alimenté "
+                                             "par la solution — Semis, plage du 2026-08-01) ; écart : -0,5."]
+    # Une mesure dans la plage le dit aussi, plutôt que de taire l'écart.
+    assert "écart : aucun, la mesure est dans la plage" in (await lines(measured, ph=5.7))[0]
+    # EC renseignée alors que la plage ne borne que le pH : la cible d'EC n'est pas fabriquée.
+    assert await lines(measured, ec=1.4) == [fed, "Aucune plage applicable à cette cible à cette date (EC)."]
+
+    # Relevé visant la culture elle-même : la cible directe est la source retenue.
+    direct = {"operation": "entry", "request_id": str(uuid.uuid4()), "kind": "reading",
+              "targets": [identifier], "effective_at": "2026-08-05", "ph": 6.5}
+    assert await lines(direct) == ["Plage applicable pH 5,5–6 (source : Cible directe de la mesure "
+                                   "— Semis, plage du 2026-08-01) ; écart : +0,5."]
+
+
+def test_categories_priorite_et_ancienneté_du_dernier_releve():
+    """Trois catégories, un ordre d'affichage, et une ancienneté énoncée sans jugement."""
+    from tests.test_culture_actions import subject
+
+    item = subject(stage="floraison", space="space_2")
+    rows = suggestions(item, [], [], "2026-09-07", "Europe/Paris", True)
+    assert {r["category"] for r in rows} <= {"À faire", "À vérifier", "Information manquante"}
+    reading = next(r for r in rows if r["id"] == "reading")
+    assert reading["category"] == "Information manquante"
+    assert reading["reason"].startswith("Aucun relevé disponible")
+
+    dated = {**item, "latest_reading": {"effective_at": "2026-09-02", "ph": 6.0, "ec": None}}
+    reading = next(r for r in suggestions(dated, [], [], "2026-09-07", "Europe/Paris", True)
+                   if r["id"] == "reading")
+    assert reading["category"] == "À vérifier"
+    assert reading["reason"] == "Dernier relevé saisi il y a 5 jours (le 2026-09-02)."
+    today = {**item, "latest_reading": {"effective_at": "2026-09-07"}}
+    assert "aujourd’hui" in next(r for r in suggestions(today, [], [], "2026-09-07", "Europe/Paris", True)
+                                if r["id"] == "reading")["reason"]
+
+    # Priorité : une échéance dépassée passe devant la vérification, elle-même devant le manque.
+    # Le parcours est complet ici : le rattrapage n'a rien à signaler et ne brouille pas l'ordre.
+    complete = {**item, "periods": [{"stage": stage, "start": "2026-08-01", "end": None,
+                                     "precision": "date"} for stage in ("germination", "vegetatif")]}
+    due = [{"id": "r1", "state": "planned", "due_date": "2026-09-01", "title": "Taille"}]
+    ordered = suggestions(complete, [], due, "2026-09-07", "Europe/Paris", True)
+    assert [r["category"] for r in ordered] == ["À faire", "À vérifier", "Information manquante"]
+    assert [r["id"] for r in ordered] == ["reminder-r1", "check-stage", "reading"]
+
+
+def test_manque_du_poids_et_de_la_photo_finale_d_un_lot_en_sechage():
+    """Un lot en séchage sans poids ni photo : une information manquante, pas une alarme."""
+    from tests.test_culture_actions import subject
+
+    item = subject(stage="sechage", space="space_2")
+    rows = suggestions(item, [], [], "2026-09-07", "Europe/Paris", True)
+    balance = next(r for r in rows if r["id"] == "balance")
+    assert balance["category"] == "Information manquante"
+    assert balance["href"].endswith("#action-finish") and balance["action"] == "Terminer le séchage"
+    # Une photo déjà enregistrée depuis ce stade suffit à retirer l'aide : elle ne réclame
+    # pas les deux données, elle signale qu'aucune des deux n'existe.
+    assert not any(r["id"] == "balance" for r in
+                   suggestions(item, [], [], "2026-09-07", "Europe/Paris", True, 1))
+    # Un poids déjà déclaré la retire également.
+    weighed = {**item, "balance": {"weight_g": 120}}
+    assert not any(r["id"] == "balance" for r in
+                   suggestions(weighed, [], [], "2026-09-07", "Europe/Paris", True))
+    # Aucun autre stade ne la produit.
+    assert not any(r["id"] == "balance" for r in
+                   suggestions(subject(stage="floraison", space="space_2"), [], [],
+                               "2026-09-07", "Europe/Paris", True))
+
+
+def test_le_rattrapage_pointe_sa_propre_section():
+    """R1.6 : la suggestion de rattrapage vise `#backfill`, pas le journal."""
+    from tests.test_culture_actions import subject
+
+    item = subject(stage="floraison", space="space_2")
+    item["periods"] = [{"stage": "floraison", "start": "2026-08-01", "end": None, "precision": "date"}]
+    row = next(r for r in suggestions(item, [], [], "2026-09-07", "Europe/Paris", True)
+               if r["id"] == "backfill")
+    assert row["href"] == "/cultures/sujet-1#backfill"
