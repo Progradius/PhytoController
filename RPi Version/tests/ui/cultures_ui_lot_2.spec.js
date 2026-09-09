@@ -98,17 +98,16 @@ test("lot UI 2 : un rappel en retard précède l'occupation, se reporte et se te
   const occupation = await page.locator('section[aria-label="Occupation des espaces"]').boundingBox();
   expect(agendaBox.y).toBeLessThan(occupation.y);
 
-  // « Nouvelle échéance » ne concerne que le report : le champ n'apparaît qu'alors.
-  const action = card.locator("select[data-reminder-action]");
+  // « Nouvelle échéance » ne concerne que le report : le champ n'apparaît qu'au premier
+  // clic sur « Reporter », qui n'envoie rien. Un clic sur « Fait » l'ignore.
   const postpone = card.locator("[data-reminder-postpone]");
   await expect(postpone).toBeHidden();
-  await action.selectOption("postponed");
+  await card.getByRole("button", {name: "Reporter", exact: true}).click();
   await expect(postpone).toBeVisible();
+  expect(await focusedId(page)).toBe(await postpone.locator("input").getAttribute("id"));
 
-  await action.selectOption("done");
-  await expect(postpone).toBeHidden();
   await card.locator('[data-cycle-form][data-operation="reminder_action"][data-cycle-return="agenda"]')
-    .getByRole("button", {name: "Enregistrer le suivi", exact: true}).click();
+    .getByRole("button", {name: "Fait", exact: true}).click();
 
   await expect(page).toHaveURL(new RegExp(`#reminder-${reminder}$`));
   const closed = page.locator(`#agenda #reminder-${reminder}`);
@@ -657,4 +656,173 @@ test("lot UI 2 : un enregistrement nominal n'envoie qu'une seule requête", asyn
   await expect(page).toHaveURL(/#event-/);
   expect(posts).toHaveLength(1);
   expect(posts.filter(url => url.includes("/preview/"))).toHaveLength(0);
+});
+
+// ---------------------------------------------------------------------------
+// 12. Remédiation D2a : rappel en deux gestes, transition guidée, recherche
+// ---------------------------------------------------------------------------
+
+// Compte les envois du carnet en séparant la prévalidation, qui n'écrit rien, de la
+// mutation, qui écrit. Une transition guidée fait exactement une de chaque.
+const countPosts = page => {
+  const posts = {preview: [], mutation: []};
+  page.on("request", request => {
+    if (request.method() !== "POST") return;
+    const url = request.url();
+    // Toute mutation du carnet (cultures, cycles, solutions…) hors prévalidation.
+    if (url.includes("/api/v1/cultures/preview/")) posts.preview.push(url);
+    else if (url.includes("/api/v1/cultures")) posts.mutation.push(url);
+  });
+  return posts;
+};
+
+test("lot UI 2 : « Fait » se clique une fois, « Reporter » ouvre sa date puis envoie", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  const id = await createMother(page, "Mère deux gestes");
+  const make = async title => {
+    const created = await mutate(page, "/api/v1/cultures/cycles", {
+      operation: "reminder", target: id, title, due_date: day(1), interval_days: 0,
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(200);
+    return created.body.id;
+  };
+  const done = await make("Rappel à clore");
+  const later = await make("Rappel à reporter");
+
+  await page.goto("/cultures");
+  // Un geste, un bouton : plus de sélecteur d'action à ouvrir avant d'enregistrer.
+  const first = page.locator(`#agenda #reminder-${done}`);
+  await expect(first.locator("select[name='action']")).toHaveCount(0);
+  await first.getByRole("button", {name: "Fait", exact: true}).click();
+  await expect(page).toHaveURL(new RegExp(`#reminder-${done}$`));
+  await expect(page.locator(`#agenda #reminder-${done}`)).toContainText("Fait");
+
+  // « Reporter » demande sa date avant d'envoyer : le premier clic n'écrit rien.
+  const second = page.locator(`#agenda #reminder-${later}`);
+  const zone = second.locator("[data-reminder-postpone]");
+  await expect(zone).toBeHidden();
+  const posts = countPosts(page);
+  await second.getByRole("button", {name: "Reporter", exact: true}).click();
+  await expect(zone).toBeVisible();
+  expect(posts.mutation).toHaveLength(0);
+
+  // Report à aujourd'hui : l'échéance avance vraiment (le rappel était dû hier) et la carte
+  // reste rendue sur l'accueil, où « à venir » n'est qu'un compte.
+  await zone.locator("input[name='due_date']").fill(day(0));
+  await second.getByRole("button", {name: "Reporter", exact: true}).click();
+  await expect(page).toHaveURL(new RegExp(`#reminder-${later}$`));
+  const moved = page.locator(`#agenda #reminder-${later}`);
+  await expect(moved).toBeVisible();
+  await expect(moved).toContainText(day(0).split("-").reverse().join("/"));
+  // Un report reste un envoi unique, sans prévalidation : le carnet n'a qu'une transaction.
+  expect(posts.mutation).toHaveLength(1);
+  expect(posts.preview).toHaveLength(0);
+});
+
+test("lot UI 2 : une transition guidée se vérifie avant d'écrire et atterrit sur les vérifications", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  await page.goto("/cultures");
+  const lot = await mutate(page, "/api/v1/cultures", {
+    operation: "create", kind: "lot", name: "Lot transition", origin_type: "seed",
+    stage: "germination", space: "space_1", origin_at: day(20), stage_at: day(20), space_at: day(20),
+    origins: [{label: "Semences A", count: 4}],
+  });
+  expect(lot.status, JSON.stringify(lot.body)).toBe(200);
+  await page.goto(`/cultures/${lot.body.subject_id}`);
+
+  const posts = countPosts(page);
+  const action = page.locator("#action-stage");
+  await action.locator(":scope > summary").click();
+  const form = action.locator("form[data-culture-event][data-guided]");
+  await expect(form).toHaveCount(1);
+  await form.locator('[name="stage"]').selectOption("vegetatif");
+  await form.locator('[name="effective_at"]').fill(day(2));
+
+  // Premier clic : le carnet n'est pas écrit, l'avant/après est présenté.
+  await form.getByRole("button", {name: "Passer au stade suivant", exact: true}).click();
+  const panel = form.locator(".culture-review");
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText("Vérification avant enregistrement");
+  await expect(panel).toContainText("Avant :");
+  await expect(panel).toContainText("Après :");
+  await expect(panel).toContainText(day(2));
+  expect(posts.preview).toHaveLength(1);
+  expect(posts.mutation).toHaveLength(0);
+
+  // Second geste : la confirmation explicite écrit, une seule fois.
+  await panel.getByRole("button", {name: "Confirmer et enregistrer", exact: true}).click();
+  await expect(page).toHaveURL(/#verifications$/);
+  expect(posts.mutation).toHaveLength(1);
+  await expect(page.locator(".culture-head")).toContainText("Végétatif");
+  // Le focus se pose sur les vérifications du nouveau stade : elles sont la confirmation.
+  expect(await focusedId(page)).toBe("verifications");
+  await expect(page.locator("#verifications")).toBeVisible();
+});
+
+test("lot UI 2 : la récolte annonce sa date de séchage dans la vérification", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  await page.goto("/cultures");
+  const lot = await mutate(page, "/api/v1/cultures", {
+    operation: "create", kind: "lot", name: "Lot récolte", origin_type: "seed",
+    stage: "floraison", space: "space_2", origin_at: day(60), stage_at: day(20), space_at: day(60),
+    origins: [{label: "Semences A", count: 2}],
+  });
+  expect(lot.status, JSON.stringify(lot.body)).toBe(200);
+  await page.goto(`/cultures/${lot.body.subject_id}`);
+
+  const action = page.locator("#action-harvest");
+  await action.locator(":scope > summary").click();
+  const form = action.locator("form[data-culture-event][data-guided]");
+  await form.locator('[name="effective_at"]').fill(day(1));
+  await form.locator('[name="drying_at"]').fill(day(0));
+  await form.getByRole("button", {name: "Récolter et lancer le séchage", exact: true}).click();
+
+  const panel = form.locator(".culture-review");
+  await expect(panel).toBeVisible();
+  // La date que l'enregistrement va écrire est celle du séchage, pas seulement la coupe.
+  await expect(panel).toContainText(`Début du séchage déclaré : ${day(0)}`);
+  await panel.getByRole("button", {name: "Confirmer et enregistrer", exact: true}).click();
+  await expect(page).toHaveURL(/#verifications$/);
+  await expect(page.locator(".culture-head")).toContainText("Séchage");
+});
+
+test("lot UI 2 : la recherche de l'accueil est un formulaire GET qui va au-delà de la page", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(120000);
+  await page.goto("/cultures");
+  const oldest = await mutate(page, "/api/v1/cultures", {
+    operation: "create", kind: "mother", name: "Mère ancienne", origin_type: "mother",
+    stage: "maintien", space: "space_1", origin_at: day(90), stage_at: day(90), space_at: day(90),
+    origins: [],
+  });
+  expect(oldest.status, JSON.stringify(oldest.body)).toBe(200);
+  for (let index = 0; index < 40; index += 1) {
+    const filler = await mutate(page, "/api/v1/cultures", {
+      operation: "create", kind: "mother", name: `Mère ${String(index).padStart(2, "0")}`,
+      origin_type: "mother", stage: "maintien", space: "space_1",
+      origin_at: day(30), stage_at: day(30), space_at: day(30), origins: [],
+    });
+    expect(filler.status, JSON.stringify(filler.body)).toBe(200);
+  }
+
+  await page.goto("/cultures");
+  const listing = page.locator("#liste");
+  await expect(listing.locator("[data-culture-item]")).toHaveCount(40);
+  await expect(listing.getByRole("link", {name: "Mère ancienne", exact: true})).toHaveCount(0);
+
+  // Recherche native : la saisie suivie de « Entrée » recharge la page sur le serveur.
+  const field = listing.locator("[data-culture-search]");
+  await field.fill("ancienne");
+  await field.press("Enter");
+  await expect(page).toHaveURL(/[?&]q=ancienne/);
+  await expect(listing.locator("[data-culture-item]")).toHaveCount(1);
+  await expect(listing.getByRole("link", {name: "Mère ancienne", exact: true})).toBeVisible();
+  await expect(field).toHaveValue("ancienne");
+
+  // Une recherche sans résultat le dit, sans prétendre que le carnet est vide.
+  await page.goto("/cultures?q=introuvable");
+  await expect(page.locator("#liste")).toContainText("Aucune culture ne porte « introuvable »");
 });

@@ -108,6 +108,11 @@ def transition_summary(before, after, command):
                 f"{'Archivé' if subject['archived'] else 'En cours'}")
     lines = (["Avant : " + state(before)] if before else []) + ["Après : " + state(after)]
     lines.append("Date déclarée : " + str(command.get("effective_at") or command.get("stage_at") or "voir les étapes saisies"))
+    # Le début du séchage voyage dans la charge utile, pas dans `effective_at` : le panneau
+    # ne peut pas taire une date que l'enregistrement va écrire.
+    drying_at = (command.get("payload") or {}).get("drying_at") if isinstance(command.get("payload"), dict) else None
+    if drying_at:
+        lines.append("Début du séchage déclaré : " + str(drying_at))
     if command.get("kind") == "harvest":
         lines.append("La récolte coupe l’alimentation déclarée ; l’occupation reste jusqu’à sa libération explicite.")
     lines.append("Les horaires, sorties et réglages physiques restent à vérifier séparément.")

@@ -18,9 +18,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from model.culture import (SPACES, STAGES, CultureConflict, CultureError, backfill_stages,
-                           creation_stages, event_payload, fiche_actions, project, stamp,
-                           stage_options, text_value, validate_origin, validate_origins,
-                           validate_spaces)
+                           creation_stages, event_payload, fiche_actions, observation_shortcut,
+                           project, stamp, stage_options, text_value, validate_origin,
+                           validate_origins, validate_spaces)
 from model.culture_cycle import TODAY_REMINDERS, reminder_buckets, stage_checks
 from model.culture_journal import TODAY_JOURNAL
 
@@ -289,7 +289,7 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
                 "journal": self._journal_enrich(rows[:TODAY_JOURNAL]),
                 "journal_truncated": len(rows) > TODAY_JOURNAL}
 
-    def _overview(self, archived=False, offset=0, agenda=False):
+    def _overview(self, archived=False, offset=0, agenda=False, search=""):
         subjects = self._projections()
         # Les projections déjà faites sont passées telles quelles : le dernier relevé de
         # chaque culture ne doit pas coûter une seconde projection complète du carnet.
@@ -297,13 +297,25 @@ class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, Checkli
         for subject in subjects:
             subject["latest_reading"] = readings.get(subject["id"])
         selected = [s for s in subjects if s["archived"] == archived]
+        # Recherche de l'accueil : elle porte sur le nom et la variété **projetés**, les
+        # seuls affichés. Une entrée `identity` les corrige sans jamais réécrire la ligne
+        # `subjects` : un `LIKE` SQL répondrait sur l'ancien nom et manquerait le nouveau,
+        # soit deux vérités pour une même culture. Le filtre s'applique donc à la
+        # projection déjà faite pour cette page — aucune lecture de plus — et la tranche
+        # de quarante reste celle de la pagination existante. Un `%` ou un `_` tapés dans
+        # la recherche y restent des caractères ordinaires, sans échappement à inventer.
+        needle = (search or "").strip().casefold()
+        if needle:
+            selected = [s for s in selected if needle in f"{s['name']} {s['variety']}".casefold()]
         today = self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()
         overview = {"available": True, "timezone": self.zone, "clock_reliable": self.reliable(),
-                    "today": today,
+                    "today": today, "search": (search or "").strip(),
                     "items": selected[offset:offset + 40], "total": len(selected), "offset": offset,
                     "occupants": [s for s in subjects if s["space"]],
                     "mothers": [{"id": s["id"], "name": s["name"], "archived": s["archived"]}
                                 for s in subjects if s["kind"] == "mother"]}
+        # Raccourci « Noter une observation » : règle pure, jamais une condition de gabarit.
+        overview["observation_shortcut"] = observation_shortcut(overview)
         if agenda:
             overview["agenda"] = self._agenda(subjects, today)
         return overview

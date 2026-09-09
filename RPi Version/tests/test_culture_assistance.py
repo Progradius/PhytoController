@@ -220,6 +220,11 @@ def test_resume_de_transition_d_une_recolte_annonce_la_coupe_d_alimentation():
     # Sans récolte, aucune ligne n'invente cette conséquence.
     assert not any("alimentation" in line for line in
                    transition_summary(before, after, {"kind": "stage", "effective_at": "2026-09-07"}))
+    # Le début du séchage voyage dans la charge utile : annoncé s'il est saisi, jamais inventé.
+    with_drying = transition_summary(before, after, {"kind": "harvest", "effective_at": "2026-09-07",
+                                                     "payload": {"drying_at": "2026-09-08"}})
+    assert "Début du séchage déclaré : 2026-09-08" in with_drying
+    assert not any("séchage déclaré" in line for line in lines)
 
 
 async def test_http_assistance_version_inchangee_et_fiche_inconnue(web_context):

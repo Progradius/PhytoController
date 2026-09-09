@@ -39,8 +39,11 @@
 {% if kind in ('note','loss','harvest','finish','archive') %}<label>{{ 'Note' if kind == 'note' else 'Observations (facultatif)' }}<textarea name="note" rows="3" maxlength="4000"{% if kind == 'note' %} required{% endif %}>{{ payload.note or '' }}</textarea></label>{% endif %}
 {% if kind == 'finish' %}<label>Poids sec total (g, facultatif)<input name="weight_g" type="text" inputmode="decimal" value="{{ payload.weight_g if payload.weight_g is defined and payload.weight_g is not none else '' }}"></label><label>Enseignements pour le prochain cycle<textarea name="lessons" maxlength="4000">{{ payload.get('lessons','') }}</textarea></label><details><summary>Poids sec par origine (facultatif)</summary>{% for origin in subject.origins %}<label>{{ origin.label or 'Origine' }}{% for mother in overview.mothers if mother.id == origin.mother_id %} · {{ mother.name }}{% endfor %} (g)<input name="origin_weight" inputmode="decimal" data-origin-weight="{{ origin.id }}" value="{% for item in payload.get('origin_weights',[]) if item.origin_id == origin.id %}{{ item.weight_g }}{% endfor %}"></label>{% endfor %}</details><label class="culture-confirm"><input name="release" type="checkbox"{% if payload.release %} checked{% endif %}> Libérer aussi l’espace : le lot a été retiré.</label>{% endif %}
 {% endmacro %}
+{# `data-guided` vient de la règle pure `fiche_actions` (clé `guided`) : le gabarit ne
+   connaît aucune liste de types d'événement, il marque ce que le modèle a désigné comme
+   changeant l'état de la fiche. Le socle y demande alors une vérification avant d'écrire. #}
 {% macro event_form(kind, subject, label) %}
-<form class="culture-form" data-culture-event data-kind="{{ kind }}" data-subject="{{ subject.id }}" data-version="{{ subject.version }}">
+<form class="culture-form" data-culture-event data-kind="{{ kind }}" data-subject="{{ subject.id }}" data-version="{{ subject.version }}"{% if kind in detail.actions.guided %} data-guided{% endif %}>
 {{ date_fields(value=overview.today) }}{{ payload_fields(kind,{},subject) }}
 {% if kind == 'harvest' %}<p>Récolte du lot entier et début du séchage dans l’espace 2. Vérifiez séparément <a href="/conf#daily-timer-2">l’éclairage</a>, <a href="/conf#cyclic-1">la pompe</a> et <a href="/conf#motor">la ventilation</a>.</p>{% endif %}
 {{ submit(label) }}</form>
@@ -55,10 +58,15 @@
 {% if closed %}<p>{{ 'Annulé' if reminder.state == 'cancelled' else 'Fait' }}{% if reminder.completed_at %} le {{ reminder.completed_at|culture_date(overview.timezone) }}{% endif %}</p>
 {% else %}
 <form class="culture-form" data-cycle-form data-operation="reminder_action" data-id="{{ reminder.id }}" data-version="{{ reminder.revision }}" data-cycle-return="agenda">
-<label>Action sur le rappel<select name="action" data-reminder-action><option value="done">Marquer fait</option><option value="postponed">Reporter</option><option value="cancelled">Annuler</option></select></label>
+{# Deux gestes, deux boutons : « Fait » et « Reporter » sont l'action, pas une valeur à
+   choisir puis à confirmer. Le champ de date reste rendu visible — sans script il n'y a
+   personne pour l'ouvrir — et c'est `cultures.js` qui le replie puis le rouvre au premier
+   clic sur « Reporter ». « Annuler » n'est pas un geste du quotidien : il reste offert,
+   sous un repli, et ne dispute pas la place aux deux autres. #}
 <div data-reminder-postpone><label>Nouvelle échéance (pour reporter)<input type="date" name="due_date"></label></div>
 <label>Note de suivi<textarea name="note" maxlength="4000"></textarea></label>
-{{ confirm_date() }}<div class="culture-form-actions"><button class="button" type="submit">Enregistrer le suivi</button><output role="status" class="form-status" aria-live="polite"></output></div></form>
+{{ confirm_date() }}<div class="culture-form-actions culture-reminder-actions"><button class="button" type="submit" name="action" value="done" data-reminder-action="done">Fait</button><button class="button button-secondary" type="submit" name="action" value="postponed" data-reminder-action="postponed">Reporter</button><output role="status" class="form-status" aria-live="polite"></output></div>
+<details class="culture-reminder-other"><summary>Autres actions</summary><button class="button button-secondary" type="submit" name="action" value="cancelled" data-reminder-action="cancelled">Annuler ce rappel</button></details></form>
 {% endif %}
 </article>
 {% endmacro %}
@@ -92,9 +100,19 @@
 {% else %}<p>Aucun rappel en cours dans le carnet. <a href="/cultures/cycles#rappels">Créer un rappel</a>.</p>{% endif %}
 <div class="culture-links culture-shortcuts">
 <a class="button" href="/cultures/solutions?kind=reading#saisie">Saisir un relevé</a>
-<a class="button" href="{% if overview.total == 1 and overview['items'] %}/cultures/{{ overview['items'][0].id|urlencode }}#observation{% else %}#liste{% endif %}">Noter une observation</a>
+<a class="button" href="{% if overview.observation_shortcut %}/cultures/{{ overview.observation_shortcut|urlencode }}#observation{% else %}#choisir-observation{% endif %}">Noter une observation</a>
 <a class="button" href="#creer-lot">Nouvelle culture</a>
 </div>
+{# Le raccourci ne dépend plus d'un comptage écrit ici : `observation_shortcut` est une
+   règle pure. Une seule culture, il l'ouvre ; plusieurs, il ouvre ce sélecteur, qui n'est
+   qu'une liste de liens — elle fonctionne sans script et reste bornée à la page (40), la
+   recherche de la liste servant au-delà. #}
+{% if not overview.observation_shortcut %}
+<details class="card culture-observation-picker" id="choisir-observation" tabindex="-1"><summary>Choisir la culture à observer</summary>
+<p class="card-meta">Les cultures affichées sur cette page. Au-delà, la recherche de la liste ci-dessous porte sur tout le carnet.</p>
+<ul class="culture-picker-list">{% for item in overview['items'] %}<li><a href="/cultures/{{ item.id|urlencode }}#observation">{{ item.name }}{% if item.variety %} · {{ item.variety }}{% endif %}</a></li>{% else %}<li>Aucune culture à observer pour l’instant.</li>{% endfor %}</ul>
+<p><a href="#liste">Rechercher une autre culture</a></p>
+</details>{% endif %}
 <p class="card-meta">Les rappels et les opérations sont déclaratifs : le carnet ne commande aucun équipement et n’envoie aucune notification.</p>
 <h3>Dernières opérations</h3>
 {% for entry in agenda.journal %}<article class="card culture-journal-entry"><p><a href="{{ entry.link }}">{{ entry.type_label }}</a>{{ ' · annulée' if entry.cancelled else '' }} · {{ entry.effective_at|culture_date(overview.timezone) }}{{ ' (approximatif)' if entry.precision == 'approximative' else '' }} · {{ entry.target_label }}</p>
@@ -113,11 +131,22 @@
 </section><p class="card-meta">Ventilation principale commune · Cyclic 1 : pompe de l’espace 2 · Cyclic 2 : ventilation locale ou bac de bouturage de l’espace 1.</p>
 {% endif %}
 <section id="liste" class="culture-section"><h2>{{ 'Archives' if archives else 'Lots et pieds mères' }}</h2>
-{% if overview['items'] %}<div class="culture-search" data-culture-search-block hidden><label>Filtrer les cultures affichées<input type="search" data-culture-search placeholder="Nom ou variété"></label><p class="card-meta" data-culture-search-count role="status"></p></div>{% endif %}
+{# Recherche native : un formulaire GET, donc utilisable sans script, dont le serveur
+   borne le résultat à la pagination existante. Le même champ sert de filtre local sur les
+   cartes déjà rendues (`cultures.js`), qui n'est qu'un raffinement immédiat : c'est la
+   soumission qui va chercher au-delà de la page courante. #}
+<form class="culture-search" method="get" action="/cultures" data-culture-search-block>
+{% if archives %}<input type="hidden" name="archives" value="1">{% endif %}
+<label>Rechercher une culture (nom ou variété)<input type="search" name="q" value="{{ overview.search }}" data-culture-search placeholder="Nom ou variété" maxlength="120"></label>
+<button class="button button-secondary" type="submit">Rechercher</button>
+{% if overview.search %}<a href="?archives={{ 1 if archives else 0 }}">Effacer la recherche</a>{% endif %}
+<p class="card-meta" data-culture-search-count role="status"></p>
+</form>
 <div class="culture-grid">{% for item in overview['items'] %}<article class="card" data-culture-item="{{ item.name }} {{ item.variety }}"><p class="eyebrow">{{ 'Pied mère' if item.kind == 'mother' else 'Lot' }}</p><h3><a href="/cultures/{{ item.id }}">{{ item.name }}</a></h3><div class="culture-counter">{{ counter(item) }}</div>{% if item.kind == 'lot' %}<p>{{ item.count }} plantes · {{ item.initial_count }} au départ</p>{% endif %}<p>{{ item.variety }}</p></article>{% else %}
-{% if archives %}<p>Aucune archive.</p>{% else %}<p>Le carnet est vide. Une culture déjà en cours se reprend aussi, avec ses dates connues ou approximatives.</p><p><a class="button" href="#creer-lot">Ajouter ma première culture</a></p>{% endif %}
+{% if overview.search %}<p>Aucune culture ne porte « {{ overview.search }} » dans son nom ou sa variété{{ ' parmi les archives' if archives else '' }}.</p>{% elif archives %}<p>Aucune archive.</p>{% else %}<p>Le carnet est vide. Une culture déjà en cours se reprend aussi, avec ses dates connues ou approximatives.</p><p><a class="button" href="#creer-lot">Ajouter ma première culture</a></p>{% endif %}
 {% endfor %}</div>
-<nav class="culture-links" aria-label="Pagination des cultures">{% if overview.offset %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ [0,overview.offset-40]|max }}">Précédentes</a>{% endif %}{% if overview.offset+40 < overview.total %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ overview.offset+40 }}">Suivantes</a>{% endif %}</nav></section>
+{% set search_query = '&q=' ~ overview.search|urlencode if overview.search else '' %}
+<nav class="culture-links" aria-label="Pagination des cultures">{% if overview.offset %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ [0,overview.offset-40]|max }}{{ search_query }}">Précédentes</a>{% endif %}{% if overview.offset+40 < overview.total %}<a href="?archives={{ 1 if archives else 0 }}&offset={{ overview.offset+40 }}{{ search_query }}">Suivantes</a>{% endif %}</nav></section>
 {% if not archives %}
 <section class="culture-grid culture-section" aria-label="Créer une culture">
 {% for kind,title in (('mother','Ajouter un pied mère'),('lot','Créer un lot')) %}
@@ -202,14 +231,19 @@
 {% if subject_reminders[bucket] %}<h4>{{ title }}</h4><div class="culture-grid">{% for reminder in subject_reminders[bucket] %}{{ reminder_card(reminder, bucket == 'done_today') }}{% endfor %}</div>{% endif %}
 {% endfor %}
 {% else %}<p>Aucun rappel rattaché à cette culture. <a href="/cultures/cycles?subject={{ subject.id|urlencode }}#rappels">Créer un rappel</a>.</p>{% endif %}
+{# La section existe à tout stade : c'est l'ancre où atterrit une transition guidée, et un
+   stade sans vérification particulière doit pouvoir le dire. Seule la liste est
+   conditionnée par la règle pure `stage_checks`. #}
+<section id="verifications" class="culture-checks-section" tabindex="-1" aria-labelledby="verifications-title">
+<h3 id="verifications-title">Vérifications pertinentes à ce stade</h3>
 {% if detail.stage_checks %}
-<h3>Vérifications pertinentes à ce stade</h3>
 <p class="card-meta">Ces liens ouvrent les réglages existants ; rien n’est enregistré ici. La vérification elle-même se déclare depuis les cycles.</p>
 <ul class="culture-checks">
 {% for check in detail.stage_checks %}<li><a href="{{ check.href }}">{{ check.label }}</a> <span class="card-meta">{{ check.reason }}</span></li>{% endfor %}
 </ul>
+{% else %}<p class="card-meta">Aucune vérification n’est rattachée à ce stade. Les horaires et les réglages restent consultables depuis <a href="/conf">les réglages des équipements</a>.</p>{% endif %}
 <p><a href="/cultures/cycles?subject={{ subject.id|urlencode }}">Déclarer une vérification pour cette culture</a></p>
-{% endif %}
+</section>
 </section>
 <section id="releves" class="culture-section"><h2>Relevés</h2>
 {# Le relevé vient de la fiche : une culture archivée ou libérée n'est plus dans les

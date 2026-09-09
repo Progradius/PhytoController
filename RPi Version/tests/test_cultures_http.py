@@ -269,3 +269,108 @@ async def test_fiche_rend_les_verifications_du_stade_et_annonce_ses_aides(web_co
     aid = await (await client.get(f"/api/v1/cultures/assistance/{saved['subject_id']}")).json()
     assert {item["category"] for item in aid["items"]} <= {"À faire", "À vérifier", "Information manquante"}
     assert 'aria-live="polite"' in page
+
+
+async def test_carte_de_rappel_offre_fait_et_reporter_en_deux_boutons(web_context):
+    """Deux gestes, deux boutons d'envoi : la valeur est portée par le bouton cliqué.
+
+    Le sélecteur d'action disparaît ; l'annulation, qui n'est pas un geste du quotidien,
+    reste offerte sous un repli. La route et la charge utile ne changent pas.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Lot boutons"), headers=headers)).json()
+    reminder = {"request_id": str(uuid.uuid4()), "operation": "reminder", "title": "Rincer le bac",
+                "target": saved["subject_id"], "due_date": "2020-01-01", "interval_days": 0, "note": ""}
+    assert (await client.post("/api/v1/cultures/cycles", json=reminder, headers=headers)).status == 200
+    page = await (await client.get("/cultures")).text()
+    assert 'data-operation="reminder_action"' in page and 'data-cycle-return="agenda"' in page
+    assert 'name="action" value="done" data-reminder-action="done">Fait<' in page
+    assert 'name="action" value="postponed" data-reminder-action="postponed">Reporter<' in page
+    assert 'name="action" value="cancelled" data-reminder-action="cancelled">Annuler ce rappel<' in page
+    assert "<summary>Autres actions</summary>" in page
+    assert 'data-reminder-action><option value="done">' not in page
+    assert "Enregistrer le suivi" not in page
+    # Sans script, la nouvelle échéance reste visible : c'est le script qui la replie.
+    assert 'data-reminder-postpone><label>Nouvelle échéance' in page
+
+
+async def test_transitions_guidees_marquees_par_la_regle_pure(web_context):
+    """`data-guided` suit `fiche_actions`, jamais une liste écrite dans le gabarit.
+
+    Une progression de stade, un déplacement ou une récolte changent l'état lu en tête de
+    fiche ; une perte ou une correction d'identité, non. L'ancre des vérifications, elle,
+    existe à tout stade : c'est là qu'atterrit une transition confirmée.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Lot guidé"), headers=headers)).json()
+    page = await (await client.get("/cultures/" + saved["subject_id"])).text()
+    detail = await (await client.get("/api/v1/cultures/" + saved["subject_id"])).json()
+    guided = detail["actions"]["guided"]
+    assert guided and "loss" not in guided and "identity" not in guided
+    for kind in detail["actions"]["other"] + [a for a in detail["actions"]["primary"]
+                                              if a not in ("reading", "observation")]:
+        marked = f'data-culture-event data-kind="{kind}" data-subject="{saved["subject_id"]}"' in page
+        assert marked
+        form = page[page.index(f'data-kind="{kind}" data-subject'):]
+        assert ("data-guided" in form[:form.index(">")]) == (kind in guided), kind
+    # La correction rejoue une saisie passée : elle ne déplace pas l'état de la fiche.
+    assert "data-culture-correct" in page and "data-culture-correct data-guided" not in page
+    assert 'id="verifications" class="culture-checks-section" tabindex="-1"' in page
+
+
+async def test_recherche_de_l_accueil_est_un_formulaire_get_borne(web_context):
+    """`?q=` retrouve une culture au-delà de la première page, sans charger le carnet.
+
+    Le champ est un formulaire GET natif : il fonctionne sans script, et le filtre local
+    des cartes déjà rendues n'en est qu'un raffinement.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    cherche = await (await client.post("/api/v1/cultures", json=create("Lot ancien", variety="Kush"),
+                                       headers=headers)).json()
+    for index in range(40):
+        assert (await client.post("/api/v1/cultures", json=create(f"Lot {index:02d}", variety="Haze"),
+                                  headers=headers)).status == 200
+
+    page = await (await client.get("/cultures")).text()
+    assert '<form class="culture-search" method="get" action="/cultures"' in page
+    assert 'name="q"' in page and 'data-culture-search' in page
+    # La liste est paginée à quarante : la plus ancienne culture n'y figure pas. Elle reste
+    # visible parmi les occupants des espaces, qui ne sont pas une liste paginée.
+    listing = page[page.index('id="liste"'):]
+    assert listing.count('data-culture-item=') == 40
+    assert f'/cultures/{cherche["subject_id"]}' not in listing
+
+    found = await (await client.get("/cultures?q=kush")).text()
+    assert f'/cultures/{cherche["subject_id"]}' in found and "Lot ancien" in found
+    assert found.count('data-culture-item=') == 1
+    # La recherche voyage avec la pagination et se laisse effacer.
+    assert "Effacer la recherche" in found
+    data = await (await client.get("/api/v1/cultures?q=kush")).json()
+    assert [item["id"] for item in data["items"]] == [cherche["subject_id"]]
+    assert data["total"] == 1 and data["search"] == "kush"
+
+    empty = await (await client.get("/cultures?q=introuvable")).text()
+    assert "Aucune culture ne porte « introuvable »" in empty
+    assert "Le carnet est vide" not in empty
+    assert (await client.get("/cultures?q=" + "x" * 121)).status == 400
+
+
+async def test_raccourci_observation_selon_le_nombre_de_cultures(web_context):
+    """Une seule culture : le raccourci l'ouvre. Plusieurs : il ouvre le sélecteur."""
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    first = await (await client.post("/api/v1/cultures", json=create("Lot unique"), headers=headers)).json()
+    page = await (await client.get("/cultures")).text()
+    assert f'href="/cultures/{first["subject_id"]}#observation">Noter une observation</a>' in page
+    assert 'id="choisir-observation"' not in page
+
+    second = await (await client.post("/api/v1/cultures", json=create("Lot second"), headers=headers)).json()
+    page = await (await client.get("/cultures")).text()
+    assert 'href="#choisir-observation">Noter une observation</a>' in page
+    picker = page[page.index('id="choisir-observation"'):]
+    picker = picker[:picker.index("</details>")]
+    for subject_id in (first["subject_id"], second["subject_id"]):
+        assert f'href="/cultures/{subject_id}#observation"' in picker

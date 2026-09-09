@@ -77,11 +77,24 @@ class CultureViews:
         except ValueError:
             raise web.HTTPBadRequest(text="Pagination invalide.") from None
 
+    @staticmethod
+    def search(request):
+        """Recherche libre de l'accueil : une chaîne courte, jamais un motif.
+
+        Elle voyage telle quelle jusqu'au magasin, qui compare des noms déjà projetés :
+        aucun caractère n'y est spécial, il n'y a donc rien à échapper ici. Seule sa
+        longueur est bornée, comme toute entrée de requête.
+        """
+        needle = (request.query.get("q") or "").strip()
+        if len(needle) > 120:
+            raise web.HTTPBadRequest(text="Recherche trop longue.")
+        return needle
+
     async def overview(self, request):
         try:
             return web.json_response(await self.store.call(
                 "overview", request.query.get("archives") == "1", self.offset(request),
-                request.query.get("agenda") == "1"))
+                request.query.get("agenda") == "1", self.search(request)))
         except CultureUnavailable as exc:
             return web.json_response({"available": False, "error": str(exc)}, status=503)
 
@@ -171,7 +184,8 @@ class CultureViews:
         # fiche a le sien, et les archives n'ont ni rappel ni prochaine action.
         agenda = not subject_id and not archived
         try:
-            overview = await self.store.call("overview", archived, 0 if subject_id else offset, agenda)
+            overview = await self.store.call("overview", archived, 0 if subject_id else offset, agenda,
+                                             "" if subject_id else self.search(request))
             if subject_id:
                 detail = await self.store.call("detail", subject_id, offset)
         except CultureError as exc:

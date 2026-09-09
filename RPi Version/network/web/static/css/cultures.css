@@ -183,3 +183,25 @@ details.culture-primary-action > summary { font-weight: 700; }
 .culture-review .culture-confirm { min-height: 44px; align-items: center; }
 [data-culture-assistance] .card { margin-bottom: .65rem; }
 [data-culture-assistance] h3 { font-size: 1rem; }
+
+/* Lot D2a */
+/* « Fait » et « Reporter » sont l'action elle-même : côte à côte, atteignables au pouce,
+   et repliés l'un sous l'autre quand la largeur ne suffit plus. La zone d'état garde sa
+   ligne entière pour ne jamais rétrécir un bouton. */
+.culture-reminder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.culture-reminder-actions .button { flex: 1 1 8rem; min-height: 44px; justify-content: center; }
+.culture-reminder-actions output { flex: 1 1 100%; }
+.culture-reminder-other { margin-top: .35rem; }
+.culture-reminder-other summary { min-height: 2.5rem; cursor: pointer; }
+/* Le bouton de confirmation d'une transition guidée ne s'étire pas sur toute la largeur du
+   panneau : il se lit comme une réponse à ce qui vient d'être présenté. */
+.culture-review > .button { min-height: 44px; justify-self: start; }
+.culture-picker-list { margin: .4rem 0; padding-left: 1.2rem; }
+.culture-picker-list li { margin-block: .35rem; }
+.culture-checks-section { margin-block: 1rem; }
+/* Recherche : un formulaire GET, donc un champ et son bouton sur la même ligne tant qu'ils
+   y tiennent. Le compte du filtre local prend sa propre ligne. */
+.culture-search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem; }
+.culture-search label { flex: 1 1 14rem; }
+.culture-search .button { min-height: 44px; }
+.culture-search .card-meta { flex: 1 1 100%; margin: 0; }

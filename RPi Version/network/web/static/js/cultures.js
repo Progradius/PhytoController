@@ -193,9 +193,13 @@
   // la fiche seule sinon (création, reprise, étape passée n'en désignent aucune).
   // Quand seule l'ancre change, `assign` ne recharge rien : la fiche resterait celle
   // d'avant l'enregistrement, avec la nouvelle entrée absente et les compteurs périmés.
-  const openEntry = (subjectId, eventId) => {
+  // `anchor` prime sur l'entrée créée : après une transition guidée, ce qu'il faut lire en
+  // premier n'est pas la ligne ajoutée au journal mais les vérifications du nouveau stade.
+  // L'élément focalisé reste la confirmation, il change seulement de place.
+  const openEntry = (subjectId, eventId, anchor) => {
     const target = new URL(`/cultures/${encodeURIComponent(subjectId)}`, location.href);
-    if (eventId) target.hash = `event-${encodeURIComponent(eventId)}`;
+    if (anchor) target.hash = anchor;
+    else if (eventId) target.hash = `event-${encodeURIComponent(eventId)}`;
     if (target.pathname === location.pathname && target.search === location.search) {
       location.hash = target.hash;
       location.reload();
@@ -394,8 +398,12 @@
         refuse(form, error);
         return;
       }
+      // Transition guidée : le marquage vient du serveur (`data-guided`, règle pure
+      // `fiche_actions`). Le socle demande alors la vérification et n'écrit qu'ensuite.
+      const guided = form.hasAttribute("data-guided");
       forms.status(form, "Enregistrement…");
-      const result = await forms.submitJson(form, "/api/v1/cultures", command);
+      const result = await forms.submitJson(form, "/api/v1/cultures", command,
+        guided ? {guided: true} : {});
       if (result.offline || result.busy || result.preview) return;
       if (!result.ok) {
         if (result.status === 409) showConflict(form, result.data.error);
@@ -403,7 +411,7 @@
         return;
       }
       forms.status(form, "Enregistré. Ouverture de la fiche…");
-      openEntry(result.data.subject_id, result.data.event_id);
+      openEntry(result.data.subject_id, result.data.event_id, guided ? "verifications" : null);
     });
   });
 
@@ -521,23 +529,32 @@
     });
   });
 
-  // --- Accueil : report d'un rappel, filtre local ---------------------------
-  // Le champ de nouvelle échéance ne concerne que « Reporter ». Il reste visible sans
-  // JavaScript : seul ce script le replie, et le rouvre au choix de l'action.
-  document.querySelectorAll("[data-reminder-action]").forEach(select => {
-    const zone = select.form?.querySelector("[data-reminder-postpone]");
-    if (!zone) return;
-    const sync = () => { zone.hidden = select.value !== "postponed"; };
-    select.addEventListener("change", sync);
-    sync();
-  });
+  // --- Accueil : « Fait » ou « Reporter » en un geste, filtre local ---------
+  // Deux boutons d'envoi dans le même formulaire : même route et même charge utile qu'avec
+  // l'ancien sélecteur, un geste de moins. Le champ de nouvelle échéance est rendu visible
+  // — sans script, personne ne l'ouvrirait — donc c'est ce script qui le replie : le
+  // premier clic sur « Reporter » l'ouvre et y pose le focus sans rien envoyer, le suivant
+  // envoie. Annuler un clic sur un bouton d'envoi suffit à retenir l'envoi : rien à retenir
+  // dans une variable.
+  for (const form of document.querySelectorAll('[data-operation="reminder_action"]')) {
+    const zone = form.querySelector("[data-reminder-postpone]");
+    const postpone = form.querySelector('[data-reminder-action="postponed"]');
+    if (!zone || !postpone) continue;
+    zone.hidden = true;
+    postpone.addEventListener("click", event => {
+      if (!zone.hidden) return;
+      event.preventDefault();
+      zone.hidden = false;
+      zone.querySelector("input")?.focus();
+    });
+  }
 
   const searchBlock = document.querySelector("[data-culture-search-block]");
   const search = document.querySelector("[data-culture-search]");
   if (searchBlock && search) {
-    // Filtre purement local sur les cartes déjà rendues : aucune requête, et la page
-    // reste complète pour un navigateur sans script (le bloc est alors resté masqué).
-    searchBlock.hidden = false;
+    // Raffinement local des cartes déjà rendues, en plus de la recherche serveur portée par
+    // le formulaire lui-même : aucune requête à la frappe, et la soumission reste ce qui va
+    // chercher au-delà de la page courante.
     const cards = Array.from(document.querySelectorAll("[data-culture-item]"));
     const count = document.querySelector("[data-culture-search-count]");
     search.addEventListener("input", () => {

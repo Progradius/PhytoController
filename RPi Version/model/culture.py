@@ -290,13 +290,23 @@ def creation_stages(kind, origin_type):
     return [first_stage(kind, origin_type), "vegetatif", "floraison", "sechage"]
 
 
+# Opérations qui déplacent l'état lu en tête de fiche : le stade, l'espace ou la clôture.
+# Ce sont elles, et elles seules, qui passent par la transition guidée — un avant/après
+# présenté avant l'enregistrement. Une note, une identité ou une perte ne change ni le
+# stade ni l'espace : leur imposer une confirmation serait une friction sans objet.
+TRANSITIONS = ("stage", "move", "harvest", "finish", "archive", "release")
+
+
 def fiche_actions(subject):
-    """Triade d'en-tête de la fiche et repli des autres opérations.
+    """Triade d'en-tête de la fiche, repli des autres opérations et transitions guidées.
 
     `reading` et `observation` ne sont pas des types d'événement : le premier est un lien
     vers la saisie de relevé, le second réunit la note et sa photo. Au plus une action
     contextuelle les rejoint — celle que l'état du parcours rend évidente — et `other`
     reçoit tout le reste, sans jamais répéter la note ni l'action promue.
+
+    `guided` est la part de ces opérations qui change l'état de la fiche : le gabarit la
+    lit pour marquer le formulaire, il n'a aucune liste de types d'événement à connaître.
     """
     allowed = allowed_actions(subject)
     stage, space = subject.get("stage"), subject.get("space")
@@ -314,7 +324,25 @@ def fiche_actions(subject):
     if promoted not in allowed:
         promoted = None
     return {"primary": ["reading", "observation"] + ([promoted] if promoted else []),
-            "other": [name for name in allowed if name != "note" and name != promoted]}
+            "other": [name for name in allowed if name != "note" and name != promoted],
+            "guided": [name for name in allowed if name in TRANSITIONS]}
+
+
+def observation_shortcut(overview):
+    """Destination du raccourci « Noter une observation » de l'accueil.
+
+    Une seule culture au carnet : elle est la destination, et le raccourci ouvre
+    directement son formulaire d'observation. Dès qu'il y en a plusieurs, aucune n'est
+    « la bonne » : le raccourci mène au sélecteur de la page et le choix reste à
+    l'opérateur. La règle lit le total de la sélection courante, pas le nombre de cartes
+    rendues : une page de quarante cartes sur cent-vingt cultures n'a pas plus de raison
+    de désigner la première que la soixantième.
+    """
+    data = overview or {}
+    items = data.get("items") or []
+    if data.get("total") == 1 and len(items) == 1:
+        return items[0]["id"]
+    return None
 
 
 def project(subject, events, origins, now, zone, reliable):

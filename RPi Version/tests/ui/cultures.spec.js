@@ -1,6 +1,20 @@
 // Fixture partagée : serveur de carnet temporaire par test, aides de création.
 const {test, expect, AxeBuilder, dates, createMother} = require("./culture_fixtures");
 
+// Échéances de rappel relatives au jour courant. Elles étaient écrites en dur
+// (2026-09-10, 2026-09-12) : futures le jour où la spec a été écrite, en retard ensuite,
+// donc les seaux « à venir » et « en retard » de l'accueil basculaient tout seuls et le
+// report vers une date antérieure devenait un refus. Le serveur de test lit l'horloge
+// réelle : une échéance calculée en heure **locale** reste dans le même seau chaque jour.
+const isoDaysFromNow = days => {
+  const day = new Date();
+  day.setDate(day.getDate() + days);
+  const pad = value => String(value).padStart(2, "0");
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+};
+// Même date, dans la forme rendue par le filtre `culture_date` du carnet.
+const frenchDate = iso => iso.split("-").reverse().join("/");
+
 test("lot multi-mères, carnet et correction sur téléphone et bureau", async ({page}, testInfo) => {
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours PWA exercé séparément.");
   const suffix = `${testInfo.project.name}-${Date.now()}`;
@@ -109,6 +123,10 @@ test("semis, correction d’effectif, transfert, récolte et libération", async
     if (fill) await fill(action);
     const response = page.waitForResponse(r => r.url().endsWith("/api/v1/cultures") && r.request().method() === "POST");
     await action.locator('[type="submit"]').click();
+    // Transition guidée : le premier clic présente l'avant/après, la confirmation écrit.
+    const panel = action.locator(".culture-review");
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", {name: "Confirmer et enregistrer", exact: true}).click();
     const received = await response;
     // Après succès, la navigation peut déjà avoir libéré le corps de réponse.
     const error = received.status() === 200 ? "" : await received.text();
@@ -231,15 +249,17 @@ test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau
   await page.getByText("Créer un rappel", {exact: true}).click();
   const form = page.locator('[data-cycle-form][data-operation="reminder"]').first();
   await form.getByLabel("Rappel", {exact: true}).fill("Contrôler le carnet");
-  await form.getByLabel("Échéance", {exact: true}).fill("2026-09-10");
+  const due = isoDaysFromNow(1);
+  const postponed = isoDaysFromNow(3);
+  await form.getByLabel("Échéance", {exact: true}).fill(due);
   await form.getByLabel("Récurrence en jours (0 = ponctuel)").fill("2");
   await form.getByRole("button", {name: "Enregistrer le rappel"}).click();
   await expect(page.getByRole("heading", {name: "Contrôler le carnet"})).toBeVisible();
   const action = page.locator('[data-operation="reminder_action"]').first();
   await action.getByRole("combobox", {name: "Action sur le rappel"}).selectOption("postponed");
-  await action.getByLabel("Nouvelle échéance (pour reporter)").fill("2026-09-12");
+  await action.getByLabel("Nouvelle échéance (pour reporter)").fill(postponed);
   await action.getByRole("button", {name: "Enregistrer le suivi"}).click();
-  await expect(page.getByText("Reporté · échéance 12/09/2026")).toBeVisible();
+  await expect(page.getByText(`Reporté · échéance ${frenchDate(postponed)}`)).toBeVisible();
   await action.getByRole("button", {name: "Enregistrer le suivi"}).click();
   await expect(page.getByRole("heading", {name: "Contrôler le carnet"})).toHaveCount(2);
   await expect(page.getByText("Aucune synthèse climatique disponible pour ce cycle.")).toBeVisible();
@@ -258,7 +278,7 @@ test("cycles : PWA datée en lecture seule et aucune mutation rejouée", async (
   await page.getByText("Créer un rappel", {exact: true}).click();
   const form = page.locator('[data-cycle-form][data-operation="reminder"]').first();
   await form.getByLabel("Rappel", {exact: true}).fill("Rappel PWA");
-  await form.getByLabel("Échéance", {exact: true}).fill("2026-09-10");
+  await form.getByLabel("Échéance", {exact: true}).fill(isoDaysFromNow(1));
   await form.getByRole("button", {name: "Enregistrer le rappel"}).click();
   await expect(page.getByRole("heading", {name: "Rappel PWA"})).toBeVisible();
   await expect.poll(() => page.evaluate(async () => {

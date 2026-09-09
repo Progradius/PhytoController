@@ -383,22 +383,30 @@
     command.request_id = requestKey(form, signature);
     const domain = url === "/api/v1/cultures" ? "culture" : url === "/api/v1/cultures/solutions" ? "solution" : null;
     // La prévalidation coûte au serveur une transaction complète sur le thread unique du
-    // carnet : elle n'est plus faite à chaque enregistrement. Deux cas seulement la
-    // justifient — le bouton « Vérifier avant d'enregistrer », qui ne demande rien
-    // d'autre, et le premier envoi d'un relevé de solution, seul chemin qui cherche des
-    // ressemblances. Une saisie déjà vérifiée (même empreinte, vérification non expirée)
-    // repart directement vers la mutation, qui revalide de toute façon.
+    // carnet : elle n'est pas faite à chaque enregistrement. Trois cas la justifient — le
+    // bouton « Vérifier avant d'enregistrer », qui ne demande rien d'autre ; le premier
+    // envoi d'un relevé de solution, seul chemin qui cherche des ressemblances ; et une
+    // transition guidée, qui change l'état de la fiche. Une saisie déjà vérifiée (même
+    // empreinte, vérification non expirée) repart directement vers la mutation, qui
+    // revalide de toute façon.
     const verifying = Boolean(reviewOnly.get(form));
     const seeksMatches = domain === "solution" && body.operation === "entry" && body.kind === "reading";
+    // Transition guidée (`options.guided`) : une opération qui déplace le stade, l'espace
+    // ou la clôture montre son avant/après avant d'écrire. Le panneau **est** la
+    // confirmation — le clic suivant sur l'enregistrement, comme le bouton du panneau,
+    // envoie la mutation — et toute modification de la saisie le retire, ce qui redemande
+    // la vérification. La liste des opérations concernées vient du serveur, pas d'ici.
+    const guided = domain === "culture" && Boolean(options.guided);
     const known = reviews.get(form);
-    if (known && known.signature === signature && !verifying) {
+    const reviewed = Boolean(known && known.signature === signature);
+    if (reviewed && !verifying) {
       // Une ressemblance affichée et non confirmée reste un arrêt : rien n'est envoyé.
       if (known.matches !== "[]" && !known.confirmed) {
         status(form, CONFIRM_MATCH);
         return {ok: false, preview: true};
       }
     }
-    if (domain && (verifying || (seeksMatches && !(known && known.signature === signature)))) {
+    if (domain && (verifying || ((guided || seeksMatches) && !reviewed))) {
       form.addEventListener("input", change);
       form.addEventListener("change", change);
       const checked = await send(form, `/api/v1/cultures/preview/${domain}`, {
@@ -428,7 +436,12 @@
       const previous = reviews.get(form);
       const matches = JSON.stringify(checked.data.similar || []);
       const acknowledged = previous?.signature === signature && previous?.matches === matches && previous?.confirmed;
-      if (reviewOnly.get(form) || (checked.data.similar?.length && !acknowledged)) {
+      // Une vérification qui n'a pas abouti n'a rien à montrer : le panneau ne se construit
+      // que sur une réponse. Un rejeu (`replay`) désigne un enregistrement déjà accepté :
+      // il n'y a plus de transition à confirmer, la mutation rendra le même résultat.
+      const showPanel = checked.ok && (reviewOnly.get(form) || (guided && !checked.data.replay)
+                                       || (checked.data.similar?.length && !acknowledged));
+      if (showPanel) {
         form.querySelector(".culture-review")?.remove();
         const panel = document.createElement("section");
         panel.className = "notice culture-review";
@@ -440,6 +453,16 @@
         panel.append(title);
         for (const line of checked.data.summary || []) {
           const p = document.createElement("p"); p.textContent = line; panel.append(p);
+        }
+        // Actions nommées par le serveur : des liens de lecture vers une page du carnet.
+        // Aucun n'écrit quoi que ce soit et aucun ne vaut confirmation. Un `href` qui n'est
+        // pas un chemin local est ignoré plutôt que rendu.
+        for (const item of checked.data.links || []) {
+          if (!item || typeof item.href !== "string" || !item.href.startsWith("/")) continue;
+          const link = document.createElement("a");
+          link.href = item.href;
+          link.textContent = String(item.label || item.href);
+          const p = document.createElement("p"); p.append(link); panel.append(p);
         }
         const memo = {signature, matches, confirmed: false};
         reviews.set(form, memo);
@@ -462,8 +485,22 @@
           label.append(check, " Je confirme qu’il s’agit d’un autre relevé."); panel.append(label);
         }
         const note = document.createElement("p");
-        note.textContent = "Rien n’est enregistré. Utilisez le bouton d’enregistrement pour confirmer ; le serveur vérifiera à nouveau le carnet.";
-        panel.append(note); form.prepend(panel); status(form, ""); focusOn(panel);
+        note.textContent = guided
+          ? "Rien n’est encore enregistré. Confirmez pour écrire cette transition ; le serveur revérifiera le carnet."
+          : "Rien n’est enregistré. Utilisez le bouton d’enregistrement pour confirmer ; le serveur vérifiera à nouveau le carnet.";
+        panel.append(note);
+        if (guided) {
+          // Le panneau ne consomme pas la vérification : ce bouton renvoie simplement le
+          // formulaire, qui repart avec la même empreinte et va cette fois jusqu'à la
+          // mutation. Rien n'est mémorisé ici que la vérification déjà enregistrée.
+          const confirm = document.createElement("button");
+          confirm.type = "button";
+          confirm.className = "button";
+          confirm.textContent = "Confirmer et enregistrer";
+          confirm.addEventListener("click", () => form.requestSubmit());
+          panel.append(confirm);
+        }
+        form.prepend(panel); status(form, ""); focusOn(panel);
         setTimeout(() => {
           if (reviews.get(form) !== memo) return;
           reviews.delete(form); panel.remove();

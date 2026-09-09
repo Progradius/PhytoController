@@ -42,7 +42,9 @@
         command.operation = form.dataset.operation;
         if (form.dataset.id) Object.assign(command, {id: form.dataset.id, version: Number(form.dataset.version)});
         if (command.operation === "reminder") Object.assign(command, {title: get("title"), target: get("target"), due_date: get("due_date"), interval_days: Number(get("interval_days")), note: get("note")});
-        if (command.operation === "reminder_action") Object.assign(command, {action: get("action"), due_date: get("due_date"), note: get("note")});
+        // Deux boutons « Fait » / « Reporter » portent le nom `action` : la valeur est celle
+        // du bouton déclencheur, jamais celle d'une collection de contrôles homonymes.
+        if (command.operation === "reminder_action") Object.assign(command, {action: event.submitter?.value || get("action"), due_date: get("due_date"), note: get("note")});
         if (command.operation === "checklist") Object.assign(command, {subject_id: form.dataset.subject, version: Number(form.dataset.version),
           effective_at: get("effective_at"), note: get("note"), checks: Object.fromEntries(["lighting", "pump", "ventilation"].map(name => [name, form.elements[name].checked]))});
         // Une correction rejoue la saisie entière avec son motif ; une annulation ne porte

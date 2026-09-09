@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from model.culture import CultureConflict
+from model.culture import CultureConflict, observation_shortcut
 from model.culture_cycle import TODAY_REMINDERS, reminder_buckets
 from model.culture_journal import TODAY_JOURNAL
 from tests.test_culture_cycles import photo_bytes, reminder
@@ -151,8 +151,11 @@ async def test_detail_porte_ses_rappels_ses_photos_et_ses_actions(cultures):
     assert len(detail["reminders"]["overdue"]) == 1
     assert set(detail["reminders"]["overdue"][0]) == REMINDER_KEYS
     assert detail["media"] == []
+    # `guided` : les opérations qui déplacent le stade, l'espace ou la clôture, et qui
+    # passent donc par la vérification avant écriture. Une perte ou une identité n'y est pas.
     assert detail["actions"] == {"primary": ["reading", "observation", "stage"],
-                                 "other": ["move", "loss", "harvest", "identity"]}
+                                 "other": ["move", "loss", "harvest", "identity"],
+                                 "guided": ["stage", "move", "harvest"]}
     added = await cultures.call("media_add", {"request_id": str(uuid.uuid4()),
         "subject_id": lot["subject_id"], "event_id": detail["events"][0]["id"],
         "event_revision": detail["events"][0]["revision"], "caption": "Bouture"}, photo_bytes())
@@ -219,3 +222,65 @@ async def test_observation_puis_photo_puis_correction(cultures):
         await cultures.call("media_add", {**photo, "request_id": str(uuid.uuid4())}, photo_bytes())
     assert (await cultures.call("media_add", {**photo, "request_id": str(uuid.uuid4()),
         "event_revision": corrected["event_revision"]}, photo_bytes()))["saved"]
+
+
+# --- Raccourci d'observation et recherche de l'accueil (lot D2a) ---------------------
+
+def test_raccourci_observation_designe_l_unique_culture_ou_personne():
+    """Règle pure : une seule culture est une destination évidente, plusieurs ne le sont pas.
+
+    Le gabarit ne compte plus lui-même : il lit ce que la règle a décidé. Une page tronquée
+    ne désigne pas sa première carte — c'est le total de la sélection qui tranche.
+    """
+    assert observation_shortcut({"total": 1, "items": [{"id": "sujet-1"}]}) == "sujet-1"
+    assert observation_shortcut({"total": 2, "items": [{"id": "a"}, {"id": "b"}]}) is None
+    assert observation_shortcut({"total": 41, "items": [{"id": "a"}]}) is None
+    assert observation_shortcut({"total": 0, "items": []}) is None
+    assert observation_shortcut(None) is None
+
+
+async def test_recherche_de_l_accueil_trouve_au_dela_de_la_page(cultures):
+    """`?q=` cherche dans tout le carnet et rend la même tranche de quarante.
+
+    La culture cherchée est créée en premier : les projections sont rendues du plus récent
+    au plus ancien, elle se trouve donc hors de la première page. Sans recherche elle est
+    introuvable depuis l'accueil ; avec, elle est seule et la page reste bornée.
+    """
+    cherche = await cultures.call("mutate", create("Lot ancien", variety="Kush"))
+    for index in range(40):
+        await cultures.call("mutate", create(f"Lot {index:02d}", variety="Haze"))
+
+    page = await cultures.call("overview", False, 0, False)
+    assert page["total"] == 41 and len(page["items"]) == 40
+    assert all(item["id"] != cherche["subject_id"] for item in page["items"])
+    assert page["search"] == "" and page["observation_shortcut"] is None
+
+    # Sur le nom comme sur la variété, sans tenir compte de la casse ni des espaces autour.
+    for needle in ("lot ancien", "  KUSH  "):
+        found = await cultures.call("overview", False, 0, False, needle)
+        assert [item["id"] for item in found["items"]] == [cherche["subject_id"]], needle
+        assert found["total"] == 1 and found["search"] == needle.strip()
+        # Une sélection réduite à une culture redevient une destination d'observation.
+        assert found["observation_shortcut"] == cherche["subject_id"]
+
+    # La recherche ne franchit pas la frontière des archives.
+    assert (await cultures.call("overview", True, 0, False, "kush"))["items"] == []
+
+
+async def test_recherche_ne_traite_aucun_caractere_comme_un_motif(cultures):
+    """`%` et `_` sont des caractères, jamais des jokers.
+
+    Ils s'écrivent dans un nom de culture et doivent s'y retrouver tels quels ; à
+    l'inverse, une recherche qui en contient ne doit rien rapprocher d'autre.
+    """
+    await cultures.call("mutate", create("LotXA"))
+    exact = await cultures.call("mutate", create("Lot 100% repris", variety="Sous-bloc_A"))
+
+    assert [item["name"] for item in
+            (await cultures.call("overview", False, 0, False, "100%"))["items"]] == ["Lot 100% repris"]
+    assert [item["name"] for item in
+            (await cultures.call("overview", False, 0, False, "bloc_a"))["items"]] == ["Lot 100% repris"]
+    assert (await cultures.call("overview", False, 0, False, "bloc_a"))["items"][0]["id"] == exact["subject_id"]
+    # Un joker interprété rapprocherait « LotXA » de ces deux recherches : il n'en est rien.
+    for pattern in ("Lot_A", "Lot%A"):
+        assert (await cultures.call("overview", False, 0, False, pattern))["items"] == [], pattern
