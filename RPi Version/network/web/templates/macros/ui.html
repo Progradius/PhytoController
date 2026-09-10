@@ -1,0 +1,31 @@
+{# Composants de présentation seulement ; aucune décision métier ou commande implicite. #}
+{% macro compact_header(title, facts=[], primary_action=none, secondary_actions=[]) -%}
+<header class="ui-compact-header"><h1>{{ title }}</h1>
+{% if facts %}<ul class="ui-facts" role="list">{% for fact in facts %}<li>{{ fact }}</li>{% endfor %}</ul>{% endif %}
+{% if primary_action %}<a class="button action-link" href="{{ primary_action.href }}">{{ primary_action.label }}</a>{% endif %}
+{% for action in secondary_actions %}<a class="action-link" href="{{ action.href }}">{{ action.label }}</a>{% endfor %}
+{% if caller is defined %}{{ caller() }}{% endif %}</header>
+{%- endmacro %}
+{% macro empty_state(title, text, action=none) -%}
+<div class="ui-empty-state"><h2>{{ title }}</h2><p>{{ text }}</p>{% if action %}<a class="action-link" href="{{ action.href }}">{{ action.label }}</a>{% endif %}</div>
+{%- endmacro %}
+{% macro alarm_summary(alarm) -%}
+<div class="ui-alarm-summary"><h2>{{ alarm.problem }}</h2><p>{{ alarm.consequence }}</p><p>{{ alarm.action }}</p></div>
+{%- endmacro %}
+{% macro equipment_row(equipment, expanded=false) -%}
+<details class="ui-equipment-row" data-equipment="{{ equipment.id }}"{% if expanded %} open{% endif %}><summary><strong class="actuator-name">{{ equipment.name }}</strong> <span class="actuator-actual">{{ equipment.state }}</span>{% if equipment.next_transition is defined and equipment.next_transition %} <span class="num actuator-next">{{ equipment.next_transition }}</span>{% endif %}</summary>
+{% if caller is defined %}{{ caller() }}{% elif equipment.reason is defined and equipment.reason %}<p>{{ equipment.reason }}</p>{% endif %}</details>
+{%- endmacro %}
+{% macro journal_entry(row) -%}
+<article class="ui-journal-entry"{% if row.id is defined and row.id %} id="event-{{ row.id }}" tabindex="-1"{% endif %}><p><time class="num">{{ row.date }}</time> <strong>{{ row.operation }}</strong> {{ row.target }}</p><p>{{ row.summary }}</p>{% if row.photo is defined and row.photo %}<img src="{{ row.photo.url }}" alt="{{ row.photo.caption }}" loading="lazy">{% endif %}
+{% if caller is defined %}<details><summary>Détails de l’opération</summary>{{ caller() }}</details>{% endif %}</article>
+{%- endmacro %}
+{% macro field_group(legend, help='') -%}
+<fieldset class="ui-field-group"><legend>{{ legend }}</legend>{% if help %}<p>{{ help }}</p>{% endif %}{% if caller is defined %}{{ caller() }}{% endif %}</fieldset>
+{%- endmacro %}
+{% macro chart_detail(point) -%}
+<div class="ui-chart-detail"><p>{{ point.label }}</p><dl>{% for cell in point.cells %}<dt>{{ cell.label }}</dt><dd class="num">{{ cell.value if cell.value is not none else 'Non renseigné' }}</dd>{% endfor %}</dl></div>
+{%- endmacro %}
+{% macro network_state() -%}
+<output class="ui-network-state" role="status" data-network-state>{% if caller is defined %}{{ caller() }}{% endif %}</output>
+{%- endmacro %}

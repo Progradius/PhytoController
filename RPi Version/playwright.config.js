@@ -26,6 +26,20 @@ module.exports = defineConfig({
     {name: "mobile-etroit", use: {viewport: {width: 320, height: 568}, isMobile: true, hasTouch: true}},
     {name: "mobile-paysage", use: {viewport: {width: 568, height: 320}, isMobile: true, hasTouch: true}},
     {name: "pwa-chromium", use: {...devices["Pixel 5"], serviceWorkers: "allow"}},
+    // Zoom 200 % (fiche R4.1). Un zoom de page à 200 % ne laisse à la mise en page que la
+    // moitié de la largeur CSS, tout en rendant à deux fois la densité : c'est exactement
+    // `deviceScaleFactor: 2` sur un viewport de largeur divisée par deux. Un simple
+    // `deviceScaleFactor` sans réduction du viewport ne changerait que la densité, pas la
+    // mise en page — donc ne testerait rien.
+    //
+    // La largeur CSS retenue est **320 px**, soit un zoom à 200 % d'un appareil de 640 px.
+    // Elle n'est pas choisie pour un modèle de téléphone mais pour deux bornes :
+    // WCAG 1.4.10 « Reflow » fixe sa référence à 320 px CSS, et `style.css:27` déclare
+    // `body { min-width: 280px }`. Un viewport plus étroit — 196 px, la moitié du Pixel 5 —
+    // passe **sous** ce plancher : le document mesure alors 280 px pour 197 px de fenêtre et
+    // déborde par construction, sur toutes les pages à la fois. On mesurerait le plancher
+    // déclaré du dépôt, pas la capacité des pages à se replier.
+    {name: "mobile-zoom", use: {...devices["Pixel 5"], viewport: {width: 320, height: 426}, deviceScaleFactor: 2}},
   ],
   webServer: externalBaseUrl ? undefined : {
     // La suite UI suppose un shell POSIX : Playwright lance la commande avec `shell: true`,

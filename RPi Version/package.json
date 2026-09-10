@@ -2,7 +2,10 @@
   "name": "phyto-controller-ui-tests",
   "private": true,
   "scripts": {
-    "test:ui": "playwright test"
+    "test:js": "node --test tests/js/*.test.cjs",
+    "test:ui": "playwright test",
+    "measure:ui": "node tests/ui/measure_pages.js",
+    "measure:compare": "python3 scripts/compare-measures.py"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
