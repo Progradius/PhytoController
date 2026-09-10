@@ -1,3 +1,4 @@
+{% from "macros/ui.html" import network_state %}
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
@@ -16,7 +17,15 @@
 </head>
 <body data-page="{{ current_page or 'error' }}">
   <a class="skip-link" href="#contenu">Aller au contenu</a>
-  <output id="global-live-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></output>
+  {# Région polie de l'état réseau : c'est elle qui dit « connexion interrompue »,
+     « connexion rétablie » et le détail d'un service dégradé. La macro partagée porte
+     exactement ce contrat (`<output role="status">`, donc `aria-live="polite"` et
+     `aria-atomic="true"` par défaut du rôle) ; elle **remplace** la région existante et
+     n'en ajoute aucune. Le conteneur `visually-hidden` reste ici : la macro impose sa
+     classe `ui-network-state`, et une région annoncée n'a pas à être vue.
+     La bannière visible ci-dessous n'est délibérément **pas** une région live — sinon
+     chaque bascule serait annoncée deux fois, par elle et par cette région. #}
+  <div class="visually-hidden">{{ network_state() }}</div>
   <output id="global-live-alert" class="visually-hidden" role="alert" aria-atomic="true"></output>
   <aside id="pwa-connection-banner" class="pwa-connection-banner" hidden>
     <strong id="pwa-connection-title">HORS LIGNE</strong>
@@ -48,31 +57,38 @@
   </header>
   {% if override_summary and override_summary.active_count %}
   <aside id="override-banner" class="global-alarm severity-override">
-    <strong>{{ override_summary.active_count }} forçage{{ 's' if override_summary.active_count != 1 else '' }} « arrêt » actif{{ 's' if override_summary.active_count != 1 else '' }}</strong>
+    {# Glossaire R5.3 : « coupure », jamais « forçage ». Texte identique à celui que
+       `dashboard.js` réécrit au premier rafraîchissement (`countLabel(count, "coupure
+       active", "coupures actives")`) — sinon la bannière changerait de mot toute seule
+       une seconde après l'affichage. #}
+    <strong>{{ override_summary.active_count }} coupure{{ 's' if override_summary.active_count > 1 else '' }} active{{ 's' if override_summary.active_count > 1 else '' }}</strong>
     <span>Équipements concernés coupés volontairement — la conduite normale est suspendue</span>
     <a href="/#actionneurs">Examiner</a>
   </aside>
   {% endif %}
-  {% if alarm_summary and alarm_summary.active_count %}
+  {# Sur la page des alarmes, le bandeau renverrait à la page déjà ouverte : il n'y est pas
+     rendu, ni par le serveur ni par `pwa.js` (le résumé de la page porte déjà ces chiffres). #}
+  {% if alarm_summary and alarm_summary.active_count and current_page != 'alarms' %}
   <aside id="global-alarm" class="global-alarm severity-{{ alarm_summary.highest_severity }}">
-    <strong>{{ alarm_summary.active_count }} alarme{{ 's' if alarm_summary.active_count != 1 else '' }} active{{ 's' if alarm_summary.active_count != 1 else '' }}</strong>
+    <strong>{{ alarm_summary.active_count }} alarme{{ 's' if alarm_summary.active_count > 1 else '' }} active{{ 's' if alarm_summary.active_count > 1 else '' }}</strong>
     <span>{{ alarm_summary.control_count }} contrôle · {{ alarm_summary.auxiliary_count }} auxiliaire</span>
     <a href="/alarms">Examiner</a>
   </aside>
   {% endif %}
+  <aside id="pwa-update-banner" class="notice" hidden><span data-pwa-update-state></span><button type="button" class="button" data-pwa-update>Mettre à jour</button></aside>
   <main id="contenu" class="page-shell">
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">PHYTO · CONTRÔLE LOCAL LAN</footer>
   <nav class="mobile-navbar" aria-label="Navigation mobile">
-    <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau</a>
+    <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Serre</a>
+    <a href="/cultures"{% if current_page == 'cultures' %} aria-current="page"{% endif %}>Cultures</a>
     <a href="/alarms"{% if current_page == 'alarms' %} aria-current="page"{% endif %}>Alarmes{% if alarm_summary and alarm_summary.active_count %}<span class="nav-count">{{ alarm_summary.active_count }}</span>{% endif %}</a>
-    <a href="/history"{% if current_page == 'history' %} aria-current="page"{% endif %}>Historique</a>
-    <details class="mobile-more"{% if current_page in ('cultures', 'config', 'console') %} data-current="true"{% endif %}>
+    <details class="mobile-more"{% if current_page in ('app', 'history', 'config', 'console') %} data-current="true"{% endif %}>
       <summary>Plus</summary>
       <div class="mobile-more-panel">
-        <strong>Outils</strong>
-        <a href="/cultures"{% if current_page == 'cultures' %} aria-current="page"{% endif %}>Cultures</a>
+        <strong>Outils</strong><a href="/app"{% if current_page == 'app' %} aria-current="page"{% endif %}>Application sur ce téléphone</a>
+<a href="/history"{% if current_page == 'history' %} aria-current="page"{% endif %}>Historique</a>
         <a href="/conf"{% if current_page == 'config' %} aria-current="page"{% endif %}>Configuration</a>
         <a href="/console"{% if current_page == 'console' %} aria-current="page"{% endif %}>Console</a>
         <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Plein jour</button>
@@ -80,6 +96,7 @@
     </details>
   </nav>
   <script src="/static/js/pwa.js?v={{ asset_versions.pwa }}" defer></script>
+  <script src="/static/js/app.js?v={{ asset_versions.app }}" defer></script>
   {% block page_scripts %}{% endblock %}
 </body>
 </html>

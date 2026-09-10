@@ -158,6 +158,115 @@ test("photos : changer de fichier remplace l’aperçu", async ({page}, testInfo
   })).toBe(true);
 });
 
+test("photos : caméra, image existante et reprise pilotent le même champ", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Contrat du socle, une cible suffit.");
+  test.setTimeout(90000);
+  await createMother(page, "Mère photos choix");
+  await observe(page, "Observation avec choix de source");
+  const {form} = await journalPhotoForm(page);
+  const file = form.locator('input[type="file"][name="photo"]');
+  const camera = form.getByRole("button", {name: "Prendre une photo"});
+  const library = form.getByRole("button", {name: "Choisir une image existante"});
+  await expect(camera).toBeVisible(); await expect(library).toBeVisible();
+
+  // `capture` n'est **jamais** dans le HTML servi : présent, un appui direct sur le champ
+  // ouvrirait la caméra sur iOS/Android et le choix d'une image existante serait imposé de
+  // passer par le bouton — y compris avant l'exécution du JavaScript, c'est-à-dire
+  // exactement ce que la fiche interdit. L'attribut n'est posé que par le bouton.
+  await expect(file).not.toHaveAttribute("capture");
+
+  await file.evaluate(node => { node.click = () => { window.__photoClick = (window.__photoClick || 0) + 1; }; });
+  await library.click();
+  await expect(file).not.toHaveAttribute("capture");
+  await camera.click();
+  await expect(file).toHaveAttribute("capture", "environment");
+  expect(await page.evaluate(() => window.__photoClick)).toBe(2);
+
+  await file.setInputFiles(photo("premiere.png"));
+  await expect(form.getByRole("button", {name: "Reprendre la photo"})).toBeVisible();
+  await file.setInputFiles(photo("reprise.png"));
+  await expect(form.locator("[data-culture-photo-preview] img")).toHaveCount(1);
+
+  // Une remise à zéro vide le champ : le bouton ne peut plus proposer « Reprendre ».
+  await form.evaluate(node => node.reset());
+  await expect(form.getByRole("button", {name: "Prendre une photo"})).toBeVisible();
+  await expect(form.locator("[data-culture-photo-preview] img")).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
+// T8. Reprise sans doublon : la clé d'idempotence survit au changement de photo
+// ---------------------------------------------------------------------------
+
+test("photos : reprendre la photo ne crée ni seconde note ni seconde clé", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Contrat du socle, une cible suffit.");
+  test.setTimeout(90000);
+  const mother = await createMother(page, "Mère photos reprise");
+  await page.goto(`/cultures/${mother}`);
+
+  // L'observation part par `/api/v1/cultures` (JSON), la photo par `/api/v1/cultures/photos`
+  // (binaire) : deux actes successifs du **même** formulaire. La clé de l'observation ne
+  // doit dépendre que de son texte, jamais du fichier choisi.
+  const clesObservation = [];
+  await page.route("**/api/v1/cultures", async route => {
+    if (route.request().method() !== "POST") { await route.continue(); return; }
+    clesObservation.push(JSON.parse(route.request().postData()).request_id);
+    // Premier envoi refusé par le réseau : la saisie reste, la clé aussi.
+    if (clesObservation.length === 1) { await route.abort("failed"); return; }
+    await route.continue();
+  });
+
+  const form = await observationForm(page);
+  await form.getByLabel("Observation", {exact: true}).fill("Bac observé, photo à reprendre");
+  const file = form.locator('input[type="file"][name="photo"]');
+  await file.setInputFiles(photo("premiere.png"));
+  await form.getByRole("button", {name: "Enregistrer l’observation"}).click();
+  await expect(form.locator('.culture-form-errors[role="alert"]')).toBeVisible();
+
+  // Reprise : le fichier change, le texte non.
+  await file.setInputFiles(photo("reprise.png"));
+  await expect(form.locator("[data-culture-photo-preview] img")).toHaveCount(1);
+  await form.getByRole("button", {name: "Enregistrer l’observation"}).click();
+
+  await expect.poll(() => clesObservation.length, {timeout: 20000}).toBe(2);
+  // Même clé : si la première réponse s'était perdue, le serveur reconnaîtrait le même
+  // enregistrement au lieu d'en créer un second.
+  expect(clesObservation[1]).toBe(clesObservation[0]);
+
+  // Le succès ramène la fiche sur l'entrée créée : c'est la confirmation, et c'est aussi
+  // la fin de la navigation — un `goto` lancé ici entrerait en concurrence avec elle.
+  await expect(page).toHaveURL(/#event-/, {timeout: 20000});
+  // Et une seule entrée dans le carnet, quelles que soient les deux photos choisies. La
+  // note apparaît aussi ailleurs sur la fiche (agenda du jour) : ce qui se compte ici est
+  // l'**entrée** du journal, pas une occurrence de texte.
+  await expect(page.locator('article[id^="event-"]').filter({hasText: "Bac observé, photo à reprendre"}))
+    .toHaveCount(1);
+});
+
+// ---------------------------------------------------------------------------
+// T9. Refus de taille : le message nomme la limite
+// ---------------------------------------------------------------------------
+
+test("photos : une photo trop lourde est refusée par un message qui nomme la limite", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  await createMother(page, "Mère photos refus");
+  await observe(page, "Observation dont la photo est trop lourde");
+
+  // 6 Mio : au-dessus des 5 Mio acceptés. Le refus vient du serveur HTTP, en texte brut,
+  // avant même que le carnet ne soit consulté — c'est le socle qui doit nommer la limite.
+  const trop = {name: "trop-lourde.png", mimeType: "image/png", buffer: Buffer.alloc(6 * 1024 * 1024, 7)};
+  const {form} = await journalPhotoForm(page);
+  await form.locator('input[type="file"][name="photo"]').setInputFiles(trop);
+  await form.getByRole("button", {name: "Envoyer la photo"}).click();
+
+  const refus = form.locator('.culture-form-errors[role="alert"]');
+  await expect(refus).toBeVisible({timeout: 30000});
+  await expect(refus).toContainText("5 Mio");
+  // Rien n'a été enregistré et le formulaire reste utilisable pour reprendre la photo.
+  await expect(form.getByRole("button", {name: "Envoyer la photo"})).toBeEnabled();
+  await expect(form.locator("progress")).toHaveCount(0);
+});
+
 // ---------------------------------------------------------------------------
 // T4. Progression réelle pendant un envoi retenu
 // ---------------------------------------------------------------------------

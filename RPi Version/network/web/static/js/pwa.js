@@ -50,8 +50,65 @@
   let alarmSeenInitialized = false;
   const baseDocumentTitle = document.title.replace(/^\(\d+\)\s+/, "");
 
+  const pwaState = (kind, message) => {
+    document.documentElement.dataset[`pwa${kind[0].toUpperCase()}${kind.slice(1)}State`] = message;
+    document.querySelectorAll(`[data-pwa-${kind}-state]`).forEach(node => {
+      // L'attribut de diagnostic posé sur <html> correspond lui aussi au sélecteur. Il ne s'agit
+      // jamais d'une zone d'affichage : remplacer son texte détruirait le document entier.
+      if (node !== document.documentElement) node.textContent = message;
+    });
+  };
+  const storageUnavailable = () => pwaState("storage", "Lecture hors ligne indisponible : stockage refusé ou saturé.");
+  let waitingWorker = null;
+  let hadController = Boolean(navigator.serviceWorker?.controller);
+  const showUpdate = (message, available = false) => {
+    pwaState("update", message);
+    const banner = document.getElementById("pwa-update-banner");
+    if (banner) banner.hidden = false;
+    document.querySelectorAll("[data-pwa-update]").forEach(button => { button.hidden = !available; });
+  };
+  // `register()` et `serviceWorker.ready` désignent la **même** inscription : les deux
+  // promesses la livrent, et observer deux fois ajouterait à chaque fois un écouteur
+  // `updatefound` et un écouteur `visibilitychange` de plus, avec des fermetures
+  // distinctes que rien ne retire — une fuite sur une page ouverte des heures, et un
+  // `inspect()` joué deux fois par événement.
+  const observed = new WeakSet();
+  const observeRegistration = registration => {
+    serviceWorkerRegistration = registration;
+    if (observed.has(registration)) return;
+    observed.add(registration);
+    const inspect = () => {
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        waitingWorker = registration.waiting;
+        showUpdate("Mise à jour disponible", true);
+      }
+      if (registration.active) registration.active.postMessage({type: "version"});
+      else pwaState("worker", "Installation en cours : lecture hors ligne pas encore prête");
+    };
+    const watch = () => {
+      inspect();
+      registration.installing?.addEventListener("statechange", inspect);
+    };
+    registration.addEventListener("updatefound", watch);
+    watch();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      inspect();
+      // Un retour de veille est le seul moment où une PWA restée ouverte des jours peut
+      // apprendre qu'une version l'attend : sans cette demande, l'opérateur ne la verrait
+      // qu'au prochain chargement complet. `update()` ne fait que **chercher** ; elle
+      // n'active rien, le worker en attente restant soumis au bouton « Mettre à jour ».
+      try { registration.update?.()?.catch?.(() => {}); } catch (_error) { /* Inscription disparue. */ }
+    });
+  };
+
   const announce = (message, urgent = false) => {
-    const node = document.getElementById(urgent ? "global-live-alert" : "global-live-status");
+    // La région polie est celle de la macro partagée `network_state()`. Le repli sur
+    // l'ancien identifiant n'est pas décoratif : `announce` sert aussi les pages d'erreur
+    // et tout gabarit qui n'étendrait pas `base.html`.
+    const node = urgent
+      ? document.getElementById("global-live-alert")
+      : document.querySelector("[data-network-state]") || document.getElementById("global-live-status");
     if (!node || !message) return;
     node.textContent = "";
     window.requestAnimationFrame(() => { node.textContent = message; });
@@ -122,13 +179,28 @@
     if (!databasePromise) {
       databasePromise = new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
+        let settled = false;
         request.onupgradeneeded = () => {
           const db = request.result;
           if (!db.objectStoreNames.contains("snapshots")) db.createObjectStore("snapshots", {keyPath: "key"});
           if (!db.objectStoreNames.contains("preferences")) db.createObjectStore("preferences", {keyPath: "key"});
         };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        const fail = error => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          reject(error);
+        };
+        const timer = window.setTimeout(() => fail(new Error("Stockage indisponible")), 2000);
+        request.onblocked = () => fail(new Error("Stockage bloqué"));
+        request.onsuccess = () => {
+          if (settled) { request.result.close(); return; }
+          settled = true;
+          window.clearTimeout(timer);
+          pwaState("storage", "Stockage local disponible");
+          resolve(request.result);
+        };
+        request.onerror = () => fail(request.error);
       });
     }
     return databasePromise;
@@ -143,6 +215,7 @@
         request.onerror = () => reject(request.error);
       });
     } catch (_error) {
+      storageUnavailable();
       return null;
     }
   };
@@ -156,6 +229,7 @@
         request.onerror = () => reject(request.error);
       });
     } catch (_error) {
+      storageUnavailable();
       // Le stockage hors ligne est une amélioration : son échec ne doit jamais
       // casser l'interface vivante.
     }
@@ -178,8 +252,65 @@
     return `il y a ${(seconds / 86400).toFixed(1)} j`;
   };
 
+  const FILTRE_HORS_LIGNE = "Filtre indisponible hors ligne : seules les données conservées sont affichées";
+
+  const noteDuFormulaire = (form) => {
+    const next = form.nextElementSibling;
+    return next?.matches?.("[data-offline-filter-note]") ? next : null;
+  };
+
+  // Le message appartient au **formulaire**, pas à ses contrôles : il est posé une seule
+  // fois, dans une passe distincte, et **à côté** du formulaire. Inséré dedans, il entrait
+  // dans la zone de saisie — un texte au milieu des champs — alors qu'il commente le
+  // formulaire entier.
+  const appliquerNotesFiltre = (disabled) => {
+    document.querySelectorAll("form").forEach((form) => {
+      // Un filtre serveur est un formulaire GET qui **navigue** réellement. Les formulaires
+      // du carnet sont eux aussi en GET faute d'attribut `method`, mais le socle les
+      // intercepte : ce sont des envois, pas des filtres, et leur coller « Filtre
+      // indisponible hors ligne » serait un contresens. Le socle les marque de sa clé
+      // (`data-form-key`) ; un gabarit peut aussi déclarer un filtre sans ambiguïté.
+      const filtreServeur = form.hasAttribute("data-offline-filter") || (
+        form.method.toLowerCase() === "get" &&
+        !form.hasAttribute("data-offline-local") &&
+        !form.dataset.formKey
+      );
+      const existante = noteDuFormulaire(form);
+      if (!disabled || !filtreServeur) { existante?.remove(); return; }
+      if (existante) return;
+      const note = document.createElement("p");
+      note.dataset.offlineFilterNote = "";
+      note.className = "notice";
+      note.textContent = FILTRE_HORS_LIGNE;
+      form.after(note);
+    });
+  };
+
+  // Le message part dans une tâche différée, jamais dans celle du verrou : sur une page
+  // servie par le cache, `pwa.js` s'exécute **avant** les scripts de page, donc avant que
+  // le socle du carnet n'ait marqué ses formulaires. Posé aussitôt, le message se serait
+  // affiché sous chacun d'eux. Le verrou des contrôles, lui, reste immédiat — c'est lui
+  // qui protège, le message ne fait qu'expliquer.
+  let noteTimer = null;
+  const planifierNotesFiltre = (disabled) => {
+    if (noteTimer !== null) window.clearTimeout(noteTimer);
+    noteTimer = window.setTimeout(() => { noteTimer = null; appliquerNotesFiltre(disabled); }, 0);
+  };
+
   const setControlsDisabled = (disabled) => {
+    planifierNotesFiltre(disabled);
     document.querySelectorAll("form input, form select, form textarea, form button, button[data-requires-online]").forEach((control) => {
+      // Seuls les contrôles locaux de lecture explicitement inscrits échappent au verrou :
+      // recherche dans les lignes déjà chargées, explorateur de graphique, sélection de
+      // série, onglets de vue. Un envoi reste un envoi, même dans un outil local.
+      const form = control.closest("form");
+      // Un `<form method="dialog">` ne va nulle part : il ne fait que fermer la boîte de
+      // dialogue. Désactiver son bouton « Annuler » hors ligne enfermait l'opérateur dans
+      // une confirmation qu'il ne pouvait plus quitter, alors que la commande elle-même
+      // reste bloquée par le formulaire d'envoi voisin.
+      if (form?.method.toLowerCase() === "dialog") return;
+      const local = control.hasAttribute("data-offline-local") || control.closest("[data-offline-local]") !== null;
+      if (local && (!form || form.method.toLowerCase() === "get") && !control.matches('[type="submit"]')) return;
       if (disabled && !control.disabled) {
         control.disabled = true;
         control.dataset.pwaDisabled = "true";
@@ -400,7 +531,14 @@
   const configureInstallation = () => {
     const button = document.getElementById("pwa-install-button");
     if (!button) return;
-    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    pwaState("install", standalone ? "Application installée" : "Application ouverte dans le navigateur");
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const help = !window.isSecureContext ? "Ouvrez l’adresse HTTPS du contrôleur et approuvez son certificat local avant l’installation."
+      : ios ? "Sur iPhone ou iPad : ouvrez dans Safari, puis Partager → Sur l’écran d’accueil."
+      : /Firefox/.test(navigator.userAgent) ? "Dans Firefox Android : menu → Installer. Sur ordinateur, utilisez un raccourci vers cette page."
+      : "Dans le menu du navigateur, choisissez Installer l’application ou Ajouter à l’écran d’accueil.";
+    document.querySelectorAll("[data-pwa-install-help]").forEach(node => { node.textContent = help; });
     if (standalone || !window.isSecureContext) return;
     window.addEventListener("beforeinstallprompt", (event) => {
       event.preventDefault();
@@ -455,7 +593,7 @@
         link.append(" ", badge);
       }
       badge.textContent = String(count);
-      badge.setAttribute("aria-label", `${count} ${count === 1 ? "alarme active" : "alarmes actives"}`);
+      badge.setAttribute("aria-label", `${count} ${count > 1 ? "alarmes actives" : "alarme active"}`);
     });
 
     const pageSummary = document.querySelector(".alarm-summary");
@@ -464,12 +602,17 @@
       const label = pageSummary.querySelector("span");
       const detail = pageSummary.querySelector("small");
       if (strong) strong.textContent = String(count);
-      if (label) label.textContent = count === 1 ? "active" : "actives";
+      // Accord français : seul un nombre strictement supérieur à 1 prend la marque du pluriel.
+      if (label) label.textContent = count > 1 ? "actives" : "active";
       if (detail) detail.textContent = `${summary.control_count || 0} contrôle · ${summary.auxiliary_count || 0} auxiliaire`;
     }
 
     let banner = document.getElementById("global-alarm");
-    if (!count) banner?.remove();
+    // Sur la page des alarmes, le bandeau renverrait à la page déjà ouverte : il n'est ni
+    // construit ni entretenu (le résumé de la page porte déjà ces chiffres), au lieu d'être
+    // construit à chaque tick puis masqué par une règle CSS.
+    const surPageAlarmes = Boolean(document.getElementById("alarm-list"));
+    if (!count || surPageAlarmes) banner?.remove();
     else {
       if (!banner) {
         banner = document.createElement("aside");
@@ -479,7 +622,7 @@
         anchor?.after(banner);
       }
       banner.className = `global-alarm severity-${summary.highest_severity || "warning"}`;
-      banner.querySelector("strong").textContent = `${count} ${count === 1 ? "alarme active" : "alarmes actives"}`;
+      banner.querySelector("strong").textContent = `${count} ${count > 1 ? "alarmes actives" : "alarme active"}`;
       banner.querySelector("span").textContent = `${summary.control_count || 0} contrôle · ${summary.auxiliary_count || 0} auxiliaire`;
       const link = banner.querySelector("a"); link.href = "/alarms"; link.textContent = "Examiner";
     }
@@ -511,11 +654,14 @@
     });
   };
 
-  const processAlarmFeed = async (feed, source) => {
+  // `receivedAt` est la date de réception de la réponse qui a produit ce jeu d'alarmes.
+  // Elle n'accompagne qu'une copie relue du stockage : une page qui dit « copie datée »
+  // doit pouvoir dire **de quand**, et ne l'invente jamais quand elle l'ignore.
+  const processAlarmFeed = async (feed, source, receivedAt = null) => {
     const previousFeed = lastAlarmFeed;
     lastAlarmFeed = feed;
     updateAlarmChrome(feed);
-    document.dispatchEvent(new CustomEvent("phyto:alarm-feed", {detail: {feed, source}}));
+    document.dispatchEvent(new CustomEvent("phyto:alarm-feed", {detail: {feed, source, receivedAt}}));
     if (source !== "network") return;
 
     await storeSnapshot("active-alarms", feed, Date.now());
@@ -579,10 +725,30 @@
     } catch (error) {
       if (isTransportError(error)) signalerEchecTransport();
       const stored = await loadSnapshot("active-alarms");
-      if (stored?.data) await processAlarmFeed(stored.data, "stored");
+      if (stored?.data) await processAlarmFeed(stored.data, "stored", stored.receivedAt);
       return false;
     }
   };
+
+  // Fonction **pure** : elle ne lit ni `navigator`, ni le DOM, ni l'horloge. C'est ce qui
+  // la rend vérifiable — un test peut lui présenter trois agents utilisateur et lire le
+  // libellé rendu, ce qu'une chaîne de ternaires enfouie dans un rendu ne permettait pas.
+  // Aucune promesse de Web Push : on ne dit jamais que la notification arrivera
+  // application fermée. L'iPad récent se déclare « MacIntel » : seul un écran tactile
+  // (`maxTouchPoints`) le sépare d'un ordinateur de bureau.
+  const notificationDenialHelp = (userAgent = "", platform = "", maxTouchPoints = 0) => {
+    const ua = String(userAgent);
+    const settings = /iPhone|iPad|iPod/.test(ua) || (platform === "MacIntel" && Number(maxTouchPoints) > 1)
+      ? "les réglages Notifications de l’application ajoutée à l’écran d’accueil sur iOS"
+      : /Firefox/.test(ua) ? "les permissions de ce site dans Firefox"
+      : /Chrome|Chromium|Edg/.test(ua) ? "les paramètres de ce site dans votre navigateur Chromium"
+      : /Safari/.test(ua) ? "les préférences Sites web → Notifications de Safari"
+      : "les permissions de ce site dans votre navigateur";
+    return `Permission refusée. Réactivez les notifications depuis ${settings}.`;
+  };
+  // Exposée pour être éprouvée telle quelle : c'est la seule façon de prouver qu'un agent
+  // utilisateur donné produit bien son libellé, et qu'aucune branche n'est inatteignable.
+  window.PhytoPwa.notificationDenialHelp = notificationDenialHelp;
 
   const updateNotificationControls = () => {
     const enable = document.getElementById("notification-enable");
@@ -598,13 +764,13 @@
       return;
     }
     if (Notification.permission === "denied") {
-      status.textContent = "Permission refusée. Réactivez les notifications depuis les réglages du site dans Chrome.";
+      status.textContent = notificationDenialHelp(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
       enable.hidden = true;
       disable.hidden = true;
       return;
     }
     if (notificationEnabled && Notification.permission === "granted") {
-      status.textContent = "Notifications actives sur ce terminal tant que la PWA reste active.";
+      status.textContent = "Notifications actives lorsque l’application est ouverte au premier plan et connectée au contrôleur. Le système peut les suspendre en arrière-plan ; ce n’est pas une alerte à distance.";
       enable.hidden = true;
       disable.hidden = false;
       return;
@@ -645,34 +811,48 @@
     });
   };
 
-  const initialize = async () => {
+  // Les préférences sont un **confort**, jamais une condition : elles ne décident que de
+  // l'âge affiché avant le premier contact et de l'état des notifications. Un stockage
+  // lent ou refusé les fait attendre jusqu'à 2 s ; les tenir devant le poller d'alarmes et
+  // les contrôles retenait donc l'interface connectée pour rien. Elles sont lues en
+  // parallèle et rattrapent l'état déjà établi au lieu de l'écraser.
+  const chargerPreferences = async () => {
+    const [contact, enabled, seen, initialized] = await Promise.all([
+      getPreference("lastContactAt", null),
+      getPreference("notificationsEnabled", false),
+      getPreference("alarmSeen", {}),
+      getPreference("alarmSeenInitialized", false),
+    ]);
+    // Une réponse fraîche arrivée pendant la lecture fait autorité : la préférence n'est
+    // qu'un repli tant qu'aucun contact n'a eu lieu sur cette page.
+    if (lastContactAt === null) lastContactAt = contact;
+    if (!alarmSeenInitialized) { alarmSeen = seen; alarmSeenInitialized = initialized; }
+    // Activé en dernier : tant que ce drapeau est faux, `processAlarmFeed` n'ouvre aucune
+    // notification et ne touche pas au registre des alarmes déjà vues.
+    notificationEnabled = enabled;
+    updateNotificationControls();
+    updateConnectionBanner();
+  };
+
+  const initialize = () => {
     configureSecureNotice();
     configureInstallation();
-    lastContactAt = cultureSnapshotAt || await getPreference("lastContactAt", null);
-    notificationEnabled = await getPreference("notificationsEnabled", false);
-    alarmSeen = await getPreference("alarmSeen", {});
-    alarmSeenInitialized = await getPreference("alarmSeenInitialized", false);
+    // Aucun `await` devant ce qui suit : les contrôles de notification, le poller et la
+    // bannière n'ont besoin ni du stockage ni du service worker. La lecture des
+    // préférences part ici et rattrapera l'interface quand elle aboutira.
+    chargerPreferences().catch(() => { /* Le stockage est une amélioration, pas un prérequis. */ });
 
     document.getElementById("pwa-connection-reload")?.addEventListener("click", () => {
       window.location.reload();
     });
 
-    // L'enregistrement du service worker ne conditionne rien et n'est donc jamais attendu ici :
-    // `serviceWorker.ready` peut ne jamais se régler (worker bloqué, installation sans fin), et il
-    // emportait alors la surveillance de connexion et la boucle d'alarmes, qui le suivaient.
-    // Son seul consommateur, showAlarmNotification, sait déjà faire avec une inscription absente.
-    if (window.isSecureContext && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/service-worker.js", {scope: "/"})
-        .then(() => navigator.serviceWorker.ready)
-        .then((registration) => { serviceWorkerRegistration = registration; })
-        .catch(() => { serviceWorkerRegistration = null; });
-    }
-
+    // 1. Contrôles de notification : ils n'ont besoin que de la permission du navigateur.
     configureNotificationControls();
     updateNotificationControls();
+    // 2. Boucle d'alarmes : c'est elle qui fait vivre l'interface connectée.
     createAdaptivePoller(fetchAlarmFeed).start();
 
-    // Reprise de l'application : c'est ce réveil, et non un sondage d'arrière-plan, qui rend la
+    // 3. Reprise de l'application : c'est ce réveil, et non un sondage d'arrière-plan, qui rend la
     // main en une seconde quand l'opérateur rouvre la PWA. « online » ne suffit pas : sur mobile,
     // navigator.onLine ne passe le plus souvent jamais à false. « controllerchange » est
     // délibérément absent : un changement de service worker dit qu'une version a pris la main,
@@ -683,7 +863,73 @@
     window.addEventListener("focus", reprendre);
     window.addEventListener("online", reprendre);
     document.addEventListener("visibilitychange", reprendre);
+    // 4. Bannière de connexion : premier battement.
     planifierBattement(0);
+
+    // 5. Enfin le service worker. L'enregistrement ne conditionne rien et n'est donc jamais attendu ici :
+    // `serviceWorker.ready` peut ne jamais se régler (worker bloqué, installation sans fin), et il
+    // emportait alors la surveillance de connexion et la boucle d'alarmes, qui le suivaient.
+    // Son seul consommateur, showAlarmNotification, sait déjà faire avec une inscription absente.
+    if (window.isSecureContext && "serviceWorker" in navigator) {
+      pwaState("worker", "Installation en cours : lecture hors ligne pas encore prête");
+      navigator.serviceWorker.register("/service-worker.js", {scope: "/"})
+        .then(observeRegistration)
+        .catch(() => { serviceWorkerRegistration = null; pwaState("worker", "Lecture hors ligne indisponible : installation échouée"); });
+      navigator.serviceWorker.ready.then(observeRegistration).catch(() => {});
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadController) { hadController = true; return; }
+        if (window.PhytoForms?.isDirty()) {
+          showUpdate("La mise à jour s’appliquera à la prochaine ouverture");
+        } else window.location.reload();
+      });
+      navigator.serviceWorker.addEventListener("message", event => {
+        if (event.data?.type === "version" && typeof event.data.version === "string") {
+          pwaState("worker", `Lecture hors ligne prête · version active ${event.data.version}`);
+        }
+      });
+    } else {
+      pwaState("worker", "Lecture hors ligne indisponible : connexion HTTPS et navigateur compatible requis");
+    }
+
+    document.querySelectorAll("[data-pwa-update]").forEach(button => button.addEventListener("click", () => {
+      if (waitingWorker) waitingWorker.postMessage({type: "activer"});
+    }));
+
+    // Barre mobile : l'onglet emprunté redevient le point de départ du clavier après la
+    // navigation. Sans cela, chaque aller-retour renvoyait le focus en haut du document et
+    // obligeait à retraverser toute la page pour changer de rubrique.
+    //
+    // Le focus n'est rendu qu'à l'onglet portant `aria-current="page"`, donc **effectivement
+    // atteint** : une redirection vers une autre page ne vole pas le focus. La clé est
+    // consommée dans tous les cas. La comparaison se fait sur la valeur de l'attribut, jamais
+    // par un sélecteur construit : `CSS.escape` produit un échappement d'identifiant, dont la
+    // place dans une valeur d'attribut entre guillemets n'a rien d'évident. Le stockage de
+    // session est facultatif — refusé, le repère est simplement perdu.
+    const NAV_KEY = "phyto.nav.onglet";
+    // Les onglets directs **et** les liens du panneau « Plus » : une rubrique atteinte
+    // depuis « Plus » (Historique, Configuration, Console, Application) mérite le même
+    // retour de focus qu'un onglet de premier rang.
+    const onglets = [...document.querySelectorAll(".mobile-navbar a")];
+    for (const lien of onglets) {
+      lien.addEventListener("click", () => {
+        try { sessionStorage.setItem(NAV_KEY, lien.getAttribute("href")); }
+        catch (_error) { /* Stockage facultatif. */ }
+      });
+    }
+    try {
+      const attendu = sessionStorage.getItem(NAV_KEY);
+      if (attendu) {
+        sessionStorage.removeItem(NAV_KEY);
+        const cible = onglets
+          .find(lien => lien.getAttribute("href") === attendu && lien.getAttribute("aria-current") === "page");
+        // Un lien du panneau « Plus » est dans un `<details>` refermé à l'arrivée : il
+        // n'est ni visible ni focalisable. Le point de départ du clavier est alors le
+        // `<summary>` qui y mène, seul élément réellement présent à l'écran. Ouvrir le
+        // panneau d'office montrerait un menu que l'opérateur n'a pas redemandé.
+        const repli = cible?.closest("details.mobile-more");
+        (repli && !repli.open ? repli.querySelector("summary") : cible)?.focus({preventScroll: true});
+      }
+    } catch (_error) { /* Stockage facultatif. */ }
 
     const more = document.querySelector(".mobile-more");
     document.addEventListener("click", (event) => {

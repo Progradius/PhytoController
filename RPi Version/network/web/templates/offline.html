@@ -4,24 +4,26 @@
   <div>
     <p class="eyebrow">Contrôleur injoignable</p>
     <h1>Vue hors ligne</h1>
-    <p class="hero-copy">Aucune page enregistrée ne correspond à cette adresse. Les dernières données disponibles restent accessibles depuis les vues de lecture seules.</p>
+    <p class="hero-copy">Aucune page enregistrée ne correspond à cette adresse. Seules les pages déjà consultées sur cet appareil ont pu être conservées : les liens ci-dessous n’ouvrent une copie datée que si elle existe, et aucune commande n’est possible hors ligne.</p>
   </div>
 </section>
 <section class="card-grid">
   <article class="card">
     <h2>Tableau de bord</h2>
-    <p class="card-meta">Dernier état, capteurs et actionneurs enregistrés sur ce terminal.</p>
-    <a class="button button-secondary" href="/">Ouvrir</a>
+    <p class="card-meta">Dernier état, capteurs et actionneurs enregistrés sur ce terminal, s’il en existe une copie.</p>
+    <a class="button button-secondary" href="/">Ouvrir la copie conservée</a>
   </article>
   <article class="card">
     <h2>Alarmes</h2>
-    <p class="card-meta">Dernières occurrences actives connues, explicitement marquées comme non confirmées.</p>
-    <a class="button button-secondary" href="/alarms">Ouvrir</a>
+    <p class="card-meta">Dernières occurrences actives connues, explicitement marquées comme non confirmées, s’il en existe une copie.</p>
+    <a class="button button-secondary" href="/alarms">Ouvrir la copie conservée</a>
   </article>
   <article class="card">
     <h2>Historique</h2>
-    <p class="card-meta">Dernière période consultée, avec couverture et lacunes explicitement signalées.</p>
-    <a class="button button-secondary" href="/history">Ouvrir</a>
+    <p class="card-meta">Dernière période consultée, avec couverture et lacunes explicitement signalées, s’il en existe une copie.</p>
+    <a class="button button-secondary" href="/history">Ouvrir la copie conservée</a>
   </article>
 </section>
+<section class="card"><h2>Carnet de cultures (copies conservées)</h2><p>Seules les pages déjà consultées sont disponibles, selon le stockage de cet appareil.</p><a class="button" href="/app#copies">Voir les copies conservées</a></section>
+{% include "offline_index.html" %}
 {% endblock %}

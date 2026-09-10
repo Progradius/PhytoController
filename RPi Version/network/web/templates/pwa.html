@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero compact"><div><h1>Application sur ce téléphone</h1><p>Installation, connexion et copies conservées sur cet appareil.</p></div></section>
+<section class="card" aria-labelledby="app-connection-title">
+  <h2 id="app-connection-title">Connexion</h2>
+  <p data-app-connection>Le type de connexion est inconnu sans JavaScript.</p>
+  <p>Adresse HTTPS du contrôleur : <a href="{{ pwa_url }}">{{ pwa_url }}</a>. Utilisez le nom correspondant au certificat approuvé.</p>
+  <details><summary>Approuver le certificat local</summary><p>Demandez à l’administrateur de vérifier l’adresse et de vous transmettre le certificat de l’autorité locale. Sur Android, utilisez les paramètres de sécurité pour installer le certificat d’autorité. Sur iPhone ou iPad, installez le profil reçu dans Réglages puis activez sa confiance dans Général → Informations → Réglages des certificats. Ne validez un certificat qu’après vérification de sa provenance.</p><p>Après un changement d’adresse ou un renouvellement, faites vérifier le nom du certificat par l’administrateur. Le guide du dépôt <code>docs/operations/pwa-local-tls.md</code> décrit la procédure.</p></details>
+</section>
+<section class="card" aria-labelledby="app-install-title">
+  <h2 id="app-install-title">Installation</h2>
+  <p data-pwa-install-state>État d’installation inconnu sans JavaScript.</p>
+  <button id="pwa-install-button" class="button" type="button" hidden>Installer l’application</button>
+  <p data-pwa-install-help>Android/Chromium : menu → Installer l’application. iPhone/iPad : Safari → Partager → Sur l’écran d’accueil. Si cette option manque, consultez l’aide de votre navigateur.</p>
+  <p class="card-meta">Versions testées sur appareils physiques : qualification en attente. L’installation et le certificat doivent être vérifiés sur votre appareil.</p>
+</section>
+{% include "offline_index.html" %}
+<section class="card" aria-labelledby="app-notifications-title">
+  <h2 id="app-notifications-title">Notifications locales</h2>
+  <p>Notifications actives lorsque l’application est ouverte au premier plan et connectée au contrôleur. Le système peut les suspendre en arrière-plan ; ce n’est pas une alerte à distance.</p>
+  <p id="notification-status" role="status">État des notifications inconnu sans JavaScript.</p>
+  <button id="notification-enable" class="button" type="button" hidden>Activer les notifications</button>
+  <button id="notification-disable" class="button button-secondary" type="button" hidden>Désactiver</button>
+</section>
+<section class="card" aria-labelledby="app-version-title">
+  <h2 id="app-version-title">Version et disponibilité</h2>
+  <p>Version de cette page : <code>{{ cache_version }}</code>.</p>
+  <p data-pwa-worker-state>Version du service worker actif inconnue.</p>
+  <p data-pwa-storage-state>Disponibilité du stockage inconnue.</p>
+  {# Le bouton « Mettre à jour » n'existe qu'une fois par page : la bannière globale de
+     `base.html` le porte, et elle s'affiche ici comme partout ailleurs dès qu'une version
+     attend. Un second bouton dans cette section aurait été un doublon de commande — deux
+     éléments de même nom accessible pour une seule action — sans rien apporter. #}
+  <p data-pwa-update-state>État des mises à jour inconnu.</p>
+  <p>En cas d’absence de réponse réseau, repli sur une copie disponible après 8 s. Une réponse d’erreur du serveur reste affichée.</p>
+  <a class="action-link" href="/cultures/cycles#sauvegarde">Sauvegarde et carnet de cultures</a>
+</section>
+{% endblock %}

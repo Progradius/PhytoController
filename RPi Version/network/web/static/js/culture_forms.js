@@ -1,5 +1,11 @@
 (() => {
   "use strict";
+  const revealRubric = () => {
+    const current = document.querySelector('.culture-navigation [aria-current="page"]');
+    const navigation = current?.closest("nav");
+    if (current && navigation) navigation.scrollLeft = Math.max(0, current.offsetLeft - navigation.offsetLeft - (navigation.clientWidth - current.offsetWidth) / 2);
+  };
+  revealRubric(); window.addEventListener("pageshow", revealRubric);
   // Socle commun des formulaires du carnet de cultures : identifiants stables, envoi
   // JSON ou binaire avec les mêmes gardes qu'auparavant, et restitution des refus au
   // champ concerné. Ce module ne commande aucun équipement, n'écrit aucune
@@ -17,12 +23,20 @@
   // Partagé par `submitBinary` et `sendUpload`, pour que le transport ne puisse pas
   // rester sans délai si l'appelant en oubliait un.
   const UPLOAD_TIMEOUT_MS = 45000;
+  // Refus rendus en texte brut par le serveur HTTP, avant que le carnet ne soit consulté :
+  // ils nomment ici la limite, comme le font déjà les refus JSON du carnet.
+  const UPLOAD_REFUSALS = {
+    408: "Envoi trop lent : aucune photo n’a été enregistrée. Réessayez la même saisie sans la modifier.",
+    413: "Photo refusée : 5 Mio maximum par envoi. Reprenez la photo ou choisissez une image plus légère.",
+    415: "Photo refusée : envoyez un fichier JPEG, PNG ou WebP non animé.",
+  };
 
   let counter = 0;
   const bound = new WeakSet();   // contrôles dont l'effacement à la saisie est déjà branché
   const busy = new WeakSet();    // formulaires dont un envoi est en vol
   const reviewOnly = new WeakMap();
   const reviews = new WeakMap();
+  const reviewTimers = new WeakMap(); // formulaire → minuteur de péremption de sa vérification
   const keys = new WeakMap();    // formulaire → {signature, value} de la clé d'idempotence
   const guarded = new Set();     // formulaires suivis pour la protection des saisies en cours
   const baselines = new WeakMap(); // formulaire → empreinte de sa saisie initiale
@@ -33,6 +47,13 @@
   const isOffline = () => !navigator.onLine || document.body.classList.contains("is-offline");
   const identifier = () =>
     Array.from(crypto.getRandomValues(new Uint8Array(20)), n => n.toString(16).padStart(2, "0")).join("");
+
+  const annulerPeremption = form => {
+    const timer = reviewTimers.get(form);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    reviewTimers.delete(form);
+  };
 
   const outputOf = form => form.querySelector("output");
   const prefixOf = form => form.dataset.formKey || "";
@@ -74,6 +95,7 @@
   const disarm = form => {
     settled.add(form);
     guarded.delete(form);
+    return discardDraft(form);
   };
 
   const pending = () => {
@@ -83,6 +105,173 @@
     }
     return false;
   };
+
+  const previousDirty = window.PhytoForms?.isDirty;
+  // Un envoi en cours protège aussi la page lors d’une activation de worker.
+  window.PhytoForms = {isDirty: () => pending() || [...guarded].some(form => busy.has(form)) || Boolean(previousDirty?.())};
+
+  // Brouillons : inscription explicite du formulaire ET des champs. Aucune mesure,
+  // confirmation, photo ni commande ne peut entrer dans ce stockage auxiliaire.
+  const DRAFT_TTL_MS = 86400000;   // 24 h : au-delà, la fiche a presque toujours bougé.
+  // Plafond explicite, comme les 20 pages et les 40 photos de la PWA : un brouillon est du
+  // texte d'opérateur en clair sur l'appareil, il n'a pas à s'accumuler sans borne. Le plus
+  // ancien est évincé — c'est celui dont la fiche a le plus de chances d'avoir changé.
+  const DRAFT_MAX = 50;
+  const draftBindings = new WeakMap();
+  let draftsDatabase;
+  const draftDb = () => {
+    if (!draftsDatabase) draftsDatabase = new Promise((resolve, reject) => {
+      const request = indexedDB.open("phyto-culture-drafts", 1);
+      let settled = false;
+      const fail = error => {
+        if (settled) return;
+        settled = true; clearTimeout(timer); reject(error);
+      };
+      const timer = setTimeout(() => fail(new Error("Stockage indisponible")), 2000);
+      request.onupgradeneeded = () => request.result.createObjectStore("drafts", {keyPath: "key"});
+      request.onsuccess = () => {
+        if (settled) { request.result.close(); return; }
+        settled = true; clearTimeout(timer); resolve(request.result);
+      };
+      request.onerror = () => fail(request.error);
+      request.onblocked = () => fail(new Error("Stockage bloqué"));
+    });
+    return draftsDatabase;
+  };
+  // L'expiration n'est vérifiée qu'à l'affichage d'une bannière : un brouillon d'une fiche
+  // jamais rouverte ne se supprimerait donc nulle part. La purge se fait une fois par page,
+  // à l'ouverture de la base, et ne bloque personne — elle est chaînée après la résolution.
+  let draftsPurged = false;
+  const purgeDrafts = async () => {
+    if (draftsPurged) return;
+    draftsPurged = true;
+    const records = await draftOperation("getAll");
+    const fresh = [];
+    for (const record of records) {
+      if (Date.now() - Number(record.at || 0) > DRAFT_TTL_MS) await draftOperation("delete", record.key);
+      else fresh.push(record);
+    }
+    fresh.sort((left, right) => Number(right.at || 0) - Number(left.at || 0));
+    for (const record of fresh.slice(DRAFT_MAX)) await draftOperation("delete", record.key);
+  };
+  const draftOperation = async (method, value) => {
+    const db = await draftDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("drafts", ["get", "getAll"].includes(method) ? "readonly" : "readwrite");
+      const request = tx.objectStore("drafts")[method](value);
+      tx.oncomplete = () => resolve(request.result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  };
+  const draftControls = form => controlsOf(form).filter(control =>
+    control.hasAttribute("data-draft-field") && !control.hasAttribute("data-secret") &&
+    (control.tagName === "TEXTAREA" || control.tagName === "SELECT" ||
+      (control.tagName === "INPUT" && ["text", "date", "datetime-local"].includes(control.type))) &&
+    !/password|secret|confirm|csrf|token|ph$|ec$|volume|temperature/i.test(control.name));
+  const draftContext = form => ({target: form.dataset.draftTarget || "", version: form.dataset.draftVersion || ""});
+  // `discarded` est la garde anti-course, et elle n'a de sens que parce que la suppression
+  // passe par la **même** file que les écritures : une frappe peut avoir mis un `put` en
+  // vol au moment où l'opérateur supprime le brouillon (ou l'enregistre). Sans cette garde,
+  // ce `put` s'exécuterait après le `delete` et ressusciterait un brouillon que personne ne
+  // veut plus. Une frappe ultérieure remet `discarded` à faux, de façon synchrone : la
+  // suppression n'interdit pas de recommencer une saisie.
+  const discardDraft = async form => {
+    const binding = draftBindings.get(form);
+    if (!binding) return;
+    binding.discarded = true;
+    binding.queue = binding.queue
+      .catch(() => {})
+      .then(() => draftOperation("delete", binding.key))
+      .catch(() => { /* Auxiliaire : une suppression impossible ne casse rien. */ });
+    await binding.queue;
+    binding.banner.hidden = true;
+  };
+  function registerDraft(form) {
+    if (!form.dataset.cultureDraft || draftBindings.has(form) || !location.pathname.startsWith("/cultures")) return;
+    const context = draftContext(form);
+    const key = JSON.stringify([form.dataset.cultureDraft, context.target, context.version]);
+    const banner = document.createElement("aside"); banner.className = "notice"; banner.hidden = true;
+    banner.dataset.cultureDraftNotice = "";
+    const message = document.createElement("p");
+    const restore = document.createElement("button"); restore.type = "button";
+    restore.textContent = "Restaurer le brouillon"; restore.className = "button button-secondary";
+    const discard = document.createElement("button"); discard.type = "button";
+    discard.textContent = "Supprimer le brouillon"; discard.className = "button button-secondary";
+    banner.append(message, restore, discard);
+    // La bannière doit être **découvrable** : les formulaires du carnet vivent le plus
+    // souvent dans un `<details>` replié, où un `prepend` la rendrait invisible tant que
+    // l'opérateur n'a pas déplié le bloc — exactement l'inverse de la promesse « note
+    // récupérable après un arrêt du navigateur ». Le gabarit désigne donc l'emplacement
+    // par `[data-culture-draft-banner="<clé>"]`, hors du repli ; à défaut, la bannière
+    // reste en tête du formulaire. Le conteneur est cherché par comparaison de valeurs,
+    // jamais par un sélecteur construit : une clé de formulaire est une donnée du gabarit,
+    // pas un identifiant CSS. Une page qui répète le même formulaire (une fiche par ligne)
+    // désigne l'emplacement par `data-draft-target` ; sans cible déclarée, le premier
+    // emplacement portant la clé sert.
+    const slots = [...document.querySelectorAll("[data-culture-draft-banner]")]
+      .filter(node => node.dataset.cultureDraftBanner === form.dataset.cultureDraft);
+    const slot = slots.find(node => node.dataset.draftTarget === context.target) || slots.find(node => node.dataset.draftTarget === undefined);
+    if (slot) slot.append(banner); else form.prepend(banner);
+    const binding = {key, banner, queue: Promise.resolve(), discarded: false}; draftBindings.set(form, binding);
+    let saved = null;
+    const unavailable = () => { banner.hidden = false; restore.hidden = true; message.textContent = "Brouillon local indisponible : stockage refusé ou saturé. La saisie reste dans cette page."; };
+    const save = event => {
+      if (!event.isTrusted || settled.has(form)) return;
+      if (!draftControls(form).includes(event.target)) return;
+      // Synchrone, avant toute mise en file : l'opérateur saisit de nouveau, le brouillon
+      // redevient légitime même s'il venait d'être supprimé.
+      binding.discarded = false;
+      const fields = draftControls(form).map(control => ({name: control.name, value: control.value}));
+      const record = {key, formKey: form.dataset.cultureDraft, ...draftContext(form), fields, at: Date.now()};
+      binding.queue = binding.queue.catch(() => {}).then(() => {
+        // Une suppression ou un enregistrement réussi arrivés entre-temps rendent cette
+        // écriture sans objet : la laisser passer ferait réapparaître le brouillon.
+        if (binding.discarded) return undefined;
+        return draftOperation("put", record);
+      }).catch(unavailable);
+    };
+    form.addEventListener("input", save); form.addEventListener("change", save);
+    discard.addEventListener("click", () => discardDraft(form));
+    restore.addEventListener("click", () => {
+      const now = draftContext(form);
+      if (!saved || now.target !== saved.target || now.version !== saved.version || Date.now() - saved.at > DRAFT_TTL_MS) {
+        message.textContent = "Brouillon refusé : la cible ou la version de la fiche a changé, ou le brouillon a expiré.";
+        restore.hidden = true; return;
+      }
+      const controls = draftControls(form);
+      // Valider toutes les sélections et dates avant de modifier le moindre champ.
+      const valid = saved.fields.every(field => {
+        const control = controls.find(item => item.name === field.name);
+        if (!control) return false;
+        if (control.tagName === "SELECT" && ![...control.options].some(option => option.value === field.value && !option.disabled)) return false;
+        const probe = control.cloneNode(true); probe.value = field.value;
+        return probe.value === field.value && probe.checkValidity();
+      });
+      if (!valid) { message.textContent = "Brouillon refusé : vérifiez la cible et la date, devenues indisponibles ou invalides."; restore.hidden = true; return; }
+      saved.fields.forEach(field => { controls.find(control => control.name === field.name).value = field.value; });
+      keys.delete(form); reviews.delete(form); touched.add(form); settled.delete(form);
+      form.dispatchEvent(new Event("input", {bubbles: true}));
+      message.textContent = "Brouillon restauré, non enregistré. Vérifiez la cible et la date avant d’enregistrer en ligne.";
+      restore.hidden = true;
+    });
+    // Cas nominal : une lecture par clé, pas un balayage de toute la base à chaque
+    // formulaire inscrit. Le `getAll` ne sert qu'au message « brouillon d'une autre
+    // version », et prend alors le plus récent — avec plusieurs versions périmées, le
+    // premier venu aurait pu être le plus ancien.
+    draftOperation("get", key).then(found => found || draftOperation("getAll").then(records => records
+      .filter(item => item.formKey === form.dataset.cultureDraft && item.target === context.target)
+      .sort((left, right) => Number(right.at || 0) - Number(left.at || 0))[0] || null)).then(record => {
+      purgeDrafts().catch(() => { /* Auxiliaire : une purge impossible ne casse rien. */ });
+      if (!record || touched.has(form)) return;
+      saved = record; banner.hidden = false;
+      if (Date.now() - record.at > DRAFT_TTL_MS || record.version !== context.version) {
+        message.textContent = "Brouillon refusé : fiche modifiée ou expiration de 24 h dépassée."; restore.hidden = true;
+        draftOperation("delete", record.key).catch(() => {}); return;
+      }
+      message.textContent = `Brouillon sur cet appareil, non enregistré (il y a ${Math.max(0, Math.round((Date.now() - record.at) / 60000))} min)`;
+    }).catch(unavailable);
+  }
 
   addEventListener("beforeunload", event => {
     if (!pending()) return;
@@ -114,6 +303,7 @@
       });
       form.addEventListener("submit", () => reviewOnly.set(form, verifying), true);
       const invalidate = () => {
+        annulerPeremption(form);
         reviews.delete(form);
         form.querySelector(".culture-review")?.remove();
       };
@@ -149,6 +339,7 @@
       }
     }
     guard(form);
+    registerDraft(form);
     return form;
   }
 
@@ -191,10 +382,44 @@
   const previews = new Map();        // champ photo → URL d'objet en cours (itérable pour `pagehide`)
   const previewZones = new WeakMap(); // champ photo → conteneur d'aperçu qui lui appartient
   const previewBound = new WeakSet();
+  const photoChoiceBound = new WeakSet();
+  const photoCameraButtons = new WeakMap(); // champ photo → son bouton de prise de vue
   const resetBound = new WeakSet();  // formulaires dont la remise à zéro est déjà branchée
   const PREVIEW_ALT = "Aperçu local de la photo choisie, avant tout envoi.";
 
   const isPhotoField = control => control.type === "file" && /image/i.test(control.accept || "");
+
+  // `capture` n'a pas un comportement uniforme : certains navigateurs ouvrent directement la
+  // caméra et rendent le choix d'une image existante difficile. Deux actions explicites pilotent
+  // le même champ et donc la même mutation/idempotence. Reprendre remplace simplement le File.
+  function attachPhotoChoices(control) {
+    if (photoChoiceBound.has(control)) return;
+    photoChoiceBound.add(control);
+    const actions = document.createElement("span");
+    actions.className = "culture-photo-choices";
+    const camera = document.createElement("button");
+    camera.type = "button"; camera.className = "button button-secondary";
+    camera.textContent = "Prendre une photo";
+    camera.dataset.culturePhotoCamera = "";
+    photoCameraButtons.set(control, camera);
+    const library = document.createElement("button");
+    library.type = "button"; library.className = "button button-secondary";
+    library.textContent = "Choisir une image existante";
+    library.dataset.culturePhotoLibrary = "";
+    camera.addEventListener("click", () => {
+      control.setAttribute("capture", "environment");
+      control.click();
+    });
+    library.addEventListener("click", () => {
+      control.removeAttribute("capture");
+      control.click();
+    });
+    control.addEventListener("change", () => {
+      camera.textContent = control.files?.length ? "Reprendre la photo" : "Prendre une photo";
+    });
+    actions.append(camera, library);
+    (labelOf(control) || control).after(actions);
+  }
 
   // Le conteneur est frère du `<label>` enveloppant, comme le message d'erreur, pour ne
   // pas entrer dans le nom accessible du champ. Un conteneur déjà posé par le gabarit
@@ -205,6 +430,11 @@
     if (known?.isConnected) return known;
     const anchor = labelOf(control) || control;
     let zone = anchor.nextElementSibling;
+    // `attachPhotoChoices` a déjà inséré ses deux boutons juste après l'ancre : une zone
+    // fournie par le gabarit se trouve donc **derrière** eux. Sans ce saut, la branche
+    // d'adoption était inatteignable — le socle créait une seconde zone et celle du
+    // gabarit restait vide, à côté.
+    if (zone?.classList.contains("culture-photo-choices")) zone = zone.nextElementSibling;
     if (!zone || !zone.hasAttribute("data-culture-photo-preview")) {
       zone = document.createElement("figure");
       zone.className = "culture-photo-preview";
@@ -235,6 +465,7 @@
   }
 
   function attachPreview(form, control) {
+    attachPhotoChoices(control);
     control.addEventListener("change", () => {
       clearControlPreview(control);
       const chosen = control.files && control.files[0];
@@ -259,7 +490,17 @@
     // formulaire, qui efface les aperçus de tous ses champs photo.
     if (!resetBound.has(form)) {
       resetBound.add(form);
-      form.addEventListener("reset", () => clearPreview(form));
+      form.addEventListener("reset", () => {
+        clearPreview(form);
+        // Une remise à zéro vide toujours les champs fichier, et n'émet aucun `change` :
+        // sans cette remise du libellé, le bouton proposerait « Reprendre la photo »
+        // alors qu'aucun fichier n'est plus choisi. Le libellé est posé sans consulter
+        // `control.files`, qui n'est vidé qu'**après** cet événement.
+        for (const control of controlsOf(form)) {
+          const camera = isPhotoField(control) ? photoCameraButtons.get(control) : null;
+          if (camera) camera.textContent = "Prendre une photo";
+        }
+      });
     }
   }
 
@@ -440,14 +681,23 @@
   // La clé d'idempotence est conservée tant que la saisie ne change pas : un même envoi
   // rejoué après une réponse perdue vérifie l'enregistrement au lieu d'en créer un
   // second. `crypto.randomUUID` n'existe pas hors contexte sécurisé (LAN en HTTP).
-  function requestKey(form, signature) {
-    const memo = keys.get(form);
-    if (!memo || memo.signature !== signature) {
+  //
+  // La mémoire est indexée par **destination**, pas seulement par formulaire : un même
+  // formulaire porte deux actes successifs et distincts (l'observation, puis sa photo).
+  // Avec une mémoire unique, le second effaçait la clé du premier — reprendre la photo
+  // puis réessayer l'observation repartait avec une clé neuve alors que le texte n'avait
+  // pas bougé, ce qui aurait créé une seconde note si la première réponse s'était perdue.
+  // C'est exactement le doublon que « Reprendre la photo » doit être incapable de faire.
+  function requestKey(form, channel, signature) {
+    let memo = keys.get(form);
+    if (!memo) { memo = new Map(); keys.set(form, memo); }
+    const known = memo.get(channel);
+    if (!known || known.signature !== signature) {
       const fresh = {signature, value: identifier()};
-      keys.set(form, fresh);
+      memo.set(channel, fresh);
       return fresh.value;
     }
-    return memo.value;
+    return known.value;
   }
 
   // Les gardes d'un envoi — hors ligne, envoi déjà en vol, boutons indisponibles pendant
@@ -539,9 +789,12 @@
             xhr.upload.addEventListener("load", () => report({done: true}));
             xhr.addEventListener("load", () => {
               let data;
-              try { data = JSON.parse(xhr.responseText); } catch { data = {error: REFUSED}; }
-              // 413, 415 et 408 répondent du texte : le refus reste celui du socle.
-              if (!data || typeof data !== "object") data = {error: REFUSED};
+              try { data = JSON.parse(xhr.responseText); } catch { data = null; }
+              // 413, 415 et 408 sont refusés par aiohttp **avant** le carnet, en texte
+              // brut : sans traduction ici, une photo trop grande n'aurait eu que le
+              // refus générique du socle, qui ne nomme aucune limite. Les refus de fond
+              // du carnet, eux, arrivent en JSON et gardent leur propre message.
+              if (!data || typeof data !== "object") data = {error: UPLOAD_REFUSALS[xhr.status] || REFUSED};
               resolve({ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data, aborted: false});
             });
             xhr.addEventListener("error", () =>
@@ -610,7 +863,7 @@
     let changed = false;
     const change = () => { changed = true; };
     const signature = JSON.stringify(command);
-    command.request_id = requestKey(form, signature);
+    command.request_id = requestKey(form, url, signature);
     const domain = url === "/api/v1/cultures" ? "culture" : url === "/api/v1/cultures/solutions" ? "solution" : null;
     // La prévalidation coûte au serveur une transaction complète sur le thread unique du
     // carnet : elle n'est pas faite à chaque enregistrement. Trois cas la justifient — le
@@ -733,21 +986,27 @@
           panel.append(confirm);
         }
         form.prepend(panel); status(form, ""); focusOn(panel);
-        setTimeout(() => {
+        reviewTimers.set(form, setTimeout(() => {
+          reviewTimers.delete(form);
           if (reviews.get(form) !== memo) return;
           reviews.delete(form); panel.remove();
           status(form, "Vérification expirée : vérifiez à nouveau les données du carnet avant d’enregistrer.");
-        }, PREVIEW_VALIDITY_MS);
+        }, PREVIEW_VALIDITY_MS));
         reviewOnly.delete(form);
         return {ok: false, preview: true};
       }
     }
+    // La péremption de la vérification n'a plus d'objet une fois la mutation partie.
+    // Laissée courir, elle écrasait trente secondes plus tard le refus que le serveur
+    // venait d'afficher — l'opérateur voyait « Vérification expirée » à la place du motif
+    // du refus, et sa saisie restait pourtant refusée.
+    annulerPeremption(form);
     const answer = await send(form, url, {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(command),
       timeoutMs: options.timeoutMs ?? 15000,
     });
-    if (answer.ok) disarm(form);
+    if (answer.ok) await disarm(form);
     return answer;
   }
 
@@ -757,7 +1016,7 @@
     // L'identité du fichier fait partie de la saisie : une autre photo est un autre envoi.
     const signature =
       JSON.stringify(command) + `|${blob?.name || ""}:${blob?.size || 0}:${blob?.lastModified || 0}`;
-    command.request_id = requestKey(form, signature);
+    command.request_id = requestKey(form, url, signature);
     // La barre est posée par `sendUpload`, une fois les gardes franchies, et retirée par
     // lui quelle que soit l'issue : un envoi refusé hors ligne ou parce qu'un autre est
     // déjà en vol n'en laisse aucune trace.
@@ -776,7 +1035,7 @@
       onStart: () => progressBar(form),
       onProgress: options.onProgress,
     });
-    if (answer.ok) disarm(form);
+    if (answer.ok) await disarm(form);
     return answer;
   }
 
