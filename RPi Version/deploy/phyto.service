@@ -10,6 +10,11 @@ WorkingDirectory=/home/progradius/PhytoController/RPi Version
 Environment=PYTHONUNBUFFERED=1
 Environment=PHYTO_RUN_MODE=service
 Environment=PHYTO_HW_WATCHDOG=0
+# Donnees ecrites a l'execution (configuration, etat, carnet, historique).
+# Hors du repertoire de travail Git : un checkout, un merge, un reset ou un
+# `git clean -xdf` ne peut plus les ecraser ni les supprimer. Incident du
+# 08/09/2026, voir docs/operations/migration-donnees-vivantes.md.
+Environment=PHYTO_DATA_DIR=/home/progradius/phyto-data
 
 ExecStart=/bin/bash -c 'cd "/home/progradius/PhytoController/RPi Version" && exec ./venv/bin/python3 main.py'
 

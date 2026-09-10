@@ -920,3 +920,35 @@ Baseline à noter ici après commit de l'arbre courant : commit, pytest, Playwri
 - [ ] R5.2 Contrastes plein jour, séries distinguables sans la couleur (UX-18)
 - [ ] R5.3 `.action-link` 44 px, glossaire des libellés (UX-18)
 - [ ] R5.4 Photo mobile : capture optionnelle, refus explicites, reprise sans doublon (UX-19)
+
+# Données vivantes hors du répertoire de travail Git (incident du 08/09/2026)
+
+Cause établie : un `git checkout master` lancé à la main sur le Pi a matérialisé le `param.json`
+du commit `e93644a` par-dessus la configuration vivante — la branche déployée ne suivait pas le
+fichier, la révision visée le suivait encore. 26 h 21 sans Éclairage 2 ni cycle 2, 6 h
+d'Éclairage 1 perdues, chauffage réactivé à tort 22 min.
+
+- [x] `utils/runtime_paths.py` : `data_dir()` / `data_file()` purs et mémoïsés, `ensure_data_dir()`
+      qui échoue bruyamment, défaut inchangé sur `param/`
+- [x] `tests/test_runtime_paths.py` : défaut, surcharge, variable vide, chemin relatif, mémoïsation,
+      absence de création, mode 0700, échec sans repli
+- [x] Huit ancrages reroutés : `param/config.py`, `param/equipment_metadata.py`,
+      `model/SensorStats.py`, `utils/csrf.py`, `utils/state_store.py`, `utils/operator_history.py`,
+      `utils/culture_store.py`, `utils/pretty_console.py`
+- [x] `main.py` : `ensure_data_dir()` avant le verrou d'instance et tout accès fichier
+- [x] `scripts/deploy.sh` : répertoire lu dans l'unité systemd (`systemctl show`), gardes et
+      validation Pydantic sur le chemin résolu
+- [x] `deploy/phyto.service` : `Environment=PHYTO_DATA_DIR=/home/progradius/phyto-data`
+- [x] `tests/test_deploy_safety.py` : sonde en interpréteur neuf, aucun des 8 chemins dans le dépôt
+- [x] Documentation : `docs/operations/migration-donnees-vivantes.md`, `README.md`,
+      `docs/operations/install-raspberry-pi.md`, miroirs `CLAUDE.md` / `AGENTS.md`
+- [ ] Migration sur le Pi (arrêt du service, déplacement des 8 entrées, unité, contrôles de sortie)
+- [ ] Preuve de non-régression : checkout vers `e93644a` sur copie hors production, config intacte
+
+## Revue
+
+`python3 -m pytest` : 835 passed. `diff -u CLAUDE.md AGENTS.md` vide.
+Le défaut `param/` est inchangé, donc développement, tests et Docker ne bougent pas ; seul le Pi,
+dont l'unité pose `PHYTO_DATA_DIR`, sort du répertoire de travail Git.
+Point à ne jamais relâcher : aucun repli silencieux vers `param/` dans `ensure_data_dir()`, sans
+quoi le processus se remettrait à écrire dans le dépôt sans que personne ne le voie.

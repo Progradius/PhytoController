@@ -86,6 +86,25 @@ to `PuppetMaster`.
     tracks the live configuration, and an exclusive `flock` prevents concurrent deployments. Never
     reintroduce `param.json` into Git or a checkout/stash path: even a temporary replacement is observed
     immediately by the running control loops.
+- `utils/runtime_paths.py` — **the single resolution of where runtime-written files live**, and the
+  reason a checkout can no longer destroy the live configuration. On 08/09/2026 a hand-run
+  `git checkout master` overwrote `param/param.json`: the deployed branch did not track the file, the
+  target revision still did, and Git therefore materialised the commit's version **on top of the live
+  config** — 26 h without lighting or cycle. Gitignoring is not protection; every commit before `5cddf2f`
+  still tracks that file. `data_dir()` returns `PHYTO_DATA_DIR` when set and non-empty, otherwise the
+  repository's `param/` — the historical default, so development, tests and Docker are unchanged. Eight
+  anchors go through `data_file(...)`: `param.json` (and its `.bak`), `runtime_state.json`,
+  `sensor_stats.json`, `equipment_metadata.json`, `.csrf_token`, `operator_history.sqlite3`,
+  `cultures.sqlite3` and — derived from that database's path — the `culture_media/` directory. The
+  resolution is memoised: a late environment change must not create a second truth mid-process, and
+  `data_dir()`/`data_file()` are **pure** because they run at import time. `main.py` calls
+  `ensure_data_dir()` at boot, before the instance lock and before any file access; when
+  `PHYTO_DATA_DIR` is set but unusable it **exits loudly**, no pin having been touched. **Never add a
+  silent fallback to `param/` there** — the process would quietly resume writing inside the Git working
+  tree, which is the very incident this module removes. `scripts/deploy.sh` reads the variable from the
+  systemd unit (`systemctl show`), never from its own environment: a shell-level `${PHYTO_DATA_DIR:-…}`
+  would fall back to `param/` after migration and back up a directory the service no longer uses.
+  Procedure and proof: `docs/operations/migration-donnees-vivantes.md`.
 - `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
   one supervised job per concern (2 daily timers, 2 cyclic timers, the `climate_control` thermal arbiter,
   shared sensor snapshot, Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
@@ -410,6 +429,10 @@ is **enabled by default**, with `PHYTO_HW_WATCHDOG=0` as the explicit opt-out.
 - `param/param.json` holds Wi-Fi and InfluxDB credentials in clear text and is deliberately **ignored by
   Git**. Never force-add it or paste its values into logs, issues or commits. The historically versioned
   credentials must still be considered compromised until rotated.
+- **On the Pi, never run `git checkout <branch>` or `git pull`** — always `scripts/deploy.sh`, which
+  leaves HEAD detached on the target. A branch checkout is what destroyed the live configuration on
+  08/09/2026. Since `utils/runtime_paths.py` the data itself is out of reach, but the Pi must stay the
+  read-only checkout the whole deployment script assumes.
 - The HTTP server has **no authentication** — a deliberate choice, 8123 is LAN-only. Destructive actions
   are dedicated POST routes protected by CSRF/origin checks and an explicit browser confirmation. Never
   move one behind GET: a prefetch or an `<img src>` on any LAN page could fire it. Hostnames outside the

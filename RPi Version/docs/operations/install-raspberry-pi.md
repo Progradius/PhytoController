@@ -48,11 +48,19 @@ La production utilise l'utilisateur `progradius` et le chemin `/home/progradius/
 
 ## Configuration
 
-`param/param.json` est requis au boot, contient des secrets et reste propre à la machine : il est ignoré
-par Git. `param/param.example.json` inventorie le schéma avec les sorties désactivées et des valeurs
-fictives. Pour une nouvelle installation, le copier vers `param/param.json`, renseigner les identifiants,
-vérifier chaque GPIO contre le câblage réel, puis valider le modèle avant de raccorder les charges. Ne
-jamais forcer le fichier vivant dans Git.
+`param.json` est requis au boot, contient des secrets et reste propre à la machine : il est ignoré
+par Git. `param/param.example.json` inventorie le schéma avec les sorties désactivées ; ses GPIO
+reflètent le câblage de référence de `docs/hardware/gpio-matrix.md`, ses autres valeurs sont fictives.
+Pour une nouvelle installation, le copier vers le fichier vivant, renseigner les identifiants, vérifier
+chaque GPIO contre le câblage réel, puis valider le modèle avant de raccorder les charges. Ne jamais
+forcer le fichier vivant dans Git.
+
+**Emplacement du fichier vivant** : `PHYTO_DATA_DIR` si l'unité systemd la pose — c'est le cas en
+production, `/home/progradius/phyto-data` —, sinon `param/` du dépôt. Les huit fichiers écrits à
+l'exécution (configuration, état de régulation, statistiques, métadonnées d'équipements, jeton CSRF,
+historique opérateur, carnet de cultures et ses photos) vivent tous là. Ce déplacement est ce qui
+empêche un `git checkout` d'écraser la configuration, comme le 08/09/2026 :
+`docs/operations/migration-donnees-vivantes.md`.
 
 Avant démarrage :
 

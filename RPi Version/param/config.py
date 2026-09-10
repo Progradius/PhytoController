@@ -12,6 +12,7 @@ from typing import Annotated, ClassVar, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator, validator
 
 from utils.log_dedup import StateLogger
+from utils.runtime_paths import data_file
 
 # `load()` est relayée par `config_store`, qui l'appelle à chaque changement du
 # fichier : on ne veut qu'une ligne à l'entrée en panne et une au rétablissement.
@@ -359,7 +360,7 @@ class AppConfig(ValidatedModel):
     sensor_quality: SensorQualitySettings = Field(default_factory=SensorQualitySettings, alias="Sensor_Quality")
     logs: LogSettings = Field(default_factory=LogSettings, alias="Log_Settings")
 
-    _path: ClassVar[Path] = Path(__file__).parent.parent / "param" / "param.json"
+    _path: ClassVar[Path] = data_file("param.json")
 
     @classmethod
     def config_path(cls) -> Path:

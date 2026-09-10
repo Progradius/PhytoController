@@ -14,6 +14,7 @@ from utils.pretty_console import (
     title, action, success, warning, error, exception, clock,
 )
 from utils.log_stream import console_stream
+from utils.runtime_paths import ensure_data_dir
 from utils.single_instance import ensure_single_instance
 from utils import watchdog
 from function import motor_all_pin_down_at_boot, set_ntp_time, check_ram_usage
@@ -40,6 +41,19 @@ from utils.operator_history import OperatorHistory
 # =============================================================
 
 LOGGER_NAME = "main"
+
+# =============================================================
+#            RÉPERTOIRE DES DONNÉES VIVANTES
+# =============================================================
+# Résolu et contrôlé avant tout accès fichier. Si `PHYTO_DATA_DIR` est posée
+# mais inutilisable, on s'arrête ici, en clair : aucune broche n'a encore été
+# touchée, et un repli silencieux sur `param/` remettrait les écritures dans le
+# répertoire de travail Git — ce que ce chemin sert précisément à empêcher.
+try:
+    ensure_data_dir()
+except RuntimeError as exc:
+    error(str(exc), name=LOGGER_NAME)
+    sys.exit(1)
 
 # =============================================================
 #          VERROU D'INSTANCE (avant toute action GPIO)

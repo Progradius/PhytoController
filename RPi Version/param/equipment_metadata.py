@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from utils.atomic_io import write_text_atomic
 from utils.pretty_console import warning
+from utils.runtime_paths import data_file
 
 LOGGER_NAME = "equipment"
 EQUIPMENT_IDS = ("daily_1", "daily_2", "cyclic_1", "cyclic_2", "motor", "heater")
@@ -46,7 +47,7 @@ def default_catalog() -> dict[str, EquipmentMetadata]:
 
 class EquipmentMetadataStore:
     def __init__(self, path: Path | None = None) -> None:
-        self.path = path or Path(__file__).with_name("equipment_metadata.json")
+        self.path = path or data_file("equipment_metadata.json")
         self.current = self._load()
 
     def _load(self) -> dict[str, EquipmentMetadata]:

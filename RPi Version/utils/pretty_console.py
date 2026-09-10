@@ -21,6 +21,8 @@ import sys
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 
+from utils.runtime_paths import data_file
+
 # ───────────────────────────────────────────────────────────────
 #  Paramètres globaux
 # ───────────────────────────────────────────────────────────────
@@ -28,7 +30,7 @@ LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "phyto.log")
 
-PARAM_FILE = os.path.join(os.path.dirname(__file__), "..", "param", "param.json")
+PARAM_FILE = str(data_file("param.json"))
 
 ROOT_LOGGER_NAME = "phyto"
 DEFAULT_LEVEL = logging.INFO

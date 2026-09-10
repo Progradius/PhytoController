@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable
 
 from utils.alarm_manager import AlarmOccurrence, AlarmTransition
+from utils.runtime_paths import data_file
 
 
 SCHEMA_VERSION = 3
@@ -26,7 +27,7 @@ class HistoryUnavailable(RuntimeError):
 
 
 class OperatorHistory:
-    FILE = Path(__file__).parent.parent / "param" / "operator_history.sqlite3"
+    FILE = data_file("operator_history.sqlite3")
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path is not None else self.FILE

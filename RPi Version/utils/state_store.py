@@ -33,6 +33,7 @@ from time import monotonic
 from utils.atomic_io import write_text_atomic
 from utils.log_dedup import StateLogger
 from utils.pretty_console import warning
+from utils.runtime_paths import data_file
 
 LOGGER_NAME = "state"
 
@@ -54,7 +55,7 @@ class StateStore:
     peuvent pas se marcher dessus.
     """
 
-    FILE = Path(__file__).parent.parent / "param" / "runtime_state.json"
+    FILE = data_file("runtime_state.json")
 
     def __init__(self, path: Path | None = None) -> None:
         self._path = Path(path) if path is not None else self.FILE

@@ -10,6 +10,7 @@ from datetime import datetime
 from utils.pretty_console import warning
 from utils.atomic_io import write_text_atomic
 from utils.log_dedup import StateLogger
+from utils.runtime_paths import data_file
 
 LOGGER_NAME = "stats"
 
@@ -24,8 +25,9 @@ class SensorStats:
     Crée automatiquement le dossier et le fichier s'il n'existent pas.
     """
 
-    # On pointe désormais vers param/sensor_stats.json à partir du répertoire du module
-    FILE = Path(__file__).parent.parent / "param" / "sensor_stats.json"
+    # Fichier vivant : son emplacement est résolu par `utils.runtime_paths`,
+    # hors du répertoire de travail Git dès que PHYTO_DATA_DIR est posée.
+    FILE = data_file("sensor_stats.json")
     KEYS = ("BME280T", "BME280H", "DS18B#3")
 
     def __init__(self):

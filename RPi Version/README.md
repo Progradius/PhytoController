@@ -98,10 +98,18 @@ Détail complet : [interface HTTP](docs/reference/http-interface.md) et [schéma
 
 ## Configuration et données sensibles
 
-La configuration vivante est chargée depuis `param/param.json`. Ce fichier contient des identifiants
+La configuration vivante est chargée depuis `param.json`, dans le répertoire résolu par
+`utils/runtime_paths.py` : `PHYTO_DATA_DIR` si la variable est posée — c'est le cas en production, via
+l'unité systemd —, sinon `param/`. Les huit fichiers écrits à l'exécution y vivent ensemble, **hors du
+répertoire de travail Git** : c'est ce qui empêche un checkout, un merge ou un `git clean` de les
+écraser, comme cela s'est produit le 08/09/2026
+(`docs/operations/migration-donnees-vivantes.md`).
+
+Ce fichier contient des identifiants
 Wi-Fi et InfluxDB en clair et reste strictement local à chaque Pi : il est ignoré par Git. Le fichier
 versionné `param/param.example.json` documente le schéma avec toutes les sorties désactivées ; ses GPIO
-et ses valeurs factices doivent être remplacés et validés avant toute première mise en service :
+reflètent le câblage de référence décrit par `docs/hardware/gpio-matrix.md` et doivent malgré tout être
+vérifiés broche à broche avant toute première mise en service, ses valeurs factices étant à remplacer :
 
 - ne jamais copier son contenu dans un log, une issue, un rapport ou une demande d'assistance ;
 - ne jamais utiliser ses valeurs réelles dans un exemple documentaire ;
@@ -115,7 +123,12 @@ avant tout accès GPIO, au lieu d’inventer une configuration matérielle.
 
 Les métadonnées d’équipements et les statistiques sont elles aussi locales. `scripts/deploy.sh`
 sauvegarde ces trois fichiers avant chaque bascule, mais ne les déplace et ne les restaure plus : Git
-ne les connaît pas et ne peut donc pas les écraser.
+ne les connaît pas et ne peut donc pas les écraser. Le script lit `PHYTO_DATA_DIR` dans l’unité systemd,
+jamais dans son propre environnement — sans quoi il sauvegarderait un répertoire que le service
+n’utilise plus.
+
+**Sur le Pi, ne jamais lancer `git checkout <branche>` ni `git pull`** : toujours `scripts/deploy.sh`,
+qui laisse HEAD détaché sur la cible.
 
 ## Déploiement
 

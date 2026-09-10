@@ -26,6 +26,7 @@ from model.culture_journal import TODAY_JOURNAL
 
 from model.culture_solution import RESERVOIRS
 from model.culture_text import search_key
+from utils.runtime_paths import data_file
 from utils.culture_solution_store import SolutionStoreMixin, SOLUTION_SCHEMA, SOLUTION_TABLES
 
 from utils.culture_cycle_store import CycleStoreMixin, CYCLE_SCHEMA, CYCLE_TABLES
@@ -78,7 +79,7 @@ class CultureUnavailable(RuntimeError):
 
 class CultureStore(SolutionStoreMixin, CycleStoreMixin, MediaStoreMixin, ChecklistStoreMixin,
                    TargetsStoreMixin, LightStoreMixin, EquipmentStoreMixin, JournalStoreMixin, AssistanceStoreMixin):
-    FILE = Path(__file__).resolve().parents[1] / "param" / "cultures.sqlite3"
+    FILE = data_file("cultures.sqlite3")
 
     def __init__(self, path=None, *, now=None, reliable=None, zone="Europe/Paris"):
         self.path = Path(path) if path is not None else self.FILE

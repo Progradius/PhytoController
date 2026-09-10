@@ -48,10 +48,18 @@ PORT="8123"
 VENV_PY="$APP_DIR/venv/bin/python3"
 VALIDATEUR_SANTE="${PHYTO_DEPLOY_HEALTH_VALIDATOR:?}"
 SAUVEGARDES="$HOME/phyto-backups"
+# Repertoire des donnees vivantes. La source de verite est l'unite systemd :
+# c'est elle qui pose PHYTO_DATA_DIR pour le service, et cette variable n'est
+# pas dans l'environnement de ce script. Lire un `${PHYTO_DATA_DIR:-...}` du
+# shell retomberait silencieusement sur param/ apres la migration, et le
+# script sauvegarderait alors un repertoire que le service n'utilise plus.
+DONNEES_VIVANTES="$(systemctl show "$SERVICE" -p Environment --value 2>/dev/null \
+    | tr ' ' '\n' | sed -n 's/^PHYTO_DATA_DIR=//p' | tail -n 1)"
+[[ -n "$DONNEES_VIVANTES" ]] || DONNEES_VIVANTES="$APP_DIR/param"
 FICHIERS_CONFIG=(
-    "param/param.json"
-    "param/equipment_metadata.json"
-    "param/sensor_stats.json"
+    "param.json"
+    "equipment_metadata.json"
+    "sensor_stats.json"
 )
 FICHIERS_CONFIG_REPO=(
     "RPi Version/param/param.json"
@@ -110,8 +118,8 @@ fi
 [[ $EUID -ne 0 ]] || mourir "Ne pas lancer en root : le service tourne sous $(id -un 1000 2>/dev/null || echo progradius)."
 [[ -x "$VENV_PY" ]] || mourir "venv introuvable : $VENV_PY"
 sudo -n true 2>/dev/null || mourir "sudo sans mot de passe requis (systemctl restart $SERVICE)."
-[[ -f "$APP_DIR/param/param.json" ]] \
-    || mourir "Configuration vivante absente : $APP_DIR/param/param.json"
+[[ -f "$DONNEES_VIVANTES/param.json" ]] \
+    || mourir "Configuration vivante absente : $DONNEES_VIVANTES/param.json"
 
 # Refuser avant le fetch et avant tout changement de code une configuration
 # locale qui ne redemarrerait deja pas avec la version courante. La sortie est
@@ -119,10 +127,10 @@ sudo -n true 2>/dev/null || mourir "sudo sans mot de passe requis (systemctl res
 # sensible de Network_Settings dans la console de deploiement.
 if ! (
     cd "$APP_DIR"
-    "$VENV_PY" -c \
-        'import json; from pathlib import Path; from param.config import AppConfig; AppConfig.model_validate(json.loads(Path("param/param.json").read_text(encoding="utf-8")))'
+    PHYTO_CONFIG_A_VALIDER="$DONNEES_VIVANTES/param.json" "$VENV_PY" -c \
+        'import json, os; from pathlib import Path; from param.config import AppConfig; AppConfig.model_validate(json.loads(Path(os.environ["PHYTO_CONFIG_A_VALIDER"]).read_text(encoding="utf-8")))'
 ) >/dev/null 2>&1; then
-    mourir "param/param.json est illisible ou invalide : deploiement refuse avant toute mutation."
+    mourir "$DONNEES_VIVANTES/param.json est illisible ou invalide : deploiement refuse avant toute mutation."
 fi
 ok "Configuration locale valide"
 
@@ -166,9 +174,9 @@ HORODATAGE="$(date +%Y%m%d-%H%M%S)"
 DOSSIER_SAUVEGARDE="$SAUVEGARDES/$HORODATAGE"
 mkdir -p "$DOSSIER_SAUVEGARDE"
 for f in "${FICHIERS_CONFIG[@]}"; do
-    if [[ -f "$APP_DIR/$f" ]]; then
-        cp -p "$APP_DIR/$f" "$DOSSIER_SAUVEGARDE/$(basename "$f")"
-        chmod 600 "$DOSSIER_SAUVEGARDE/$(basename "$f")"
+    if [[ -f "$DONNEES_VIVANTES/$f" ]]; then
+        cp -p "$DONNEES_VIVANTES/$f" "$DOSSIER_SAUVEGARDE/$f"
+        chmod 600 "$DOSSIER_SAUVEGARDE/$f"
     fi
 done
 chmod 700 "$DOSSIER_SAUVEGARDE"
@@ -246,8 +254,8 @@ fi
 # emplacement et Git ne la connait plus. Verifier sa presence ici transforme
 # toute regression future en echec avant l'arret du service.
 for f in "${FICHIERS_CONFIG[@]}"; do
-    if [[ "$f" == "param/param.json" && ! -f "$APP_DIR/$f" ]]; then
-        mourir "Configuration vivante absente apres la bascule : $APP_DIR/$f"
+    if [[ "$f" == "param.json" && ! -f "$DONNEES_VIVANTES/$f" ]]; then
+        mourir "Configuration vivante absente apres la bascule : $DONNEES_VIVANTES/$f"
     fi
 done
 ok "Configuration locale preservee sans interruption"

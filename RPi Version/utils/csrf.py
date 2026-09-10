@@ -27,10 +27,11 @@ from pathlib import Path
 
 from utils.atomic_io import write_text_atomic
 from utils.pretty_console import debug, warning
+from utils.runtime_paths import data_file
 
 LOGGER_NAME = "http"
 
-TOKEN_FILE = Path(__file__).parent.parent / "param" / ".csrf_token"
+TOKEN_FILE = data_file(".csrf_token")
 TOKEN_BYTES = 32
 FILE_MODE = 0o600
 
