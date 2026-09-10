@@ -942,8 +942,11 @@ d'Éclairage 1 perdues, chauffage réactivé à tort 22 min.
 - [x] `tests/test_deploy_safety.py` : sonde en interpréteur neuf, aucun des 8 chemins dans le dépôt
 - [x] Documentation : `docs/operations/migration-donnees-vivantes.md`, `README.md`,
       `docs/operations/install-raspberry-pi.md`, miroirs `CLAUDE.md` / `AGENTS.md`
-- [ ] Migration sur le Pi (arrêt du service, déplacement des 8 entrées, unité, contrôles de sortie)
-- [ ] Preuve de non-régression : checkout vers `e93644a` sur copie hors production, config intacte
+- [x] Migration sur le Pi le 10/09/2026 (fenêtre d'arrêt de ~2 min, sauvegarde
+      `~/phyto-backups/20260910-075633-avant-migration`)
+- [x] Preuve de non-régression : checkout vers `e93644a` dans un clone jetable — le commit
+      matérialise bien `param.json` (3106 o, la taille exacte du fichier écrasé le 08/09) dans
+      l'arbre de travail, et l'empreinte SHA-256 de la configuration vivante est inchangée
 
 ## Revue
 
@@ -952,3 +955,15 @@ Le défaut `param/` est inchangé, donc développement, tests et Docker ne bouge
 dont l'unité pose `PHYTO_DATA_DIR`, sort du répertoire de travail Git.
 Point à ne jamais relâcher : aucun repli silencieux vers `param/` dans `ensure_data_dir()`, sans
 quoi le processus se remettrait à écrire dans le dépôt sans que personne ne le voie.
+
+### Sortie de migration (10/09/2026)
+
+`~/phyto-data` porte les 8 entrées vivantes ; `param/` ne contient plus que du versionné et
+`git status` du dépôt est vide. Les descripteurs ouverts du processus pointent bien vers
+`~/phyto-data` (les deux SQLite), `runtime_state.json` et `sensor_stats.json` y sont réécrits,
+et `.csrf_token` a gardé son horodatage du 25/08 — il a été relu, pas régénéré, donc aucune page
+ouverte n'a été invalidée.
+
+Configuration : aucun écart avec la référence du 03/09. GPIO inchangés, chauffage désactivé,
+`max_speed` à 2. Intégrité SQLite `ok` sur les deux bases (21 et 5 tables). `/health/ready`
+`{"ready": true}`, et `/`, `/history`, `/alarms`, `/cultures`, `/conf`, `/health/live` en 200.
