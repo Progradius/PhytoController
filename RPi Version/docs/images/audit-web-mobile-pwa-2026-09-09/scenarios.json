@@ -1,0 +1,178 @@
+[
+  {
+    "route": "/cultures/2f63e61d-ad9b-4175-aa1f-f8ac41f92821",
+    "name": "fiche-remplie",
+    "height": 4325,
+    "width": 390,
+    "scrollWidth": 390,
+    "headings": [
+      {
+        "text": "Mère audit mobile",
+        "y": 412
+      },
+      {
+        "text": "Pour cette culture",
+        "y": 735
+      },
+      {
+        "text": "Que faire maintenant ?",
+        "y": 983
+      },
+      {
+        "text": "Synthèse",
+        "y": 1423
+      },
+      {
+        "text": "Relevés",
+        "y": 2086
+      },
+      {
+        "text": "Photos",
+        "y": 2256
+      },
+      {
+        "text": "Bilan",
+        "y": 2402
+      },
+      {
+        "text": "Compléter le parcours passé",
+        "y": 2654
+      },
+      {
+        "text": "Journal et corrections",
+        "y": 2969
+      }
+    ],
+    "axe": []
+  },
+  {
+    "route": "/cultures/solutions?target=2f63e61d-ad9b-4175-aa1f-f8ac41f92821",
+    "name": "solutions-remplies",
+    "height": 7001,
+    "width": 390,
+    "scrollWidth": 390,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 91
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 590
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 736
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 976
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 6608
+      }
+    ],
+    "axe": []
+  },
+  {
+    "route": "/cultures/cycles?subject=2f63e61d-ad9b-4175-aa1f-f8ac41f92821",
+    "name": "cycles-remplis",
+    "height": 3705,
+    "width": 390,
+    "scrollWidth": 390,
+    "headings": [
+      {
+        "text": "Cycles et rappels",
+        "y": 91
+      },
+      {
+        "text": "Rappels dans le carnet",
+        "y": 509
+      },
+      {
+        "text": "Comparer les cycles",
+        "y": 823
+      },
+      {
+        "text": "Climat commun à la serre · Mère audit mobile",
+        "y": 2376
+      },
+      {
+        "text": "Photos et sauvegarde complète",
+        "y": 2963
+      }
+    ],
+    "axe": []
+  },
+  {
+    "route": "/cultures/solutions?target=2f63e61d-ad9b-4175-aa1f-f8ac41f92821",
+    "name": "solutions-plein-jour",
+    "height": 7001,
+    "width": 390,
+    "scrollWidth": 390,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 91
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 590
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 736
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 976
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 6608
+      }
+    ],
+    "axe": []
+  },
+  {
+    "name": "history-rempli",
+    "axe": []
+  },
+  {
+    "name": "offline-controls",
+    "controls": [
+      {
+        "name": "target",
+        "text": "Toutes les ciblesRéservoir de l’espace 2Bac de bouturage de l’espace 1Mère audit mobile",
+        "disabled": true,
+        "method": "get"
+      },
+      {
+        "name": "kind",
+        "text": "Tous les typesRelevéRenouvellementArrosageAppoint d’eauAjout de nutrimentsCorrection pH",
+        "disabled": true,
+        "method": "get"
+      },
+      {
+        "name": "start",
+        "text": "",
+        "disabled": true,
+        "method": "get"
+      },
+      {
+        "name": "end",
+        "text": "",
+        "disabled": true,
+        "method": "get"
+      },
+      {
+        "name": "",
+        "text": "Filtrer",
+        "disabled": true,
+        "method": "get"
+      }
+    ],
+    "banner": "HORS LIGNE\nDonnées datant au mieux de il y a 1 s · non actualisées · lecture seule"
+  }
+]
