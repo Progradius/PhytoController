@@ -10,6 +10,15 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 - Les requêtes vivantes sont maintenant bornées dans le temps et distinguent une perte de réseau
   d'un service HTTP dégradé ; seules les pertes de transport basculent l'interface en lecture seule.
+- Le verdict « HORS LIGNE » de la PWA a un propriétaire unique et se prend sur 20 s de silence :
+  un échec isolé ne fait plus passer l'interface en lecture seule. Rouvrir l'application ré-évalue
+  la connexion immédiatement au lieu d'attendre la temporisation des boucles, une sonde de
+  joignabilité relance celles-ci sans jamais retirer la bannière elle-même, et une page du carnet
+  affichée depuis le cache propose un rechargement au lieu de se recharger toute seule.
+- Le bandeau « SERVICE DÉGRADÉ » est désormais tenu par source : une indisponibilité de l'historique
+  auxiliaire reste affichée tant que l'historique n'a pas répondu, au lieu d'être effacée par le
+  premier succès d'une autre boucle. Les échecs d'action opérateur ne s'y inscrivent plus, ils
+  restent rapportés à leur formulaire.
 - Le tableau de bord expose la phase jour/nuit et les consignes climatiques effectives, actualise les
   compteurs d'alarme et rend les confirmations d'action visibles sans perturber les lecteurs d'écran.
 - L'historique fournit un bilan métier de la période et accepte des notes opérateur locales, affichées

@@ -249,6 +249,8 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .pwa-connection-banner { position: sticky; z-index: 120; top: 0; display: flex; align-items: center; justify-content: center; gap: .75rem; padding: .8rem clamp(1rem, 4vw, 3rem); border-bottom: 2px solid #fff; background: #9f1717; color: #fff; box-shadow: 0 .6rem 2rem rgb(0 0 0 / 45%); }
 .pwa-connection-banner strong { font-family: Visitor, ui-monospace, monospace; letter-spacing: .1em; }
 .pwa-connection-banner.is-degraded { border-bottom-color: #fff; background: #815600; }
+.pwa-connection-banner button { flex: none; padding: .35rem .9rem; border: 2px solid #fff; border-radius: .3rem; background: #fff; color: #7d1212; font-weight: 700; cursor: pointer; }
+.pwa-connection-banner button:hover { background: #ffe9e9; }
 .pwa-security-notice { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: .65rem clamp(1rem, 4vw, 3rem); border-bottom: 1px solid var(--amber); background: rgb(245 189 79 / 12%); color: var(--amber); }
 .pwa-security-notice a { color: var(--text); font-weight: 700; }
 .is-offline .page-shell .card, .is-offline .health-banner, .is-offline .time-banner { border-style: dashed; filter: saturate(.35); }

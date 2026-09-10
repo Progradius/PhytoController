@@ -80,6 +80,34 @@ injoignables. Ses règles sont volontairement asymétriques :
 - une réponse IndexedDB ne retire jamais la bannière « HORS LIGNE » et ne déclenche jamais de
   notification ; seule une nouvelle réponse HTTP du contrôleur le peut.
 
+Le verdict de connexion a **un seul propriétaire**, dans `static/js/pwa.js`. Les boucles métier ne
+déclarent plus de panne : elles signalent un échec de transport, et la décision se prend sur une
+seule grandeur, le **temps de silence** — aucune réponse du contrôleur, quelle qu'elle soit, 5xx
+compris — avec un seuil de 20 s. Un échec isolé ne bascule donc plus l'interface en lecture seule.
+L'entrée est immédiate dans un seul cas, et il repose sur une preuve : une page servie par le cache
+du service worker (marquée `phyto-offline-shell`, ou `phyto-offline-snapshot` pour le carnet), dont
+la navigation a donc réellement échoué. Deux horloges cohabitent sans se recouvrir : l'âge affiché
+vient de la dernière réponse **métier** exploitable, le verdict de joignabilité de la dernière
+réponse HTTP quelconque.
+
+« SERVICE DÉGRADÉ » suit la même discipline, **par source**. Une réponse HTTP non-OK est une preuve
+et s'affiche donc sans délai, mais elle est inscrite au nom de la boucle qui l'a reçue — `state`,
+`alarms` ou `history` — et n'est levée que lorsque **cette** boucle répond correctement : le succès
+d'une autre source ne prouve rien sur elle. C'est ce qui rend une panne durable observable ; un état
+global unique la faisait disparaître au premier succès venu, réduisant une indisponibilité de
+l'historique auxiliaire à un éclair de cinq secondes toutes les cinq minutes. L'échec d'une **action
+opérateur** ponctuelle n'entre jamais dans ce bandeau : il est rapporté à son formulaire, parce que
+rien ne viendrait le lever et qu'un POST peut expirer côté client après avoir abouti côté serveur.
+Une entrée en « HORS LIGNE » efface les dégradations : plus rien ne répond, donc plus rien n'est su.
+
+Tant que l'interface est hors ligne, le navigateur sonde `/health/live` toutes les 2 s (puis 15 s
+après trois minutes), page visible uniquement, et n'en lit **que le statut HTTP** : le contrat de
+liveness est préservé. Cette sonde ne retire jamais la bannière — elle réveille les boucles métier
+en annulant leur temporisation, et c'est leur réponse fraîche qui la retire. Une reprise de
+l'application (`pageshow`, retour de visibilité, `online`) provoque le même réveil et remet le
+compteur de silence à zéro : une application rouverte après une longue absence ne s'affiche jamais
+en rouge du seul fait de cette absence.
+
 La PWA demande la permission de notification uniquement sur clic. Elle notifie les nouvelles alarmes
 affectant le contrôle et toutes les alarmes critiques, avec déduplication par UUID. Il ne s'agit pas de
 Web Push : Chrome peut suspendre la page, donc aucune notification n'est garantie PWA fermée.

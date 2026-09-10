@@ -67,7 +67,12 @@ const navigationFallback = async (request, cacheable) => {
   } catch (_error) {
     if (cacheable) {
       const cached = await pages.match(request.url);
-      if (cached) return cached;
+      // La page est marquée comme venant du cache : c'est la preuve que la navigation elle-même a
+      // échoué, et elle autorise la PWA à annoncer « hors ligne » sans attendre son délai de silence.
+      if (cached) {
+        const html = (await cached.text()).replace("</head>", '<meta name="phyto-offline-shell" content=""></head>');
+        return new Response(html, {status: 200, headers: cached.headers});
+      }
     }
     return (await caches.match("/offline")) || Response.error();
   }

@@ -142,13 +142,27 @@ test("la police de marque est réellement décodable", async ({page}) => {
 
 test("un service partiellement indisponible ne simule pas une coupure réseau", async ({page}) => {
   await page.goto("/");
-  await page.evaluate(() => window.PhytoPwa.markServerDegraded("Historique momentanément indisponible (HTTP 503)."));
-  const banner = page.locator("#pwa-connection-banner");
-  await expect(banner).toBeVisible();
-  await expect(banner).toContainText("SERVICE DÉGRADÉ");
-  await expect(page.locator("body")).toHaveClass(/is-degraded/);
-  await expect(page.locator("body")).not.toHaveClass(/is-offline/);
-  await expect(page.getByRole("button", {name: "Couper"}).first()).toBeEnabled();
+  // L'état injecté est relevé dans le même tour d'exécution : une réponse fraîche du contrôleur
+  // remplace légitimement « dégradé » par « en ligne », et les boucles en émettent une toutes les
+  // cinq secondes. Assertion par assertion, ce test mesurerait cette course au lieu du rendu.
+  const rendu = await page.evaluate(() => {
+    window.PhytoPwa.markServerDegraded("Historique momentanément indisponible (HTTP 503).");
+    const banniere = document.getElementById("pwa-connection-banner");
+    const couper = [...document.querySelectorAll("button")].find((bouton) => bouton.textContent.trim() === "Couper");
+    return {
+      visible: !banniere.hidden,
+      titre: document.getElementById("pwa-connection-title").textContent,
+      detail: document.getElementById("pwa-connection-detail").textContent,
+      classes: document.body.className,
+      couperActive: Boolean(couper) && !couper.disabled,
+    };
+  });
+  expect(rendu.visible).toBe(true);
+  expect(rendu.titre).toBe("SERVICE DÉGRADÉ");
+  expect(rendu.detail).toContain("Historique momentanément indisponible");
+  expect(rendu.classes).toContain("is-degraded");
+  expect(rendu.classes).not.toContain("is-offline");
+  expect(rendu.couperActive).toBe(true);
 });
 
 test("les commandes restent repérables avec les couleurs système forcées", async ({page}, testInfo) => {

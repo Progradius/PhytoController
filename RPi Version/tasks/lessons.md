@@ -303,3 +303,53 @@ de répertoires est passé de 196 à 197 sans que les sorties filtrées n'expliq
    apparaissent, pas dans la revue du diff.
 4. Un compteur de preuve (répertoires temporaires, exclusions, mutations) s'inspecte avec
    `rtk proxy` ou `ls -dt` quand il diverge de l'attendu, et l'écart s'explique avant de commiter.
+
+## 2026-09-10 — Une attente non nécessaire au démarrage emporte tout ce qui la suit
+
+**Contexte.** Correction du verdict « HORS LIGNE » de la PWA. Quatre scénarios navigateur neufs
+échouaient : la sonde de joignabilité ne partait jamais, et le réveil de reprise non plus.
+
+**Cause.** `initialize()` de `pwa.js` faisait `await navigator.serviceWorker.ready`. Sous Playwright
+avec `serviceWorkers: "block"`, cette promesse ne se règle **jamais** : tout ce qui suivait dans la
+fonction — poller d'alarmes compris, donc bien avant ce lot — n'était jamais exécuté. Aucun test ne
+l'avait vu, parce que le tableau de bord a son propre poller et que la bannière apparaissait quand
+même par ce chemin-là. Le déblocage a ensuite fait tomber un test qui injectait `markServerDegraded`
+puis l'assertait sur plusieurs tours : le poller d'alarmes, désormais vivant, écrasait l'état injecté
+en quelques millisecondes. Le test mesurait une course, pas un rendu.
+
+**Règles.**
+1. Un `await` en séquence de démarrage ne se justifie que si la suite **dépend** de son résultat.
+   Ici le seul consommateur de l'inscription tolérait déjà son absence : l'enregistrement devait
+   partir en tâche de fond. Une promesse qui peut ne jamais se régler (worker, permission, socket)
+   ne doit jamais se trouver devant du code de surveillance.
+2. Une fonctionnalité qui ne s'exerce **jamais** sous test est un angle mort, pas une garantie :
+   quand un profil de test neutralise un service (service worker bloqué), vérifier ce que cette
+   neutralisation emporte avec elle.
+3. Un test qui pose un état par `page.evaluate` puis l'asserte en plusieurs tours mesure une course
+   dès qu'une boucle périodique peut légitimement écraser cet état. Poser et relever dans **le même
+   tour d'exécution** — ou exercer le vrai chemin serveur.
+
+## 2026-09-10 — Un état global pour une réalité par source efface les pannes durables
+
+**Contexte.** Après la correction du verdict « HORS LIGNE », j'avais signalé le clignotement
+`degraded` ↔ `online` comme préexistant et hors périmètre. L'opérateur a demandé si c'était de la
+dette : oui, et le clignotement n'en était que le symptôme visible.
+
+**Cause.** `degraded` était un scalaire global alors que la dégradation est par source. N'importe
+quel succès, de n'importe quelle boucle, remettait l'état à `online`. Or `/api/v1/history` répond
+503 quand l'historique auxiliaire SQLite est indisponible — une panne **prévue par l'architecture**,
+qui ne dégrade pas le contrôle. Le bandeau apparaissait, `/api/v1/state` répondait 200 cinq secondes
+plus tard, et le bandeau disparaissait : une panne durable se réduisait à un éclair de cinq secondes
+toutes les cinq minutes, trop court pour être lu, et l'interface affirmait ensuite que tout allait
+bien. Chaque bascule réémettait en plus une annonce `aria-live`.
+
+**Règles.**
+1. Un indicateur qui agrège plusieurs sources se tient **par source** (registre), jamais par un
+   scalaire : sinon le dernier écrivain gagne, et c'est presque toujours celui qui va bien.
+2. Le symptôme rapporté (« ça clignote ») n'est pas le défaut. Chercher ce que l'affichage **cesse
+   de dire** : ici, qu'un service est en panne.
+3. L'échec d'une action opérateur ponctuelle ne s'inscrit pas dans un état persistant que rien ne
+   viendra lever — d'autant qu'un POST peut expirer côté client après avoir abouti côté serveur.
+   Il appartient au formulaire qui l'a déclenché.
+4. Signaler une dette hors périmètre plutôt que l'élargir en silence est la bonne conduite ; mais
+   la signaler avec son **coût réel**, pas avec son symptôme, pour que l'arbitrage soit possible.

@@ -79,8 +79,8 @@
     };
     const load = async () => {
       if (!visible && loaded) return; preview.setAttribute("aria-busy", "true");
-      try { const data = await request(); await window.PhytoPwa?.markServerContact(); await window.PhytoPwa?.storeSnapshot("history:24", data, Date.now()); render(data); loaded = true; }
-      catch (error) { if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure(); else window.PhytoPwa?.markServerDegraded(`Historique momentanément indisponible (${error.message}).`); const stored = await window.PhytoPwa?.loadSnapshot("history:24") || await window.PhytoPwa?.loadSnapshot("history"); if (stored?.data) render(stored.data, Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000))); else { showData(false); message.textContent = `Historique local indisponible (${error.message}).`; } }
+      try { const data = await request(); await window.PhytoPwa?.markServerContact(Date.now(), "history"); await window.PhytoPwa?.storeSnapshot("history:24", data, Date.now()); render(data); loaded = true; }
+      catch (error) { if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.signalerEchecTransport(); else window.PhytoPwa?.markServerDegraded(`Historique momentanément indisponible (${error.message}).`, "history"); const stored = await window.PhytoPwa?.loadSnapshot("history:24") || await window.PhytoPwa?.loadSnapshot("history"); if (stored?.data) render(stored.data, Math.max(0, Math.round((Date.now() - stored.receivedAt) / 60000))); else { showData(false); message.textContent = `Historique local indisponible (${error.message}).`; } }
       finally { preview.setAttribute("aria-busy", "false"); }
     };
     const observer = new IntersectionObserver((entries) => { visible = entries.some((entry) => entry.isIntersecting); if (visible && !loaded) load(); clearInterval(refreshTimer); if (visible) refreshTimer = window.setInterval(() => { if (!document.hidden) load(); }, 300000); }, {rootMargin: "300px"});
@@ -572,10 +572,10 @@
     message.textContent = "Chargement de l’historique…"; tooltip.hidden = true; section.setAttribute("aria-busy", "true");
     try {
       const response = await fetchHistory(hours);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`); await window.PhytoPwa?.markServerContact(); const data = await response.json(); await window.PhytoPwa?.storeSnapshot(`history:${hours}`, data, Date.now()); render(data);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`); await window.PhytoPwa?.markServerContact(Date.now(), "history"); const data = await response.json(); await window.PhytoPwa?.storeSnapshot(`history:${hours}`, data, Date.now()); render(data);
     } catch (error) {
-      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure();
-      else window.PhytoPwa?.markServerDegraded(`Historique momentanément indisponible (${error.message}).`);
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.signalerEchecTransport();
+      else window.PhytoPwa?.markServerDegraded(`Historique momentanément indisponible (${error.message}).`, "history");
       const stored = await window.PhytoPwa?.loadSnapshot(`history:${hours}`) || await window.PhytoPwa?.loadSnapshot("history");
       if (stored?.data) {
         render(stored.data); const storedHours = Number(stored.data.hours || hours); document.querySelectorAll("[data-hours]").forEach((item) => { const selected = Number(item.dataset.hours) === storedHours; item.classList.toggle("is-selected", selected); item.setAttribute("aria-pressed", String(selected)); });
@@ -600,8 +600,9 @@
       if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
       await window.PhytoPwa?.markServerContact(); noteForm.querySelector('input[name="note"]').value = ""; status.textContent = "Note ajoutée à l’historique."; await load(currentHours);
     } catch (error) {
-      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure();
-      else window.PhytoPwa?.markServerDegraded(`Note non enregistrée (${error.message}).`);
+      // L'échec d'une note est rapporté à son formulaire : ce n'est pas la dégradation d'un service
+      // surveillé, et l'inscrire dans le bandeau global y laisserait un message que rien ne lève.
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.signalerEchecTransport();
       status.textContent = error.message || "Note non enregistrée.";
     } finally { button.disabled = false; }
   });

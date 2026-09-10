@@ -248,12 +248,12 @@
     try {
       const response = await request("/api/v1/state", {headers: {Accept: "application/json"}, cache: "no-store"}, 6000);
       if (!response.ok) {
-        window.PhytoPwa?.markServerDegraded(`État du contrôleur momentanément indisponible (HTTP ${response.status}).`);
+        window.PhytoPwa?.markServerDegraded(`État du contrôleur momentanément indisponible (HTTP ${response.status}).`, "state");
         throw new Error(`HTTP ${response.status}`);
       }
       const state = await response.json(); const receivedAt = Date.now(); await window.PhytoPwa?.recordNetworkSuccess("state", state, receivedAt); updateState(state, {fresh: true, receivedAt}); return true;
     } catch (error) {
-      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure(); fetchFailed = true;
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.signalerEchecTransport(); fetchFailed = true;
       if (!storedStateLoaded) { storedStateLoaded = true; const stored = await window.PhytoPwa?.loadSnapshot("state"); if (stored?.data) { lastReceivedAt = stored.receivedAt; updateState(stored.data, {fresh: false, receivedAt: stored.receivedAt}); } }
       updateFreshness();
       return false;
@@ -266,13 +266,12 @@
     if (button) { button.disabled = true; button.textContent = "Traitement…"; }
     try {
       const response = await request(form.action, {method: "POST", headers: {Accept: "application/json"}, body: new FormData(form)}, 10000);
-      if (!response.ok) {
-        window.PhytoPwa?.markServerDegraded(`Action refusée ou indisponible (HTTP ${response.status}).`);
-        throw new Error((await response.text()) || `HTTP ${response.status}`);
-      }
+      // L'échec d'une action ponctuelle n'est pas la dégradation d'un service surveillé : il est
+      // rapporté au formulaire, jamais dans le bandeau global, que rien ne viendrait plus lever.
+      if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
       await window.PhytoPwa?.markServerContact(); await onSuccess(await response.json()); return true;
     } catch (error) {
-      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.markServerFailure();
+      if (window.PhytoPwa?.isTransportError?.(error) || error instanceof TypeError) window.PhytoPwa?.signalerEchecTransport();
       if (errorNode) { errorNode.textContent = error.message || "Action impossible."; errorNode.hidden = false; errorNode.focus?.(); }
       return false;
     } finally { if (button) { button.disabled = false; button.textContent = original; } }

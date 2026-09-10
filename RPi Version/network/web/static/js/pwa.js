@@ -6,13 +6,41 @@
   const MAX_SEEN_ALARMS = 500;
   const SEVERITY_RANK = {warning: 0, error: 1, critical: 2};
 
+  // Verdict de connexion : une seule grandeur, le silence. Un compteur d'échecs n'aurait pas de
+  // dénominateur commun entre des boucles de cadences différentes, et une page où une seule boucle
+  // vit n'atteindrait jamais son seuil. Le seuil dépasse les ~16 s que met le back-off à rattraper
+  // un raté isolé : un paquet perdu ne peut donc plus peindre l'interface en rouge.
+  const SEUIL_SILENCE_MS = 20000;
+  const BATTEMENT_EN_LIGNE_MS = 5000;
+  const BATTEMENT_HORS_LIGNE_MS = 2000;
+  const BATTEMENT_HORS_LIGNE_LONG_MS = 15000;
+  const RALENTISSEMENT_APRES_MS = 180000;
+  const DELAI_SONDE_MS = 1200;
+  const PEREMPTION_SONDE_MS = 5000;
+  const MIN_REVEIL_MS = 5000;
+  const RAFRAICHIR_AGE_MS = 30000;
+
   let databasePromise = null;
   let lastContactAt = null;
   let connectionState = "unknown";
-  let degradedDetail = "";
+  // Une dégradation appartient à sa source, jamais à l'interface entière : l'historique auxiliaire
+  // peut être indisponible pendant que l'état et les alarmes répondent parfaitement. Un scalaire
+  // global rendait cette panne invisible — le premier succès venu, de n'importe quelle boucle,
+  // effaçait le bandeau, et une panne durable ne se voyait plus que par un éclair de cinq secondes.
+  const degradations = new Map();
+  // Deux horloges qui répondent à deux questions différentes : lastContactAt dit l'âge de la donnée
+  // affichée, silenceDepuis dit depuis quand le contrôleur ne répond plus rien du tout (5xx compris).
+  let silenceDepuis = Date.now();
+  let horsLigneDepuis = null;
+  let dernierEchecTransportAt = null;
+  let dernierReveilAt = 0;
+  let dernierRafraichissementAge = 0;
+  let rechargementPropose = false;
   const cachedCultureDocument = document.querySelector('meta[name="phyto-offline-snapshot"]');
   const cultureSnapshotAt = Number(cachedCultureDocument?.content) || null;
-  let offlineAtBoot = false;
+  // Marqué par le service worker : la navigation elle-même a échoué. Une preuve, pas une suspicion —
+  // c'est la seule situation où un échec de transport suffit à annoncer « hors ligne » sans délai.
+  const documentEnCache = cachedCultureDocument || document.querySelector('meta[name="phyto-offline-shell"]');
   let contactedThisPage = false;
   let deferredInstallPrompt = null;
   let serviceWorkerRegistration = null;
@@ -28,6 +56,8 @@
     node.textContent = "";
     window.requestAnimationFrame(() => { node.textContent = message; });
   };
+
+  const registrePollers = [];
 
   const createAdaptivePoller = (callback, {interval = 5000, maximum = 30000} = {}) => {
     let timer = null;
@@ -57,10 +87,17 @@
       if (document.visibilityState !== "visible" || stopped) { clear(); return; }
       clear(); run();
     };
+    // Un réveil remet le back-off à zéro : sans cela, une boucle retombée à 30 s d'intervalle
+    // resterait muette une demi-minute alors que le contrôleur est de nouveau joignable.
+    const reveiller = () => { failures = 0; resume(); };
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("online", resume);
-    return {start: resume, stop: () => { stopped = true; clear(); }};
+    const poller = {start: resume, reveiller, stop: () => { stopped = true; clear(); }};
+    registrePollers.push(poller);
+    return poller;
   };
+
+  const reveillerPollers = () => { for (const poller of registrePollers) poller.reveiller(); };
 
   const fetchWithTimeout = async (resource, options = {}, timeout = 6000) => {
     const controller = new AbortController();
@@ -153,6 +190,17 @@
     });
   };
 
+  const detailDegradation = () => {
+    const messages = [...degradations.values()].filter(Boolean);
+    if (messages.length === 0) return "Le contrôleur répond, mais certaines données ne sont pas disponibles.";
+    if (messages.length === 1) return messages[0];
+    return `${messages.length} services dégradés · ${messages.join(" · ")}`;
+  };
+
+  // Empreinte de l'ensemble des dégradations : c'est elle qui décide d'une annonce, pas un message
+  // isolé — sans quoi une source qui retombe en panne toutes les cinq secondes réannoncerait sans fin.
+  const signatureDegradations = () => [...degradations].map(([source, message]) => `${source}:${message}`).sort().join("|");
+
   const updateConnectionBanner = () => {
     const banner = document.getElementById("pwa-connection-banner");
     const title = document.getElementById("pwa-connection-title");
@@ -166,64 +214,172 @@
     document.body.classList.toggle("is-degraded", degraded);
     if (unavailable) {
       title.textContent = "HORS LIGNE";
-      detail.textContent = lastContactAt
-        ? `Données datant au mieux de ${formatElapsed(lastContactAt)} · non actualisées · lecture seule`
-        : "Âge des données inconnu · données non actualisées · lecture seule";
+      // Une fois le rechargement proposé, le détail porte cette proposition : ne pas la recouvrir.
+      if (!rechargementPropose) {
+        detail.textContent = lastContactAt
+          ? `Données datant au mieux de ${formatElapsed(lastContactAt)} · non actualisées · lecture seule`
+          : "Âge des données inconnu · données non actualisées · lecture seule";
+      }
       setControlsDisabled(true);
     } else if (degraded) {
       title.textContent = "SERVICE DÉGRADÉ";
-      detail.textContent = degradedDetail || "Le contrôleur répond, mais certaines données ne sont pas disponibles.";
+      detail.textContent = detailDegradation();
       setControlsDisabled(false);
     } else {
       setControlsDisabled(false);
     }
   };
 
-  const markServerContact = async (receivedAt = Date.now()) => {
-    if (cachedCultureDocument) { window.location.reload(); return; }
+  // La page affichée vient du cache : elle reste datée même si le contrôleur redevient joignable.
+  // On propose donc un rechargement explicite au lieu de le déclencher — un rechargement automatique
+  // est armé par une réponse d'API alors que c'est la navigation qui doit réussir, et les deux
+  // peuvent diverger : en réseau battant, cela bouclait, et cela détruisait l'état de la page.
+  const afficherRechargement = () => {
+    if (rechargementPropose) return;
+    const bouton = document.getElementById("pwa-connection-reload");
+    const detail = document.getElementById("pwa-connection-detail");
+    if (!bouton) return;
+    rechargementPropose = true;
+    bouton.hidden = false;
+    if (detail) detail.textContent = "Contrôleur de nouveau joignable · la page affichée reste une copie datée";
+    announce("Contrôleur de nouveau joignable. Rechargez la page pour revenir aux données à jour.");
+  };
+
+  // Seul endroit qui fait entrer en « hors ligne ». La sortie appartient exclusivement à
+  // markServerContact : seule une réponse métier fraîche retire la bannière.
+  const evaluerConnexion = () => {
+    if (connectionState === "offline") {
+      // Ne rafraîchir que l'âge affiché, et rarement : updateConnectionBanner balaie tout le DOM des
+      // formulaires et réécrit body.class, que deux MutationObserver du carnet surveillent.
+      if (!rechargementPropose && Date.now() - dernierRafraichissementAge >= RAFRAICHIR_AGE_MS) {
+        dernierRafraichissementAge = Date.now();
+        updateConnectionBanner();
+      }
+      return;
+    }
+    // Sur une page servie par le cache, le premier échec de transport confirme une navigation déjà
+    // ratée : rien à débattre. Sur une page servie par le réseau, il faut attendre le silence.
+    const jamaisJoint = documentEnCache !== null && !contactedThisPage && dernierEchecTransportAt !== null;
+    if (!jamaisJoint && Date.now() - silenceDepuis <= SEUIL_SILENCE_MS) return;
+    connectionState = "offline";
+    // Le silence prime sur toute dégradation : plus rien ne répond, donc plus rien n'est su. Les
+    // sources qui étaient en panne le signaleront de nouveau dès qu'elles reparleront.
+    degradations.clear();
+    horsLigneDepuis = Date.now();
+    dernierRafraichissementAge = Date.now();
+    updateConnectionBanner();
+    announce("Connexion au contrôleur interrompue. Les données affichées ne sont plus actualisées.");
+  };
+
+  // `source` nomme la boucle qui a obtenu la réponse. Un succès ne lève que **sa** dégradation :
+  // une réponse fraîche de l'état ne prouve rien sur l'historique. Sans source — une action
+  // opérateur ponctuelle — le contact atteste la joignabilité et ne lève rien du tout.
+  const markServerContact = async (receivedAt = Date.now(), source = null) => {
+    silenceDepuis = Date.now();
+    if (cachedCultureDocument) { afficherRechargement(); return; }
     const wasUnavailable = connectionState === "offline" || connectionState === "degraded";
-    const wasOffline = connectionState === "offline";
     contactedThisPage = true;
-    connectionState = "online";
-    degradedDetail = "";
+    if (source) degradations.delete(source);
+    connectionState = degradations.size ? "degraded" : "online";
+    horsLigneDepuis = null;
     lastContactAt = receivedAt;
     await setPreference("lastContactAt", receivedAt);
     updateConnectionBanner();
-    if (wasUnavailable) announce("Connexion au contrôleur rétablie.");
-    if (wasOffline && offlineAtBoot && !sessionStorage.getItem("phyto-pwa-reconnected")) {
-      sessionStorage.setItem("phyto-pwa-reconnected", "1");
-      window.location.reload();
-    }
+    if (wasUnavailable && connectionState === "online") announce("Connexion au contrôleur rétablie.");
   };
 
-  const markServerFailure = () => {
-    const wasOnline = connectionState !== "offline";
-    if (!contactedThisPage) offlineAtBoot = true;
-    connectionState = "offline";
-    degradedDetail = "";
-    updateConnectionBanner();
-    if (wasOnline) announce("Connexion au contrôleur interrompue. Les données affichées ne sont plus actualisées.");
+  // Un signalement, pas un verdict : c'est evaluerConnexion qui tranche, sur le temps de silence.
+  const signalerEchecTransport = () => {
+    dernierEchecTransportAt = Date.now();
+    evaluerConnexion();
   };
 
-  const markServerDegraded = (detail = "") => {
+  // `source` est la boucle surveillée qui se dit dégradée. Une dégradation reste inscrite jusqu'à
+  // ce que **cette** source réponde correctement : c'est ce qui rend une panne durable observable.
+  const markServerDegraded = (detail = "", source = "global") => {
     if (cachedCultureDocument) return;
-    const changed = connectionState !== "degraded" || degradedDetail !== detail;
+    const avant = signatureDegradations();
     contactedThisPage = true;
+    // Un HTTP non-OK est une réponse fraîche du contrôleur, donc une preuve de joignabilité : il
+    // rompt le silence sans rien prouver sur la fraîcheur de la donnée, que lastContactAt seul porte.
+    silenceDepuis = Date.now();
+    degradations.set(source, detail);
     connectionState = "degraded";
-    degradedDetail = detail;
+    horsLigneDepuis = null;
     updateConnectionBanner();
-    if (changed) announce(detail || "Le contrôleur répond, mais un service est dégradé.");
+    if (signatureDegradations() !== avant) announce(detailDegradation());
   };
 
+  const sonderJoignabilite = async () => {
+    const emiseA = Date.now();
+    let joignable = false;
+    try {
+      // On ne lit que le statut, jamais le corps : /health/live reste une sonde de liveness.
+      const response = await fetchWithTimeout("/health/live", {cache: "no-store"}, DELAI_SONDE_MS);
+      joignable = response.ok;
+    } catch (_error) {
+      joignable = false;
+    }
+    // Une sonde partie avant un gel de la page résout après la reprise avec une vérité périmée.
+    if (!joignable || Date.now() - emiseA > PEREMPTION_SONDE_MS) return;
+    if (Date.now() - dernierReveilAt < MIN_REVEIL_MS) return;
+    dernierReveilAt = Date.now();
+    // La sonde ne retire jamais la bannière ; elle réveille les boucles métier, dont la réponse
+    // fraîche le fera. Un portail captif qui répond 200 à tout ne peut donc rien affirmer ici.
+    if (cachedCultureDocument) afficherRechargement();
+    reveillerPollers();
+  };
+
+  let battementTimer = null;
+  const planifierBattement = (delai) => {
+    if (battementTimer !== null) window.clearTimeout(battementTimer);
+    battementTimer = window.setTimeout(battement, delai);
+  };
+
+  // Une seule boucle auto-replanifiée, jamais un setInterval : deux battements ne peuvent pas se
+  // chevaucher. Inerte page masquée — un verdict n'a d'utilité que devant un œil humain, et une
+  // sonde d'arrière-plan serait de toute façon étranglée par le navigateur. C'est reprendre() qui
+  // rattrape la reprise, pas un sondage continu.
+  async function battement() {
+    battementTimer = null;
+    if (document.visibilityState !== "visible") return;
+    evaluerConnexion();
+    if (connectionState === "offline") await sonderJoignabilite();
+    const horsLigne = connectionState === "offline";
+    const prolonge = horsLigne && horsLigneDepuis !== null && Date.now() - horsLigneDepuis > RALENTISSEMENT_APRES_MS;
+    planifierBattement(
+      horsLigne ? (prolonge ? BATTEMENT_HORS_LIGNE_LONG_MS : BATTEMENT_HORS_LIGNE_MS) : BATTEMENT_EN_LIGNE_MS,
+    );
+  }
+
+  let pageAbsente = false;
+  const noterAbsence = () => { if (document.visibilityState !== "visible") pageAbsente = true; };
+
+  // Une reprise n'est pas un simple retour de focus : les boucles sont suspendues par la visibilité,
+  // donc une page qui n'a jamais été masquée n'a aucun retard à rattraper, et la relancer ne ferait
+  // que rejouer des requêtes. Seuls comptent une absence constatée, une restauration depuis le cache
+  // de navigation, et le retour de `navigator.onLine` — trois transitions, pas un état.
+  const reprendre = (event) => {
+    if (document.visibilityState !== "visible") return;
+    if (!pageAbsente && !event?.persisted && event?.type !== "online") return;
+    pageAbsente = false;
+    // Le silence ne se mesure que pendant qu'on sonde vraiment : sans cette remise à zéro, une
+    // application rouverte après plusieurs minutes passerait au rouge à la seconde de sa reprise.
+    silenceDepuis = Date.now();
+    reveillerPollers();
+    planifierBattement(0);
+  };
+
+  // La clé du snapshot nomme déjà la source : elle sert telle quelle à lever sa dégradation.
   const recordNetworkSuccess = async (key, data, receivedAt = Date.now()) => {
-    await Promise.all([storeSnapshot(key, data, receivedAt), markServerContact(receivedAt)]);
+    await Promise.all([storeSnapshot(key, data, receivedAt), markServerContact(receivedAt, key)]);
   };
 
   window.PhytoPwa = {
     loadSnapshot,
     markServerContact,
     markServerDegraded,
-    markServerFailure,
+    signalerEchecTransport,
     isTransportError,
     fetchWithTimeout,
     recordNetworkSuccess,
@@ -414,14 +570,14 @@
         cache: "no-store",
       }, 6000);
       if (!response.ok) {
-        markServerDegraded(`Alarmes momentanément indisponibles (HTTP ${response.status}).`);
+        markServerDegraded(`Alarmes momentanément indisponibles (HTTP ${response.status}).`, "alarms");
         throw new Error(`HTTP ${response.status}`);
       }
-      await markServerContact();
+      await markServerContact(Date.now(), "alarms");
       await processAlarmFeed(await response.json(), "network");
       return true;
     } catch (error) {
-      if (isTransportError(error)) markServerFailure();
+      if (isTransportError(error)) signalerEchecTransport();
       const stored = await loadSnapshot("active-alarms");
       if (stored?.data) await processAlarmFeed(stored.data, "stored");
       return false;
@@ -497,23 +653,38 @@
     alarmSeen = await getPreference("alarmSeen", {});
     alarmSeenInitialized = await getPreference("alarmSeenInitialized", false);
 
-    if (sessionStorage.getItem("phyto-pwa-reconnected")) {
-      sessionStorage.removeItem("phyto-pwa-reconnected");
-    }
+    document.getElementById("pwa-connection-reload")?.addEventListener("click", () => {
+      window.location.reload();
+    });
 
+    // L'enregistrement du service worker ne conditionne rien et n'est donc jamais attendu ici :
+    // `serviceWorker.ready` peut ne jamais se régler (worker bloqué, installation sans fin), et il
+    // emportait alors la surveillance de connexion et la boucle d'alarmes, qui le suivaient.
+    // Son seul consommateur, showAlarmNotification, sait déjà faire avec une inscription absente.
     if (window.isSecureContext && "serviceWorker" in navigator) {
-      try {
-        serviceWorkerRegistration = await navigator.serviceWorker.register("/service-worker.js", {scope: "/"});
-        serviceWorkerRegistration = await navigator.serviceWorker.ready;
-      } catch (_error) {
-        serviceWorkerRegistration = null;
-      }
+      navigator.serviceWorker.register("/service-worker.js", {scope: "/"})
+        .then(() => navigator.serviceWorker.ready)
+        .then((registration) => { serviceWorkerRegistration = registration; })
+        .catch(() => { serviceWorkerRegistration = null; });
     }
 
     configureNotificationControls();
     updateNotificationControls();
     createAdaptivePoller(fetchAlarmFeed).start();
-    window.setInterval(() => { if (connectionState === "offline") updateConnectionBanner(); }, 60000);
+
+    // Reprise de l'application : c'est ce réveil, et non un sondage d'arrière-plan, qui rend la
+    // main en une seconde quand l'opérateur rouvre la PWA. « online » ne suffit pas : sur mobile,
+    // navigator.onLine ne passe le plus souvent jamais à false. « controllerchange » est
+    // délibérément absent : un changement de service worker dit qu'une version a pris la main,
+    // jamais que le contrôleur est de nouveau joignable — ce n'est pas une reprise.
+    window.addEventListener("pagehide", () => { pageAbsente = true; });
+    document.addEventListener("visibilitychange", noterAbsence);
+    window.addEventListener("pageshow", reprendre);
+    window.addEventListener("focus", reprendre);
+    window.addEventListener("online", reprendre);
+    document.addEventListener("visibilitychange", reprendre);
+    planifierBattement(0);
+
     const more = document.querySelector(".mobile-more");
     document.addEventListener("click", (event) => {
       if (more?.open && !more.contains(event.target)) more.open = false;
@@ -526,8 +697,11 @@
     });
   };
 
+  // Le meta phyto-offline-snapshot est la preuve que la navigation elle-même a échoué, pas une
+  // suspicion : pas d'hystérésis sur une preuve, la page est hors ligne dès son affichage.
   if (cachedCultureDocument) {
-    lastContactAt = cultureSnapshotAt; offlineAtBoot = true; connectionState = "offline";
+    lastContactAt = cultureSnapshotAt; connectionState = "offline";
+    horsLigneDepuis = Date.now(); dernierRafraichissementAge = Date.now();
     updateConnectionBanner();
   }
   initialize();

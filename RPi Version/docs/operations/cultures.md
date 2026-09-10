@@ -696,6 +696,13 @@ La synthèse affichée hors ligne est celle de la dernière visite et couvre la 
 sa date figure dans la bannière « HORS LIGNE — données datant de… — lecture seule ». Aucune
 saisie n'est mise en attente ni rejouée, et le carnet ne déclenche aucune notification système.
 
+Quand le contrôleur redevient joignable, la page affichée **reste** une copie datée : la bannière
+ne disparaît pas toute seule et un bouton **Recharger** y apparaît, avec la mention « Contrôleur de
+nouveau joignable ». C'est l'opérateur qui décide du moment. Le carnet ne se recharge jamais de
+lui-même : un rechargement automatique était armé par une réponse d'API alors que c'est la
+navigation qui doit réussir — sur un réseau intermittent il pouvait s'enchaîner, et il faisait
+perdre le défilement et les blocs ouverts.
+
 ## Restaurer une sauvegarde complète sur copie
 
 Télécharger le ZIP et le conserver hors du Pi, puis choisir un dossier de destination inexistant :
