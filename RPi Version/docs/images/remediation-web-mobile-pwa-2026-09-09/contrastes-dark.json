@@ -1,0 +1,2409 @@
+{
+  "theme": "dark",
+  "samples": [
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Aller au contenu",
+      "color": "#07100c",
+      "background": "#edf7f0",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": false,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "⌁",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": 27.2,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "PHYTOCONTROLLER",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": 17.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "CONTROLLER",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 17.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h1",
+      "text": "Tableau de bord",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 21.6,
+      "bold": true,
+      "threshold": 3,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 5,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Voir les équipements",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 12.8,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "div",
+      "text": "Données à jour",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 12.8,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h2",
+      "text": "Contrôle opérationnel · diagnostic à vérifier",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16.8,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "summary",
+      "text": "Comprendre cet état",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 45,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "réseau non nominal · historique indisponible.",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 5,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "0",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Historique indisponible",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h2",
+      "text": "Climat actuel",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 17.6,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 8,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "PHASE INCONNUE",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 12,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "Évaluation indisponible",
+      "color": "#50e38a",
+      "background": "#0d1812",
+      "fontPx": 12,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 10.98,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Température",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 12.2,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "21.5",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 12.2,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "small",
+      "text": "°C",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 17.3,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "small",
+      "text": "normal · Mesurée il y a 1 s",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 11.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h2",
+      "text": "Anomalies et interventions prioritaires",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "0 alarme active · 0 coupure active · Rappels du jour du carn",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "0 alarme active",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Rappels du jour du carnet",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h3",
+      "text": "Climat",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 12.5,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "Ventilation",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 19,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "V0",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 50,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "ventilation · Serre",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 9,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Conduite normale : température dans la cible.",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.4,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 60,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Conduite normale",
+      "color": "#a0b9aa",
+      "background": "#111c16",
+      "fontPx": 12.8,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.36,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Détails de conduite",
+      "color": "#edf7f0",
+      "background": "#111c16",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 15.99,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Afficher",
+      "color": "#50e38a",
+      "background": "#111c16",
+      "fontPx": 12,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 10.6,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "dt",
+      "text": "Demandé",
+      "color": "#a0b9aa",
+      "background": "#111c16",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.36,
+      "approximate": true,
+      "count": 24,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "dd",
+      "text": "0",
+      "color": "#edf7f0",
+      "background": "#111c16",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 15.99,
+      "approximate": true,
+      "count": 24,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Seuil de ventilation — °C · renouvellement 0/0 min/h · déshu",
+      "color": "#a0b9aa",
+      "background": "#111c16",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.36,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Configurer",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 12.8,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Couper",
+      "color": "#ff6b6b",
+      "background": "#0d1812",
+      "fontPx": 12.8,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 6.54,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "button",
+      "text": "Couper",
+      "color": "#ff6b6b",
+      "background": "#0d1812",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 6.54,
+      "approximate": true,
+      "count": 8,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "À la prochaine condition de régulation",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 13.4,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "3 mesures",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 13.8,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "Température de l’air",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.4,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "21.5",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 18.4,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "°C",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "normal",
+      "color": "#a0b9aa",
+      "background": "#17291f",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 7.29,
+      "approximate": false,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Min — · max — °C",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "—",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "dt",
+      "text": "Brute",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 16,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "dd",
+      "text": "21.5 °C",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 17,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Réinitialiser les extrêmes",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 36,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "button",
+      "text": "key",
+      "color": "#4c7960",
+      "background": "#0d1812",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.64,
+      "approximate": true,
+      "count": 36,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Configurer la mesure",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "summary",
+      "text": "Aperçu climatique des dernières 24 heures",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Voir l’historique détaillé",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Le contrôle de la serre reste actif.",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 54,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Coupure temporaire",
+      "color": "#50e38a",
+      "background": "#151a10",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 10.66,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h2",
+      "text": "Maintenance de la serre",
+      "color": "#edf7f0",
+      "background": "#151a10",
+      "fontPx": 21.6,
+      "bold": true,
+      "threshold": 3,
+      "ratio": 16.09,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "La coupure générale n’allume jamais un équipement et se lève",
+      "color": "#a0b9aa",
+      "background": "#151a10",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.41,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Arrêt général — maintenance",
+      "color": "#ff6b6b",
+      "background": "#151a10",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 6.35,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "button",
+      "text": "Arrêt général — maintenance",
+      "color": "#ff6b6b",
+      "background": "#151a10",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 6.35,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h3",
+      "text": "Espace 1",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 15.2,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Mère mesures · Maintien · J41 (5 sem. + 6 j)",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Mère mesures",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Saisir un relevé",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 24,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Carnet actualisé à 00:19:23",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 12,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Zone sensible",
+      "color": "#50e38a",
+      "background": "#0d1812",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 10.98,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "Administration du contrôleur",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16.8,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h3",
+      "text": "Redémarrer",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16.5,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": false,
+      "count": 9,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Redémarrer…",
+      "color": "#ff6b6b",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 6.54,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Éteindre…",
+      "color": "#031b0d",
+      "background": "#ff6b6b",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 6.49,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "footer",
+      "text": "PHYTO · CONTRÔLE LOCAL LAN",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 11.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Serre",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 9,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Cultures",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 27,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "summary",
+      "text": "Plus",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 9,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "Outils",
+      "color": "#edf7f0",
+      "background": "#122119",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 15.24,
+      "approximate": false,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Application sur ce téléphone",
+      "color": "#edf7f0",
+      "background": "#122119",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 15.24,
+      "approximate": false,
+      "count": 45,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Plein jour",
+      "color": "#a0b9aa",
+      "background": "#122119",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 7.97,
+      "approximate": false,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "button",
+      "text": "Plein jour",
+      "color": "#4c7960",
+      "background": "#122119",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.35,
+      "approximate": false,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "0",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": 24,
+      "bold": true,
+      "threshold": 3,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "active",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 28,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "small",
+      "text": "0 contrôle · 0 auxiliaire",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 13.3,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "0 résultat · actualisation automatique",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 13.4,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 17,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h2",
+      "text": "Aucune occurrence",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 21.6,
+      "bold": true,
+      "threshold": 3,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 10,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "label",
+      "text": "ÉtatActivesRésoluesToutes",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "select",
+      "text": "status",
+      "color": "#4c7960",
+      "background": "#0d1812",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.64,
+      "approximate": true,
+      "count": 79,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Filtrer",
+      "color": "#031b0d",
+      "background": "#50e38a",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 10.88,
+      "approximate": false,
+      "count": 22,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "button",
+      "text": "Filtrer",
+      "color": "#50e38a",
+      "background": "#0d1812",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 10.98,
+      "approximate": true,
+      "count": 17,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Notifications de cet appareil",
+      "color": "#50e38a",
+      "background": "#0d1812",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 10.98,
+      "approximate": true,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Analyse locale",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": 13.6,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h1",
+      "text": "Historique",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 32,
+      "bold": true,
+      "threshold": 3,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 7,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Mesures, consignes et états des équipements relevés sur les ",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "summary",
+      "text": "Plus",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Historique",
+      "color": "#50e38a",
+      "background": "#17291f",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.24,
+      "approximate": false,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Affichage",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 13.4,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 21,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Simple",
+      "color": "#edf7f0",
+      "background": "#17291f",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 13.95,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "button",
+      "text": "Simple",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Avancé",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "button",
+      "text": "Avancé",
+      "color": "#4c7960",
+      "background": "#07100c",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.87,
+      "approximate": true,
+      "count": 8,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Serre",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Une seule sauvegarde",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.8,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "legend",
+      "text": "Jour/nuit",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": false,
+      "count": 7,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "label",
+      "text": "Suivre l’éclairage 1",
+      "color": "#50e38a",
+      "background": "#163423",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.15,
+      "approximate": false,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "label",
+      "text": "Horaires personnalisés",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 10,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "label",
+      "text": "Début du jour",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": false,
+      "count": 193,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "input",
+      "text": "start_time",
+      "color": "#4c7960",
+      "background": "#0d1812",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.64,
+      "approximate": false,
+      "count": 88,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "legend",
+      "text": "Éclairage 1",
+      "color": "#50e38a",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 10.98,
+      "approximate": false,
+      "count": 4,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "°C",
+      "color": "#a0b9aa",
+      "background": "#17291f",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 7.29,
+      "approximate": false,
+      "count": 5,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "manuel",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "li",
+      "text": "Hystérésis chauffage : 1.0 → 2.0",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": false,
+      "count": 13,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h2",
+      "text": "Flux système",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 21.6,
+      "bold": true,
+      "threshold": 3,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 15,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "Connectée",
+      "color": "#50e38a",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 11.66,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "button",
+      "text": "Pause",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 7,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "summary",
+      "text": "Filtres et outils",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "label",
+      "text": "Niveau minimal",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 12.5,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "select",
+      "text": "Tout (debug)\n        Information\n        Avertissement\n     ",
+      "color": "#4c7960",
+      "background": "#07100c",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.87,
+      "approximate": true,
+      "count": 10,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "input",
+      "text": "",
+      "color": "#4c7960",
+      "background": "#07100c",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.87,
+      "approximate": true,
+      "count": 8,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "0 ligne(s) affichée(s) sur 0 · 0 avertissement(s) · 0 erreur",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 13.1,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h3",
+      "text": "Journal système en direct",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16.5,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Origines, parcours et observations. Les stades servent au su",
+      "color": "#a0b9aa",
+      "background": "#07100c",
+      "fontPx": 14.7,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 9.2,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Cultures",
+      "color": "#edf7f0",
+      "background": "#122119",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 15.24,
+      "approximate": false,
+      "count": 9,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Solutions et relevés",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 87,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "p",
+      "text": "Aucun rappel en cours dans le carnet. Créer un rappel.",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 56,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Saisir un relevé",
+      "color": "#031b0d",
+      "background": "#50e38a",
+      "fontPx": 13.6,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 10.88,
+      "approximate": false,
+      "count": 3,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "span",
+      "text": "6,10",
+      "color": "#a0b9aa",
+      "background": "#0d1812",
+      "fontPx": 13.4,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 8.66,
+      "approximate": true,
+      "count": 9,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "small",
+      "text": "Depuis 01/08/2026",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 13.3,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "label",
+      "text": "Rechercher une culture (nom ou variété)",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 15,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Mère mesures",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16.5,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "legend",
+      "text": "Situation de cette culture",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 7,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "h3",
+      "text": "Récapitulatif avant validation",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "composant",
+      "tag": "textarea",
+      "text": "note",
+      "color": "#4c7960",
+      "background": "#0d1812",
+      "fontPx": null,
+      "bold": false,
+      "threshold": 3,
+      "ratio": 3.64,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Rappels du jour",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 15.2,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "a",
+      "text": "Télécharger la sauvegarde complète ZIP",
+      "color": "#031b0d",
+      "background": "#50e38a",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 10.88,
+      "approximate": false,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "li",
+      "text": "Date consultée : 11/09/2026",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "em",
+      "text": "à cette date",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 2,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "strong",
+      "text": "information d’exploitation",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 14,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "dt",
+      "text": "Repère applicable à l’espace",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 12,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "code",
+      "text": "cyclic_2",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 1,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "th",
+      "text": "Identifiant",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": true,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 6,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "td",
+      "text": "daily_1",
+      "color": "#edf7f0",
+      "background": "#0d1812",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 16.57,
+      "approximate": true,
+      "count": 36,
+      "pass": true
+    },
+    {
+      "kind": "texte",
+      "tag": "time",
+      "text": "09/08/2026",
+      "color": "#edf7f0",
+      "background": "#07100c",
+      "fontPx": 16,
+      "bold": false,
+      "threshold": 4.5,
+      "ratio": 17.61,
+      "approximate": true,
+      "count": 10,
+      "pass": true
+    }
+  ],
+  "series": {
+    "history": {
+      "series": [
+        {
+          "name": "--chart-0",
+          "hex": "#50e38a"
+        },
+        {
+          "name": "--chart-1",
+          "hex": "#7abdff"
+        },
+        {
+          "name": "--chart-2",
+          "hex": "#ffc252"
+        },
+        {
+          "name": "--chart-3",
+          "hex": "#bd7aff"
+        },
+        {
+          "name": "--chart-4",
+          "hex": "#e56c6c"
+        },
+        {
+          "name": "--chart-5",
+          "hex": "#8ee2eb"
+        }
+      ],
+      "views": {
+        "normale": {
+          "simulated": [
+            {
+              "name": "--chart-0",
+              "hex": "#50e38a"
+            },
+            {
+              "name": "--chart-1",
+              "hex": "#7abdff"
+            },
+            {
+              "name": "--chart-2",
+              "hex": "#ffc252"
+            },
+            {
+              "name": "--chart-3",
+              "hex": "#bd7aff"
+            },
+            {
+              "name": "--chart-4",
+              "hex": "#e56c6c"
+            },
+            {
+              "name": "--chart-5",
+              "hex": "#8ee2eb"
+            }
+          ],
+          "closest": [
+            {
+              "a": "--chart-1",
+              "b": "--chart-5",
+              "deltaE": 34.9
+            },
+            {
+              "a": "--chart-0",
+              "b": "--chart-5",
+              "deltaE": 57.1
+            },
+            {
+              "a": "--chart-1",
+              "b": "--chart-3",
+              "deltaE": 57.8
+            },
+            {
+              "a": "--chart-2",
+              "b": "--chart-4",
+              "deltaE": 58.1
+            },
+            {
+              "a": "--chart-0",
+              "b": "--chart-2",
+              "deltaE": 75.9
+            },
+            {
+              "a": "--chart-3",
+              "b": "--chart-4",
+              "deltaE": 79.5
+            },
+            {
+              "a": "--chart-1",
+              "b": "--chart-4",
+              "deltaE": 80.9
+            },
+            {
+              "a": "--chart-4",
+              "b": "--chart-5",
+              "deltaE": 82.3
+            }
+          ],
+          "minDeltaE": 34.9
+        },
+        "deuteranopie": {
+          "simulated": [
+            {
+              "name": "--chart-0",
+              "hex": "#d0c490"
+            },
+            {
+              "name": "--chart-1",
+              "hex": "#91b2fe"
+            },
+            {
+              "name": "--chart-2",
+              "hex": "#e9d256"
+            },
+            {
+              "name": "--chart-3",
+              "hex": "#6499fc"
+            },
+            {
+              "name": "--chart-4",
+              "hex": "#a69b69"
+            },
+            {
+              "name": "--chart-5",
+              "hex": "#c6cfeb"
+            }
+          ],
+          "closest": [
+            {
+              "a": "--chart-0",
+              "b": "--chart-4",
+              "deltaE": 15.2
+            },
+            {
+              "a": "--chart-1",
+              "b": "--chart-3",
+              "deltaE": 16.7
+            },
+            {
+              "a": "--chart-1",
+              "b": "--chart-5",
+              "deltaE": 28.8
+            },
+            {
+              "a": "--chart-0",
+              "b": "--chart-2",
+              "deltaE": 35.2
+            },
+            {
+              "a": "--chart-2",
+              "b": "--chart-4",
+              "deltaE": 40.3
+            },
+            {
+              "a": "--chart-0",
+              "b": "--chart-5",
+              "deltaE": 43.2
+            },
+            {
+              "a": "--chart-3",
+              "b": "--chart-5",
+              "deltaE": 45.3
+            },
+            {
+              "a": "--chart-4",
+              "b": "--chart-5",
+              "deltaE": 47.2
+            }
+          ],
+          "minDeltaE": 15.2
+        },
+        "protanopie": {
+          "simulated": [
+            {
+              "name": "--chart-0",
+              "hex": "#e3d184"
+            },
+            {
+              "name": "--chart-1",
+              "hex": "#a2bfff"
+            },
+            {
+              "name": "--chart-2",
+              "hex": "#dac345"
+            },
+            {
+              "name": "--chart-3",
+              "hex": "#4f97ff"
+            },
+            {
+              "name": "--chart-4",
+              "hex": "#88826b"
+            },
+            {
+              "name": "--chart-5",
+              "hex": "#d6dbec"
+            }
+          ],
+          "closest": [
+            {
+              "a": "--chart-0",
+              "b": "--chart-2",
+              "deltaE": 23.7
+            },
+            {
+              "a": "--chart-1",
+              "b": "--chart-5",
+              "deltaE": 27.9
+            },
+            {
+              "a": "--chart-1",
+              "b": "--chart-3",
+              "deltaE": 28.4
+            },
+            {
+              "a": "--chart-0",
+              "b": "--chart-4",
+              "deltaE": 40.1
+            },
+            {
+              "a": "--chart-4",
+              "b": "--chart-5",
+              "deltaE": 40.1
+            },
+            {
+              "a": "--chart-0",
+              "b": "--chart-5",
+              "deltaE": 49.8
+            },
+            {
+              "a": "--chart-1",
+              "b": "--chart-4",
+              "deltaE": 53.7
+            },
+            {
+              "a": "--chart-2",
+              "b": "--chart-4",
+              "deltaE": 55.9
+            }
+          ],
+          "minDeltaE": 23.7
+        }
+      }
+    },
+    "solutions": {
+      "series": [
+        {
+          "name": "--blue",
+          "hex": "#75baff"
+        },
+        {
+          "name": "--amber",
+          "hex": "#f5bd4f"
+        },
+        {
+          "name": "--red",
+          "hex": "#ff6b6b"
+        },
+        {
+          "name": "--green",
+          "hex": "#50e38a"
+        },
+        {
+          "name": "--muted",
+          "hex": "#a0b9aa"
+        }
+      ],
+      "views": {
+        "normale": {
+          "simulated": [
+            {
+              "name": "--blue",
+              "hex": "#75baff"
+            },
+            {
+              "name": "--amber",
+              "hex": "#f5bd4f"
+            },
+            {
+              "name": "--red",
+              "hex": "#ff6b6b"
+            },
+            {
+              "name": "--green",
+              "hex": "#50e38a"
+            },
+            {
+              "name": "--muted",
+              "hex": "#a0b9aa"
+            }
+          ],
+          "closest": [
+            {
+              "a": "--blue",
+              "b": "--muted",
+              "deltaE": 46.3
+            },
+            {
+              "a": "--green",
+              "b": "--muted",
+              "deltaE": 55.1
+            },
+            {
+              "a": "--amber",
+              "b": "--red",
+              "deltaE": 59.3
+            },
+            {
+              "a": "--amber",
+              "b": "--muted",
+              "deltaE": 60.7
+            },
+            {
+              "a": "--red",
+              "b": "--muted",
+              "deltaE": 72.6
+            },
+            {
+              "a": "--amber",
+              "b": "--green",
+              "deltaE": 73.7
+            },
+            {
+              "a": "--blue",
+              "b": "--red",
+              "deltaE": 91.8
+            },
+            {
+              "a": "--blue",
+              "b": "--green",
+              "deltaE": 92.2
+            }
+          ],
+          "minDeltaE": 46.3
+        },
+        "deuteranopie": {
+          "simulated": [
+            {
+              "name": "--blue",
+              "hex": "#8baffe"
+            },
+            {
+              "name": "--amber",
+              "hex": "#e1cc53"
+            },
+            {
+              "name": "--red",
+              "hex": "#b5a767"
+            },
+            {
+              "name": "--green",
+              "hex": "#d0c490"
+            },
+            {
+              "name": "--muted",
+              "hex": "#b4b2ab"
+            }
+          ],
+          "closest": [
+            {
+              "a": "--red",
+              "b": "--green",
+              "deltaE": 12.8
+            },
+            {
+              "a": "--green",
+              "b": "--muted",
+              "deltaE": 24.9
+            },
+            {
+              "a": "--amber",
+              "b": "--red",
+              "deltaE": 29.6
+            },
+            {
+              "a": "--red",
+              "b": "--muted",
+              "deltaE": 31.5
+            },
+            {
+              "a": "--amber",
+              "b": "--green",
+              "deltaE": 33.7
+            },
+            {
+              "a": "--blue",
+              "b": "--muted",
+              "deltaE": 47.6
+            },
+            {
+              "a": "--amber",
+              "b": "--muted",
+              "deltaE": 58.3
+            },
+            {
+              "a": "--blue",
+              "b": "--green",
+              "deltaE": 72
+            }
+          ],
+          "minDeltaE": 12.8
+        },
+        "protanopie": {
+          "simulated": [
+            {
+              "name": "--blue",
+              "hex": "#9dbcff"
+            },
+            {
+              "name": "--amber",
+              "hex": "#d4be42"
+            },
+            {
+              "name": "--red",
+              "hex": "#90886a"
+            },
+            {
+              "name": "--green",
+              "hex": "#e3d184"
+            },
+            {
+              "name": "--muted",
+              "hex": "#b8b5a9"
+            }
+          ],
+          "closest": [
+            {
+              "a": "--red",
+              "b": "--muted",
+              "deltaE": 20.1
+            },
+            {
+              "a": "--amber",
+              "b": "--green",
+              "deltaE": 23.3
+            },
+            {
+              "a": "--green",
+              "b": "--muted",
+              "deltaE": 35.6
+            },
+            {
+              "a": "--red",
+              "b": "--green",
+              "deltaE": 35.7
+            },
+            {
+              "a": "--blue",
+              "b": "--muted",
+              "deltaE": 43.5
+            },
+            {
+              "a": "--amber",
+              "b": "--red",
+              "deltaE": 49.8
+            },
+            {
+              "a": "--amber",
+              "b": "--muted",
+              "deltaE": 56.4
+            },
+            {
+              "a": "--blue",
+              "b": "--red",
+              "deltaE": 57.6
+            }
+          ],
+          "minDeltaE": 20.1
+        }
+      }
+    }
+  }
+}
