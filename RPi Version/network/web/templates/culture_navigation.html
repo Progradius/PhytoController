@@ -23,8 +23,22 @@
   {% set nav.target = nav.subjects[0] %}
   {% if data is defined and data and data.subjects is defined %}{% for item in data.subjects if item.id == nav.target %}{% set nav.name = item.name %}{% endfor %}{% endif %}
 {% endif %}
+{# Le contexte conservé d'une rubrique à l'autre : la cible ou la sélection, et — pour
+   « Solutions et relevés » seulement — la vue courante, au même titre que `detail` et
+   `selected`. Sans elle, quitter puis revenir sur la rubrique repartait au défaut et
+   perdait l'onglet que l'opérateur venait de choisir. `solution_view` n'est défini que
+   sur cette page : ailleurs, le fragment est rendu sans lui. #}
 {% macro destination(section) -%}
-/cultures{{ '/' ~ section if section else '' }}{% if section in ('solutions','targets','journal') and nav.target and (nav.subjects|length == 1 or nav.kind == 'reservoir' or (nav.kind == 'space' and section == 'journal')) %}?target={{ nav.target|urlencode }}{% elif section in ('cycles','light','equipment') and nav.subjects %}?{% for id in nav.subjects %}{{ '&' if not loop.first else '' }}subject={{ id|urlencode }}{% endfor %}{% endif %}
+{%- set query = namespace(parts=[]) -%}
+{%- if section in ('solutions','targets','journal') and nav.target and (nav.subjects|length == 1 or nav.kind == 'reservoir' or (nav.kind == 'space' and section == 'journal')) -%}
+{%- set query.parts = ['target=' ~ nav.target|urlencode] -%}
+{%- elif section in ('cycles','light','equipment') and nav.subjects -%}
+{%- for id in nav.subjects %}{% set query.parts = query.parts + ['subject=' ~ id|urlencode] %}{% endfor -%}
+{%- endif -%}
+{%- if section == 'solutions' and solution_view is defined and solution_view -%}
+{%- set query.parts = query.parts + ['view=' ~ solution_view|urlencode] -%}
+{%- endif -%}
+/cultures{{ '/' ~ section if section else '' }}{{ '?' ~ query.parts|join('&') if query.parts else '' }}
 {%- endmacro %}
 <nav class="culture-links culture-navigation" aria-label="Navigation du carnet">
 {% for section,label in (('', 'Cultures'),('solutions','Solutions et relevés'),('cycles','Cycles et rappels'),('targets','Plages cibles'),('light','Repères d’éclairage'),('equipment','Équipements'),('journal','Journal')) %}
@@ -35,3 +49,5 @@
 <div class="culture-context"><span>{{ 'Contexte de retour' if culture_section in ('light','equipment') else 'Culture sélectionnée' }} : <a data-culture-page href="/cultures/{{ nav.target|urlencode }}">{{ nav.name or 'Retour à la fiche' }}</a></span><a href="/cultures{{ '/' ~ culture_section if culture_section else '' }}">Vue globale</a></div>
 {% elif nav.subjects %}<p class="culture-context">{% if culture_section in ('light','equipment') %}Contexte de retour : {{ nav.subjects|length }} cultures.{% else %}{{ nav.subjects|length }} cultures sélectionnées pour la comparaison.{% endif %} <a href="/cultures{{ '/' ~ culture_section if culture_section else '' }}">Vue globale</a></p>
 {% elif nav.target %}<p class="culture-context">Cible sélectionnée : {{ nav.name or nav.target }}. <a href="/cultures{{ '/' ~ culture_section if culture_section else '' }}">Vue globale</a></p>{% endif %}
+
+<template id="culture-rubric-selector"><label>Rubrique<select data-culture-rubric>{% for section,label in (('', 'Cultures'),('solutions','Solutions et relevés'),('cycles','Cycles et rappels'),('targets','Plages cibles'),('light','Repères d’éclairage'),('equipment','Équipements'),('journal','Journal')) %}<option value="{{ destination(section) }}"{% if culture_section == section %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></template>

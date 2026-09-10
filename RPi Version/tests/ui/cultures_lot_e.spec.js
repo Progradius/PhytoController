@@ -29,7 +29,7 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await form.getByLabel("Début de validité").fill("2026-08-01");
   await form.getByRole("button", {name: "Enregistrer la plage cible"}).click();
   const article = page.locator(".target-item").first();
-  await expect(article).toContainText("pH 5.8 à 6.4");
+  await expect(article).toContainText("pH 5,80 à 6,40");
   await expect(article).toContainText("EC — à —");
   const identifier = (await article.getAttribute("id")).replace("target-", "");
 
@@ -43,6 +43,29 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await expect(again.locator(".culture-form-errors")).toContainText("chevauchent");
   // Champs conservés après refus : la saisie n'est jamais perdue.
   await expect(again.getByLabel("pH minimum")).toHaveValue("6,0");
+
+  // R2.7 : sélecteur d'abord, puis la plage applicable et sa source, puis le déclaré.
+  // La mesure « premier écran » appartient au script de mesure (`npm run measure:ui`) :
+  // cette spec tourne aussi à 196 px, où aucun seuil fixe ne voudrait dire la même chose.
+  await page.goto("/cultures/targets?target=reservoir_2");
+  const applique = page.locator("#applique");
+  await expect(applique.getByRole("heading", {name: "Appliqué maintenant"})).toBeVisible();
+  await expect(applique.locator("[data-target-source]")).toHaveText("réservoir");
+  await expect(applique).toContainText("pH 5,80 à 6,40");
+  await expect(applique.getByRole("group").filter({hasText: "Comment cette valeur est choisie"})).toHaveCount(1);
+  // Les faits datés de la cascade sont écrits, même quand ils sont vides : aucune
+  // solution n'est encore déclarée sur ce réservoir à cette étape du scénario.
+  await expect(applique.locator("[data-target-feeding]"))
+    .toHaveText("Aucun sujet alimenté par cette solution à cette date.");
+  const hauts = await page.evaluate(() => ["selection", "applique", "plages"]
+    .map(id => document.getElementById(id).getBoundingClientRect().top));
+  expect(hauts[0]).toBeLessThan(hauts[1]);
+  expect(hauts[1]).toBeLessThan(hauts[2]);
+  // Aucune rétroactivité : avant le début de la plage, aucune source n'est nommée.
+  await page.goto("/cultures/targets?target=reservoir_2&at=2026-07-01");
+  await expect(page.locator("[data-target-source]")).toHaveCount(0);
+  await expect(page.getByText("Aucune plage applicable à cette date")).toBeVisible();
+  await page.goto("/cultures/targets?target=reservoir_2");
 
   // Clôture de validité, puis seconde période avec ses propres bornes.
   const item = page.locator(`#target-${identifier}`);
@@ -66,10 +89,10 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await correction.getByLabel("pH maximum").fill("6,8");
   await correction.getByLabel("Motif de la correction").fill("Relevé de laboratoire");
   await correction.getByRole("button", {name: "Enregistrer la correction"}).click();
-  await expect(page.locator(`#target-${second.id}`)).toContainText("pH 6.0 à 6.8");
+  await expect(page.locator(`#target-${second.id}`)).toContainText("pH 6,00 à 6,80");
   await page.locator(`#target-${second.id}`).locator("summary").filter({hasText: "Versions précédentes"}).click();
   await expect(page.locator(`#target-${second.id}`)).toContainText("Version 1");
-  await expect(page.locator(`#target-${identifier}`)).toContainText("pH 5.8 à 6.4");
+  await expect(page.locator(`#target-${identifier}`)).toContainText("pH 5,80 à 6,40");
 
   // Contexte sur les relevés : chaque mesure porte la plage de sa propre période.
   await post(page, "/api/v1/cultures/solutions", csrf, {operation: "entry", kind: "renewal",
@@ -80,16 +103,17 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
     reservoir_id: "cuttings_1", effective_at: "2026-08-05", volume_l: 5});
   await post(page, "/api/v1/cultures/solutions", csrf, {operation: "entry", kind: "reading",
     reservoir_id: "cuttings_1", effective_at: "2026-08-15", ph: "6,3"});
-  await page.goto("/cultures/solutions?target=reservoir_2");
+  await page.goto("/cultures/solutions?view=releves&target=reservoir_2");
   const entries = page.locator(".solution-journal");
-  await expect(entries.first()).toContainText("Plage cible : pH 6.0 à 6.8");
-  await expect(entries.nth(1)).toContainText("Plage cible : pH 5.8 à 6.4");
+  // Les bornes du journal passent par le filtre `nombre` : virgule et deux décimales.
+  await expect(entries.first()).toContainText("Plage cible : pH 6,00 à 6,80");
+  await expect(entries.nth(1)).toContainText("Plage cible : pH 5,80 à 6,40");
   // Une cible sans plage reste sans plage : aucune bande par défaut n'est inventée.
-  await page.goto("/cultures/solutions?target=cuttings_1");
+  await page.goto("/cultures/solutions?view=releves&target=cuttings_1");
   await expect(page.locator(".solution-journal").first()).toContainText("Aucune plage cible à cette date");
   await expect(page.locator(".solution-target-band")).toHaveCount(0);
 
-  await page.goto("/cultures/solutions?target=reservoir_2");
+  await page.goto("/cultures/solutions?view=analyser&target=reservoir_2");
   // Les bandes ne couvrent que les périodes réellement résolues.
   await expect(page.locator("svg[data-metric='ph'] .solution-target-band").first()).toBeVisible();
   await expect(page.locator("svg[data-metric='ec'] .solution-target-band")).toHaveCount(0);
@@ -109,7 +133,7 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await cancelForm.getByLabel("Motif de l’annulation").fill("Saisie en double");
   await cancelForm.getByRole("button", {name: "Annuler la plage"}).click();
   await expect(page.locator(`#target-${second.id}`)).toContainText("annulée");
-  await page.goto("/cultures/solutions?target=reservoir_2");
+  await page.goto("/cultures/solutions?view=releves&target=reservoir_2");
   await expect(page.locator(".solution-journal").first()).toContainText("Aucune plage cible à cette date");
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);

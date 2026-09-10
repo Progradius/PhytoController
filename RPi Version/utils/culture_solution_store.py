@@ -62,6 +62,39 @@ class SolutionStoreMixin:
         return [{**dict(r), "ingredients": json.loads(r["ingredients"])} for r in self._db.execute(
             "SELECT r.* FROM recipes r WHERE revision=(SELECT MAX(v.revision) FROM recipes v WHERE v.id=r.id) ORDER BY name")]
 
+    def _feeding_at(self, target, at):
+        """Associations d'alimentation déclarées qui couvrent l'instant `at`.
+
+        Résolution réutilisable par les autres lots, comme `_equipment_context_at` : les
+        tables `solution_links` et `solution_periods` appartiennent au domaine des
+        solutions, la requête reste donc ici et le lot E la consomme sans la réécrire.
+
+        Deux jointures bornées, aucune projection, aucune écriture, aucune règle : ce ne
+        sont que des faits datés. Une absence reste une absence — ni sujet ni réservoir
+        n'est supposé, et rien n'est départagé.
+
+        `fed_subjects` : les sujets que ce réservoir alimente à cette date.
+        `reservoirs` : les réservoirs qui alimentent ce sujet à cette date ; plusieurs
+        sont possibles, et l'appelant en décide.
+        """
+        # Fenêtre semi-ouverte [début ; fin[, la convention de tout le carnet : une
+        # association close à `end_at` ne couvre plus cet instant, et `end_at IS NULL`
+        # est une association encore ouverte, pas une borne à zéro. Même comparaison
+        # que `_solution_data` sur ces mêmes colonnes : les bornes des liens sont des
+        # clés de tri UTC, jamais des dates déclarées.
+        window = " AND l.start_at<=? AND (l.end_at IS NULL OR l.end_at>?)"
+        return {
+            "fed_subjects": [row[0] for row in self._db.execute(
+                "SELECT DISTINCT l.subject_id FROM solution_links l"
+                " JOIN solution_periods p ON p.id=l.period_id"
+                " WHERE p.reservoir_id=?" + window + " ORDER BY l.subject_id",
+                (target, at, at))],
+            "reservoirs": [row[0] for row in self._db.execute(
+                "SELECT DISTINCT p.reservoir_id FROM solution_links l"
+                " JOIN solution_periods p ON p.id=l.period_id"
+                " WHERE l.subject_id=?" + window + " ORDER BY p.reservoir_id",
+                (target, at, at))]}
+
     def _solution_interventions(self, entries, subjects, search="", offset=0, linked=()):
         """Fenêtre bornée d'interventions sélectionnables, plus les liens déjà utilisés.
 

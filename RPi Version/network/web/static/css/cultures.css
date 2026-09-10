@@ -105,7 +105,7 @@
 /* Lot 1 : repères communs et actions compactes avant la lecture. */
 .culture-navigation { gap: .35rem; }
 .culture-navigation a { display: flex; align-items: center; min-height: 44px; padding: .25rem .65rem; border-radius: var(--radius-sm); }
-.culture-navigation a[aria-current="page"] { background: var(--surface-alt, var(--bg)); color: var(--text); font-weight: 700; box-shadow: inset 0 -3px currentColor; }
+.culture-navigation a[aria-current="page"] { background: var(--raised); color: var(--text); font-weight: 700; box-shadow: inset 0 -3px currentColor; }
 .culture-context { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .5rem .75rem; border-left: 3px solid currentColor; }
 .culture-local-links { font-size: .95rem; }
 .culture-new-entry > summary, .culture-filters > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: list-item; align-content: center; }
@@ -149,7 +149,7 @@ details.culture-primary-action > summary { font-weight: 700; }
    « Entrée ajoutée » — rendu `hidden` par le gabarit et révélé par le script au moment du
    retour — apparaît en même temps et le focus s'y pose. */
 [tabindex="-1"]:target, [tabindex="-1"]:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
-[tabindex="-1"]:target { background: var(--surface-alt, var(--bg)); }
+[tabindex="-1"]:target { background: var(--raised); }
 .culture-added { margin: 0 0 .4rem; font-weight: 700; }
 
 /* Lot 2 (W5) : création et reprise. Les deux entrées sont lues avant tout le reste, les
@@ -293,3 +293,84 @@ circle.solution-source-6 { fill: var(--source-ink); stroke: var(--source-ink); s
 /* La surbrillance du curseur reste prioritaire sur la variante de source, qui a la même
    spécificité : sans cette règle, un point évidé ne changerait plus d'aspect une fois choisi. */
 circle.culture-selected-point { stroke: currentColor; stroke-width: 3px; stroke-dasharray: none; }
+
+/* Vues d'une page du carnet (`/cultures/cycles`, `/cultures/solutions`) : des liens de
+   navigation, pas des onglets ARIA — l'état actif se lit sur `aria-current="page"`. Une
+   seule règle pour les deux pages : deux barres de vues qui se ressemblent doivent se
+   ressembler exactement, sinon la même intention se lit différemment d'une page à l'autre.
+   `.solution-views` reste comme crochet de sélection pour les tests et les scripts.
+   L'actif se distingue par le fond, la graisse **et** un trait — jamais la seule couleur
+   (R5.2) —, chaque cible garde ses 44 px (R5.3), et la barre défile latéralement plutôt
+   que de casser en deux lignes sur un écran étroit. */
+.culture-view-tabs { gap: .25rem; margin-block: .5rem 1rem; overflow-x: auto; flex-wrap: nowrap; }
+.culture-view-tabs a { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 44px;
+  padding-inline: .75rem; border: 1px solid var(--border-strong); border-radius: .6rem; }
+.culture-view-tabs a[aria-current="page"] { background: var(--raised); color: var(--text);
+  font-weight: 700; box-shadow: inset 0 -3px currentColor; }
+/* Ligne d'opération du journal (macro `journal_entry`). L'ancre `#entry-…` est portée par
+   l'article extérieur : ici, une ligne compacte et son repli de résolution. La miniature
+   est bornée — sans cette règle, une photo d'entrée s'affiche sur toute la largeur de la
+   colonne, la macro n'émettant ni `width` ni `height`. */
+.ui-journal-entry { display: grid; gap: .25rem; overflow-wrap: anywhere; }
+.ui-journal-entry > p { margin: 0; }
+.ui-journal-entry > p:first-child { display: flex; flex-wrap: wrap; gap: .45rem; align-items: baseline; }
+.ui-journal-entry > img { width: 96px; max-width: 100%; height: auto; border-radius: var(--radius-sm); }
+.ui-journal-entry > details { margin-top: .45rem; }
+.ui-journal-entry > details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+/* L'entrée n'est plus une `.card` (R2.8, acceptation chiffrée) : la séparation vient d'un
+   filet, pas d'un remplissage de 16 px répété vingt fois. */
+.culture-journal-entry + .culture-journal-entry { border-top: 1px solid var(--border); padding-top: .8rem; }
+/* Bannière de brouillon posée hors du <details> du formulaire : vide, elle ne prend
+   aucune place ; remplie, elle s'écarte du repli qui suit. */
+[data-culture-draft-banner]:not(:empty) { margin-block: .75rem; }
+/* R2.3 : la légende complète est un repli discret sous la légende visible. Son style est
+   défini une seule fois, dans `style.css` — deux définitions, deux vérités à tenir. */
+/* R1.6 — un relevé se lit en une ligne ; le reste vit dans son repli « Détails ». */
+.solution-entry-line { margin: 0; overflow-wrap: anywhere; }
+
+/* R2.7 : le sélecteur ouvre la page — espace/culture (ou cible, ou équipement) et date.
+   Formulaire GET, en ligne dès qu'il y a la place, empilé sur un téléphone. */
+.culture-selector { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  align-items: end; gap: .5rem .75rem; }
+.culture-selector label { display: flex; flex-direction: column; gap: .2rem; }
+.culture-selector .button { min-height: 44px; justify-self: start; }
+
+/* R2.7 : indication courte de la source d'une valeur résolue — « cible directe »,
+   « sujet alimenté », « réservoir », « affectation du 12/08 », « contexte copié à la
+   saisie », « inconnu ». Elle reste collée à la valeur : ce n'est pas une étiquette
+   d'état, elle ne prend donc ni couleur d'alarme ni majuscules. */
+.culture-source { font-weight: 600; }
+
+/* R2.7 : détail d'une résolution (éléments retenus, écart par culture). Une liste, pas
+   un tableau : une seule colonne de faits courts. */
+.culture-resolution { margin: .25rem 0; padding-left: 1.2rem; }
+.culture-resolution li { margin-block: .25rem; overflow-wrap: anywhere; }
+/* Le titre du bloc de saisie vit dans son `<summary>` (niveau de titre correct, R5.2/axe) :
+   il doit rester une ligne de résumé, pas un bloc qui pousse le marqueur à la ligne. */
+.culture-new-entry > summary > h2 { display: inline; margin: 0; font-size: 1.15rem; }
+
+/* R2.3 — compaction de la vue « Analyser » à 390 px (mesures : docs/images/…/README.md).
+   Rien n'y est retiré : ce qui suit ne change que l'encombrement de blocs conservés. */
+/* La légende se lit en ligne : trois entrées courtes empilées prenaient 82 px par figure,
+   là où elles tiennent sur deux lignes. Elle reste la région décrite par `aria-describedby`. */
+.culture-chart-legend { display: flex; flex-wrap: wrap; gap: .2rem .9rem; }
+.culture-chart-legend li { margin-block: .15rem; }
+/* Pas d'`aspect-ratio` sur le dessin, et c'est délibéré. Le ramener à 600/220 gagnait 92 px
+   par figure, mais la hauteur fixe de 220 est ce qui **borne** le facteur d'échelle du SVG
+   (`min(largeur/600, hauteur/220)`) : sans elle, le texte des graduations rétrécit avec la
+   largeur — 8 px apparents à 390 px, 11 px à 320 px, contre 14 px aujourd'hui — et le
+   garde-fou de lisibilité de `cultures_ui_lot_1` tombe. Une police en unités du `viewBox`
+   ne répare rien : elle grossit alors à 70 px sur un poste, l'échelle variant du simple au
+   quintuple entre 320 px et 1440 px. La hauteur se gagne ailleurs (voir ci-dessus) ; ces
+   92 px se paieraient en lisibilité au soleil, ce que R5.2 refuse. */
+/* Repli de l'exploration (curseur, boutons, sortie, tableau équivalent) : voir le commentaire
+   de `culture_analysis.js`. Le contenu est intact, seul son état initial dépend de la place. */
+.culture-chart-explorer-fold > summary { min-height: 44px; display: flex; align-items: center; }
+.culture-chart-explorer-fold[open] > summary { margin-bottom: .25rem; }
+/* Les explications de lecture sont repliées : le repli reste discret, ce n'est pas une carte. */
+.solution-analysis-notes > summary { min-height: 44px; display: flex; align-items: center; }
+.solution-analysis-notes h3 { margin: .8rem 0 .3rem; font-size: 1rem; }
+@media (max-width: 47.99rem) {
+  .solution-chart { padding: .6rem; }
+  .culture-chart-explorer { margin-top: .4rem; }
+}

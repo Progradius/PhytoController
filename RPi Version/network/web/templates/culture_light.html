@@ -1,7 +1,12 @@
 {% extends "base.html" %}
+{% from "macros/ui.html" import compact_header, empty_state %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% macro confirm() %}{% if not data.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié les dates malgré l’horloge non synchronisée.</label>{% endif %}{% endmacro %}
 {% macro reading(item) %}{% if not item.available %}<span class="culture-unknown">État opérationnel indisponible : aucune publication des boucles de contrôle pour {{ item.name }}.</span>{% else %}Consigne {{ state_labels.get(item.requested, item.requested if item.requested is not none else 'inconnue') }}{% if item.applied is not none %} · appliqué {{ state_labels.get(item.applied, item.applied) }}{% endif %} · état relu {{ state_labels.get(item.actual, item.actual if item.actual is not none else 'indisponible') }} · {{ tracking_labels.get(item.tracking, 'non vérifiable') }}{% if item.stale %} · publication métier périmée{% endif %}{% if item.out_of_service %} · équipement déclaré hors service{% endif %}{% endif %}{% endmacro %}
+{# Indication courte de la source d'un repère : la portée qui l'a emporté, et le stade
+   quand il départage. La règle elle-même reste dans `model/culture_light.resolve_light`. #}
+{% macro reference_text(reference) %}{{ reference.label }} · {{ reference.window_label }} · <span class="culture-source">{{ reference.scope_label }}{% if reference.stage_label %} · stade {{ reference.stage_label }}{% endif %}</span> · depuis le {{ reference.start_at|culture_date(data.timezone) }}{% endmacro %}
+{% macro schedule_text(timer) %}{{ timer.start }} → {{ timer.stop }} · {{ timer.on_label }} d’éclairage et {{ timer.off_label }} d’obscurité{% if timer.crosses_midnight %} · plage traversant minuit{% endif %}{% if timer.empty %} · plage vide, aucun éclairage commandé{% endif %}{% endmacro %}
 {% macro target_form(target={}) %}
 <form class="culture-form" data-light-form data-operation="light"{% if target %} data-id="{{ target.id }}" data-version="{{ target.revision }}"{% endif %}>
 <label>Nom du repère<input name="label" maxlength="160" value="{{ target.get('label','') }}" required></label>
@@ -11,7 +16,7 @@
 <label>Stade concerné<select name="stage" data-light-stage><option value="">Tous les stades</option>{% for key,name in stages.items() %}<option value="{{ key }}"{% if target.get('stage') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <label>Éclairage par jour, en minutes<input type="number" name="on_minutes" min="0" max="1440" step="1" value="{{ target.get('on_minutes', 1080) }}" required data-light-minutes></label>
 <button type="button" class="button button-secondary" data-light-preset hidden>Utiliser le repère proposé</button>
-<p class="culture-note" data-light-preview role="status">{{ target.get('on_minutes', 1080) }} min d’éclairage par jour. Le changement de stade conserve cette durée ; le bouton proposé permet de la remplacer.</p>
+<p class="culture-note num" data-light-preview role="status">{{ target.get('on_minutes', 1080) }} min d’éclairage par jour. Le changement de stade conserve cette durée ; le bouton proposé permet de la remplacer.</p>
 <label>Début de validité<input type="date" name="start_at" value="{{ target.get('start_at', data.today) }}" required></label>
 <label>Fin de validité (facultative)<input type="date" name="end_at" value="{{ target.get('end_at','') }}"></label>
 <label>Note<textarea name="note" maxlength="4000">{{ target.get('note','') }}</textarea></label>
@@ -19,51 +24,68 @@
 {{ confirm() }}<button class="button" type="submit">{{ 'Corriger le repère' if target else 'Enregistrer le repère' }}</button><output role="status"></output></form>
 {% endmacro %}
 {% block content %}
-<h1>Repères d’éclairage</h1>
+{{ compact_header("Repères d’éclairage",
+   facts=(["Date consultée : " ~ data.consulted_at|culture_date(data.timezone),
+           (focus.label ~ " consulté") if focus else "Toute la serre"] if data else [])) }}
 {% set culture_section = 'light' %}{% include 'culture_navigation.html' %}
-<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#reperes">Repères enregistrés</a></nav>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
+<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#declare">Déclaré dans le carnet</a><a href="#applique">Appliqué maintenant</a><a href="#reperes">Repères enregistrés</a></nav>
 <p>Un repère est une <strong>information d’exploitation</strong> : l’enregistrer, le corriger ou l’annuler ne change ni les horaires configurés, ni les sorties, ni la régulation. Les horaires se modifient uniquement dans la configuration, par les liens ci-dessous.</p>
 <p class="culture-warning" role="note">Un état relu sur une broche GPIO ne prouve pas le fonctionnement physique d’un équipement : il indique le niveau appliqué, pas qu’une lampe éclaire ou qu’un ventilateur tourne. Une vérification sur place reste nécessaire.</p>
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates avant toute saisie.</p>{% endif %}
-<section class="culture-section"><h2>Horaires configurés et état opérationnel par espace</h2>
-<div class="culture-grid">{% for space,timer in data.operational.timers.items() %}<article class="card culture-light-card">
+{# Sélecteur d'abord : l'espace ou la culture consultés et la date décident de ce que les
+   deux blocs montrent. Formulaire GET, valeurs conservées, aucune commande derrière une
+   lecture. #}
+<form method="get" id="selection" class="culture-form culture-selector" data-offline-filter aria-label="Espace ou culture et date consultés">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}
+<label>Espace ou culture consultés<select name="focus"><option value="">Toute la serre</option>{% for key,name in spaces.items() %}<option value="{{ key }}"{% if filters.get('focus') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}{% for occupant in data.occupants %}<option value="{{ occupant.id }}"{% if filters.get('focus') == occupant.id %} selected{% endif %}>{{ occupant.name }}</option>{% endfor %}</select></label>
+<label>Date consultée<input type="date" name="at" value="{{ filters.get('at') or data.today }}" required></label>
+<button class="button" type="submit">Afficher</button></form>
+{% if focus and focus.kind == 'subject' %}{% set occupants = data.occupants|selectattr('id','equalto',focus.id)|list %}
+{% elif focus %}{% set occupants = data.occupants|selectattr('space','equalto',focus.space)|list %}
+{% else %}{% set occupants = data.occupants %}{% endif %}
+{# Ce que le carnet déclare : les repères applicables à la date consultée. Rien ici ne
+   décrit un état matériel — celui-ci est dans « Appliqué maintenant ». #}
+<section id="declare" class="culture-section"><h2>Déclaré dans le carnet</h2>
+<div class="culture-grid">
+{% for space,timer in data.operational.timers.items() if not focus or focus.space == space %}<article class="card culture-light-card" data-light-declared="{{ space }}">
+<h3>{{ timer.space_label }}</h3>
+<dl><dt>Repère applicable à l’espace</dt><dd class="num">{% if timer.reference %}{{ reference_text(timer.reference) }}{% else %}<span class="culture-unknown">Aucun repère enregistré pour cet espace à cette date. Aucun repère standard n’est supposé.</span>{% endif %}</dd></dl>
+</article>{% endfor %}
+{% for occupant in occupants %}<article class="card culture-light-card" data-light-declared="{{ occupant.id }}">
+<h3><a class="action-link" href="/cultures/{{ occupant.id }}">{{ occupant.name }}</a></h3>
+<dl>
+<dt>Stade déclaré</dt><dd>{{ occupant.stage_label }} · {{ occupant.timer.space_label if occupant.timer else 'espace inconnu' }}</dd>
+<dt>Repère applicable</dt><dd class="num">{% if occupant.reference %}{{ reference_text(occupant.reference) }}{% else %}<span class="culture-unknown">Aucun repère enregistré pour cette culture à cette date. Aucun repère standard n’est supposé.</span>{% endif %}</dd>
+</dl>
+</article>{% else %}{% if not focus %}<p>Aucune culture n’occupe un espace actuellement ; les repères restent consultables et modifiables ci-dessous.</p>{% endif %}{% endfor %}
+</div>
+<details><summary>Comment cette valeur est choisie</summary><p>Le repère retenu est celui dont la fenêtre de validité contient la date consultée. La priorité est stricte : <strong>une culture</strong> l’emporte sur <strong>un espace</strong>, qui l’emporte sur <strong>toutes les cultures</strong> ; à portée égale, un repère portant le stade déclaré passe avant un repère sans stade, puis le repère commencé le plus tard. Aucun repère n’est appliqué avant son début, aucun repère par défaut n’existe et un repère annulé sort de la résolution.</p><p>Un repère ne commande rien : il ne change ni les horaires configurés, ni les sorties.</p></details>
+</section>
+{# Ce qui est réellement appliqué : la configuration distribuée et l'état déjà publié par
+   les boucles de contrôle. Aucune acquisition nouvelle, aucun ordre. #}
+<section id="applique" class="culture-section"><h2>Appliqué maintenant</h2>
+<div class="culture-grid">{% for space,timer in data.operational.timers.items() if not focus or focus.space == space %}<article class="card culture-light-card" data-light-applied="{{ space }}">
 <h3>{{ timer.space_label }} · éclairage {{ timer.number }}</h3>
 <dl>
-<dt>Horaires configurés</dt><dd>{{ timer.start }} → {{ timer.stop }} · {{ timer.on_label }} d’éclairage et {{ timer.off_label }} d’obscurité{% if timer.crosses_midnight %} · plage traversant minuit{% endif %}{% if timer.empty %} · plage vide, aucun éclairage commandé{% endif %}</dd>
+<dt>Horaires configurés</dt><dd class="num">{{ schedule_text(timer) }}</dd>
 <dt>Activation</dt><dd>{% if timer.enabled %}Minuterie quotidienne {{ timer.number }} activée{% else %}<span class="culture-unknown">Minuterie quotidienne {{ timer.number }} désactivée : ces horaires ne sont pas appliqués.</span>{% endif %}</dd>
 <dt>État opérationnel</dt><dd>{{ reading(timer.state) }}</dd>
+<dt>Écart au repère</dt><dd><ul class="culture-resolution num">{% for occupant in occupants if occupant.space == space %}<li>{{ occupant.name }} : {% if occupant.comparison %}{% if occupant.comparison.matches %}aucun écart, {{ occupant.comparison.configured_label }} configuré pour un repère de {{ occupant.comparison.reference_label }}.{% else %}{{ occupant.comparison.gap_label }} : {{ occupant.comparison.configured_label }} configuré pour un repère de {{ occupant.comparison.reference_label }}. Information, aucune correction automatique.{% endif %}{% else %}<span class="culture-unknown">sans repère applicable, aucun écart n’est calculé.</span>{% endif %}</li>{% else %}<li><span class="culture-unknown">Aucune culture en place dans cet espace : aucun écart n’est calculé.</span></li>{% endfor %}</ul></dd>
 </dl>
-<a href="{{ timer.settings_url }}">Ouvrir les réglages de l’éclairage {{ timer.number }}</a>
-</article>{% endfor %}</div></section>
-<section class="culture-section"><h2>Cultures en place, repère applicable et horaires configurés</h2>
-<div class="culture-grid">
-{% for occupant in data.occupants %}{% set timer = occupant.timer %}<article class="card culture-light-card">
-<h3><a href="/cultures/{{ occupant.id }}">{{ occupant.name }}</a></h3>
-<dl>
-<dt>Stade déclaré</dt><dd>{{ occupant.stage_label }} · {{ timer.space_label if timer else 'espace inconnu' }}</dd>
-<dt>Repère applicable</dt><dd>{% if occupant.reference %}{{ occupant.reference.label }} · {{ occupant.reference.window_label }} · {{ occupant.reference.scope_label }}{% if occupant.reference.stage %} · stade {{ stages[occupant.reference.stage] }}{% endif %} · depuis le {{ occupant.reference.start_at|culture_date(data.timezone) }}{% else %}<span class="culture-unknown">Aucun repère enregistré pour cette culture à cette date. Aucun repère standard n’est supposé.</span>{% endif %}</dd>
-<dt>Horaires configurés</dt><dd>{% if timer %}{{ timer.start }} → {{ timer.stop }} · {{ timer.on_label }} d’éclairage et {{ timer.off_label }} d’obscurité{% if timer.crosses_midnight %} · plage traversant minuit{% endif %}{% if timer.empty %} · plage vide, aucun éclairage commandé{% endif %} · minuterie quotidienne {{ timer.number }} {{ 'activée' if timer.enabled else 'désactivée' }}{% else %}<span class="culture-unknown">Aucune minuterie associée à cet espace.</span>{% endif %}</dd>
-{% if timer and not timer.enabled %}<dt>Activation</dt><dd class="culture-unknown">Minuterie désactivée : les horaires ci-dessus ne sont pas appliqués tant qu’elle reste désactivée.</dd>{% endif %}
-<dt>État opérationnel</dt><dd>{% if timer %}{{ reading(timer.state) }}{% else %}<span class="culture-unknown">État opérationnel indisponible.</span>{% endif %}</dd>
-<dt>Écart au repère</dt><dd>{% if occupant.comparison %}{% if occupant.comparison.matches %}Aucun écart : {{ occupant.comparison.configured_label }} configuré pour un repère de {{ occupant.comparison.reference_label }}.{% else %}{{ occupant.comparison.gap_label }} : {{ occupant.comparison.configured_label }} configuré pour un repère de {{ occupant.comparison.reference_label }}. Information, aucune correction automatique.{% endif %}{% else %}<span class="culture-unknown">Sans repère applicable, aucun écart n’est calculé.</span>{% endif %}</dd>
-</dl>
-{% if timer %}<a href="{{ timer.settings_url }}">Ouvrir les réglages de l’éclairage {{ timer.number }}</a>{% endif %}
-</article>{% else %}<p>Aucune culture n’occupe un espace actuellement ; les repères restent consultables et modifiables ci-dessous.</p>{% endfor %}
-</div></section>
-<section class="culture-section"><h2>Ventilation commune et règles jour/nuit</h2>
-<p>Ventilation principale commune aux deux espaces : {{ reading(data.operational.ventilation) }}</p>
-<p>Jour/nuit : {{ data.operational.day_night.start }} → {{ data.operational.day_night.stop }} · source {{ 'minuterie quotidienne 1' if data.operational.day_night.source == 'dailytimer1' else 'horaires personnalisés' }}{% if data.operational.day_night.empty %} · plage vide{% endif %}. Ces règles proviennent des réglages existants et sont affichées telles quelles : le carnet ne les recalcule pas et ne les modifie pas.</p>
-<nav class="culture-links" aria-label="Réglages liés"><a href="/conf#motor">Réglages de la ventilation</a><a href="/conf#day-night">Réglages jour/nuit</a><a href="/conf#daily-timer-1">Éclairage 1</a><a href="/conf#daily-timer-2">Éclairage 2</a></nav></section>
+<a class="action-link" href="{{ timer.settings_url }}">Ouvrir les réglages de l’éclairage {{ timer.number }}</a>
+</article>{% endfor %}</div>
+<p class="num">Ventilation principale commune aux deux espaces : {{ reading(data.operational.ventilation) }}</p>
+<p class="num">Jour/nuit : {{ data.operational.day_night.start }} → {{ data.operational.day_night.stop }} · source {{ 'minuterie quotidienne 1' if data.operational.day_night.source == 'dailytimer1' else 'horaires personnalisés' }}{% if data.operational.day_night.empty %} · plage vide{% endif %}. Ces règles proviennent des réglages existants et sont affichées telles quelles : le carnet ne les recalcule pas et ne les modifie pas.</p>
+<nav class="culture-links" aria-label="Réglages liés"><a class="action-link" href="/conf#motor">Réglages de la ventilation</a><a class="action-link" href="/conf#day-night">Réglages jour/nuit</a><a class="action-link" href="/conf#daily-timer-1">Éclairage 1</a><a class="action-link" href="/conf#daily-timer-2">Éclairage 2</a></nav></section>
 <section id="reperes" class="culture-section"><h2>Repères enregistrés</h2>
-<form method="get" class="culture-form">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}
+<form method="get" class="culture-form">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}<input type="hidden" name="focus" value="{{ filters.get('focus','') }}"><input type="hidden" name="at" value="{{ filters.get('at','') }}">
 <label>Portée<select name="scope"><option value="">Toutes</option>{% for key,name in scopes.items() %}<option value="{{ key }}"{% if filters.get('scope') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <label>Stade<select name="stage"><option value="">Tous</option>{% for key,name in stages.items() %}<option value="{{ key }}"{% if filters.get('stage') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <button class="button" type="submit">Filtrer</button></form>
 <details class="card"><summary>Enregistrer un repère</summary>{{ target_form() }}</details>
 {% for target in data.targets %}<article class="card culture-journal" id="repere-{{ target.id }}">
 <h3>{{ target.label }}{% if target.cancelled %} · annulé{% endif %}</h3>
-<p>{{ target.window_label }} · {{ target.scope_label }}{% if target.stage_label %} · stade {{ target.stage_label }}{% endif %} · du {{ target.start_at|culture_date(data.timezone) }} au {{ target.end_at|culture_date(data.timezone) if target.end_at else 'sans fin déclarée' }}</p>
+<p class="num">{{ target.window_label }} · {{ target.scope_label }}{% if target.stage_label %} · stade {{ target.stage_label }}{% endif %} · du {{ target.start_at|culture_date(data.timezone) }} au {{ target.end_at|culture_date(data.timezone) if target.end_at else 'sans fin déclarée' }}</p>
 <p class="culture-note">{{ target.note }}</p>{% if target.reason %}<p class="culture-note">Motif : {{ target.reason }}</p>{% endif %}
 {% if not target.cancelled %}<details><summary>Corriger ce repère</summary>{{ target_form(target) }}</details>
 <form class="culture-form" data-light-form data-operation="light_close" data-id="{{ target.id }}" data-version="{{ target.revision }}">
@@ -73,8 +95,8 @@
 <form class="culture-form" data-light-form data-operation="light_cancel" data-id="{{ target.id }}" data-version="{{ target.revision }}">
 <label>Motif de l’annulation<input name="reason" maxlength="500" required></label>
 {{ confirm() }}<button class="button" type="submit">Annuler le repère</button><output role="status"></output></form>{% endif %}
-{% if target.revisions %}<details><summary>Versions précédentes</summary>{% for old in target.revisions %}<p>Révision {{ old.revision }} · {{ old.label }} · {{ old.on_minutes }} min d’éclairage · du {{ old.start_at|culture_date(data.timezone) }} au {{ old.end_at|culture_date(data.timezone) if old.end_at else 'sans fin déclarée' }}{% if old.cancelled %} · annulé{% endif %}</p><p class="culture-note">{{ old.reason }}</p>{% endfor %}</details>{% endif %}
-</article>{% else %}<p>Aucun repère enregistré pour ce filtre. Vous pouvez en ajouter un ci-dessus.</p>{% endfor %}
+{% if target.revisions %}<details><summary>Versions précédentes</summary>{% for old in target.revisions %}<p class="num">Révision {{ old.revision }} · {{ old.label }} · {{ old.on_minutes }} min d’éclairage · du {{ old.start_at|culture_date(data.timezone) }} au {{ old.end_at|culture_date(data.timezone) if old.end_at else 'sans fin déclarée' }}{% if old.cancelled %} · annulé{% endif %}</p><p class="culture-note">{{ old.reason }}</p>{% endfor %}</details>{% endif %}
+</article>{% else %}{{ empty_state("Aucun repère enregistré pour ce filtre", "Vous pouvez en ajouter un ci-dessus. Sans repère, aucun écart n’est calculé et aucune durée standard n’est supposée.") }}{% endfor %}
 </section>
 <p class="culture-note">Consultation hors ligne : cette page est conservée après une visite réussie, dans la limite existante des pages du carnet. Hors ligne, elle est datée et en lecture seule ; aucune saisie n’est mise en attente ni rejouée.</p>
 {% endif %}{% endblock %}

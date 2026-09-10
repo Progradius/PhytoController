@@ -7,6 +7,7 @@ l'historique opérateur purgé à 72 h.
 """
 
 import json
+from urllib.parse import urlencode
 
 from aiohttp import web
 
@@ -53,6 +54,20 @@ class JournalViews:
                 del values["q"]
         return values
 
+    def return_url(self, request):
+        """Adresse de cette vue du journal — filtres et page comprises — pour le retour.
+
+        Elle est construite ici et non dans le gabarit : sous l'auto-échappement de Jinja,
+        une adresse assemblée en HTML porte déjà ses `&amp;`, et la ré-encoder produisait
+        un `retour=` contenant l'entité au lieu du séparateur. Les filtres sont ceux
+        **normalisés** par `filters()`, donc exactement ceux qui ont produit la page.
+        """
+        query = dict(self.filters(request))
+        offset = self.views.offset(request)
+        if offset:
+            query["offset"] = str(offset)
+        return "/cultures/journal" + ("?" + urlencode(query) if query else "")
+
     async def payload(self, request):
         return await self.store.call("journal", self.filters(request), self.views.offset(request),
                                      request.query.get("focus"))
@@ -69,7 +84,7 @@ class JournalViews:
         # ne doit pas vider le formulaire qui l'a produite.
         return self.server._html(render_template("culture_journal.html", page_title="Journal du carnet",
             current_page="cultures", csrf_token=self.server.csrf_token, data=data, error=error,
-            filters=self.filters(request)), status)
+            filters=self.filters(request), journal_return=self.return_url(request)), status)
 
     async def data(self, request):
         try:

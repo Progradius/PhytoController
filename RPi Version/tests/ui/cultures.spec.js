@@ -15,6 +15,24 @@ const isoDaysFromNow = days => {
 // Même date, dans la forme rendue par le filtre `culture_date` du carnet.
 const frenchDate = iso => iso.split("-").reverse().join("/");
 
+// R1.6 : dans la vue « Saisir », le bloc de saisie arrive déplié — c'est l'objet de la vue.
+// Le `<details>` reste repliable, donc un clic aveugle sur son `<summary>` le **refermerait**.
+// On ne l'ouvre que s'il est fermé, et on attend le formulaire réellement visible.
+const ouvrirSaisie = async page => {
+  // Un enregistrement laisse la page sur « Relevés » : l'entrée créée y est la confirmation.
+  // Saisir à nouveau, c'est revenir à la vue « Saisir » — ce que fait l'onglet, ici la même
+  // route avec `view=saisir`. Le bloc y arrive déplié ; on ne clique que s'il est fermé,
+  // sans quoi le clic le refermerait.
+  if (await page.locator("#solution-view-saisir").isHidden()) {
+    const url = new URL(page.url());
+    url.searchParams.set("view", "saisir");
+    await page.goto(url.pathname + url.search);
+  }
+  const saisie = page.locator("#saisie");
+  if ((await saisie.getAttribute("open")) === null) await saisie.locator(":scope > summary").click();
+  await expect(saisie.locator("[data-solution-entry]").first()).toBeVisible();
+};
+
 test("lot multi-mères, carnet et correction sur téléphone et bureau", async ({page}, testInfo) => {
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours PWA exercé séparément.");
   const suffix = `${testInfo.project.name}-${Date.now()}`;
@@ -155,7 +173,7 @@ test("semis, correction d’effectif, transfert, récolte et libération", async
 test("solutions : recette, renouvellement, relevé et correction accessibles", async ({page}, testInfo) => {
   test.setTimeout(45000);
   test.skip(testInfo.project.name === "pwa-chromium", "Mutations exercées sur profils sans service worker.");
-  await page.goto("/cultures/solutions?target=reservoir_2");
+  await page.goto("/cultures/solutions?target=reservoir_2&view=saisir");
   await expect(page.getByRole("heading", {level: 1})).toHaveText("Solutions et relevés");
   const recipeDetails = page.locator("details").filter({has: page.getByText("Créer une recette", {exact: true})});
   await recipeDetails.locator("summary").click();
@@ -166,34 +184,46 @@ test("solutions : recette, renouvellement, relevé et correction accessibles", a
   await recipe.getByLabel("Quantité", {exact: true}).fill("2,5");
   await recipe.getByRole("button", {name: "Enregistrer la recette"}).click();
   await expect(page.getByText("Recette navigateur · version 1", {exact: true})).toBeVisible();
-  await page.locator("#saisie > summary").click();
+  await ouvrirSaisie(page);
   const quick = page.locator("[data-solution-entry]").first();
   await quick.getByRole("combobox", {name: "Action", exact: true}).selectOption("renewal");
   await quick.getByLabel("Date effective").fill("2026-08-01");
   await quick.getByLabel("Volume (L)", {exact: true}).fill("20");
-  await quick.getByRole("combobox", {name: "Recette", exact: true}).selectOption({label: "Recette navigateur · version 1 · 10.0 L"});
+  await quick.getByRole("combobox", {name: "Recette", exact: true}).selectOption({label: "Recette navigateur · version 1 · 10,0 L"});
   await expect(quick.locator("[data-recipe-preview]")).toContainText("Produit témoin : 5 mL");
   await quick.getByLabel("J’ai vérifié les quantités affichées.").check();
   await quick.getByRole("button", {name: "Enregistrer la saisie"}).click();
   await expect(page.locator(".solution-journal")).toHaveCount(1);
-  await expect(page.locator(".solution-journal")).toContainText("Produit témoin : 5.0 mL");
+  // R1.7 : les quantités d'ingrédients passent aussi par le filtre `nombre` — virgule
+  // française et décimales bornées. La valeur persistée, elle, reste entière.
+  await expect(page.locator(".solution-journal")).toContainText("Produit témoin : 5,00 mL");
   await expect(quick.getByLabel("pH", {exact: true})).toHaveValue("");
-  await page.locator("#saisie > summary").click();
+  await ouvrirSaisie(page);
   await quick.getByLabel("Date effective").fill("2026-08-02");
   await quick.getByLabel("pH", {exact: true}).fill("6,2");
   await quick.getByLabel("EC", {exact: true}).fill("1200");
   await quick.getByRole("combobox", {name: "Unité EC", exact: true}).selectOption("µS/cm");
   await quick.getByRole("button", {name: "Enregistrer la saisie"}).click();
   await expect(page.locator(".solution-journal")).toHaveCount(2);
-  await expect(page.locator(".solution-journal").first()).toContainText("EC 1.2 mS/cm");
+  await expect(page.locator(".solution-journal").first()).toContainText("EC 1,20 mS/cm");
+  // R1.6 : les courbes sont servies dans la vue « Analyser ». On y passe par la même
+  // route, comme l'opérateur qui clique l'onglet, puis on revient aux relevés pour la
+  // correction. Aucun chargement dynamique : ce sont deux vraies navigations.
+  await page.goto("/cultures/solutions?target=reservoir_2&view=analyser");
   await expect(page.locator('svg[data-metric="ph"] circle')).toHaveCount(1);
+  await page.goto("/cultures/solutions?target=reservoir_2&view=releves");
   const saved = page.locator(".solution-journal").first();
+  // R1.6 : un relevé se lit en une ligne ; correction, traçabilité et versions vivent dans
+  // son repli « Détails », que l'opérateur déplie pour ce qu'il veut corriger.
+  await saved.locator(".solution-entry-details > summary").click();
   await saved.getByText("Corriger cette saisie", {exact: true}).click();
   await saved.getByLabel("pH", {exact: true}).fill("6,4");
   await saved.getByRole("button", {name: "Enregistrer la correction"}).click();
-  await expect(page.locator(".solution-journal").first()).toContainText("pH 6.4");
-  await page.getByText("Versions précédentes (1)", {exact: true}).click();
-  await expect(page.locator(".solution-journal").first()).toContainText("pH 6.2");
+  const corrige = page.locator(".solution-journal").first();
+  await expect(corrige).toContainText("pH 6,40");
+  await corrige.locator(".solution-entry-details > summary").click();
+  await corrige.getByText("Versions précédentes (1)", {exact: true}).click();
+  await expect(corrige).toContainText("pH 6,20");
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
   await page.screenshot({path: `/tmp/phyto-solutions-${testInfo.project.name}.png`, fullPage: true});
@@ -201,8 +231,8 @@ test("solutions : recette, renouvellement, relevé et correction accessibles", a
 
 test("solutions : panne réseau, conservation des champs et idempotence", async ({page}, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Une vérification réseau suffit.");
-  await page.goto("/cultures/solutions?target=cuttings_1");
-  await page.locator("#saisie > summary").click();
+  await page.goto("/cultures/solutions?target=cuttings_1&view=saisir");
+  await ouvrirSaisie(page);
   const form = page.locator("[data-solution-entry]").first();
   await form.getByRole("combobox", {name: "Action", exact: true}).selectOption("renewal");
   await form.getByLabel("Date effective").fill("2026-08-01");
@@ -220,11 +250,14 @@ test("solutions : panne réseau, conservation des champs et idempotence", async 
   await form.getByRole("button", {name: "Enregistrer la saisie"}).click();
   await expect(page.locator(".solution-journal")).toHaveCount(1);
   expect(bodies[0].request_id).toBe(bodies[1].request_id);
+  // R1.6 : la saisie suivante repasse par la vue « Saisir », et il faut y être **avant** de
+  // couper le réseau — hors ligne, plus aucune navigation n'aboutit.
+  await ouvrirSaisie(page);
+  const horsLigne = page.locator("#saisie [data-solution-entry]").first();
   await page.context().setOffline(true);
-  await page.locator("#saisie > summary").click();
-  await form.getByLabel("pH", {exact: true}).fill("6,1");
-  await form.getByRole("button", {name: "Enregistrer la saisie"}).click();
-  await expect(form.locator("output")).toContainText("Hors ligne");
+  await horsLigne.getByLabel("pH", {exact: true}).fill("6,1");
+  await horsLigne.getByRole("button", {name: "Enregistrer la saisie"}).click();
+  await expect(horsLigne.locator("output")).toContainText("Hors ligne");
   await page.context().setOffline(false);
   expect(bodies).toHaveLength(2);
 });
@@ -269,11 +302,18 @@ test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau
   await page.locator('[data-operation="reminder_action"]').first()
     .getByRole("button", {name: "Fait", exact: true}).click();
   await expect(page.getByRole("heading", {name: "Contrôler le carnet"})).toHaveCount(2);
+  // La capture des rappels appartient à la vue qui les montre : elle est prise avant de
+  // passer à « Comparer », où `#rappels` est servi mais `hidden`.
+  await page.locator("#rappels").screenshot({path: `/tmp/phyto-reminders-${testInfo.project.name}.png`});
+  // R2.6 : la synthèse climatique vit dans le panneau « Comparer », servi mais `hidden`
+  // tant que `view=comparer` n'est pas demandé. Les rappels ci-dessus sont, eux, dans la
+  // vue par défaut « À faire » : le parcours traverse donc réellement les deux vues, et
+  // l'audit axe comme la capture portent désormais sur celle qu'on vient d'ouvrir.
+  await page.goto(`/cultures/cycles?subject=${mother}&view=comparer`);
   await expect(page.getByText("Aucune synthèse climatique disponible pour ce cycle.")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
   await page.screenshot({path: `/tmp/phyto-cycles-${testInfo.project.name}.png`, fullPage: true});
-  await page.locator("#rappels").screenshot({path: `/tmp/phyto-reminders-${testInfo.project.name}.png`});
 });
 
 test("cycles : PWA datée en lecture seule et aucune mutation rejouée", async ({page}, testInfo) => {

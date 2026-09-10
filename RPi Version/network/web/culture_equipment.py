@@ -8,10 +8,13 @@ L'asset `culture_equipment.js` est déjà déclaré dans `network/web/pages.py` 
 
 Le catalogue courant est **passé** au magasin en lecture seule (`equipment_store.payload()`),
 comme pour les événements de culture : il sert à figer un libellé au moment de la saisie,
-jamais à réécrire une association passée.
+jamais à réécrire une association passée. Il sert aussi, ici, à peupler les deux sélecteurs
+de la page — choisir l'équipement que l'on consulte ou que l'on déclare n'est pas une
+résolution : la cascade datée reste entière dans `model/culture_equipment.py`.
 """
 
 import json
+from zoneinfo import ZoneInfo
 
 from aiohttp import web
 
@@ -37,22 +40,41 @@ class EquipmentViews:
         """Filtres bornés : une date consultée et un équipement, rien d'autre."""
         return {key: request.query[key] for key in ("at", "equipment") if request.query.get(key)}
 
-    async def payload(self, request):
-        return await self.store.call("equipment_links", self.filters(request),
+    def page_filters(self, request):
+        """Filtres de la page : sans date consultée, c'est celle d'aujourd'hui.
+
+        L'API garde `filters()` telle quelle — sans `at`, elle ne résout aucun contexte.
+        La page, elle, doit montrer « Appliqué maintenant » dès son ouverture, sans que
+        l'opérateur ait à valider le sélecteur. L'horloge et le fuseau sont ceux du carnet,
+        lus sur le magasin sans requête SQLite ; aucune horloge propre n'est introduite.
+        """
+        filters = self.filters(request)
+        filters.setdefault(
+            "at", self.store.now().astimezone(ZoneInfo(self.store.zone)).date().isoformat())
+        return filters
+
+    async def payload(self, request, filters=None):
+        return await self.store.call("equipment_links",
+                                     self.filters(request) if filters is None else filters,
                                      self.server.equipment_store.payload())
 
     async def page(self, request):
         data, error, status = None, None, 200
+        # Une seule lecture de l'horloge pour la requête : le sélecteur réaffiché et la
+        # résolution doivent porter la même date, y compris à cheval sur minuit.
+        filters = self.page_filters(request)
         try:
-            data = await self.payload(request)
+            data = await self.payload(request, filters)
         except CultureError as exc:
             error, status = str(exc), 400
         except CultureUnavailable as exc:
             error, status = str(exc), 503
         return self.server._html(render_template(
             "culture_equipment.html", page_title="Affectations d'équipements",
-            current_page="cultures", culture_subjects=request.query.getall("subject", []), csrf_token=self.server.csrf_token, data=data, error=error,
-            filters=self.filters(request)), status)
+            current_page="cultures", culture_subjects=request.query.getall("subject", []),
+            csrf_token=self.server.csrf_token, data=data, error=error,
+            catalog=self.server.equipment_store.payload(),
+            filters=filters), status)
 
     async def data(self, request):
         try:

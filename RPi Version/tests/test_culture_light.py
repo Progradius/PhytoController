@@ -251,3 +251,37 @@ async def test_page_rapproche_repere_horaires_et_etat_sans_effet(web_context, mo
     assert data["operational"]["ventilation"]["available"] is False
     assert config.current.to_json() == original and writes == []
     assert gpio.snapshot() == pins and len(gpio.events) == events
+
+
+async def test_page_eclairage_selecteur_puis_declare_puis_applique(web_context):  # noqa: F811
+    """R2.7 : sélecteur espace/culture et date, puis les deux blocs aux libellés imposés."""
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    lot = await (await client.post("/api/v1/cultures", json=create(), headers=headers)).json()
+    saved = await client.post("/api/v1/cultures/light",
+                              json=target(scope="subject", subject_id=lot["subject_id"],
+                                          label="Repère consulté", start_at="2026-06-01"),
+                              headers=headers)
+    assert saved.status == 200, await saved.text()
+
+    body = await (await client.get("/cultures/light")).text()
+    # Les libellés imposés sont vérifiés sur les titres, pas sur les liens de la page.
+    assert body.index('id="selection"') < body.index("<h2>Déclaré dans le carnet</h2>")
+    assert body.index("<h2>Déclaré dans le carnet</h2>") < body.index("<h2>Appliqué maintenant</h2>")
+    assert "Comment cette valeur est choisie" in body
+    # Le repère résolu est déclaré, avec l'indication de la portée qui l'a emporté.
+    assert f'data-light-declared="{lot["subject_id"]}"' in body
+    assert "Repère consulté" in body and "Une culture" in body
+    # Horaires et état relu restent dans « Appliqué maintenant », après le déclaré.
+    assert body.index("<h2>Appliqué maintenant</h2>") < body.index('data-light-applied="space_1"')
+
+    # Aucune rétroactivité : avant son début, le repère ne s'applique pas.
+    avant = await (await client.get("/cultures/light?at=2026-05-01")).text()
+    assert "Aucun repère enregistré pour cette culture à cette date" in avant
+    # Un espace consulté : seul cet espace est rapproché.
+    espace = await (await client.get("/cultures/light?focus=space_2")).text()
+    assert 'data-light-applied="space_2"' in espace
+    assert 'data-light-applied="space_1"' not in espace
+    # Une cible ou une date impossibles sont refusées, jamais ignorées.
+    assert (await client.get("/cultures/light?focus=inconnu")).status == 400
+    assert (await client.get("/cultures/light?at=2027-01-01")).status == 400

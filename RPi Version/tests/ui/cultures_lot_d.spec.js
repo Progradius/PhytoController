@@ -58,7 +58,10 @@ test("vérifications : correction, annulation, historique, conflit d'onglet et d
   });
   expect(created.status, JSON.stringify(created.body)).toBe(200);
   const subject = created.body.subject_id;
-  const cycles = `/cultures/cycles?subject=${subject}`;
+  // Les vérifications d'équipement vivent dans la vue « Comparer » de la page ; la vue par
+  // défaut est « À faire », dont le panneau frère est `hidden`. La demander explicitement
+  // évite de piloter un formulaire hors de l'arbre d'accessibilité.
+  const cycles = `/cultures/cycles?subject=${subject}&view=comparer`;
   await page.goto(cycles);
 
   // 1. Case cochée par erreur : la ventilation n'a pas été vérifiée ce jour-là.

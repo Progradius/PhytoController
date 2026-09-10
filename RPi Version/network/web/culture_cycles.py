@@ -8,11 +8,35 @@ from urllib.parse import unquote
 from aiohttp import web
 
 from model.culture import CultureConflict, CultureError, SPACES, STAGES
-from model.culture_cycle import CHECKLIST, MAX_PHOTO_BYTES, REMINDER_STATES
+from model.culture_cycle import CHECKLIST, MAX_PHOTO_BYTES, REMINDER_STATES, reminder_buckets
 from model.culture_solution import RESERVOIRS
 from network.web.cultures import error_response
 from network.web.pages import render_template
 from utils.culture_store import CultureUnavailable
+
+# Vues de la page. La liste est ici, à côté de la seule route qui la lit : un `view` inconnu
+# ne doit jamais masquer les deux panneaux à la fois.
+CYCLE_VIEWS = ("faire", "comparer")
+
+
+def split_reminders(data):
+    """Sépare les rappels déjà dus du reste, avec la règle pure du bloc « Aujourd'hui ».
+
+    « Du jour » veut dire *échéance atteinte* : un rappel en retard reste à faire
+    aujourd'hui, et le laisser plus bas dans une liste paginée revient à le perdre. Le
+    classement est celui de `reminder_buckets`, déjà employé par `/cultures` — écrire ici
+    une seconde comparaison de dates ferait deux définitions du même mot, qui finiraient
+    par diverger sur le passage de minuit ou de fuseau.
+
+    Aucune projection ni lecture neuve : seules les lignes déjà servies par `cycle_data`
+    sont classées, dans l'ordre où elles arrivent (échéance croissante), et le reste est
+    rendu tel quel. Un rappel dû qui tomberait sur une page suivante n'est pas inventé
+    ici : le gabarit renvoie alors à la première page, où le classement le place.
+    """
+    buckets = reminder_buckets(data["reminders"], data["today"], data["timezone"])
+    due = buckets["overdue"] + buckets["due_today"]
+    keys = {(row["id"], row["revision"]) for row in due}
+    return due, [row for row in data["reminders"] if (row["id"], row["revision"]) not in keys]
 
 
 class BundleResponse(web.FileResponse):
@@ -64,10 +88,14 @@ class CycleViews:
             error, status = str(exc), 400
         except CultureUnavailable as exc:
             error, status = str(exc), 503
+        requested_view = request.query.get("view", CYCLE_VIEWS[0])
+        cycle_view = requested_view if requested_view in CYCLE_VIEWS else CYCLE_VIEWS[0]
+        due_reminders, later_reminders = split_reminders(data) if data else ([], [])
         return self.server._html(render_template("culture_cycles.html", page_title="Cycles et rappels",
             current_page="cultures", csrf_token=self.server.csrf_token, data=data, error=error,
             selected=request.query.getall("subject", []), states=REMINDER_STATES, checklist=CHECKLIST,
-            reservoirs=RESERVOIRS, stages=STAGES, spaces=SPACES), status)
+            reservoirs=RESERVOIRS, stages=STAGES, spaces=SPACES, cycle_view=cycle_view,
+            due_reminders=due_reminders, later_reminders=later_reminders), status)
 
     async def data(self, request):
         try:

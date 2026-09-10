@@ -35,6 +35,10 @@ test("relevé ancien : lien conservé, recherche bornée et refus sans doublon",
   await page.goto(`/cultures/solutions?entry=${reading.id}#entry-${reading.id}`);
   const article = page.locator(`#entry-${reading.id}`);
   await expect(article).toContainText("Après intervention");
+  // R1.6 : un relevé se lit en une ligne ; contexte, traçabilité et correction vivent dans
+  // son repli « Détails ». Le lien `?entry=…#entry-…` amène bien sur l'entrée, dans la vue
+  // « Relevés » ; c'est l'opérateur qui déplie ce qu'il veut corriger.
+  await article.locator(".solution-entry-details > summary").click();
   await article.getByText("Corriger cette saisie", {exact: true}).click();
   const correction = article.locator("form.solution-form");
   // L'intervention associée reste proposée et sélectionnée malgré son ancienneté.
@@ -42,12 +46,20 @@ test("relevé ancien : lien conservé, recherche bornée et refus sans doublon",
   await correction.getByLabel("pH", {exact: true}).fill("6,5");
   await correction.getByRole("button", {name: "Enregistrer la correction"}).click();
   const corrected = page.locator(`#entry-${reading.id}`);
-  await expect(corrected).toContainText("pH 6.5");
+  // R1.7 : la valeur affichée passe par le filtre `nombre` (virgule, deux décimales) ;
+  // la valeur persistée, elle, reste 6.5 — c'est l'API qui en fait foi.
+  await expect(corrected).toContainText("pH 6,50");
+  await corrected.locator(".solution-entry-details > summary").click();
   await expect(corrected.getByRole("link", {name: `Intervention ${renewal.id.slice(0, 8)}`})).toBeVisible();
 
-  // Saisie rétrospective : la recherche bornée retrouve l'intervention ancienne.
-  await page.locator("#saisie > summary").click();
+  // Saisie rétrospective : la recherche bornée retrouve l'intervention ancienne. C'est une
+  // saisie neuve, donc la vue « Saisir » — l'enregistrement précédent a laissé la page sur
+  // « Relevés », où le bloc de saisie est servi mais `hidden`.
+  await page.goto("/cultures/solutions?view=saisir");
+  const saisie = page.locator("#saisie");
+  if ((await saisie.getAttribute("open")) === null) await saisie.locator(":scope > summary").click();
   const quick = page.locator("[data-solution-entry]").first();
+  await expect(quick).toBeVisible();
   await quick.getByText("Température, volume, contexte et note", {exact: true}).click();
   await quick.getByLabel("Retrouver une intervention ancienne").fill(renewal.id.slice(0, 8));
   await quick.getByRole("button", {name: "Rechercher", exact: true}).click();

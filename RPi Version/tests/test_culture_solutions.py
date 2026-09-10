@@ -1,6 +1,7 @@
 """Solutions : attribution temporelle, révisions, unité, durabilité et HTTP isolé."""
 
 import json
+import re
 import sqlite3
 import uuid
 
@@ -251,26 +252,34 @@ async def test_intentions_visibles_et_type_par_defaut_de_la_saisie(web_context):
     # Les séparateurs de la requête sont échappés : `&` nu dans un attribut HTML est une
     # référence d'entité mal formée, que les analyseurs ne toléreront pas toujours.
     for kind in ("reading", "water", "renewal", "topup"):
-        assert f'href="?target=reservoir_2&amp;start=2026-07-01&amp;end=2026-09-01&amp;kind={kind}#saisie"' in html
+        assert f'href="?view=saisir&amp;target=reservoir_2&amp;start=2026-07-01&amp;end=2026-09-01&amp;kind={kind}#saisie"' in html
     assert 'data-intention="water" aria-current="true"' in html
     assert html.count('aria-current="true"') == 1
     assert "Saisir : Arrosage" in html
     # Les deux types restants ne sont pas des intentions ; ils demeurent dans le choix « Action ».
     assert 'data-intention="nutrient"' not in html and 'data-intention="ph"' not in html
-    saisie = html.split('<details id="saisie"')[1].split('id="journal-solutions"')[0]
+    saisie = html.split('id="saisie"')[1].split('id="solution-view-releves"')[0]
     assert '<option value="water" selected>Arrosage</option>' in saisie
     assert 'name="ph" inputmode="decimal" value=""' in saisie
 
     # Sans intention, la saisie neuve retombe sur le relevé ; aucun lien n'est marqué courant.
     plain = await (await client.get("/cultures/solutions?target=reservoir_2")).text()
     assert 'aria-current="true"' not in plain and "Saisir : Relevé" in plain
-    assert '<option value="reading" selected>Relevé</option>' in plain.split('<details id="saisie"')[1]
+    assert '<option value="reading" selected>Relevé</option>' in plain.split('id="saisie"')[1]
     # Un type inconnu est déjà refusé par le magasin : la page ne l'invente pas.
     assert (await client.get("/cultures/solutions?kind=invalide")).status == 400
-    # Ancres locales : courbes et journal restent atteignables sans traverser la saisie.
-    for anchor in ("#saisie", "#reservoirs", "#courbes", "#journal-solutions", "#recettes"):
-        assert f'href="{anchor}"' in html
-    assert 'id="courbes"' in html and 'id="reservoirs"' in html
+    # R1.6 : les ancres locales sont remplacées par les trois vues. Une ancre vers
+    # `#courbes` désignait un bloc désormais `hidden` deux fois sur trois — un lien qui ne
+    # fait rien. L'équivalent réel est l'onglet-lien : la même route, un vrai `href`, et
+    # tous les blocs servis, donc toujours atteignables sans JS. Les ancres de section
+    # elles-mêmes restent, c'est vers elles que la saisie et les corrections reviennent.
+    for value in ("saisir", "releves", "analyser"):
+        assert f'href="?target=reservoir_2&amp;start=2026-07-01&amp;end=2026-09-01&amp;kind=water&amp;view={value}"' in html
+    assert 'id="saisie"' in html and 'id="reservoirs"' in html and 'id="recettes"' in html
+    assert 'id="journal-solutions"' in html
+    # Le filtre « Arrosage » ne porte aucune mesure : conformément à R1.6, ni les courbes
+    # ni leurs légendes ne sont rendues à vide, l'état vide propose la première saisie.
+    assert 'id="courbes"' not in html and "Les graphiques apparaîtront après le premier relevé." in html
 
 
 async def test_correction_ignore_le_filtre_de_type(cultures):
@@ -511,3 +520,89 @@ async def test_courbes_portent_leur_synthese_et_leurs_reperes(cultures):
     assert "2 mesures" in data["chart_summaries"]["ph"]
     assert "minimum 6.10" in data["chart_summaries"]["ph"] and "maximum 6.50" in data["chart_summaries"]["ph"]
     assert data["chart_summaries"]["ec"].startswith("EC · ") and "aucune mesure" in data["chart_summaries"]["ec"]
+
+
+async def test_trois_vues_servies_une_seule_visible_et_vue_conservee(web_context):
+    """R1.6 : Saisir · Relevés · Analyser, même route, deux blocs `hidden`, vue conservée.
+
+    Les trois blocs sont servis dans la page : sans JS et hors ligne, les onglets restent de
+    vrais liens et aucun contenu n'est perdu. Le défaut suit l'intention de l'opérateur —
+    une cible choisie mais encore sans relevé appelle la saisie, sinon on montre les relevés.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+
+    # Cible sélectionnée, aucun relevé : la saisie est la vue active.
+    page = await (await client.get("/cultures/solutions?target=reservoir_2")).text()
+    # Les vues sont des liens qui rechargent la page, pas des onglets ARIA : ni `tablist`,
+    # ni `tab`, ni `tabpanel`, ni `aria-selected` — la vue courante est une page, et c'est
+    # `aria-current="page"` qui le dit, comme sur `/cultures/cycles`.
+    assert 'role="tablist"' not in page and 'role="tab"' not in page
+    assert 'role="tabpanel"' not in page and "aria-selected" not in page
+    assert '<nav class="culture-links culture-view-tabs solution-views" aria-label="Vue des solutions">' in page
+    assert '<section id="solution-view-saisir" aria-label="Saisir">' in page
+    for value, label in (("releves", "Relevés"), ("analyser", "Analyser")):
+        assert f'<section id="solution-view-{value}" aria-label="{label}" hidden>' in page
+    assert 'view=saisir" aria-current="page">Saisir</a>' in page
+    # Une seule vue courante dans la barre de vues (les autres `aria-current` de la page
+    # sont ceux des barres de navigation, qui désignent la rubrique « Cultures »).
+    onglets = page.split('aria-label="Vue des solutions">', 1)[1].split("</nav>", 1)[0]
+    assert onglets.count('aria-current="page"') == 1
+
+    # Dès qu'une mesure existe pour la cible, le défaut bascule sur les relevés.
+    assert (await client.post("/api/v1/cultures/solutions", json=entry(), headers=headers)).status == 200
+    lecture = entry("reading", "2026-08-02", ph=6.1)
+    assert (await client.post("/api/v1/cultures/solutions", json=lecture, headers=headers)).status == 200
+    page = await (await client.get("/cultures/solutions?target=reservoir_2")).text()
+    assert 'view=releves" aria-current="page">Relevés</a>' in page
+    assert '<section id="solution-view-saisir" aria-label="Saisir" hidden>' in page
+
+    # Sans cible, le défaut reste les relevés ; une valeur inconnue retombe sur ce défaut
+    # plutôt que de refuser la page — `view` n'est qu'un choix d'affichage.
+    for query in ("", "?view=inconnue"):
+        plain = await (await client.get("/cultures/solutions" + query)).text()
+        assert 'view=releves" aria-current="page">Relevés</a>' in plain
+
+    # La vue voyage dans le contexte conservé par la navigation du carnet, comme la cible.
+    page = await (await client.get("/cultures/solutions?target=reservoir_2&view=analyser")).text()
+    assert '<section id="solution-view-analyser" aria-label="Analyser">' in page
+    assert 'href="/cultures/solutions?target=reservoir_2&amp;view=analyser"' in page
+    globale = await (await client.get("/cultures/solutions?view=analyser")).text()
+    assert 'href="/cultures/solutions?view=analyser"' in globale
+    # `view` ne fuit pas dans les autres rubriques : c'est une vue de cette page-là.
+    assert "view=analyser" not in globale.split('href="/cultures/cycles')[1].split(">", 1)[0]
+
+
+async def test_precision_persistee_intacte_et_affichage_francais_borne(web_context):
+    """R1.7 : aller-retour saisie → API. L'arrondi est une affaire de présentation seule.
+
+    `1.4 + 0.05` ne vaut pas exactement 1,45 en binaire : c'est le cas qui a motivé la
+    fiche. La valeur persistée et celle rendue par l'API restent celles qui ont été
+    reçues ; seule la page affiche `1,45`, en virgule française et à deux décimales.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    # `1.4 + 0.05` de la fiche vaut exactement 1,45 en binaire64 : la fixture nommée ne
+    # montre donc rien. `1.1 + 0.35` donne le même 1,45 affiché mais vaut réellement
+    # 1.4500000000000002 — c'est cette valeur-là que la page ne doit jamais montrer.
+    mesure = 1.1 + 0.35
+    assert mesure != 1.45 and repr(mesure) == "1.4500000000000002"
+    assert (await client.post("/api/v1/cultures/solutions", json=entry(), headers=headers)).status == 200
+    saisie = entry("reading", "2026-08-02", ec=mesure, ph=6.1)
+    assert (await client.post("/api/v1/cultures/solutions", json=saisie, headers=headers)).status == 200
+
+    lu = await (await client.get("/api/v1/cultures/solutions")).json()
+    releve = [item for item in lu["items"] if item["kind"] == "reading"][0]
+    assert releve["ec"] == mesure, "l'API ne doit rien arrondir"
+
+    page = await (await client.get("/cultures/solutions?view=releves")).text()
+    ligne = page.split('<p class="solution-entry-line">', 1)[1].split("</p>", 1)[0]
+    # Le filtre `nombre` enveloppe sa valeur (`.num`, chiffres tabulaires) : on lit le
+    # texte rendu, pas le balisage, pour ne pas figer ici une décision de typographie.
+    texte = re.sub(r"<[^>]+>", "", ligne)
+    assert "EC 1,45 mS/cm" in texte and repr(mesure) not in texte
+    # Le champ de saisie et l'export gardent la valeur brute : ce sont des données, pas
+    # de la présentation. Le formulaire de correction la repropose telle quelle.
+    assert f'name="ec" inputmode="decimal" value="{mesure}"' in page
+    export = await (await client.get("/api/v1/cultures/solutions/export")).text()
+    assert str(mesure) in export

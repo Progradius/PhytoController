@@ -6,7 +6,9 @@ const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
 test("cycles : synthèse bornée, granularité affichée et détail horaire séparé", async ({page}, testInfo) => {
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
   const mother = await createMother(page, "Mère cycles longs");
-  await page.goto(`/cultures/cycles?subject=${mother}`);
+  // R2.6 : le panneau « Comparer » de /cultures/cycles est servi mais `hidden` tant que
+  // `view=comparer` n'est pas demandé — hors de l'arbre d'accessibilité sans lui.
+  await page.goto(`/cultures/cycles?subject=${mother}&view=comparer`);
   const climate = page.locator(".culture-section").filter({hasText: "Climat commun à la serre"}).first();
   await expect(climate).toContainText(/Synthèse par (heure|jour|semaine|quatre semaines)/);
   await expect(climate).toContainText("périodes sans agrégat");
@@ -28,7 +30,9 @@ test("cycles : comparaison de plusieurs cycles bornée sans détail horaire", as
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
   const first = await createMother(page, "Mère comparée A");
   const second = await createMother(page, "Mère comparée B");
-  await page.goto(`/cultures/cycles?subject=${first}&subject=${second}`);
+  // R2.6 : le panneau « Comparer » de /cultures/cycles est servi mais `hidden` tant que
+  // `view=comparer` n'est pas demandé — hors de l'arbre d'accessibilité sans lui.
+  await page.goto(`/cultures/cycles?subject=${first}&subject=${second}&view=comparer`);
   const sections = page.locator(".culture-section").filter({hasText: "Climat commun à la serre"});
   await expect(sections).toHaveCount(2);
   await expect(sections.first()).toContainText(/Synthèse par (heure|jour|semaine|quatre semaines)/);
@@ -42,7 +46,9 @@ test("cycles : synthèse datée hors ligne, détail non conservé signalé, aucu
   test.setTimeout(60000);
   const mother = await createMother(page, "Mère hors ligne lot B");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await page.goto(`/cultures/cycles?subject=${mother}`);
+  // R2.6 : le panneau « Comparer » de /cultures/cycles est servi mais `hidden` tant que
+  // `view=comparer` n'est pas demandé — hors de l'arbre d'accessibilité sans lui.
+  await page.goto(`/cultures/cycles?subject=${mother}&view=comparer`);
   await expect.poll(() => page.evaluate(async () => {
     for (const name of (await caches.keys()).filter(n => n.startsWith("phyto-cultures-"))) {
       if (await (await caches.open(name)).match(location.href.split("#")[0])) return true;

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import posixpath
+from urllib.parse import urlencode, urlsplit
 
 from aiohttp import web
 
@@ -12,6 +14,10 @@ from model.culture import (CultureConflict, CultureError, KINDS, SPACES, STAGES,
 from network.web.pages import render_template
 from utils.culture_store import CultureStore, CultureUnavailable
 from utils.time_reliability import time_reliability
+
+# Les trois vues de « Solutions et relevés ». Un simple choix d'affichage servi par la même
+# route : les trois blocs sont rendus, deux sont `hidden`. Aucune persistance, aucune route.
+SOLUTION_VIEWS = ("saisir", "releves", "analyser")
 
 
 def error_response(exc, status):
@@ -180,6 +186,38 @@ class CultureViews:
         except CultureUnavailable as exc:
             raise web.HTTPServiceUnavailable(text=str(exc)) from None
 
+    @staticmethod
+    def return_link(request, return_query, subject_id):
+        """Lien de retour d'une fiche : adresse **et** libellé, décidés ici, pas en Jinja.
+
+        Retour contextualisé (R2.8) : une page du carnet qui a ses propres filtres — le
+        journal — passe sa vue courante en `retour=`, qui prime alors sur le calcul
+        q/archives/offset, incapable de la reconstituer. Le paramètre vient de la requête :
+        il n'est accepté que s'il désigne une adresse **locale du carnet**, c'est-à-dire un
+        chemin absolu sous `/cultures`, sans schéma ni hôte (`urlsplit` les isole, ce qui
+        écarte `https://…`, `//evil.example` et `javascript:`), sans `\\` — qu'un navigateur
+        normalise en `/`, d'où un `/\\evil.example` qui repartirait en `//evil.example` —, et
+        **normalisé** : `/cultures/../conf` ne commence sous `/cultures` qu'en apparence.
+        Un `retour` refusé est ignoré, jamais une erreur : le lien existe toujours,
+        simplement non contextualisé.
+
+        L'ancre `#culture-{id}` n'est ajoutée qu'au retour vers la **liste**, qui la porte ;
+        l'ajouter à un retour vers le journal désignerait un élément inexistant, et écraserait
+        au passage l'ancre que ce retour porte peut-être déjà.
+        """
+        retour = request.query.get("retour", "")
+        parts = urlsplit(retour)
+        chemin = posixpath.normpath(parts.path) if parts.path else ""
+        if (retour and not parts.scheme and not parts.netloc and "\\" not in retour
+                and (chemin == "/cultures" or chemin.startswith("/cultures/"))):
+            libelle = "Retour au journal" if chemin.startswith("/cultures/journal") else "Retour au carnet"
+            return retour, libelle
+        # Retour à la liste : les filtres sont rejoués, et la position est portée par l'ancre
+        # `#culture-{id}` posée sur une carte `tabindex="-1"`, que le navigateur focalise
+        # lui-même. Un paramètre `focus=` n'aurait rien focalisé — il n'était lu nulle part.
+        url = "/cultures" + ("?" + urlencode(return_query) if return_query else "")
+        return (url + "#culture-" + subject_id) if subject_id else url, "Retour aux cultures"
+
     async def page(self, request):
         archived = request.query.get("archives") == "1"
         subject_id = request.match_info.get("subject_id")
@@ -206,10 +244,17 @@ class CultureViews:
                 error, status = str(exc), 404
             except CultureUnavailable as exc:
                 error, status = str(exc), 503
+        return_query = {}
+        if subject_id:
+            for key in ("q", "archives", "offset"):
+                if request.query.get(key):
+                    return_query[key] = request.query[key]
+        return_url, return_label = self.return_link(request, return_query, subject_id)
         return self.server._html(render_template(
             "cultures.html", page_title=detail["subject"]["name"] if detail else "Cultures",
             current_page="cultures", csrf_token=self.server.csrf_token,
             overview=overview, detail=detail, error=error, archives=archived,
+            return_url=return_url, return_label=return_label,
             stages=STAGES, spaces=SPACES, event_kinds=KINDS,
             # Stades de départ et stades acceptés à la création, par type et origine : le
             # formulaire les lit en attributs de données, le script ne décide de rien.
@@ -283,6 +328,23 @@ class CultureViews:
             error, status = str(exc), 400
         except CultureUnavailable as exc:
             error, status = str(exc), 503
+        # Vue demandée, sinon défaut : une cible choisie mais encore sans relevé appelle la
+        # saisie ; partout ailleurs on montre les relevés. Une valeur inconnue retombe sur le
+        # défaut plutôt que de refuser la page — le paramètre n'est qu'un choix d'affichage.
+        requested_view = request.query.get("view")
+        if requested_view in SOLUTION_VIEWS:
+            solution_view = requested_view
+        elif request.query.get("entry"):
+            # Un lien qui désigne une entrée précise vise le journal, où elle est rendue.
+            solution_view = "releves"
+        elif filters.get("kind"):
+            # Une intention de saisie (`kind=`) ouvre la saisie, même si la cible a déjà
+            # des relevés : le lien dit ce que l'opérateur vient faire.
+            solution_view = "saisir"
+        elif filters.get("target") and data and not data.get("latest"):
+            solution_view = "saisir"
+        else:
+            solution_view = "releves"
         return self.server._html(render_template("culture_solutions.html", page_title="Solutions et relevés",
             current_page="cultures", csrf_token=self.server.csrf_token, data=data, error=error,
-            filters=filters, kinds=SOLUTION_KINDS), status)
+            filters=filters, kinds=SOLUTION_KINDS, solution_view=solution_view), status)

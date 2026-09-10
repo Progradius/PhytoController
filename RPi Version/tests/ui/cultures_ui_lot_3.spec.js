@@ -17,7 +17,7 @@ test("prévalidation sans écriture, relevé ressemblant confirmé et aides pér
   const posts = countPosts(page);
   const id = await createMother(page, "Mère assistance");
   await expect(page.locator("[data-culture-assistance]")).toContainText("Aucun relevé disponible");
-  await page.goto(`/cultures/solutions?target=${id}&kind=reading#saisie`);
+  await page.goto(`/cultures/solutions?target=${id}&kind=reading&view=saisir#saisie`);
   const form = page.locator("#saisie form");
   await form.locator('[name="ph"]').fill("6.2");
   posts.length = 0;
@@ -32,7 +32,7 @@ test("prévalidation sans écriture, relevé ressemblant confirmé et aides pér
   // coûte donc au plus deux envois, la recherche de ressemblance comprise.
   expect(posts).toHaveLength(2);
   expect(posts.filter(url => url.includes("/preview/"))).toHaveLength(1);
-  await page.goto(`/cultures/solutions?target=${id}&kind=reading#saisie`);
+  await page.goto(`/cultures/solutions?target=${id}&kind=reading&view=saisir#saisie`);
   await form.locator('[name="ph"]').fill("6.2");
   posts.length = 0;
   await form.locator('button[type="submit"]').filter({hasText: /^Enregistrer/}).click();
@@ -59,7 +59,7 @@ test("une saisie modifiée pendant la prévalidation n’est pas envoyée", asyn
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
   test.setTimeout(90000);
   const id = await createMother(page, "Mère concurrence");
-  await page.goto(`/cultures/solutions?target=${id}&kind=reading#saisie`);
+  await page.goto(`/cultures/solutions?target=${id}&kind=reading&view=saisir#saisie`);
   const form = page.locator("#saisie form");
   await form.locator('[name="ph"]').fill("6.1");
   let release;
@@ -85,7 +85,7 @@ test("une vérification indisponible n’empêche pas l’enregistrement", async
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
   test.setTimeout(90000);
   const id = await createMother(page, "Mère carnet occupé");
-  await page.goto(`/cultures/solutions?target=${id}&kind=reading#saisie`);
+  await page.goto(`/cultures/solutions?target=${id}&kind=reading&view=saisir#saisie`);
   const form = page.locator("#saisie form");
   await form.locator('[name="ph"]').fill("6.4");
   await page.route("**/api/v1/cultures/preview/solution", route => route.fulfill({

@@ -310,7 +310,7 @@ async def test_formulaire_de_comparaison_reconduit_sa_page_et_sort_le_filtre(web
     assert response.status == 200
     html = await response.text()
 
-    form = html.index('<form method="get" class="culture-form">')
+    form = html.index('<form method="get" data-offline-filter class="culture-form">')
     end = html.index("</form>", form)
     # Le décalage normalisé par le magasin, pas celui de la requête, est reconduit.
     assert '<input type="hidden" name="selection_offset" value="40">' in html[form:end]
@@ -491,3 +491,79 @@ async def test_galerie_comparaison_exclut_les_cultures_non_selectionnees(culture
     data = await cultures.call("cycle_data", identifiers[:2])
     assert {photo["subject_id"] for photo in data["media"]} == set(identifiers[:2])
     assert len((await cultures.call("cycle_data"))["media"]) == 3
+
+
+async def test_rappels_du_jour_separes_du_reste_et_nommes_rappel_du_carnet(web_context):
+    """R2.6 : « Rappels du jour » ne montre que les échéances atteintes.
+
+    Le titre annonçait le jour et la section listait la page entière des rappels, toutes
+    échéances confondues. Le partage réutilise la règle pure `reminder_buckets` — celle du
+    bloc « Aujourd'hui » de `/cultures` — sans lecture ni projection nouvelle. Le carnet
+    n'émet pas d'alarme : chaque carte le dit, et ces deux sections n'écrivent jamais ce mot.
+    """
+    client, server, *_ = web_context
+    store = server.cultures.store
+    lot = await store.call("mutate", create("Lot des rappels"))
+    today = (await store.call("cycle_data"))["today"]
+    for titre, echeance in (("Rappel en retard", "2026-09-01"), ("Rappel du jour", today),
+                            ("Rappel à venir", "2026-09-30")):
+        await store.call("cycle_mutate", {**reminder(lot["subject_id"], due_date=echeance,
+                                                     interval_days=0), "title": titre})
+    html = await (await client.get("/cultures/cycles")).text()
+
+    debut = html.index('id="rappels"')
+    milieu = html.index('id="rappels-suivants"')
+    fin = html.index('id="cycle-view-comparer"')
+    du_jour, autres = html[debut:milieu], html[milieu:fin]
+    assert "Rappel en retard" in du_jour and "Rappel du jour" in du_jour
+    assert "Rappel à venir" not in du_jour
+    assert "Rappel à venir" in autres
+    assert "Rappel en retard" not in autres and "Rappel du jour" not in autres
+    # Un libellé par carte, et jamais le mot « alarme » dans ces deux sections.
+    assert du_jour.count("Rappel du carnet ·") == 2 and autres.count("Rappel du carnet ·") == 1
+    assert "alarme" not in (du_jour + autres).lower()
+    # R5.1/R5.3 : « Fait » et « Reporter » sont les gestes les plus fréquents de la page ;
+    # leur cible tactile fait 44 px dans les deux dimensions, et l'échéance est tabulaire.
+    assert du_jour.count('class="button action-link" type="submit" name="action" value="done"') == 2
+    assert du_jour.count('class="button button-secondary action-link" type="submit" name="action" value="postponed"') == 2
+    assert du_jour.count('· échéance <span class="num">') == 2
+    # La pagination reste sur la liste du dessous ; le total porte sur tous les rappels.
+    assert "Pagination des rappels" in autres and "Pagination des rappels" not in du_jour
+    assert '<span class="num">40</span> par page sur <span class="num">3</span> au total' in autres
+
+
+async def test_vue_des_cycles_bornee_et_onglets_rendus_en_liens(web_context):
+    """R2.6 : `view` validé côté serveur, et un balisage honnête pour des liens qui rechargent.
+
+    Un `role="tablist"` sur le `<nav>` écrasait le repère de navigation et promettait un
+    panneau échangé sur place ; ce sont des liens qui rechargent la page, donc une liste de
+    liens et `aria-current="page"`. L'index des copies hors ligne et la sauvegarde passent
+    après les rappels : à 390 × 844 c'est la prochaine action qui doit tenir dans l'écran.
+    """
+    client, *_ = web_context
+    faire = await (await client.get("/cultures/cycles")).text()
+    assert 'role="tab"' not in faire and 'role="tablist"' not in faire
+    assert 'role="tabpanel"' not in faire and "aria-selected" not in faire
+    assert '<a class="action-link" href="?view=faire" aria-current="page">À faire</a>' in faire
+    assert '<a class="action-link" href="?view=comparer">Comparer</a>' in faire
+    assert '<section id="cycle-view-faire" aria-label="À faire">' in faire
+    assert '<section id="cycle-view-comparer" aria-label="Comparer" hidden>' in faire
+
+    comparer = await (await client.get("/cultures/cycles?view=comparer")).text()
+    assert '<section id="cycle-view-faire" aria-label="À faire" hidden>' in comparer
+    assert '<section id="cycle-view-comparer" aria-label="Comparer">' in comparer
+    assert '<a class="action-link" href="?view=comparer" aria-current="page">Comparer</a>' in comparer
+
+    # Une vue inconnue retombe sur « À faire » plutôt que de masquer les deux panneaux.
+    inconnue = await (await client.get("/cultures/cycles?view=inexistante")).text()
+    assert '<section id="cycle-view-faire" aria-label="À faire">' in inconnue
+    assert '<section id="cycle-view-comparer" aria-label="Comparer" hidden>' in inconnue
+
+    # Ordre de la page et nav locale alignée sur le libellé et l'ancre de `/app`.
+    assert faire.index('id="rappels"') < faire.index('id="copies"') < faire.index('id="sauvegarde"')
+    assert '<a href="#sauvegarde">Sauvegarde et carnet de cultures</a>' in faire
+    # R5.1/R5.3 : les actions autonomes fréquentes portent `.action-link` (44 px dans les
+    # deux dimensions) et les chiffres `.num`.
+    assert '<a class="button action-link" href="/api/v1/cultures/bundle">' in faire
+    assert '<span class="num">' in faire
+    assert "<h2>Sauvegarde et carnet de cultures</h2>" in faire

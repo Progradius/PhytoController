@@ -38,7 +38,20 @@
   //                  L'explorateur ne mesure jamais le DOM point par point pour situer.
   // Les données restent celles du graphique : aucune interpolation ni requête auxiliaire.
   // Un seul curseur clavier évite des milliers d'arrêts de tabulation sur les longues périodes.
-  window.PhytoCultureAnalysis = {chart(svg, rows, label, columns) {
+  // Réplique exacte du filtre Jinja `nombre` (network/web/pages.py) : virgule française,
+  // décimales bornées à [0, 6], `—` pour une absence ou un non-fini, unité optionnelle.
+  // `useGrouping:false` est la convention du dépôt et **doit** le rester : le filtre
+  // serveur formate avec `f"{n:.{p}f}"`, qui ne groupe pas les milliers. Grouper ici
+  // ferait lire `1 234,5` au curseur d'une courbe et `1234,5` dans la page qui la porte,
+  // pour la même mesure. Un séparateur de milliers d'un côté seulement est un écart
+  // visible, pas un détail de style.
+  const formatNombre = (value, decimals, unit = null) => {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
+    const places = Math.max(0, Math.min(6, Number(decimals)));
+    const result = Number(value).toLocaleString("fr-FR", {useGrouping:false, minimumFractionDigits:places, maximumFractionDigits:places});
+    return unit ? `${result} ${unit}` : result;
+  };
+  window.PhytoCultureAnalysis = {formatNombre, chart(svg, rows, label, columns) {
     if (!rows.length) return () => {};
     const headers = [RANK_HEADER].concat(columns && columns.length ? columns : ["Description"]);
     const zone = element("div", null, "culture-chart-explorer");
@@ -67,7 +80,17 @@
       zone.append(element("p", USAGE, "card-meta"));
       usageShown = true;
     }
-    svg.after(zone);
+    // R2.3 : sous 48 rem, l'exploration est repliée par défaut. Réglages, curseur, sortie et
+    // tableau équivalent représentaient à eux seuls 366 px par figure sur un écran de 390 px,
+    // soit plus du tiers de la vue Analyser — pour un outil qu'on ouvre quand on veut lire un
+    // point précis, pas pour survoler deux courbes. Rien n'est retiré : le repli est nommé,
+    // il porte le nombre de points, et son contenu est le même à une activation près. Au-delà
+    // de 48 rem la place existe et l'explorateur reste ouvert, comme avant.
+    const fold = element("details", null, "culture-chart-explorer-fold");
+    fold.append(element("summary", `Explorer point par point (${rows.length})`));
+    fold.append(zone);
+    fold.open = !(typeof matchMedia === "function" && matchMedia("(max-width: 47.99rem)").matches);
+    svg.after(fold);
     let selected = 0;
     let marked = null;
     let places = [];

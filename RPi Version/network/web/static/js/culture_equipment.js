@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  const currentRubric = document.querySelector(".culture-navigation [aria-current=page]");
+  if (currentRubric) requestAnimationFrame(() => currentRubric.scrollIntoView({block: "nearest", inline: "nearest"}));
   // Lot G : saisie des affectations d'équipements. Déclaratif de bout en bout — aucune
   // commande d'équipement, aucune mutation mise en attente et aucun rejeu hors ligne.
   // Envoi, clé d'idempotence, garde hors ligne et restitution des refus : le socle partagé.

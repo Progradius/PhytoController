@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/ui.html" import empty_state %}
 {% macro ingredients_fields(items=[]) %}
 <fieldset data-products><legend>Produits et quantités</legend><div data-product-list>
 {% for item in items or [{}] %}<div class="culture-origin" data-product>
@@ -50,7 +51,8 @@
 <label>Compensation de température par l’instrument<select name="compensation">{% for key,label in (('unknown','Non renseignée'),('yes','Oui'),('no','Non')) %}<option value="{{ key }}"{% if entry.get('compensation') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <label>Note<textarea name="note" maxlength="4000">{{ entry.get('note','') }}</textarea></label></details>
 <details data-preparation{% if entry and entry.ingredients %} open{% endif %}><summary>Préparation et recette</summary>
-<label>Recette<select name="recipe_id"><option value="">Saisie libre / ingrédients conservés</option>{% for recipe in data.recipes %}<option value="{{ recipe.id }}" data-revision="{{ recipe.revision }}" data-volume="{{ recipe.volume_l }}" data-ingredients="{{ recipe.ingredients|tojson|forceescape }}">{{ recipe.name }} · version {{ recipe.revision }} · {{ recipe.volume_l }} L</option>{% endfor %}</select></label>
+<label>Recette<select name="recipe_id"><option value="">Saisie libre / ingrédients conservés</option>{% for recipe in data.recipes %}<option value="{{ recipe.id }}" data-revision="{{ recipe.revision }}" data-volume="{{ recipe.volume_l }}" data-ingredients="{{ recipe.ingredients|tojson|forceescape }}">{# `<option>` n'accepte pas de balisage : c'est `nombre_texte` qui s'y applique, même
+   règle d'arrondi que `nombre`, sans l'enveloppe `.num`. #}{{ recipe.name }} · version {{ recipe.revision }} · {{ recipe.volume_l|nombre_texte(1,'L') }}</option>{% endfor %}</select></label>
 <p>Renseignez le volume ci-dessus puis vérifiez les quantités calculées. Les ingrédients enregistrés restent figés.</p>
 {{ ingredients_fields(entry.get('ingredients',[])) }}
 <p data-recipe-preview role="status"></p><label class="culture-confirm" data-recipe-confirm hidden><input type="checkbox" name="confirm_recipe"> J’ai vérifié les quantités affichées.</label></details>
@@ -66,69 +68,113 @@
 {% endmacro %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% block content %}
+{# La vue vient de `CultureViews.solutions_page` (`SOLUTION_VIEWS`). Le défaut ci-dessous
+   ne sert qu'aux rendus directs du gabarit : sans lui, `solution_view` indéfini rendait
+   les **trois** panneaux `hidden`, une page vide sans que rien ne le signale. #}
+{% set solution_view = solution_view|default('releves', true) %}
 <h1>Solutions et relevés</h1>{% set culture_section = 'solutions' %}{% include 'culture_navigation.html' %}
 {# Intentions quotidiennes : la cible et la période du filtre sont conservées, seul le type
    change. Les deux autres types (nutriments, correction pH) restent dans le choix « Action ». #}
 {% set intention_query %}{% if filters.get('target') %}target={{ filters['target']|urlencode }}&amp;{% endif %}{% if filters.get('start') %}start={{ filters['start']|urlencode }}&amp;{% endif %}{% if filters.get('end') %}end={{ filters['end']|urlencode }}&amp;{% endif %}{% endset %}
-<nav class="culture-links" aria-label="Que voulez-vous saisir ?" data-solution-intentions>
-{% for key,label in (('reading','Mesurer pH / EC'),('water','Arroser'),('renewal','Renouveler la solution'),('topup','Ajouter de l’eau')) %}<a class="button{{ '' if filters.get('kind') == key else ' button-secondary' }}" href="?{{ intention_query }}kind={{ key }}#saisie" data-intention="{{ key }}"{% if filters.get('kind') == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav>
-<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#saisie">Saisie</a><a href="#reservoirs">Réservoirs</a><a href="#courbes">Courbes</a><a href="#journal-solutions">Journal</a><a href="#recettes">Recettes</a></nav>
+{# Ces « onglets » sont des liens qui rechargent la page : un vrai `tablist` ARIA promet un
+   panneau échangé sur place, un déplacement au clavier par les flèches et un `role="tab"`
+   dont l'activation ne quitte pas le document. Rien de tout cela n'est vrai ici, et le
+   `role="tablist"` écrasait de surcroît le repère de navigation. Une liste de liens avec
+   `aria-current="page"` dit exactement ce qui se passe : la vue courante est une page.
+   Même contrat que les vues de `/cultures/cycles`, même règle CSS partagée. #}
+<nav class="culture-links culture-view-tabs solution-views" aria-label="Vue des solutions">{% for value,label in (('saisir','Saisir'),('releves','Relevés'),('analyser','Analyser')) %}<a href="?{{ intention_query }}{% if filters.get('kind') %}kind={{ filters.kind|urlencode }}&amp;{% endif %}view={{ value }}"{% if solution_view == value %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
 <p>Carnet déclaratif. Une saisie ne modifie aucun équipement ni réglage.</p>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates et les âges affichés.</p>{% endif %}
-<section id="reservoirs" class="culture-grid" aria-label="Solutions présentes">{% for reservoir in data.reservoirs %}<article class="card"><h2><a href="?target={{ reservoir.id }}">{{ reservoir.name }}</a></h2>
-{% for period in data.periods if period.reservoir_id == reservoir.id and not period.end_at %}<p>Solution depuis le {{ period.preparation.effective_at|culture_date(data.timezone) }} · {{ period.age.days }} jours</p><p><a href="?target={{ reservoir.id }}&entry={{ period.id }}#entry-{{ period.id }}">Préparation : {{ period.preparation.volume_l }} L</a></p>{% for link in data.links if link.period_id == period.id and not link.end_at %}{% for subject in data.subjects if subject.id == link.subject_id %}<p>Alimente <a href="/cultures/{{ subject.id }}">{{ subject.name }}</a> depuis le {{ link.start_at|culture_date(data.timezone) }}</p>{% endfor %}{% endfor %}{% else %}<p>Aucune solution déclarée. Enregistrer un renouvellement pour reprendre le suivi.</p>{% endfor %}</article>{% endfor %}</section>
+{% if filters.get('target') %}<p class="solution-selected">Cible sélectionnée : {% for item in data.reservoirs + data.subjects if item.id == filters.target %}<strong>{{ item.name }}</strong>{% endfor %}</p>{% endif %}
+{% if data.latest %}<p class="num">Dernier relevé : {{ data.latest.effective_at|culture_date(data.timezone) }} · pH {{ data.latest.ph|nombre(2) }} · EC {{ data.latest.ec|nombre(2,'mS/cm') }}</p>{% endif %}
+<section id="solution-view-saisir" aria-label="Saisir"{% if solution_view != 'saisir' %} hidden{% endif %}>
+<nav class="culture-links" aria-label="Que voulez-vous saisir ?" data-solution-intentions>
+{% for key,label in (('reading','Mesurer pH / EC'),('water','Arroser'),('renewal','Renouveler la solution'),('topup','Ajouter de l’eau')) %}<a class="button{{ '' if filters.get('kind') == key else ' button-secondary' }}" href="?view=saisir&amp;{{ intention_query }}kind={{ key }}#saisie" data-intention="{{ key }}"{% if filters.get('kind') == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav>
 
-<details id="saisie" class="culture-section card culture-new-entry"><summary>Saisir : {{ kinds[filters['kind']] if filters.get('kind') in kinds else 'Relevé' }}</summary>
-{% if data.latest %}<p>Dernier relevé du filtre : {{ data.latest.effective_at|culture_date(data.timezone) }} · pH {{ data.latest.ph if data.latest.ph is not none else '—' }} · EC {{ data.latest.ec if data.latest.ec is not none else '—' }} mS/cm <span data-measure-age="{{ data.latest.sort_at }}"></span></p>{% else %}<p>Aucun relevé pour ce filtre.</p>{% endif %}
+{# Le bloc de saisie est une section de la vue, pas un simple repli : son titre est un
+   `<h2>` sous le `<h1>` de la page. Sans lui, le résumé d'erreur du socle de formulaires
+   (`<h3>La saisie n'a pas été enregistrée.</h3>`) sautait un niveau — axe le refuse
+   (`heading-order`), et un lecteur d'écran qui navigue par titres perdait le fil. Le
+   titre vit dans le `<summary>` pour rester lisible replié comme déplié. #}
+<details open id="saisie" class="culture-section card culture-new-entry"><summary><h2>Saisir : {{ kinds[filters['kind']] if filters.get('kind') in kinds else 'Relevé' }}</h2></summary>
+{% if data.latest %}<p>Dernier relevé du filtre : {{ data.latest.effective_at|culture_date(data.timezone) }} · pH {{ data.latest.ph|nombre(2) }} · EC {{ data.latest.ec|nombre(2) }} mS/cm <span data-measure-age="{{ data.latest.sort_at }}"></span></p>{% else %}<p>Aucun relevé pour ce filtre.</p>{% endif %}
 <p class="card-meta">Les mesures sont volontairement vides. Virgule décimale acceptée ; EC normalisée en mS/cm. Une date seule ne précise pas l’ordre des interventions dans la journée.</p>
 {{ entry_form() }}</details>
-<section id="journal-solutions" class="culture-section"><h2>Journal et courbes</h2>
-<form method="get" class="culture-form solution-filter"><label>Filtrer la cible<select name="target"><option value="">Toutes les cibles</option>{% for item in data.reservoirs + data.subjects %}<option value="{{ item.id }}"{% if filters.get('target') == item.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+<details class="card"><summary>Réservoirs globaux</summary><section id="reservoirs" class="culture-grid" aria-label="Solutions présentes">{% for reservoir in data.reservoirs %}<article class="card"><h2><a href="?target={{ reservoir.id }}">{{ reservoir.name }}</a></h2>
+{% for period in data.periods if period.reservoir_id == reservoir.id and not period.end_at %}<p class="num">Solution depuis le {{ period.preparation.effective_at|culture_date(data.timezone) }} · {{ period.age.days }} jours</p><p><a href="?view=releves&amp;target={{ reservoir.id|urlencode }}&amp;entry={{ period.id|urlencode }}#entry-{{ period.id }}">Préparation : {{ period.preparation.volume_l|nombre(1,'L') }}</a></p>{% for link in data.links if link.period_id == period.id and not link.end_at %}{% for subject in data.subjects if subject.id == link.subject_id %}<p>Alimente <a href="/cultures/{{ subject.id }}">{{ subject.name }}</a> depuis le {{ link.start_at|culture_date(data.timezone) }}</p>{% endfor %}{% endfor %}{% else %}<p>Aucune solution déclarée. Enregistrer un renouvellement pour reprendre le suivi.</p>{% endfor %}</article>{% endfor %}</section>
+</details>
+<section id="recettes" class="culture-section"><h2>Recettes réutilisables</h2><p>Une nouvelle version ne modifie jamais les préparations passées. Aucune conversion masse/volume ni recommandation de dosage.</p><details class="card"><summary>Créer une recette</summary>{{ recipe_form() }}</details>
+{% for recipe in data.recipes %}<details class="card culture-journal"><summary>{{ recipe.name }} · version {{ recipe.revision }}</summary>{{ recipe_form(recipe) }}</details>{% endfor %}</section>
+</section>
+<section id="solution-view-releves" aria-label="Relevés"{% if solution_view != 'releves' %} hidden{% endif %}><section id="journal-solutions" class="culture-section"><h2>Relevés</h2>
+{# R1 #15 : filtre serveur — un formulaire GET qui **navigue** réellement. L'attribut le
+   déclare sans ambiguïté à `pwa.js`, qui pose alors la note « Filtre indisponible hors
+   ligne » ; sans lui, la détection repose sur l'absence de `data-form-key`, c'est-à-dire
+   sur le fait que le socle des formulaires ne l'a pas encore adopté. #}
+<form method="get" class="culture-form solution-filter" data-offline-filter><input type="hidden" name="view" value="releves"><label>Filtrer la cible<select name="target"><option value="">Toutes les cibles</option>{% for item in data.reservoirs + data.subjects %}<option value="{{ item.id }}"{% if filters.get('target') == item.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
 <label>Filtrer le type<select name="kind"><option value="">Tous les types</option>{% for key,label in kinds.items() %}<option value="{{ key }}"{% if filters.get('kind') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <label>Du<input type="date" name="start" value="{{ filters.get('start','') }}"></label><label>Au<input type="date" name="end" value="{{ filters.get('end','') }}"></label><button class="button" type="submit">Filtrer</button></form>
-<p>{{ data.total }} entrées. Les courbes couvrent tout le filtre, indépendamment de la pagination du journal, sans relier les lacunes.
+{% for entry in data["items"] %}<article class="card culture-journal solution-journal" id="entry-{{ entry.id }}" tabindex="-1" data-point="{{ {'ph':entry.ph,'ec':entry.ec,'at':entry.sort_at,'cancelled':entry.cancelled,'kind':entry.kind,'period':entry.period_id,'target':entry.reservoir_id or entry.targets|join(','),'label':kinds[entry.kind],'number':loop.index}|tojson|forceescape }}">
+<p class="solution-entry-line"><strong>{{ entry.effective_at|culture_date(data.timezone) }}</strong> · {% for reservoir in data.reservoirs if reservoir.id == entry.reservoir_id %}{{ reservoir.name }}{% endfor %}{% for subject in data.subjects if subject.id in entry.targets or subject.id in entry.fed_subjects %}<a href="/cultures/{{ subject.id }}">{{ subject.name }}</a>{% endfor %} · pH {{ entry.ph|nombre(2) }} · EC {{ entry.ec|nombre(2) }} mS/cm{% if entry.cancelled %} · <strong>Annulé</strong>{% endif %}</p>
+<details class="solution-entry-details"><summary>Détails</summary><p>{{ {'independent':'Mesure indépendante','before':'Avant intervention','after':'Après intervention'}[entry.context] }}{% if entry.intervention_id %} · <a href="?view=releves&amp;entry={{ entry.intervention_id }}#entry-{{ entry.intervention_id }}">Intervention {{ entry.intervention_id[:8] }}</a>{% endif %} · Compensation : {{ {'unknown':'non renseignée','yes':'oui','no':'non'}[entry.compensation] }}</p>
+<p>{{ kinds[entry.kind] }} · référence {{ entry.id[:8] }}{% if entry.precision == 'approximative' %} · date approximative{% endif %} · {{ entry.temperature_c|nombre(1,'°C') }} · {{ entry.volume_l|nombre(1,'L') }}{{ ' partagés (total unique)' if entry.targets|length > 1 else '' }}</p>
+{% if entry.period_id %}<p class="card-meta">Période de solution {{ entry.period_id[:8] }}</p>{% endif %}
+{# Lot E : plage cible résolue à la date de ce relevé, ou absence assumée. #}
+{% if entry.target %}<p class="solution-target" data-entry-target>Plage cible : pH {{ entry.target.ph_min|nombre(2) }} à {{ entry.target.ph_max|nombre(2) }} · EC {{ entry.target.ec_min|nombre(2) }} à {{ entry.target.ec_max|nombre(2) }} mS/cm · {{ entry.target.source_label }}{% if entry.target.label %} · {{ entry.target.label }}{% endif %}{% if entry.target.multiple %} · plusieurs cibles applicables, la plus récente est retenue{% endif %} · <a href="/cultures/targets{% if filters.get('target') %}?target={{ filters['target']|urlencode }}{% endif %}#target-{{ entry.target.id }}">Voir la plage</a></p>
+{% else %}<p class="card-meta" data-entry-target>Aucune plage cible à cette date.</p>{% endif %}
+{# Lot G : contexte d'équipement résolu à la date de l'intervention, jamais le catalogue d'aujourd'hui. #}
+{% if entry.equipment %}<p class="card-meta" data-equipment-context="{{ entry.equipment.provenance }}">{% if entry.equipment.provenance == 'link' %}Affectation connue : {{ entry.equipment.label }}.{% elif entry.equipment.provenance == 'snapshot' %}Contexte connu à la saisie du {{ entry.equipment.recorded_at|culture_date(data.timezone) }} : {{ entry.equipment.label }}.{% else %}Association inconnue à cette date. <a href="/cultures/equipment#affectations">Déclarer une affectation</a>{% endif %}</p>{% endif %}
+<ul>{% for ingredient in entry.ingredients %}<li>{{ ingredient.product }} : {{ ingredient.quantity|nombre(2, ingredient.unit) }}</li>{% endfor %}</ul><p class="culture-note">{{ entry.note }}</p>
+<p class="card-meta num">Saisi le {{ entry.recorded_at|culture_date(data.timezone) }} · version {{ entry.revision }}{{ ' · horloge non synchronisée' if not entry.clock_reliable else '' }}</p>{% if entry.reason %}<p>Motif : {{ entry.reason }}</p>{% endif %}
+<details><summary>Corriger cette saisie</summary>{{ entry_form(entry) }}</details>
+{% if entry.revisions %}<details><summary>Versions précédentes ({{ entry.revisions|length }})</summary>{% for old in entry.revisions %}<p class="num">Version {{ old.revision }} · {{ old.effective_at|culture_date(data.timezone) }} · pH {{ old.ph|nombre(2) }} · EC {{ old.ec|nombre(2,'mS/cm') }} · {{ old.volume_l|nombre(1,'L') }}{{ ' · annulée' if old.cancelled else '' }}</p><p class="culture-note">{{ old.note }}</p><ul>{% for item in old.ingredients %}<li>{{ item.product }} : {{ item.quantity|nombre(2, item.unit) }}</li>{% endfor %}</ul>{% endfor %}</details>{% endif %}</details></article>{% else %}{{ empty_state("Aucun relevé", "Aucune entrée pour cette cible et cette période.", {"href":"?view=saisir" ~ (("&target=" ~ filters.target|urlencode) if filters.get("target") else ""),"label":"Saisir le premier relevé"}) }}{% endfor %}
+<nav class="culture-links" aria-label="Pagination des relevés">{% if data.offset %}<a data-solution-offset="{{ [0,data.offset-40]|max }}" href="?offset={{ [0,data.offset-40]|max }}">Plus récentes</a>{% endif %}{% if data.offset+40 < data.total %}<a data-solution-offset="{{ data.offset+40 }}" href="?offset={{ data.offset+40 }}">Plus anciennes</a>{% endif %}</nav></section>
+</section><section id="solution-view-analyser" aria-label="Analyser"{% if solution_view != 'analyser' %} hidden{% endif %}>{% if data.total %}
+{# R2.3 : la vue tient d'abord ce qu'on vient y chercher — les deux courbes. Le fait
+   (« N entrées ») reste en clair ; tout ce qui **explique** la lecture des courbes tient
+   dans un repli unique, avec les valeurs qu'il documente. Trois blocs de texte séparés,
+   toujours dépliés, coûtaient 260 px avant la première figure sur un écran de 390 px.
+   Rien n'est retiré : les trois paragraphes sont mot pour mot sous le repli. #}
+<p class="num">{{ data.total }} entrées.</p>
+<details class="solution-analysis-notes"><summary>Comment lire ces courbes</summary>
+<p>Les courbes couvrent tout le filtre, indépendamment de la pagination du journal, sans relier les lacunes.
 {% if data.chart_aggregated %}Plus de 1 000 entrées : moyennes journalières, étendues min/max et nombres de mesures, séparés par cible et période de solution.{% else %}Chaque point est une mesure enregistrée.{% endif %}
 {% if data.chart_truncated %}Affichage limité aux 2 000 derniers groupes journaliers ; réduire la période ou exporter toutes les données.{% endif %}</p>
 {# Lot E : bandes de référence des plages cibles, résolues par période et jamais par défaut. #}
 <p class="card-meta">Les bandes de référence proviennent des <a href="/cultures/targets{% if filters.get('target') %}?target={{ filters['target']|urlencode }}{% endif %}">plages cibles</a> résolues à la date de chaque mesure. Une période sans plage reste sans bande ; aucune plage n’est appliquée rétroactivement ni proposée par défaut.</p>
 {# La consigne d'usage des courbes est rendue par le fragment de `PhytoCultureAnalysis.chart`,
    pour toutes les pages à la fois : la répéter ici en donnait deux versions à entretenir. #}
-<details class="card"><summary>Valeurs des bandes de référence</summary><ul>{% for band in data.chart_targets %}<li>{{ band.label }} · {{ band.start|culture_date(data.timezone) }} → {{ band.end|culture_date(data.timezone) }}{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %} · {{ label }} : {{ band[metric ~ '_min'] if band[metric ~ '_min'] is not none else 'sans minimum' }} à {{ band[metric ~ '_max'] if band[metric ~ '_max'] is not none else 'sans maximum' }}{% endfor %}</li>{% else %}<li>Aucune plage de référence pour ces mesures.</li>{% endfor %}</ul></details>
+<h3>Valeurs des bandes de référence</h3><ul>{% for band in data.chart_targets %}<li class="num">{{ band.label }} · {{ band.start|culture_date(data.timezone) }} → {{ band.end|culture_date(data.timezone) }}{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %} · {{ label }} : {{ band[metric ~ '_min']|nombre(2) if band[metric ~ '_min'] is not none else 'sans minimum' }} à {{ band[metric ~ '_max']|nombre(2) if band[metric ~ '_max'] is not none else 'sans maximum' }}{% endfor %}</li>{% else %}<li>Aucune plage de référence pour ces mesures.</li>{% endfor %}</ul>
+<h3>Repères des interventions et stades</h3><ul>{% for point in data.chart if point.annotations %}<li class="num">{{ point.at|culture_date(data.timezone) }} · {{ point.annotations|join(', ') }} · {{ point.target }}</li>{% endfor %}{% for stage in data.stages %}<li class="num">{{ stage.at|culture_date(data.timezone) }} · {{ stage.label }}</li>{% else %}{% if not data.chart|selectattr('annotations')|list %}<li>Aucun repère sur cette période.</li>{% endif %}{% endfor %}</ul></details>
 <div id="courbes" class="culture-grid" data-solution-charts data-chart="{{ data.chart|tojson|forceescape }}" data-stages="{{ data.stages|tojson|forceescape }}" data-target-bands="{{ data.chart_targets|tojson|forceescape }}" data-chart-sources="{{ data.chart_sources|tojson|forceescape }}">{% for metric,label in (('ph','pH'),('ec','EC (mS/cm)')) %}<figure class="card solution-chart"><figcaption>{{ label }}</figcaption>
 {# Synthèse et clé de lecture calculées par le magasin : le gabarit ne décide de rien, il
    les rend. Le graphique les désigne par `aria-describedby`, comme la légende du climat. #}
 <p class="card-meta solution-summary" id="resume-{{ metric }}">{{ data.chart_summaries[metric] }}</p>
 <svg viewBox="0 0 600 220" role="img" aria-label="Points mesurés : {{ label }}" aria-describedby="resume-{{ metric }} legende-{{ metric }}" data-metric="{{ metric }}"></svg>
-<ul class="culture-chart-legend" id="legende-{{ metric }}">
+{# R2.3 · partage entre les deux légendes. `legende-{{ metric }}` est la région que
+   l'`aria-describedby` du `<svg>` désigne : elle porte donc tout ce **sans quoi le
+   graphique n'est pas interprétable** — la grandeur et son unité, la bande de plage
+   cible, et la légende par mesure de `9136e40`, c'est-à-dire une entrée par source
+   ayant réellement une mesure de **cette** grandeur (la variante reste commune aux
+   deux figures : même source, même repère). Le `<details>` « Légende complète » ne
+   garde que le vocabulaire des encodages, qu'on consulte une fois.
+   Choix délibéré de ne **pas** référencer le `<details>` dans l'`aria-describedby` :
+   dans les Chromium récents le contenu d'un `<details>` fermé est masqué par
+   `::details-content { content-visibility: hidden }` sur l'arbre d'ombre UA, donc hors
+   de l'arbre d'accessibilité — le même piège que celui relevé sur la console. Un
+   contenu indispensable à la lecture ne peut pas dépendre de ce que chaque moteur
+   décide d'exposer d'un repli fermé : il reste visible. #}
+<ul class="culture-chart-legend" id="legende-{{ metric }}"><li><span class="legend-mark legend-dot" aria-hidden="true"></span>{{ label }}{{ ' · mS/cm' if metric == 'ec' else ' · sans unité' }}</li><li><span class="legend-mark legend-band" aria-hidden="true"></span>Plage cible</li>
+{% for source in data.chart_sources[metric] %}<li><span class="legend-mark legend-dot solution-source-{{ source.variant }}" aria-hidden="true"></span>{{ source.label }}</li>{% else %}<li>Aucune source ne mesure cette grandeur sur ce filtre.</li>{% endfor %}
+</ul>
+<details class="chart-full-legend"><summary>Légende complète</summary><ul class="culture-chart-legend">
 <li><span class="legend-mark legend-band" aria-hidden="true"></span>Bande : plage cible résolue à la date des mesures.</li>
 <li><span class="legend-mark legend-renewal" aria-hidden="true"></span>Tiret long : renouvellement de solution.</li>
 <li><span class="legend-mark legend-stage" aria-hidden="true"></span>Tiret composé : changement de stade.</li>
 <li><span class="legend-mark legend-range" aria-hidden="true"></span>Barre verticale : minimum et maximum du jour.</li>
-<li><span class="legend-mark legend-dot" aria-hidden="true"></span>Point : une mesure. Sa forme et sa teinte disent la source ; aucun trait ne relie deux sources.</li>
-{# La légende d'une figure ne nomme que les sources ayant une mesure de **sa** grandeur ; la
-   variante, elle, reste commune aux deux figures — même source, même repère. #}
-{% for source in data.chart_sources[metric] %}<li><span class="legend-mark legend-dot solution-source-{{ source.variant }}" aria-hidden="true"></span>{{ source.label }}</li>{% else %}<li>Aucune source ne mesure cette grandeur sur ce filtre.</li>{% endfor %}
-</ul></figure>{% endfor %}</div>
-<details class="card"><summary>Repères des interventions et stades</summary><ul>{% for point in data.chart if point.annotations %}<li>{{ point.at|culture_date(data.timezone) }} · {{ point.annotations|join(', ') }} · {{ point.target }}</li>{% endfor %}{% for stage in data.stages %}<li>{{ stage.at|culture_date(data.timezone) }} · {{ stage.label }}</li>{% endfor %}</ul></details>
-<div class="culture-links"><a data-solution-export href="/api/v1/cultures/solutions/export">Exporter les relevés et interventions CSV du filtre</a><a href="/api/v1/cultures/export?format=sqlite3">Base SQLite seule (sans photos)</a></div>
-{% for entry in data["items"] %}<article class="card culture-journal solution-journal" id="entry-{{ entry.id }}" tabindex="-1" data-point="{{ {'ph':entry.ph,'ec':entry.ec,'at':entry.sort_at,'cancelled':entry.cancelled,'kind':entry.kind,'period':entry.period_id,'target':entry.reservoir_id or entry.targets|join(','),'label':kinds[entry.kind],'number':loop.index}|tojson|forceescape }}">
-<h3>{{ loop.index }}. {{ kinds[entry.kind] }}{{ ' · annulé' if entry.cancelled else '' }}</h3><p>{{ entry.effective_at|culture_date(data.timezone) }}{{ ' (approximative)' if entry.precision == 'approximative' else '' }} · référence {{ entry.id[:8] }}</p>
-<p>{% for reservoir in data.reservoirs if reservoir.id == entry.reservoir_id %}{{ reservoir.name }}{% endfor %}{% for subject in data.subjects if subject.id in entry.targets or subject.id in entry.fed_subjects %} · <a href="/cultures/{{ subject.id }}">{{ subject.name }}</a>{% endfor %}</p>
-<p>pH {{ entry.ph if entry.ph is not none else '—' }} · EC {{ entry.ec if entry.ec is not none else '—' }} mS/cm · {{ entry.temperature_c if entry.temperature_c is not none else '—' }} °C · {{ entry.volume_l if entry.volume_l is not none else '—' }} L{{ ' partagés (total unique)' if entry.targets|length > 1 else '' }}</p>
-<p>{{ {'independent':'Mesure indépendante','before':'Avant intervention','after':'Après intervention'}[entry.context] }}{% if entry.intervention_id %} · <a href="?entry={{ entry.intervention_id }}#entry-{{ entry.intervention_id }}">Intervention {{ entry.intervention_id[:8] }}</a>{% endif %} · Compensation : {{ {'unknown':'non renseignée','yes':'oui','no':'non'}[entry.compensation] }}</p>
-{% if entry.period_id %}<p class="card-meta">Période de solution {{ entry.period_id[:8] }}</p>{% endif %}
-{# Lot E : plage cible résolue à la date de ce relevé, ou absence assumée. #}
-{% if entry.target %}<p class="solution-target" data-entry-target>Plage cible : pH {{ entry.target.ph_min if entry.target.ph_min is not none else '—' }} à {{ entry.target.ph_max if entry.target.ph_max is not none else '—' }} · EC {{ entry.target.ec_min if entry.target.ec_min is not none else '—' }} à {{ entry.target.ec_max if entry.target.ec_max is not none else '—' }} mS/cm · {{ entry.target.source_label }}{% if entry.target.label %} · {{ entry.target.label }}{% endif %}{% if entry.target.multiple %} · plusieurs cibles applicables, la plus récente est retenue{% endif %} · <a href="/cultures/targets{% if filters.get('target') %}?target={{ filters['target']|urlencode }}{% endif %}#target-{{ entry.target.id }}">Voir la plage</a></p>
-{% else %}<p class="card-meta" data-entry-target>Aucune plage cible à cette date.</p>{% endif %}
-{# Lot G : contexte d'équipement résolu à la date de l'intervention, jamais le catalogue d'aujourd'hui. #}
-{% if entry.equipment %}<p class="card-meta" data-equipment-context="{{ entry.equipment.provenance }}">{% if entry.equipment.provenance == 'link' %}Affectation connue : {{ entry.equipment.label }}.{% elif entry.equipment.provenance == 'snapshot' %}Contexte connu à la saisie du {{ entry.equipment.recorded_at|culture_date(data.timezone) }} : {{ entry.equipment.label }}.{% else %}Association inconnue à cette date. <a href="/cultures/equipment#affectations">Déclarer une affectation</a>{% endif %}</p>{% endif %}
-<ul>{% for ingredient in entry.ingredients %}<li>{{ ingredient.product }} : {{ ingredient.quantity }} {{ ingredient.unit }}</li>{% endfor %}</ul><p class="culture-note">{{ entry.note }}</p>
-<p class="card-meta">Saisi le {{ entry.recorded_at|culture_date(data.timezone) }} · version {{ entry.revision }}{{ ' · horloge non synchronisée' if not entry.clock_reliable else '' }}</p>{% if entry.reason %}<p>Motif : {{ entry.reason }}</p>{% endif %}
-<details><summary>Corriger cette saisie</summary>{{ entry_form(entry) }}</details>
-{% if entry.revisions %}<details><summary>Versions précédentes ({{ entry.revisions|length }})</summary>{% for old in entry.revisions %}<p>Version {{ old.revision }} · {{ old.effective_at|culture_date(data.timezone) }} · pH {{ old.ph }} · EC {{ old.ec }} mS/cm · {{ old.volume_l }} L{{ ' · annulée' if old.cancelled else '' }}</p><p class="culture-note">{{ old.note }}</p><ul>{% for item in old.ingredients %}<li>{{ item.product }} : {{ item.quantity }} {{ item.unit }}</li>{% endfor %}</ul>{% endfor %}</details>{% endif %}</article>{% else %}<p>Aucune entrée pour ce filtre.</p>{% endfor %}
-<nav class="culture-links" aria-label="Pagination des relevés">{% if data.offset %}<a data-solution-offset="{{ [0,data.offset-40]|max }}" href="?offset={{ [0,data.offset-40]|max }}">Plus récentes</a>{% endif %}{% if data.offset+40 < data.total %}<a data-solution-offset="{{ data.offset+40 }}" href="?offset={{ data.offset+40 }}">Plus anciennes</a>{% endif %}</nav></section>
-<section id="recettes" class="culture-section"><h2>Recettes réutilisables</h2><p>Une nouvelle version ne modifie jamais les préparations passées. Aucune conversion masse/volume ni recommandation de dosage.</p><details class="card"><summary>Créer une recette</summary>{{ recipe_form() }}</details>
-{% for recipe in data.recipes %}<details class="card culture-journal"><summary>{{ recipe.name }} · version {{ recipe.revision }}</summary>{{ recipe_form(recipe) }}</details>{% endfor %}</section>
-{% endif %}{% endblock %}
+<li><span class="legend-mark legend-dot" aria-hidden="true"></span>Point : une mesure. Le remplissage et le contour distinguent aussi les sources sans dépendre de la couleur.</li>
+</ul></details></figure>{% endfor %}</div>
+<div class="culture-links"><a class="action-link" data-solution-export href="/api/v1/cultures/solutions/export">Exporter les relevés et interventions CSV du filtre</a><a class="action-link" href="/api/v1/cultures/export?format=sqlite3">Base SQLite seule (sans photos)</a></div>
+{% else %}{{ empty_state('Aucun relevé', 'Les graphiques apparaîtront après le premier relevé.', {'href':'?view=saisir' ~ (('&target=' ~ filters.target|urlencode) if filters.get('target') else ''),'label':'Saisir le premier relevé'}) }}{% endif %}</section>{% endif %}{% endblock %}
 {% block page_scripts %}<script src="/static/js/culture_analysis.js?v={{ asset_versions.culture_analysis }}" defer></script><script src="/static/js/culture_forms.js?v={{ asset_versions.culture_forms }}" defer></script><script src="/static/js/culture_solutions.js?v={{ asset_versions.culture_solutions }}" defer></script>{% endblock %}

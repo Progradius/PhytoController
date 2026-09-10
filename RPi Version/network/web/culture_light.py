@@ -4,15 +4,21 @@ Cette vue lit la configuration déjà distribuée (`self.server.config`), le cat
 d'équipements et le registre d'observabilité déjà publiés par les boucles métier. Elle
 n'écrit jamais `param.json`, ne commande aucune sortie, ne relit aucun capteur et ne crée
 aucune alarme : l'écart entre un repère et les horaires configurés reste une information.
+
+Le repère applicable est résolu à la **date consultée** par la règle pure du modèle
+(`resolve_light` : sujet > espace > global, stade prioritaire). La vue ne fait que la
+rejouer à cette date, pour que toute la page parle du même jour ; elle n'ajoute que des
+libellés.
 """
 
 import json
 
 from aiohttp import web
 
-from model.culture import CultureConflict, CultureError, SPACES, STAGES
+from model.culture import CultureConflict, CultureError, SPACES, STAGES, stamp
 from model.culture_light import (LIGHT_PRESETS, LIGHT_SCOPES, compare_light, duration_label,
-                                 schedule_crosses_midnight, schedule_on_minutes)
+                                 light_label, resolve_light, schedule_crosses_midnight,
+                                 schedule_on_minutes)
 from network.web.cultures import error_response
 from network.web.pages import render_template
 from utils.culture_store import CultureUnavailable
@@ -78,6 +84,7 @@ class LightViews:
             minutes = schedule_on_minutes(schedule)
             timers[space] = {
                 "number": number, "equipment_id": f"daily_{number}",
+                "space": space,
                 "space_label": SPACES[space], "enabled": bool(settings.enabled),
                 "schedule": schedule,
                 "start": f"{schedule['start_hour']:02d}:{schedule['start_minute']:02d}",
@@ -101,29 +108,72 @@ class LightViews:
                               "stop": f"{stop_h:02d}:{stop_m:02d}",
                               "empty": (start_h, start_m) == (stop_h, stop_m)}}
 
+    @staticmethod
+    def _decorate(reference):
+        """Libellés d'affichage d'un repère résolu ; aucune règle n'est ajoutée ici."""
+        if reference is None:
+            return None
+        reference["window_label"] = light_label(reference["on_minutes"], reference["off_minutes"])
+        reference["scope_label"] = LIGHT_SCOPES[reference["scope"]]
+        reference["stage_label"] = STAGES.get(reference["stage"]) if reference["stage"] else None
+        return reference
+
+    def focus(self, request, data):
+        """Espace ou culture consultés ; une valeur inconnue est refusée, jamais ignorée."""
+        chosen = (request.query.get("focus") or "").strip()
+        if not chosen:
+            return None
+        if chosen in SPACES:
+            return {"kind": "space", "id": chosen, "space": chosen, "label": SPACES[chosen]}
+        occupant = next((item for item in data["occupants"] if item["id"] == chosen), None)
+        if occupant is None:
+            raise CultureError("Espace ou culture consultés inconnus.", "focus")
+        return {"kind": "subject", "id": chosen, "space": occupant["space"],
+                "label": occupant["name"]}
+
     async def payload(self, request):
-        data = await self.store.call("light_data", self.filters(request))
+        filters = self.filters(request)
+        data = await self.store.call("light_data", filters)
+        at = (request.query.get("at") or data["today"]).strip()
+        # Même clé de tri que les repères eux-mêmes ; l'horloge et le fuseau sont ceux du
+        # carnet, lus sur le magasin sans requête SQLite.
+        key = stamp(at, "date", self.store.zone, self.store.now(), field="at")[0]
+        # La résolution porte sur **tous** les repères courants : ni la liste réduite par la
+        # portée ou le stade — un filtre d'affichage n'a pas à changer le repère applicable —
+        # ni la liste bornée à `MAX_LIGHT_ROWS`, qui est une limite d'affichage. D'où une
+        # lecture dédiée, faite une seule fois, au lieu d'une seconde page complète.
+        rows = await self.store.call("light_rows")
         operational = self._operational()
+        for space, timer in operational["timers"].items():
+            # Repère de l'espace lui-même : ni culture, ni stade, donc ni repère de sujet.
+            timer["reference"] = self._decorate(resolve_light(key, None, None, space, rows))
         for occupant in data["occupants"]:
             timer = operational["timers"].get(occupant["space"])
             occupant["timer"] = timer
+            occupant["reference"] = self._decorate(
+                resolve_light(key, occupant["stage"], occupant["id"], occupant["space"], rows))
             # Aucun repère résolu ⇒ aucun écart : jamais un repère standard implicite.
             occupant["comparison"] = compare_light(occupant["reference"], timer["schedule"]) if timer else None
         data["operational"] = operational
+        data["consulted_at"] = at
         return data
 
     async def page(self, request):
-        data, error, status = None, None, 200
+        data, error, status, focus = None, None, 200, None
         try:
             data = await self.payload(request)
+            focus = self.focus(request, data)
         except CultureError as exc:
-            error, status = str(exc), 400
+            data, error, status = None, str(exc), 400
         except CultureUnavailable as exc:
-            error, status = str(exc), 503
+            data, error, status = None, str(exc), 503
         return self.server._html(render_template(
-            "culture_light.html", page_title="Repères d’éclairage", current_page="cultures", culture_subjects=request.query.getall("subject", []),
-            csrf_token=self.server.csrf_token, data=data, error=error,
-            filters=self.filters(request), scopes=LIGHT_SCOPES, stages=STAGES, spaces=SPACES,
+            "culture_light.html", page_title="Repères d’éclairage", current_page="cultures",
+            culture_subjects=request.query.getall("subject", []),
+            csrf_token=self.server.csrf_token, data=data, error=error, focus=focus,
+            filters={**self.filters(request), "at": (request.query.get("at") or "").strip(),
+                     "focus": (request.query.get("focus") or "").strip()},
+            scopes=LIGHT_SCOPES, stages=STAGES, spaces=SPACES,
             presets=LIGHT_PRESETS, state_labels=STATE_LABELS,
             tracking_labels=TRACKING_LABELS), status)
 

@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  const currentRubric = document.querySelector(".culture-navigation [aria-current=page]");
+  if (currentRubric) requestAnimationFrame(() => currentRubric.scrollIntoView({block: "nearest", inline: "nearest"}));
   // Lot F : saisie des repères d'éclairage. Aucune commande d'équipement, aucune
   // écriture de configuration, aucune mise en attente hors ligne.
   const DAY = 1440;

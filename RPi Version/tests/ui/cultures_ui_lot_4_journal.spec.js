@@ -38,10 +38,18 @@ test("journal : recherche insensible aux accents, bornée et combinée aux filtr
   await observe(page, "Épinard tacheté sur le bac de droite");
   await observe(page, "Bac rincé, dosage à 100% du volume", "Espace 1");
 
-  const filters = page.locator("details.culture-filters");
+  // Un seul formulaire GET : la recherche est visible en tête, les autres filtres sont
+  // dans le repli qui lui est frère. Il n'y a donc plus qu'un contrôle `q` dans la page.
+  const form = page.locator("form[data-journal-search]");
+  const filters = form.locator("details.culture-filters");
   await filters.locator("summary").click();
-  const search = filters.getByLabel("Rechercher");
+  const search = form.getByLabel("Rechercher dans le journal");
+  await expect(search).toHaveCount(1);
+  await expect(search).toBeVisible();
   await expect(search).toHaveAttribute("maxlength", "120");
+  // Aucune copie cachée d'un filtre : un contrôle, une valeur.
+  await expect(page.locator('input[type="hidden"][name="start"]')).toHaveCount(0);
+  await expect(page.locator('[name="q"]')).toHaveCount(1);
   // « epinard » trouve « Épinard » : la normalisation est faite en SQL, des deux côtés.
   await search.fill("epinard");
   await filters.getByRole("button", {name: "Afficher le journal"}).click();
@@ -49,7 +57,7 @@ test("journal : recherche insensible aux accents, bornée et combinée aux filtr
   await expect(entries.filter({hasText: "Épinard tacheté"})).toHaveCount(1);
   await expect(entries.filter({hasText: "Bac rincé"})).toHaveCount(0);
   // La recherche est reconduite dans la page : elle n'est pas perdue à l'affichage.
-  await expect(page.locator('details.culture-filters [name="q"]')).toHaveValue("epinard");
+  await expect(page.locator('form[data-journal-search] [name="q"]')).toHaveValue("epinard");
   expect(new URL(page.url()).searchParams.get("q")).toBe("epinard");
 
   // Le joker `%` du texte cherché est littéral : il ne ramène pas tout le journal.
@@ -64,7 +72,7 @@ test("journal : recherche insensible aux accents, bornée et combinée aux filtr
   const response = await page.goto(`/cultures/journal?q=${"z".repeat(400)}`);
   expect(response.status()).toBe(200);
   await expect(page.getByText("Aucune opération pour ce filtre")).toBeVisible();
-  await expect(page.locator('details.culture-filters [name="q"]')).toHaveValue("z".repeat(120));
+  await expect(page.locator('form[data-journal-search] [name="q"]')).toHaveValue("z".repeat(120));
 
   // La recherche se combine aux autres filtres au lieu de les remplacer.
   // « bac » figure dans les deux notes ; seule la cible départage.
@@ -76,6 +84,25 @@ test("journal : recherche insensible aux accents, bornée et combinée aux filtr
   await expect(entries.first()).toContainText("Épinard tacheté");
   await page.goto("/cultures/journal?q=rinc%C3%A9&target=space_2");
   await expect(entries).toHaveCount(0);
+
+  // R2.8 : une ligne par opération. La ligne porte date, opération, cible et résumé ; la
+  // résolution est repliée, et le lien vers la fiche rejoue les filtres de la page.
+  await page.goto("/cultures/journal?q=epinard&target=space_2");
+  await expect(entries).toHaveCount(1);
+  const ligne = entries.first().locator("article.ui-journal-entry");
+  await expect(ligne).toBeVisible();
+  await expect(ligne.locator("time.num")).toHaveCount(1);
+  await expect(ligne).toContainText("Épinard tacheté");
+  const resolution = entries.first().locator("details").filter({hasText: "Détails de l’opération"}).first();
+  await expect(resolution).not.toHaveAttribute("open", /.*/);
+  await expect(resolution.getByRole("link", {name: "Ouvrir la fiche liée"})).toBeHidden();
+  await resolution.locator(":scope > summary").click();
+  const retour = await resolution.getByRole("link", {name: "Ouvrir la fiche liée"}).getAttribute("href");
+  const rejoue = new URL(new URL(retour, page.url()).searchParams.get("retour"), page.url());
+  expect(rejoue.pathname).toBe("/cultures/journal");
+  expect(rejoue.searchParams.get("q")).toBe("epinard");
+  expect(rejoue.searchParams.get("target")).toBe("space_2");
+
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
@@ -103,7 +130,8 @@ test("journal : filtres rapides 7 et 30 jours calculés sur la date du carnet", 
   await filters.locator("summary").click();
   await expect(filters.locator('[name="start"]')).toHaveValue(shift(today, 6));
   await expect(filters.locator('[name="end"]')).toHaveValue(today);
-  await expect(filters.locator('[name="q"]')).toHaveValue("epinard");
+  // `q` est le champ visible en tête du même formulaire, plus une copie dans le repli.
+  await expect(page.locator('form[data-journal-search] [name="q"]')).toHaveValue("epinard");
   await expect(page.locator("article.culture-journal-entry")).toHaveCount(1);
 
   // « Toute la période » retire les deux dates sans toucher au reste du filtre.

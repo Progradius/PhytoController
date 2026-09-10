@@ -14,9 +14,11 @@
 {% if event.kind == 'finish' %}<p class="culture-note">{{ data.get('lessons','') }}</p><ul>{% for item in data.get('origin_weights',[]) %}<li>Origine {{ item.origin_id[:8] }} : {{ item.weight_g }} g</li>{% endfor %}</ul>{% if data.weight_g is not none %}<p>Poids sec : {{ data.weight_g }} g</p>{% endif %}<p>{{ 'Espace libéré' if data.release else 'Espace encore occupé à cette date' }}</p>{% endif %}
 {% if event.kind == 'create' and data.origins %}<ul>{% for origin in data.origins %}<li>{{ origin.count }} plantes · {{ origin.label }}{% for mother in overview.mothers if mother.id == origin.mother_id %}{{ mother.name }}{% endfor %}</li>{% endfor %}</ul>{% endif %}
 {% endmacro %}
-{% macro date_fields(name='effective_at', value='', precision='date', label='Date effective') %}
-<label>{{ label }}<input name="{{ name }}" type="{{ 'datetime-local' if precision == 'instant' else 'date' }}" value="{{ value if precision != 'instant' else '' }}" {% if precision == 'instant' %}data-instant="{{ value }}"{% endif %} required></label>
-<label>Précision de la date<select name="{{ name }}_precision"><option value="date"{% if precision == 'date' %} selected{% endif %}>Date connue</option><option value="approximative"{% if precision == 'approximative' %} selected{% endif %}>Date approximative</option><option value="instant"{% if precision == 'instant' %} selected{% endif %}>Date et heure connues</option></select></label>
+{% macro date_fields(name='effective_at', value='', precision='date', label='Date effective', draft=false) %}
+<label>{{ label }}<input {% if draft %}data-draft-field{% endif %} name="{{ name }}" type="{{ 'datetime-local' if precision == 'instant' else 'date' }}" value="{{ value if precision != 'instant' else '' }}" {% if precision == 'instant' %}data-instant="{{ value }}"{% endif %} required></label>
+{# R3.4 : la précision fait partie de la date. Restaurer un brouillon avec la date mais
+   sans sa précision rendrait une date approximative en date connue, silencieusement. #}
+<label>Précision de la date<select {% if draft %}data-draft-field{% endif %} name="{{ name }}_precision"><option value="date"{% if precision == 'date' %} selected{% endif %}>Date connue</option><option value="approximative"{% if precision == 'approximative' %} selected{% endif %}>Date approximative</option><option value="instant"{% if precision == 'instant' %} selected{% endif %}>Date et heure connues</option></select></label>
 {% endmacro %}
 {% macro confirm_date() %}{% if overview and not overview.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié les dates malgré l’horloge non synchronisée du Pi.</label>{% endif %}{% endmacro %}
 {% macro submit(label='Enregistrer') %}
@@ -82,11 +84,12 @@
 {% endif %}
 </article>
 {% endmacro %}
+{% from "macros/ui.html" import compact_header %}
 {% block content %}
 {# Les trois liens de rubrique ne sont pas ce qu'on vient lire : sur un téléphone ils
    repoussaient l'agenda sous la ligne de flottaison. Ils restent dans l'en-tête d'une fiche,
    et passent sous l'agenda sur l'accueil, où celui-ci dit ce qui est à faire. #}
-<section class="hero compact"><div><p class="eyebrow">Carnet durable</p>{% if not detail %}<h1>{{ 'Archives' if archives else 'Cultures' }}</h1>{% endif %}<p class="hero-copy">Origines, parcours et observations. Les stades servent au suivi ; les horaires se règlent séparément.</p></div>{% if detail %}{{ rubric_links() }}{% endif %}</section>
+{% if not detail %}<section class="hero compact"><div><p class="eyebrow">Carnet durable</p>{% if not detail %}<h1>{{ 'Archives' if archives else 'Cultures' }}</h1>{% endif %}<p class="hero-copy">Origines, parcours et observations. Les stades servent au suivi ; les horaires se règlent séparément.</p></div>{% if detail %}{{ rubric_links() }}{% endif %}</section>{% endif %}
 {% set culture_section = '' %}{% include 'culture_navigation.html' %}
 
 {% if error %}<article class="card"><h2>Carnet indisponible</h2><p role="alert">{{ error }}</p><p>Le contrôle de la serre reste indépendant du carnet.</p><a href="/cultures">Réessayer</a></article>{% endif %}
@@ -111,7 +114,7 @@
 {% if reminders.upcoming_count %}<p><a href="/cultures/cycles#rappels">{{ reminders.upcoming_count }} à venir</a></p>{% endif %}
 {% else %}<p>Aucun rappel en cours dans le carnet. <a href="/cultures/cycles#rappels">Créer un rappel</a>.</p>{% endif %}
 <div class="culture-links culture-shortcuts">
-<a class="button" href="/cultures/solutions?kind=reading#saisie">Saisir un relevé</a>
+<a class="button" href="/cultures/solutions?kind=reading&amp;view=saisir#saisie">Saisir un relevé</a>
 <a class="button" href="{% if overview.observation_shortcut %}/cultures/{{ overview.observation_shortcut|urlencode }}#observation{% else %}#choisir-observation{% endif %}">Noter une observation</a>
 <a class="button" href="#creer-lot">Nouvelle culture</a>
 </div>
@@ -128,7 +131,7 @@
 <p class="card-meta">Les rappels et les opérations sont déclaratifs : le carnet ne commande aucun équipement et n’envoie aucune notification.</p>
 <h3>Dernières opérations</h3>
 {% for entry in agenda.journal %}<article class="card culture-journal-entry"><p><a href="{{ entry.link }}">{{ entry.type_label }}</a>{{ ' · annulée' if entry.cancelled else '' }} · {{ entry.effective_at|culture_date(overview.timezone) }}{{ ' (approximatif)' if entry.precision == 'approximative' else '' }} · {{ entry.target_label }}</p>
-{% if entry.measures %}<p class="card-meta">{% if entry.measures.ph is not none %}pH {{ entry.measures.ph }}{% endif %}{% if entry.measures.ec is not none %} · EC {{ entry.measures.ec }} mS/cm{% endif %}{% if entry.measures.volume_l is not none %} · {{ entry.measures.volume_l }} L{% endif %}</p>{% endif %}
+{% if entry.measures %}<p class="card-meta">{% if entry.measures.ph is not none %}pH {{ entry.measures.ph|nombre(2) }}{% endif %}{% if entry.measures.ec is not none %} · EC {{ entry.measures.ec|nombre(2,'mS/cm') }}{% endif %}{% if entry.measures.volume_l is not none %} · {{ entry.measures.volume_l|nombre(1,'L') }}{% endif %}</p>{% endif %}
 {% if entry.note %}<p class="culture-note">{{ entry.note|truncate(160, true, '…') }}</p>{% endif %}</article>
 {% else %}<p>Aucune opération enregistrée pour l’instant.</p>{% endfor %}
 {% if agenda.journal_truncated %}<p><a href="/cultures/journal">Voir tout le journal</a></p>{% endif %}
@@ -139,7 +142,9 @@
 <p class="card-meta" data-device-timezone>Les heures précises sont saisies dans le fuseau de votre appareil.</p>
 {% if not archives %}
 <section aria-label="Occupation des espaces" class="culture-grid">
-{% for space_id,space_name in spaces.items() %}<article class="card"><p class="eyebrow">Éclairage {{ loop.index }}</p><h2>{{ space_name }}</h2><div class="culture-occupants">{% for item in overview.occupants if item.space == space_id %}<div class="culture-counter"><a href="/cultures/{{ item.id }}">{{ item.name }}</a>{{ counter(item) }}{% if item.archived %}<span>Espace encore occupé · à libérer</span>{% endif %}</div>{% else %}<p>Aucune occupation déclarée.</p>{% endfor %}</div>{% set light=lighting[loop.index0] %}<p class="card-meta">Éclairage configuré : {{ '%02d:%02d'|format(light.start_hour,light.start_minute) }} → {{ '%02d:%02d'|format(light.stop_hour,light.stop_minute) }} · {{ 'activé' if light.enabled else 'désactivé' }}</p><a href="/conf#daily-timer-{{ loop.index }}">Régler l’éclairage {{ loop.index }}</a></article>{% endfor %}
+{% for space_id,space_name in spaces.items() %}<article class="card"><p class="eyebrow">Éclairage {{ loop.index }}</p><h2>{{ space_name }}</h2><div class="culture-occupants">{% for item in overview.occupants if item.space == space_id %}<div class="culture-counter"><a href="/cultures/{{ item.id }}">{{ item.name }}</a>{{ counter(item) }}{% if item.archived %}<span>Espace encore occupé · à libérer</span>{% endif %}</div>{% else %}<p>Aucune occupation déclarée.</p>{% endfor %}</div>{% set light=lighting[loop.index0] %}<p class="card-meta">Éclairage configuré : {{ '%02d:%02d'|format(light.start_hour,light.start_minute) }} → {{ '%02d:%02d'|format(light.stop_hour,light.stop_minute) }} · {{ 'activé' if light.enabled else 'désactivé' }}</p>{# D7 : action autonome de la carte (elle ne vit pas dans une phrase), donc la cible
+   tactile de 44 px de `.action-link` — mesurée à 140 × 22 sans elle. #}
+<a class="action-link" href="/conf#daily-timer-{{ loop.index }}">Régler l’éclairage {{ loop.index }}</a></article>{% endfor %}
 </section><p class="card-meta">Ventilation principale commune · Cyclic 1 : pompe de l’espace 2 · Cyclic 2 : ventilation locale ou bac de bouturage de l’espace 1.</p>
 {% endif %}
 <section id="liste" class="culture-section"><h2>{{ 'Archives' if archives else 'Lots et pieds mères' }}</h2>
@@ -147,14 +152,18 @@
    borne le résultat à la pagination existante. Le même champ sert de filtre local sur les
    cartes déjà rendues (`cultures.js`), qui n'est qu'un raffinement immédiat : c'est la
    soumission qui va chercher au-delà de la page courante. #}
-<form class="culture-search" method="get" action="/cultures" data-culture-search-block>
+{# R1 #15 : filtre serveur — un formulaire GET qui **navigue** réellement. L'attribut le
+   déclare sans ambiguïté à `pwa.js`, qui pose alors la note « Filtre indisponible hors
+   ligne » ; sans lui, la détection repose sur l'absence de `data-form-key`, c'est-à-dire
+   sur le fait que le socle des formulaires ne l'a pas encore adopté. #}
+<form class="culture-search" method="get" action="/cultures" data-offline-filter data-culture-search-block>
 {% if archives %}<input type="hidden" name="archives" value="1">{% endif %}
 <label>Rechercher une culture (nom ou variété)<input type="search" name="q" value="{{ overview.search }}" data-culture-search placeholder="Nom ou variété" maxlength="120"></label>
 <button class="button button-secondary" type="submit">Rechercher</button>
 {% if overview.search %}<a href="?archives={{ 1 if archives else 0 }}">Effacer la recherche</a>{% endif %}
 <p class="card-meta" data-culture-search-count role="status"></p>
 </form>
-<div class="culture-grid">{% for item in overview['items'] %}<article class="card" data-culture-item="{{ item.name }} {{ item.variety }}"><p class="eyebrow">{{ 'Pied mère' if item.kind == 'mother' else 'Lot' }}</p><h3><a href="/cultures/{{ item.id }}">{{ item.name }}</a></h3><div class="culture-counter">{{ counter(item) }}</div>{% if item.kind == 'lot' %}<p>{{ item.count }} plantes · {{ item.initial_count }} au départ</p>{% endif %}<p>{{ item.variety }}</p>{% if archives %}<p>Origine {{ item.origin_at|culture_date(overview.timezone) }} · {{ item.stage_label }}</p>
+<div class="culture-grid">{% for item in overview['items'] %}<article class="card" id="culture-{{ item.id }}" tabindex="-1" data-culture-item="{{ item.name }} {{ item.variety }}"><p class="eyebrow">{{ 'Pied mère' if item.kind == 'mother' else 'Lot' }}</p><h3><a href="/cultures/{{ item.id }}?archives={{ 1 if archives else 0 }}{% if overview.search %}&amp;q={{ overview.search|urlencode }}{% endif %}{% if overview.offset %}&amp;offset={{ overview.offset }}{% endif %}">{{ item.name }}</a></h3><div class="culture-counter">{{ counter(item) }}</div>{% if item.kind == 'lot' %}<p>{{ item.count }} plantes · {{ item.initial_count }} au départ</p>{% endif %}<p>{{ item.variety }}</p>{% if archives %}<p>Origine {{ item.origin_at|culture_date(overview.timezone) }} · {{ item.stage_label }}</p>
 {# Une archive peut n'avoir jamais été libérée : la projection lui garde alors un espace.
    Le signalement vit sur la carte concernée, la page Archives ne rendant pas le bloc
    d'occupation de l'accueil. Aucune règle ici : l'espace projeté suffit à le dire. #}
@@ -207,28 +216,39 @@
 {# En-tête permanent : les repères que l'on cherche en arrivant, dans l'ordre où on les
    lit. Les libellés sont ceux du carnet depuis le début — nom, stade et J{n}, espace et
    état, effectif — pour qu'un repère lu ailleurs reste le même ici. #}
-<header class="culture-head">
-<h1>{{ subject.name }}</h1>
+{% call compact_header(subject.name,
+  facts=[spaces.get(subject.space,'Espace libéré'), subject.stage_label, ('J' ~ subject.age.days) if subject.age else 'Âge non renseigné'],
+  primary_action={'href':'/cultures/solutions?target=' ~ subject.id|urlencode ~ '&kind=reading&view=saisir#saisie','label':'Saisir un relevé'},
+  secondary_actions=[{'href':'#observation','label':'Observation / photo'},{'href':return_url,'label':return_label}]) %}
 <p class="culture-head-meta">{{ subject.variety or 'Variété non renseignée' }}</p>
 <div class="culture-counter">{{ counter(subject) }}</div>
 <p class="culture-badge">{{ spaces.get(subject.space,'Espace libéré') }} · {{ 'Archivé' if subject.archived else 'En cours' }}</p>
 {% if subject.kind == 'lot' %}<p>{{ subject.count }} plantes restantes · {{ subject.initial_count }} au départ</p>{% endif %}
-</header>
-<p class="card-meta">J0 correspond à la date locale de début ; les jours sont calendaires ({{ overview.timezone }}), pas des périodes de 24 h.</p>
+{% endcall %}
+<details><summary>Comprendre ces dates</summary><p class="card-meta">J0 correspond à la date locale de début ; les jours sont calendaires ({{ overview.timezone }}), pas des périodes de 24 h.</p>
 <p class="card-meta" data-device-timezone>Les heures précises sont saisies dans le fuseau de votre appareil.</p>
+</details>
 <section class="culture-section" data-culture-assistance="{{ subject.id }}" hidden aria-live="polite" aria-label="Suggestions expliquées"></section>
 <section class="culture-section" aria-labelledby="actions-title"><h2 id="actions-title">Que faire maintenant ?</h2>
 <div class="culture-grid">
 {% for action in actions.primary %}
-{% if action == 'reading' %}<a class="button culture-primary-action" href="/cultures/solutions?target={{ subject.id|urlencode }}&amp;kind=reading#saisie">Relevé</a>
+{% if action == 'reading' %}<a class="button culture-primary-action" href="/cultures/solutions?target={{ subject.id|urlencode }}&amp;kind=reading&amp;view=saisir#saisie">Saisir un relevé</a>
 {% elif action == 'observation' %}
+{# R3.4 : la bannière de brouillon doit être visible **fiche ouverte**, sans avoir à
+   déplier « Observation / photo » — sinon la note récupérable ne se découvre pas. Le
+   socle `culture_forms.js` la place ici, hors du `<details>`, en visant
+   `[data-culture-draft-banner="<clé de data-culture-draft>"]`. #}
+<div data-culture-draft-banner="observation"></div>
 <details class="card culture-primary-action" id="observation" tabindex="-1"><summary>Observation / photo</summary>
-<form class="culture-form" data-culture-observation data-subject="{{ subject.id }}" data-version="{{ subject.version }}">
-<label>Observation<textarea name="note" rows="3" maxlength="4000" required></textarea></label>
-{{ date_fields(value=overview.today) }}
-<label>Photo (facultatif)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+<form class="culture-form" data-culture-observation data-culture-draft="observation" data-draft-target="{{ subject.id }}" data-draft-version="{{ subject.version }}" data-subject="{{ subject.id }}" data-version="{{ subject.version }}">
+<label>Observation<textarea data-draft-field name="note" rows="3" maxlength="4000" required></textarea></label>
+{{ date_fields(value=overview.today, draft=true) }}
+{# R5.4 : `capture` n'est jamais imposé par le gabarit. Servi en dur, un appui direct sur
+   le champ ouvre la caméra et rend le choix d'une image existante impossible sans JS.
+   `culture_forms.js` pose et retire l'attribut selon le bouton choisi. #}
+<label>Photo (facultatif)<input name="photo" type="file" accept="image/*"></label>
 <label>Légende de la photo<input name="caption" maxlength="500"></label>
-<p class="card-meta">Une photo par envoi, 5 Mio maximum, JPEG, PNG ou WebP non animé. L’observation est enregistrée d’abord ; un refus de photo ne l’efface pas.</p>
+<p class="card-meta">Prendre une photo ou choisir une image existante. Une photo par envoi, 5 Mio maximum, JPEG, PNG ou WebP non animé. L’observation est enregistrée d’abord ; si la photo échoue, elle reste enregistrée et vous pouvez reprendre la photo.</p>
 {{ submit('Enregistrer l’observation') }}</form></details>
 {% else %}
 <details class="card culture-primary-action" id="action-{{ action }}" tabindex="-1"><summary>{{ primary_labels.get(action, event_kinds[action]) }}</summary>{{ event_form(action, subject, primary_labels.get(action, event_kinds[action])) }}</details>
@@ -236,6 +256,7 @@
 {% endfor %}
 </div>
 {% if actions.other %}<details class="card culture-section"><summary>Autres opérations</summary><div class="culture-grid">{% for kind in actions.other %}<details class="card"><summary>{{ event_kinds[kind] }}</summary>{{ event_form(kind, subject, event_kinds[kind]) }}</details>{% endfor %}</div></details>{% endif %}
+<details class="card culture-section"><summary>Corriger l’historique</summary><p>Les corrections et les étapes passées conservent les versions précédentes.</p><div class="culture-links"><a href="#journal">Corriger une entrée</a>{% if detail.backfill.before %}<a href="#backfill">Compléter le parcours passé</a>{% endif %}</div></details>
 </section>
 <nav class="culture-links culture-local-links" aria-label="Dans cette fiche"><a href="#synthese">Synthèse</a><a href="#journal">Journal</a><a href="#releves">Relevés</a><a href="#photos">Photos</a><a href="#bilan">Bilan</a></nav>
 <section id="synthese" class="culture-section"><h2>Synthèse</h2>
@@ -268,9 +289,9 @@
 {# Le relevé vient de la fiche : une culture archivée ou libérée n'est plus dans les
    listes d'accueil, et le balayage y perdait son dernier relevé. #}
 {% set reading=subject.latest_reading %}
-{% if reading %}<p>Dernier relevé : {{ reading.effective_at|culture_date(overview.timezone) }} · pH {{ reading.ph if reading.ph is not none else '—' }} · EC {{ reading.ec if reading.ec is not none else '—' }} mS/cm</p>
+{% if reading %}<p>Dernier relevé : {{ reading.effective_at|culture_date(overview.timezone) }} · pH {{ reading.ph|nombre(2) }} · EC {{ reading.ec|nombre(2,'mS/cm') }}</p>
 {% else %}<p>Aucun relevé rattaché à cette culture pour l’instant.</p>{% endif %}
-<p><a href="/cultures/solutions?target={{ subject.id|urlencode }}&amp;kind=reading#saisie">Saisir un relevé pour cette culture</a> · <a href="/cultures/solutions?target={{ subject.id|urlencode }}">Ouvrir les relevés contextualisés</a></p></section>
+<p><a href="/cultures/solutions?target={{ subject.id|urlencode }}&amp;kind=reading&amp;view=saisir#saisie">Saisir un relevé pour cette culture</a> · <a href="/cultures/solutions?target={{ subject.id|urlencode }}">Ouvrir les relevés contextualisés</a></p></section>
 <section id="photos" class="culture-section"><h2>Photos</h2>
 {# La légende est juste sous l'image : l'alternative textuelle de la galerie ne la répète
    pas, ce qui la distingue aussi de la même photo affichée dans son entrée du journal. #}
@@ -304,7 +325,7 @@
 {% for event in detail.events %}<article class="card culture-journal" id="event-{{ event.id }}" tabindex="-1"><p class="culture-added" hidden>Entrée ajoutée.</p><div class="section-heading"><h3>{{ event_kinds[event.kind] }}{{ ' · annulé' if event.cancelled else '' }}</h3><span>{{ event.effective_at|culture_date(overview.timezone) }}{{ ' (approximatif)' if event.precision == 'approximative' else '' }}</span></div>
 {{ event_summary(event) }}
 <div class="culture-grid">{% for photo in detail.photos if photo.event_id == event.id %}<figure class="culture-photo"><a href="/cultures/photos/{{ photo.id }}"><img src="/cultures/photos/{{ photo.id }}" alt="{{ photo.caption or 'Photo du carnet' }}" width="{{ photo.width }}" height="{{ photo.height }}" loading="lazy"></a><figcaption>{{ photo.caption }} · associée à la version {{ photo.event_revision }} · <a href="#event-{{ event.id }}">Ouvrir l’entrée liée</a></figcaption></figure>{% endfor %}</div>
-{% if not event.cancelled %}<details><summary>Ajouter une photo à cette entrée</summary><p>Une photo par envoi, 5 Mio maximum. L’entrée existe déjà ; un refus de photo ne la modifie pas.</p><form class="culture-form" data-photo-form data-subject="{{ subject.id }}" data-event="{{ event.id }}" data-revision="{{ event.revision }}"><label>Photo<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label><label>Légende<input name="caption" maxlength="500"></label>{{ submit('Enregistrer la photo') }}</form></details>{% endif %}
+{% if not event.cancelled %}<details><summary>Ajouter une photo à cette entrée</summary><p>Prendre une photo ou choisir une image existante. Une photo par envoi, 5 Mio maximum. L’entrée existe déjà ; un refus de photo ne la modifie pas et permet de reprendre la photo.</p><form class="culture-form" data-photo-form data-subject="{{ subject.id }}" data-event="{{ event.id }}" data-revision="{{ event.revision }}"><label>Photo<input name="photo" type="file" accept="image/*" required></label><label>Légende<input name="caption" maxlength="500"></label>{{ submit('Enregistrer la photo') }}</form></details>{% endif %}
 <details class="culture-trace"><summary>Traçabilité</summary><p class="card-meta">Identifiant {{ event.id }} · version {{ event.revision }} · saisi le {{ event.recorded_at|culture_date(overview.timezone) }}{{ ' · horloge non synchronisée lors de la saisie' if not event.clock_reliable else '' }}</p>{% if event.equipment_context and event.equipment_context != '{}' %}<p class="card-meta">Contexte d’équipements enregistré à la saisie : {{ event.equipment_context }}</p>{% endif %}{% if event.reason %}<p>Motif : {{ event.reason }}</p>{% endif %}</details>
 <details><summary>Corriger cette entrée</summary><form class="culture-form" data-culture-correct data-kind="{{ event.kind }}" data-event="{{ event.id }}" data-subject="{{ subject.id }}" data-version="{{ subject.version }}">
 {{ date_fields(value=event.effective_at,precision=event.precision) }}{{ payload_fields(event.kind,event.payload,subject) }}

@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  const currentRubric = document.querySelector(".culture-navigation [aria-current=page]");
+  if (currentRubric) requestAnimationFrame(() => currentRubric.scrollIntoView({block: "nearest", inline: "nearest"}));
   // Lot E : plages cibles pH/EC. Saisie déclarative uniquement ; aucune commande d'équipement,
   // aucune mise en attente hors ligne et aucun rejeu de mutation.
   document.querySelectorAll("[data-targets-offset]").forEach(link => {

@@ -1,5 +1,6 @@
 """Plages cibles pH/EC (lot E) : bornes, fenêtres, résolution du contexte et durabilité."""
 
+import re
 import sqlite3
 import uuid
 
@@ -15,6 +16,16 @@ from utils.culture_backup import restore_copy
 def target(**extra):
     return {"operation": "target", "request_id": str(uuid.uuid4()), "target": "reservoir_2",
             "start_at": "2026-08-01", "ph_min": "5,8", "ph_max": "6,4", **extra}
+
+
+def texte(html):
+    """Texte visible d'une page rendue.
+
+    Le filtre `nombre` enveloppe chaque valeur dans un `<span class="num">` : un `in` sur
+    le HTML brut ne verrait donc pas « pH 5,80 à 6,40 », alors que c'est bien ce que
+    l'opérateur lit. Les tests portent sur ce texte-là.
+    """
+    return re.sub(r"<[^>]+>", "", html)
 
 
 def action(saved, kind, **extra):
@@ -258,3 +269,172 @@ async def test_page_et_api_des_plages_cibles(web_context):
     text = await export.text()
     assert export.status == 200 and "ec_min_mS_cm" in text and saved["id"] in text
     assert (await client.get("/api/v1/cultures/targets/export?format=json")).status == 400
+
+
+async def test_page_des_plages_met_la_plage_applicable_et_sa_source_en_tete(web_context):
+    """R2.7 : sélecteur d'abord, plage applicable en tête, indication de source à côté."""
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    body = await (await client.get("/cultures/targets")).text()
+    # Ordre imposé : sélecteur, « Appliqué maintenant », puis « Déclaré dans le carnet ».
+    # Les libellés sont vérifiés sur les titres eux-mêmes, pas sur les liens de la page.
+    assert body.index('id="selection"') < body.index("<h2>Appliqué maintenant</h2>")
+    assert body.index("<h2>Appliqué maintenant</h2>") < body.index("<h2>Déclaré dans le carnet</h2>")
+    assert "Comment cette valeur est choisie" in body
+    # Sans cible consultée, aucune plage n'est supposée.
+    assert "Aucune cible consultée" in body and "data-target-source" not in body
+    # Sans cible, aucun fait d'alimentation n'est énoncé : pas de phrase par défaut.
+    assert "data-target-feeding" not in body
+
+    saved = await client.post("/api/v1/cultures/targets", json=target(start_at="2026-06-01"),
+                              headers=headers)
+    assert saved.status == 200, await saved.text()
+    applique = await (await client.get("/cultures/targets?target=reservoir_2")).text()
+    assert 'data-target-source="reservoir"' in applique and ">réservoir<" in applique
+    assert "pH 5,80 à 6,40" in texte(applique)
+    assert "Du 01/06/2026" in applique and "toujours en vigueur" in applique
+    # La plage applicable est bien avant la liste des plages déclarées.
+    assert applique.index("data-target-applied") < applique.index("<h2>Déclaré dans le carnet</h2>")
+
+    # Aucune rétroactivité : avant son début, la plage ne s'applique pas.
+    avant = await (await client.get("/cultures/targets?target=reservoir_2&at=2026-05-01")).text()
+    assert "Aucune plage applicable à cette date" in avant and "data-target-source" not in avant
+    # Une date de consultation future est refusée explicitement, jamais ignorée.
+    assert (await client.get("/cultures/targets?target=reservoir_2&at=2027-01-01")).status == 400
+
+    # Une plage portée par une culture se lit « cible directe » : la source, pas la portée.
+    lot = await (await client.post("/api/v1/cultures", json=create(), headers=headers)).json()
+    direct = await client.post("/api/v1/cultures/targets",
+                               json=target(target=lot["subject_id"], start_at="2026-06-01"),
+                               headers=headers)
+    assert direct.status == 200, await direct.text()
+    page = await (await client.get(f"/cultures/targets?target={lot['subject_id']}")).text()
+    assert 'data-target-source="subject"' in page and ">cible directe<" in page
+
+
+async def test_resolution_du_magasin_suit_la_cascade_et_les_associations_datees(cultures):
+    """`target_resolution` : lecture seule, cascade stricte, aucune rétroactivité."""
+    lot = await cultures.call("mutate", create("Lot alimenté", space="space_2",
+        origin_at="2026-06-01", space_at="2026-06-01", stage_at="2026-06-01"))
+    await cultures.call("solution_mutate", {
+        "operation": "entry", "request_id": str(uuid.uuid4()), "kind": "renewal",
+        "reservoir_id": "reservoir_2", "effective_at": "2026-06-05", "volume_l": 20})
+    await cultures.call("target_mutate", target(target="reservoir_2", start_at="2026-06-01"))
+    await cultures.call("target_mutate", target(target=lot["subject_id"], start_at="2026-06-01",
+                                                ph_min="6,0", ph_max="6,6"))
+
+    # Association déclarée à cette date : le sujet alimenté passe avant le réservoir, et
+    # c'est **sa** plage qui est rendue, sans fusion avec celle du réservoir.
+    apres = await cultures.call("target_resolution", "reservoir_2", "2026-06-10")
+    assert apres["range"]["source"] == "fed_subject"
+    assert apres["range"]["subject_id"] == lot["subject_id"]
+    assert (apres["range"]["ph_min"], apres["range"]["ph_max"]) == (6.0, 6.6)
+    assert apres["fed_subjects"] == [lot["subject_id"]]
+    # Avant l'association, la cascade retombe sur le réservoir : rien n'est rétroactif.
+    avant = await cultures.call("target_resolution", "reservoir_2", "2026-06-02")
+    assert avant["range"]["source"] == "reservoir" and avant["fed_subjects"] == []
+    assert (avant["range"]["ph_min"], avant["range"]["ph_max"]) == (5.8, 6.4)
+    # La culture consultée reste sa propre cible directe ; son réservoir est un fait daté.
+    fiche = await cultures.call("target_resolution", lot["subject_id"], "2026-06-10")
+    assert fiche["range"]["source"] == "subject" and fiche["reservoirs"] == ["reservoir_2"]
+    assert (await cultures.call("target_resolution", lot["subject_id"], "2026-06-02"))["reservoirs"] == []
+    # Cible inconnue et date impossible sont refusées, jamais ignorées.
+    with pytest.raises(CultureError):
+        await cultures.call("target_resolution", "inconnu", "2026-06-10")
+    with pytest.raises(CultureError):
+        await cultures.call("target_resolution", "reservoir_2", "pas-une-date")
+
+
+async def test_ce_qu_annonce_la_page_est_ce_qu_un_releve_recevrait(cultures):
+    """Équivalence page ↔ relevé réel : la page ne promet aucune plage inatteignable.
+
+    Un relevé vise une culture **ou** un réservoir, jamais les deux (`_solution_mutate`).
+    Une culture sans plage propre ne reçoit donc rien, même alimentée par un réservoir qui
+    en a une : la page doit dire exactement cela, et le réservoir alimentant n'est qu'un
+    fait affiché à côté.
+    """
+    lot = await cultures.call("mutate", create("Lot sans plage", space="space_2",
+        origin_at="2026-06-01", space_at="2026-06-01", stage_at="2026-06-01"))
+    await cultures.call("solution_mutate", {
+        "operation": "entry", "request_id": str(uuid.uuid4()), "kind": "renewal",
+        "reservoir_id": "reservoir_2", "effective_at": "2026-06-05", "volume_l": 20})
+    await cultures.call("target_mutate", target(target="reservoir_2", start_at="2026-06-01"))
+
+    # Le carnet refuse un relevé qui viserait à la fois la culture et le réservoir : c'est
+    # ce refus qui rend une résolution « réservoir » inatteignable pour une culture.
+    with pytest.raises(CultureError):
+        await cultures.call("solution_mutate", {
+            "operation": "entry", "request_id": str(uuid.uuid4()), "kind": "reading",
+            "reservoir_id": "reservoir_2", "targets": [lot["subject_id"]],
+            "effective_at": "2026-06-10", "ph": "6,1"})
+
+    # Relevé réel visant la culture : aucune plage, et la page annonce la même chose.
+    await cultures.call("solution_mutate", {
+        "operation": "entry", "request_id": str(uuid.uuid4()), "kind": "water",
+        "targets": [lot["subject_id"]], "effective_at": "2026-06-10", "volume_l": 2})
+    entries = (await cultures.call("solution_data", {}))["items"]
+    arrosage = next(entry for entry in entries if entry["kind"] == "water")
+    assert arrosage["target"] is None
+    vue = await cultures.call("target_resolution", lot["subject_id"], "2026-06-10")
+    assert vue["range"] is None
+    # Le réservoir alimentant reste connu — comme information, pas comme résolution.
+    assert vue["reservoirs"] == ["reservoir_2"]
+
+    # Relevé réel sur le réservoir : la plage du réservoir s'applique, et la page l'annonce
+    # avec la même source. Les deux consultations restent distinctes, sans fusion.
+    await cultures.call("solution_mutate", {
+        "operation": "entry", "request_id": str(uuid.uuid4()), "kind": "reading",
+        "reservoir_id": "reservoir_2", "effective_at": "2026-06-11", "ph": "6,1"})
+    entries = (await cultures.call("solution_data", {}))["items"]
+    releve = next(entry for entry in entries if entry["kind"] == "reading")
+    cote_reservoir = await cultures.call("target_resolution", "reservoir_2", "2026-06-11")
+    assert releve["target"]["source"] == cote_reservoir["range"]["source"] == "reservoir"
+    assert releve["target"]["id"] == cote_reservoir["range"]["id"]
+
+
+async def test_page_des_plages_resout_le_sujet_alimente_a_la_date_de_l_association(web_context):
+    """R2.7 : la cascade complète est rendue, l'étape « sujet alimenté » comprise."""
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    lot = await (await client.post("/api/v1/cultures", json=create(
+        "Lot alimenté", space="space_2", origin_at="2026-06-01", space_at="2026-06-01",
+        stage_at="2026-06-01"), headers=headers)).json()
+    assert "subject_id" in lot, lot
+    # La solution n'est présente que depuis le 05/06 : l'association part de là, pas de
+    # l'origine de la culture.
+    renewal = await client.post("/api/v1/cultures/solutions", json={
+        "operation": "entry", "request_id": str(uuid.uuid4()), "kind": "renewal",
+        "reservoir_id": "reservoir_2", "effective_at": "2026-06-05", "volume_l": 20},
+        headers=headers)
+    assert renewal.status == 200, await renewal.text()
+    for command in (target(target="reservoir_2", start_at="2026-06-01"),
+                    target(target=lot["subject_id"], start_at="2026-06-01",
+                           ph_min="6,0", ph_max="6,6")):
+        assert (await client.post("/api/v1/cultures/targets", json=command,
+                                  headers=headers)).status == 200
+
+    # Date couverte par l'association : la plage du sujet alimenté passe avant celle du
+    # réservoir, sans fusion — c'est la plage du sujet qui est affichée, entière.
+    page = await (await client.get("/cultures/targets?target=reservoir_2&at=2026-06-10")).text()
+    assert 'data-target-source="fed_subject"' in page and ">sujet alimenté<" in page
+    lisible = texte(page)
+    assert "pH 6,00 à 6,60" in lisible
+    assert "pH 5,80 à 6,40" not in texte(page.split('id="plages"')[0])
+    assert "Sujets alimentés par cette solution à cette date : Lot alimenté." in page
+
+    # Avant l'association, la même consultation retombe sur le réservoir : aucune
+    # rétroactivité, une association ouverte plus tard ne remonte pas le temps.
+    avant = await (await client.get("/cultures/targets?target=reservoir_2&at=2026-06-02")).text()
+    assert 'data-target-source="reservoir"' in avant and ">réservoir<" in avant
+    assert "pH 5,80 à 6,40" in texte(avant.split('id="plages"')[0])
+    assert "Aucun sujet alimenté par cette solution à cette date." in avant
+
+    # Consultée directement, la culture reste sa propre cible directe ; le réservoir qui
+    # l'alimente est nommé comme un fait daté, jamais fusionné avec elle.
+    fiche = await (await client.get(
+        f"/cultures/targets?target={lot['subject_id']}&at=2026-06-10")).text()
+    assert 'data-target-source="subject"' in fiche and ">cible directe<" in fiche
+    assert "Réservoir déclaré alimentant cette culture à cette date :" in fiche
+    # …et la page dit aussitôt que cette plage-là ne s’appliquera à aucun relevé de la
+    # culture : un relevé vise une culture **ou** un réservoir, jamais les deux.
+    assert "Sa plage ne s’applique pas aux relevés visant la culture" in fiche

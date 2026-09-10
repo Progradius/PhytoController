@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 from model.culture import CultureConflict, CultureError, STAGES, stamp, text_value
 from model.culture_solution import RESERVOIRS
-from model.culture_targets import bounds, validate_target_windows
+from model.culture_targets import bounds, resolve_targets, validate_target_windows
 
 TARGET_COLUMNS = ("id", "revision", "scope", "subject_id", "reservoir_id", "stage", "label",
                   "ph_min", "ph_max", "ec_min", "ec_max", "start_at", "start_precision", "start_sort_at",
@@ -66,6 +66,57 @@ class TargetsStoreMixin:
                              for s in subjects],
                 "stages": STAGES, "timezone": self.zone, "clock_reliable": self.reliable(),
                 "today": self.now().astimezone(ZoneInfo(self.zone)).date().isoformat()}
+
+    def _target_resolution(self, target=None, at=None):
+        """Plage applicable à une cible consultée, à une date, avec sa source.
+
+        Lecture seule et bornée : les révisions courantes des plages, les associations
+        d'alimentation déclarées à cette date (`_feeding_at`, domaine des solutions), puis
+        la règle **pure** `resolve_targets` — priorité stricte cible directe → sujet
+        alimenté → réservoir, sans fusion et sans rétroactivité. Aucune projection du
+        carnet n'est refaite et rien n'est écrit.
+
+        L'entrée est exactement celle d'un relevé de cette cible à cette date :
+        * un **réservoir** consulté alimente des sujets, qui passent avant lui — c'est là
+          que la source « sujet alimenté » se produit ;
+        * une **culture** consultée est la cible directe, et **rien d'autre** : sa cascade
+          s'arrête là, puisqu'un relevé la visant ne porte pas de réservoir. Les réservoirs
+          qui l'alimentent sont rendus dans `reservoirs` à titre d'information, jamais
+          comme une étape de résolution.
+
+        Les identifiants sont rendus tels quels : les noms affichés viennent des
+        projections déjà envoyées à la page, jamais d'une seconde vérité recopiée ici.
+        """
+        target = text_value(target, "Cible", field="target")
+        known = self._db.execute("SELECT id FROM subjects WHERE id=?", (target,)).fetchone()
+        if target not in RESERVOIRS and known is None:
+            raise CultureError("Cible de plage cible inconnue.", "target")
+        key = stamp(at, "date", self.zone, self.now(), field="at")[0]
+        feeding = self._feeding_at(target, key)
+        if target in RESERVOIRS:
+            entry = {"sort_at": key, "targets": [], "fed_subjects": feeding["fed_subjects"],
+                     "reservoir_id": target}
+        else:
+            # Un relevé qui vise une culture ne porte **jamais** de réservoir : le carnet
+            # refuse `targets` et `reservoir_id` ensemble (`_solution_mutate`). Fabriquer
+            # ici un `reservoir_id` ferait annoncer une plage « réservoir » qu'aucun relevé
+            # de cette culture ne recevrait — la page mentirait sur ce qui s'applique.
+            # Le réservoir alimentant reste rendu à part, comme un fait daté.
+            entry = {"sort_at": key, "targets": [target], "fed_subjects": [],
+                     "reservoir_id": None}
+        rows = self._current_targets()
+        resolved = resolve_targets(entry, rows)
+        if resolved is not None:
+            row = next(item for item in rows if item["id"] == resolved["id"])
+            # Dates **déclarées**, pas les clés de tri : celles-ci sont en UTC et
+            # reculeraient d'un jour toute plage ouverte un 1er du mois à Paris.
+            resolved.update({field: row[field] for field in
+                             ("start_at", "start_precision", "end_at", "end_precision")})
+        return {"at": at, "at_key": key, "target": target,
+                "kind": "reservoir" if target in RESERVOIRS else "subject",
+                "range": resolved, "fed_subjects": feeding["fed_subjects"],
+                "reservoirs": feeding["reservoirs"],
+                "ambiguous_reservoir": len(feeding["reservoirs"]) > 1}
 
     def _target_mutate(self, command):
         """Crée, corrige, clôt ou annule une plage cible ; chaque écriture est une révision."""

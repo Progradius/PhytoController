@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  const currentRubric = document.querySelector(".culture-navigation [aria-current=page]");
+  if (currentRubric) requestAnimationFrame(() => currentRubric.scrollIntoView({block: "nearest", inline: "nearest"}));
   // Un lien d'assistance ouvre la vérification du bon sujet, sans cocher de case.
   const openChecks = () => {
     if (!location.hash.startsWith("#verifications-")) return;
@@ -201,52 +203,4 @@
       draw();
     }
   });
-  // Consultation hors ligne : inventaire daté des pages du carnet réellement conservées.
-  // Aucune requête n'est émise ici et aucune mutation n'est rejouée.
-  const offlineSnapshot = document.querySelector('meta[name="phyto-offline-snapshot"]');
-  const inventory = async () => {
-    const entries = [];
-    if (!("caches" in window)) return null;
-    try {
-      for (const name of await caches.keys()) {
-        if (!name.startsWith("phyto-cultures-")) continue;
-        const cache = await caches.open(name);
-        for (const request of await cache.keys()) {
-          const response = await cache.match(request.url);
-          entries.push({url: request.url, at: Number(response?.headers.get("X-Phyto-Cached-At")) || 0});
-        }
-      }
-    } catch (_error) { return null; }
-    return entries;
-  };
-  const label = url => {
-    const target = new URL(url);
-    const page = target.pathname === "/cultures/cycles" ? "Cycles et rappels" : target.pathname === "/cultures/solutions" ? "Solutions et relevés" : target.pathname === "/cultures" ? "Cultures et archives" : "Fiche de culture";
-    const detail = target.searchParams.get("climate_offset");
-    return detail === null ? page : `${page} · détail horaire à partir de l’agrégat ${Number(detail) + 1}`;
-  };
-  const container = document.querySelector("[data-culture-offline-index]");
-  if (container) (async () => {
-    const entries = await inventory();
-    container.textContent = "";
-    if (entries === null) { const p = document.createElement("p"); p.textContent = "Inventaire hors ligne indisponible dans ce navigateur."; container.append(p); return; }
-    if (!entries.length) { const p = document.createElement("p"); p.textContent = "Aucune page du carnet n’est conservée hors ligne pour l’instant."; container.append(p); return; }
-    const list = document.createElement("ul");
-    for (const entry of entries.sort((a, b) => b.at - a.at)) {
-      const item = document.createElement("li"), link = document.createElement("a");
-      link.href = entry.url; link.textContent = label(entry.url);
-      item.append(link, document.createTextNode(` · conservée le ${entry.at ? new Date(entry.at).toLocaleString("fr-FR") : "date inconnue"}`));
-      list.append(item);
-    }
-    container.append(list);
-    if (!offlineSnapshot) return;
-    const known = new Set(entries.map(entry => entry.url));
-    document.querySelectorAll("[data-climate-offset], [data-cycle-offset], [data-culture-page]").forEach(link => {
-      if (known.has(link.href.split("#")[0])) return;
-      link.setAttribute("aria-disabled", "true");
-      link.classList.add("culture-unavailable");
-      link.append(document.createTextNode(" · non conservé hors ligne"));
-      link.addEventListener("click", event => { event.preventDefault(); });
-    });
-  })();
 })();

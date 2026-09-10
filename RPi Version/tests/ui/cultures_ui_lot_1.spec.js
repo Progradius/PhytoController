@@ -11,21 +11,37 @@ test("lot UI 1 : fiche, relevé, cycles et ressources conservent la culture", as
   await navigation(page).getByRole("link", {name: "Solutions et relevés", exact: true}).click();
   await expect(page).toHaveURL(new RegExp(`target=${id}`));
   await expect(navigation(page).locator('[aria-current="page"]')).toHaveText("Solutions et relevés");
-  await expect(page.locator("#saisie")).not.toHaveAttribute("open", "");
-  await page.locator("#saisie > summary").click();
+  // R1.6 : le lien du carnet mène à la vue « Saisir » (cible sans relevé), dont le bloc de
+  // saisie **est** l'objet : il arrive déplié. Le `<details>` reste là pour pouvoir le
+  // replier, mais l'ouvrir d'un clic n'a plus de sens — ce clic le refermerait.
+  await expect(page.locator("#saisie")).toHaveAttribute("open", "");
   const form = page.locator("[data-solution-entry]").first();
+  await expect(form).toBeVisible();
   await expect(form.locator('[name="target"]')).toHaveValue(id);
   await expect(form.locator('[name="ph"]')).toHaveValue("");
   await form.locator('[name="ph"]').fill("6,2");
   await form.getByRole("button", {name: "Enregistrer la saisie"}).click();
-  await expect(page.locator(".solution-journal")).toContainText("pH 6.2");
+  // R1.7 : l'affichage passe par le filtre `nombre` (virgule française, deux décimales) ;
+  // la valeur persistée reste 6.2, c'est l'API qui en fait foi.
+  await expect(page.locator(".solution-journal")).toContainText("pH 6,20");
   await expect(page).toHaveURL(new RegExp(`target=${id}`));
   await navigation(page).getByRole("link", {name: "Cycles et rappels", exact: true}).click();
   await expect(page).toHaveURL(new RegExp(`subject=${id}`));
   await expect(page.locator('[data-comparison-selection] input[name="subject"]:checked')).toHaveValue(id);
-  const reminders = await page.locator("#rappels").boundingBox();
-  const compare = await page.getByText("Comparer les cycles", {exact: true}).boundingBox();
-  expect(reminders.y).toBeLessThan(compare.y);
+  // R2.6 : rappels et comparaison ne sont plus deux sections empilées mais deux vues de la
+  // même route. « Les rappels d'abord » ne se mesure donc plus en pixels — cela se lit dans
+  // le défaut : on arrive sur « À faire », et « Comparer » est le second lien de la barre.
+  // La comparaison reste atteignable sans JS, et la sélection de culture y est conservée.
+  const vues = page.locator(".culture-view-tabs a");
+  await expect(vues).toHaveText(["À faire", "Comparer"]);
+  await expect(page.locator('.culture-view-tabs a[aria-current="page"]')).toHaveText("À faire");
+  await expect(page.locator("#rappels")).toBeVisible();
+  await expect(page.getByText("Comparer les cycles", {exact: true})).toBeHidden();
+  await vues.filter({hasText: "Comparer"}).click();
+  await expect(page).toHaveURL(new RegExp(`subject=${id}.*view=comparer`));
+  await expect(page.getByText("Comparer les cycles", {exact: true})).toBeVisible();
+  await expect(page.locator("#rappels")).toBeHidden();
+  await expect(page.locator('[data-comparison-selection] input[name="subject"]:checked')).toHaveValue(id);
   for (const [label, section] of [["Plages cibles", "targets"], ["Journal", "journal"], ["Repères d’éclairage", "light"], ["Équipements", "equipment"]]) {
     await navigation(page).getByRole("link", {name: label, exact: true}).click();
     await expect(page).toHaveURL(new RegExp(`/cultures/${section}\\?(target|subject)=${id}`));
@@ -75,7 +91,9 @@ test("lot UI 1 : correction de stade sans écrasement et préréglage explicite"
 
 test("lot UI 1 : lecture compacte, graduations et plein jour", async ({page}, testInfo) => {
   test.setTimeout(90000);
-  await page.goto("/cultures/solutions?target=reservoir_2");
+  // R1.6 : les courbes sont servies dans la vue « Analyser ». Les graduations se mesurent
+  // donc sur cette vue-là ; les deux autres blocs restent servis mais `hidden`.
+  await page.goto("/cultures/solutions?target=reservoir_2&view=analyser");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
   const response = await page.request.post("/api/v1/cultures/solutions", {
     headers: {"X-CSRF-Token": csrf},

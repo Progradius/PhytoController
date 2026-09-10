@@ -1,6 +1,7 @@
 import html
 import json
 import uuid
+from urllib.parse import quote
 
 import pytest
 
@@ -164,10 +165,15 @@ async def test_fiche_porte_l_entete_la_triade_et_ses_ancres(web_context):
     saved = await (await client.post("/api/v1/cultures", json=create("Lot fiche"), headers=headers)).json()
     subject_id = saved["subject_id"]
     page = await (await client.get("/cultures/" + subject_id)).text()
-    assert '<header class="culture-head">' in page and "<h1>Lot fiche</h1>" in page
+    assert '<header class="ui-compact-header">' in page and "<h1>Lot fiche</h1>" in page
     assert "8 plantes restantes · 8 au départ" in page and "Espace 1 · En cours" in page
     # Le relevé est un lien contextualisé, jamais un formulaire de plus sur la fiche.
-    assert f'href="/cultures/solutions?target={subject_id}&amp;kind=reading#saisie"' in page
+    assert f'href="/cultures/solutions?target={subject_id}&amp;kind=reading&amp;view=saisir#saisie"' in page
+    # R1.8 : le retour à la liste ne porte que l'ancre de l'élément d'origine (et les
+    # filtres quand il y en a). Le paramètre `focus=` d'origine n'était lu par personne :
+    # c'est la carte `#culture-{id}` en `tabindex="-1"` qui reçoit réellement le focus.
+    assert f'href="/cultures#culture-{subject_id}"' in page
+    assert "focus=" not in page
     assert "data-culture-observation" in page and 'id="observation"' in page
     assert 'id="synthese"' in page and 'id="releves"' in page and 'id="photos"' in page and 'id="bilan"' in page
     detail = await (await client.get("/api/v1/cultures/" + subject_id)).json()
@@ -199,7 +205,9 @@ async def test_fiche_archivee_garde_son_dernier_releve(web_context):
     overview = await (await client.get("/api/v1/cultures")).json()
     assert all(item["id"] != subject_id for item in overview["items"] + overview["occupants"])
     page = await (await client.get("/cultures/" + subject_id)).text()
-    assert "Dernier relevé : 02/09/2026 · pH 6.2" in page
+    # R1.7 : la fiche formate ses mesures comme le reste du carnet (filtre `nombre`,
+    # qui pose aussi `.num`). La valeur persistée, elle, reste 6.2.
+    assert 'Dernier relevé : 02/09/2026 · pH <span class="num">6,20</span>' in page
     assert "Aucun relevé rattaché à cette culture" not in page
 
 
@@ -569,3 +577,59 @@ async def test_journal_relie_chaque_photo_a_son_entree_focalisable(web_context):
     page = await (await client.get("/cultures/journal")).text()
     assert f'id="entry-{saved["id"]}" tabindex="-1"' in page
     assert f'<a href="#entry-{saved["id"]}">Ouvrir l’entrée liée</a>' in page
+
+
+async def test_retour_contextualise_accepte_le_carnet_et_ignore_le_reste(web_context):
+    """R2.8 : le journal passe sa vue courante en `retour=` ; la fiche la rejoue.
+
+    Le paramètre vient de la requête : il ne peut désigner qu'une adresse **locale du
+    carnet**. Tout le reste — hôte externe, `//evil`, `\\` qu'un navigateur normalise en
+    `/` — est ignoré sans erreur : le lien de retour existe toujours, simplement non
+    contextualisé. Un retour refusé ne doit jamais devenir un lien sortant de la fiche.
+    """
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    saved = await (await client.post("/api/v1/cultures", json=create("Lot retour"), headers=headers)).json()
+    subject_id = saved["subject_id"]
+
+    # Retour valide : il prime sur le calcul q/archives/offset, qui ne saurait pas
+    # reconstituer les filtres d'une autre page du carnet. Aucune ancre n'y est ajoutée :
+    # `#culture-{id}` n'existe que sur la liste, et l'ajouter écraserait celle que le
+    # retour porte déjà. Le libellé nomme la page d'où l'on vient.
+    retour = "/cultures/journal?target=space_2&offset=40#entry-abc"
+    page = await (await client.get(f"/cultures/{subject_id}?q=lot&archives=0&retour={quote(retour, safe='')}")).text()
+    assert f'href="{html.escape(retour)}">Retour au journal</a>' in page
+    assert f"{html.escape(retour)}#culture-" not in page
+    assert "/cultures?q=lot" not in page
+
+    # Une autre page du carnet reste acceptée, avec un libellé générique.
+    autre = "/cultures/cycles?view=comparer"
+    page = await (await client.get(f"/cultures/{subject_id}?retour={quote(autre, safe='')}")).text()
+    assert f'href="{html.escape(autre)}">Retour au carnet</a>' in page
+
+    # Retours refusés : on retombe sur le calcul habituel, et rien de l'adresse rejetée
+    # ne se retrouve dans la page. `/cultures/../conf` ne passe sous `/cultures` qu'en
+    # apparence : la normalisation du chemin le ramène à `/conf`, hors du carnet.
+    for refuse in ("https://evil.example/cultures", "//evil.example/cultures",
+                   "/cultures\\@evil.example", "/etc/passwd", "javascript:alert(1)",
+                   "/cultures/../conf", "/culturesevil"):
+        page = await (await client.get(
+            f"/cultures/{subject_id}?q=lot&retour={quote(refuse, safe='')}")).text()
+        assert f'href="/cultures?q=lot#culture-{subject_id}">Retour aux cultures</a>' in page
+        assert "evil.example" not in page and "javascript:" not in page
+        assert "/conf" not in page.split('Retour aux cultures', 1)[0].rsplit("<a", 1)[-1]
+
+
+async def test_filtres_serveur_declares_pour_la_note_hors_ligne(web_context):
+    """R1 #15 : les formulaires GET qui naviguent se déclarent `data-offline-filter`.
+
+    Sans l'attribut, `pwa.js` doit deviner qu'un formulaire est un filtre serveur à
+    l'absence de `data-form-key` — c'est-à-dire au fait que le socle des formulaires ne
+    l'a pas adopté. Le jour où il l'adopte, la note « Filtre indisponible hors ligne »
+    disparaît sans que personne ne l'ait décidé. L'attribut fige l'intention.
+    """
+    client, *_ = web_context
+    liste = await (await client.get("/cultures")).text()
+    assert '<form class="culture-search" method="get" action="/cultures" data-offline-filter' in liste
+    solutions = await (await client.get("/cultures/solutions?view=releves")).text()
+    assert '<form method="get" class="culture-form solution-filter" data-offline-filter>' in solutions

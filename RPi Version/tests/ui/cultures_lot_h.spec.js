@@ -40,16 +40,24 @@ test("journal : observation d’un espace vide, filtre et correction tracée", a
   await expect(page.getByRole("link", {name: "Exporter ce filtre en CSV"})).toBeVisible();
 
   await page.goto("/cultures/journal?target=space_2");
-  const correction = entries.first().locator("details").filter({hasText: "Corriger ou annuler cette observation"});
-  await correction.locator("summary").click();
-  const form = correction.locator("form");
+  // Un seul repli d'édition par observation : correction, annulation et photo y sont
+  // réunies, donc le formulaire visé est nommé par son opération et non par son rang.
+  const correction = entries.first().locator("details").filter({hasText: "Corriger, annuler ou illustrer cette observation"});
+  await correction.locator(":scope > summary").click();
+  const form = correction.locator('form[data-journal-form]');
   await form.getByLabel("Observation corrigée").fill("Espace 2 vide, bac désinfecté et rincé");
   await form.getByLabel("Motif de la correction").fill("Précision apportée");
   await form.getByRole("button", {name: "Enregistrer la correction"}).click();
   await expect(page.getByText("Espace 2 vide, bac désinfecté et rincé").first()).toBeVisible();
   // Le motif porte la version courante ; la version précédente reste consultable.
+  // Motif et versions vivent désormais derrière « Détails de l’opération » : la ligne ne
+  // porte que date, opération, cible et résumé. Les deux replis s'ouvrent l'un après
+  // l'autre, du plus extérieur au plus intérieur.
   await expect(entries.first()).toContainText("Motif : Précision apportée");
-  const history = page.locator("details").filter({hasText: "Versions précédentes"}).first();
+  const resolution = entries.first().locator("details").filter({hasText: "Détails de l’opération"}).first();
+  await resolution.locator(":scope > summary").click();
+  await expect(resolution).toContainText("Motif : Précision apportée");
+  const history = resolution.locator("details").filter({hasText: "Versions précédentes"});
   await history.locator("summary").click();
   await expect(history).toContainText("Version 1");
   await expect(history).toContainText("Espace 2 vide, bac désinfecté");
@@ -96,7 +104,8 @@ test("journal : consultation datée hors ligne, sans mutation rejouée", async (
   const inventory = page.locator(".culture-offline-index");
   await inventory.locator("summary").click();
   const entries = inventory.locator("[data-culture-offline-index] li");
-  await expect(entries.filter({hasText: "Journal du carnet"}).first()).toContainText("conservée le");
+  // L'inventaire partagé (`app.js`) nomme la copie comme la rubrique de navigation : « Journal ».
+  await expect(entries.filter({hasText: "Journal"}).first()).toContainText("conservée le");
   // Une page du carnet jamais visitée le dit au lieu d'échouer.
   const unavailable = page.getByRole("link", {name: /Cycles et rappels/});
   await expect(unavailable).toHaveClass(/culture-unavailable/);

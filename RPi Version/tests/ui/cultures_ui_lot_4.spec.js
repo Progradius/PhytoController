@@ -1,6 +1,17 @@
 "use strict";
 const {test, expect, createMother, AxeBuilder} = require("./culture_fixtures");
 
+// R2.3 : sous 48 rem, l'exploration d'une figure arrive repliée — curseur, boutons, sortie
+// et tableau équivalent, soit 366 px par figure sur un écran de 390 px. Rien n'est retiré :
+// le repli est nommé, porte le nombre de points et s'ouvre en une activation. Au-delà de
+// 48 rem il est déjà ouvert, et l'aide ci-dessous ne fait rien.
+const ouvrirExplorateur = async figure => {
+  const repli = figure.locator(".culture-chart-explorer-fold");
+  if (await repli.count() && (await repli.getAttribute("open")) === null) {
+    await repli.locator(":scope > summary").click();
+  }
+};
+
 // Points de consultation représentatifs, injectés avant l'exécution des scripts : la mesure
 // du milieu est absente et ne doit jamais être dessinée ni comptée comme un zéro.
 const routeSolutionChart = (page, count) => page.route("**/cultures/solutions?target=*", async route => {
@@ -13,6 +24,18 @@ const routeSolutionChart = (page, count) => page.route("**/cultures/solutions?ta
   await route.fulfill({response, body: html});
 });
 
+// R1.6 : à vide, la vue « Analyser » ne rend ni graphique ni légende — elle propose la
+// première saisie. Les scénarios d'exploration ont donc besoin d'**une** mesure réelle ;
+// les points de consultation, eux, restent injectés dans `data-chart` avant les scripts.
+const mesureReelle = async (page, id) => {
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  const response = await page.request.post("/api/v1/cultures/solutions", {
+    headers: {"X-CSRF-Token": csrf},
+    data: {operation: "entry", request_id: require("node:crypto").randomUUID(), kind: "reading",
+      targets: [id], effective_at: "2026-08-02", ph: 6.1}});
+  expect(response.ok(), await response.text()).toBeTruthy();
+};
+
 test("comparaison alignée, recherche et bilan sans données inventées", async ({page}, testInfo) => {
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations et interception HTTP, hors service worker.");
   test.setTimeout(90000);
@@ -23,7 +46,7 @@ test("comparaison alignée, recherche et bilan sans données inventées", async 
       targets: [first], effective_at: "2026-08-02", ph: 0}});
   expect(saved.ok()).toBe(true);
   const second = await createMother(page, "Mère Bêta");
-  await page.goto(`/cultures/cycles?subject=${first}&subject=${second}#comparaison`);
+  await page.goto(`/cultures/cycles?subject=${first}&subject=${second}&view=comparer#comparaison`);
   const table = page.locator(".culture-comparison");
   await expect(table).toContainText("Mère Alpha"); await expect(table).toContainText("Mère Bêta");
   await expect(table).toContainText("0.00 / 0.00 / 0.00");
@@ -49,7 +72,12 @@ test("courbes explorables au clavier et au toucher, tableau équivalent et lacun
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations et interception HTTP, hors service worker.");
   test.setTimeout(90000);
   const id = await createMother(page, "Mère courbes");
-  await page.goto(`/cultures/solutions?target=${id}`);
+  await mesureReelle(page, id);
+  // R1.6 : les figures vivent dans la vue « Analyser » ; les deux autres vues sont servies
+  // mais `hidden`, donc hors de l'arbre d'accessibilité. La vue est demandée par le lien
+  // d'onglet, c'est-à-dire par la même route avec `view=analyser`. `target` reste en tête
+  // de la requête : l'interception ci-dessous filtre sur ce préfixe.
+  await page.goto(`/cultures/solutions?target=${id}&view=analyser`);
   // Données de consultation représentatives, injectées avant l'exécution des scripts.
   let pointCount = 3;
   await page.route("**/cultures/solutions?target=*", async route => {
@@ -59,15 +87,19 @@ test("courbes explorables au clavier et au toucher, tableau équivalent et lacun
     await route.fulfill({response, body: html});
   });
   await page.reload();
-  const figure = page.locator(".solution-chart").first(), slider = figure.getByRole("slider");
+  const figure = page.locator(".solution-chart").first();
+  await ouvrirExplorateur(figure);
+  const slider = figure.getByRole("slider");
   const output = figure.locator(".culture-analysis-output");
   await slider.focus(); await slider.press("ArrowRight");
   await expect(output).toContainText("mesure absente");
   await figure.getByRole("button", {name: "Point suivant", exact: true}).click();
-  await expect(output).toContainText("6.4");
+  // R1.7 : le curseur formate comme la page (`formatNombre`, réplique du filtre `nombre`) —
+  // virgule française et décimales bornées. Les points de `data-chart` restent bruts.
+  await expect(output).toContainText("6,40");
   const dot = figure.locator("circle").first();
   if (testInfo.project.name.startsWith("mobile")) await dot.tap(); else await dot.click();
-  await expect(output).toContainText("6.1");
+  await expect(output).toContainText("6,10");
   await figure.getByText("Tableau des données du graphique", {exact: true}).click();
   await expect(figure.locator("tbody tr")).toHaveCount(3);
   await expect(figure.locator("table")).toContainText("mesure absente");
@@ -78,6 +110,9 @@ test("courbes explorables au clavier et au toucher, tableau équivalent et lacun
   pointCount = 2000;
   const started = Date.now();
   await page.reload();
+  // Le rechargement rend un explorateur neuf : sur un profil étroit il revient replié.
+  await expect(figure.locator("table")).toHaveCount(0);
+  await ouvrirExplorateur(figure);
   await expect(figure.locator("table")).toHaveCount(0);
   await slider.focus(); await slider.press("End");
   await expect(output).toContainText("2000 / 2000");
@@ -143,9 +178,11 @@ test("explorateur : bornage sans désactivation, tap borné et tableau structur�
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec interception HTTP, hors service worker.");
   test.setTimeout(90000);
   const id = await createMother(page, "Mère explorateur");
+  await mesureReelle(page, id);
   await routeSolutionChart(page, 3);
-  await page.goto(`/cultures/solutions?target=${id}`);
+  await page.goto(`/cultures/solutions?target=${id}&view=analyser`);
   const figure = page.locator(".solution-chart").first();
+  await ouvrirExplorateur(figure);
   const output = figure.locator(".culture-analysis-output");
   const previous = figure.getByRole("button", {name: "Point précédent", exact: true});
   const next = figure.getByRole("button", {name: "Point suivant", exact: true});
@@ -254,8 +291,11 @@ test("courbe climatique : lacune sélectionnée visible et dessin sans l’explo
       `data-climate-chart="${JSON.stringify(climate).replaceAll('"', '&quot;')}"`);
     await route.fulfill({response, body: html});
   });
-  await page.goto(`/cultures/cycles?subject=${id}`);
+  // R2.6 : le panneau « Comparer » de /cultures/cycles est servi mais `hidden` tant que
+  // `view=comparer` n'est pas demandé — hors de l'arbre d'accessibilité sans lui.
+  await page.goto(`/cultures/cycles?subject=${id}&view=comparer`);
   const figure = page.locator(".solution-chart").first();
+  await ouvrirExplorateur(figure);
   const gap = figure.locator("path.climate-gap");
   await expect(gap).toHaveCount(1);
   const plain = await gap.evaluate(node => getComputedStyle(node).strokeWidth);
@@ -353,8 +393,9 @@ test("courbes de solutions : légende par source et synthèse textuelle", async 
   const conductivity = await createMother(page, "Mère EC seule");
   expect((await entry({kind: "reading", targets: [conductivity], effective_at: "2026-08-04",
     ec: 1.8})).ok()).toBe(true);
-  await page.goto("/cultures/solutions");
+  await page.goto("/cultures/solutions?view=analyser");
   const figure = page.locator(".solution-chart").first();
+  await ouvrirExplorateur(figure);
   // R3.3 : la synthèse vient du serveur ; une absence reste une absence, jamais un zéro.
   await expect(figure.locator("#resume-ph")).toContainText("2 mesures");
   await expect(figure.locator("#resume-ph")).toContainText("minimum 6.10, moyenne 6.30, maximum 6.50");
@@ -364,10 +405,20 @@ test("courbes de solutions : légende par source et synthèse textuelle", async 
   // Les points sans EC restent des lacunes ; aucune moyenne n'est inventée à leur place.
   await expect(ec.locator("#resume-ec")).toContainText("3 lacunes");
   await expect(figure.locator("svg")).toHaveAttribute("aria-describedby", "resume-ph legende-ph");
-  // R3.1 : la légende nomme les encodages et les deux sources du filtre.
+  // R2.3 : la légende visible garde ce sans quoi la figure ne se lit pas — la grandeur,
+  // la bande de plage cible et une entrée par source de **cette** mesure (R3.1). Le
+  // vocabulaire des encodages passe dans « Légende complète », un repli qu'on consulte
+  // une fois. Ce repli n'est pas désigné par l'`aria-describedby` : le contenu d'un
+  // `<details>` fermé n'est pas exposé de la même façon par tous les moteurs.
   const legend = figure.locator("#legende-ph");
-  await expect(legend).toContainText("Bande : plage cible");
-  await expect(legend).toContainText("Barre verticale : minimum et maximum du jour.");
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText("Plage cible");
+  const complete = figure.locator("details.chart-full-legend");
+  await expect(complete.locator("summary")).toHaveText("Légende complète");
+  await expect(complete).not.toHaveAttribute("open", "");
+  await complete.locator("summary").click();
+  await expect(complete).toContainText("Bande : plage cible résolue à la date des mesures.");
+  await expect(complete).toContainText("Barre verticale : minimum et maximum du jour.");
   await expect(legend).toContainText(/Réservoir de l’espace 2 · solution \w{8}/);
   await expect(legend).toContainText("Mère légende · solution manuelle");
   // Chaque figure a la légende de sa mesure : une source qui n'a que de l'EC n'est pas nommée
@@ -453,7 +504,7 @@ test("sélecteur de comparaison : plafond de quatre, filtre local et pagination 
     Array.from({length: 44}, (_, i) => `Zone ${String(i + 1).padStart(2, "0")}`));
   for (const name of names) expect((await create(name)).ok()).toBe(true);
 
-  await page.goto("/cultures/cycles#comparaison");
+  await page.goto("/cultures/cycles?view=comparer#comparaison");
   const zone = page.locator("[data-comparison-selection]");
   const boxes = zone.locator('input[name="subject"]');
   const labels = zone.locator("fieldset label");
@@ -528,4 +579,40 @@ test("sélecteur de comparaison : plafond de quatre, filtre local et pagination 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
   await page.screenshot({path: testInfo.outputPath("selecteur-comparaison.png"), fullPage: true});
+});
+
+// R1.7 : la fixture nommée par la fiche. `1.4 + 0.05` vaut exactement 1,45 en binaire64 ;
+// la décomposition qui produit réellement l'artefact est `1.1 + 0.35` = 1.4500000000000002.
+// C'est cette valeur-là que la page ne doit jamais montrer, et que l'API doit rendre intacte.
+test("R1.7 : la page affiche 1,45 quand la valeur persistée reste 1.4500000000000002", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  const mesure = 1.1 + 0.35;
+  expect(String(mesure)).toBe("1.4500000000000002");
+
+  await page.goto("/cultures/solutions?target=reservoir_2&view=saisir");
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  const post = data => page.request.post("/api/v1/cultures/solutions",
+    {headers: {"X-CSRF-Token": csrf}, data: {...data, request_id: require("node:crypto").randomUUID()}});
+  // Une solution doit être présente avant qu'un relevé de réservoir ait un sens.
+  expect((await post({operation: "entry", kind: "renewal", reservoir_id: "reservoir_2",
+    effective_at: "2026-08-01", volume_l: 20})).ok()).toBeTruthy();
+  expect((await post({operation: "entry", kind: "reading", reservoir_id: "reservoir_2",
+    effective_at: "2026-08-02", ph: 6.1, ec: mesure})).ok()).toBeTruthy();
+
+  await page.goto("/cultures/solutions?target=reservoir_2&view=releves");
+  const ligne = page.locator(".solution-journal").first().locator(".solution-entry-line");
+  await expect(ligne).toContainText("EC 1,45 mS/cm");
+  await expect(ligne).not.toContainText("1.4500000000000002");
+
+  // L'API, elle, ne formate rien : l'arrondi est une affaire de présentation seule.
+  const lu = await (await page.request.get("/api/v1/cultures/solutions")).json();
+  const releve = lu.items.find(item => item.kind === "reading");
+  expect(releve.ec).toBe(mesure);
+  // Et le champ de correction repropose la valeur brute, pas la valeur affichée.
+  const article = page.locator(".solution-journal").first();
+  await article.locator(".solution-entry-details > summary").click();
+  await article.getByText("Corriger cette saisie", {exact: true}).click();
+  await expect(page.locator('.solution-journal [data-solution-entry] [name="ec"]').first())
+    .toHaveValue(String(mesure));
 });

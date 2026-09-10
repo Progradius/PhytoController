@@ -1,9 +1,14 @@
 {% extends "base.html" %}
+{% from "macros/ui.html" import compact_header, empty_state %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/cultures.css?v={{ asset_versions.cultures_style }}">{% endblock %}
 {% macro confirm() %}{% if not data.clock_reliable %}<label class="culture-confirm"><input name="confirm_date" type="checkbox" required> J’ai vérifié les dates malgré l’horloge non synchronisée.</label>{% endif %}{% endmacro %}
+{# Les deux sélecteurs d'équipement sont peuplés par le **catalogue courant** et non par
+   `data.equipments`, qui est déjà réduit par le filtre de la page : sans cela, consulter un
+   équipement retirait tous les autres du formulaire de déclaration. Choisir un identifiant
+   n'est pas une résolution ; la cascade datée reste dans `model/culture_equipment.py`. #}
 {% macro link_form(link={}, equipment='') %}
 <form class="culture-form equipment-form" data-equipment-form data-operation="{{ 'correct' if link else 'link' }}"{% if link %} data-id="{{ link.id }}" data-version="{{ link.revision }}"{% endif %}>
-<label>Équipement<select name="equipment_id" required>{% for group in data.equipments %}<option value="{{ group.equipment_id }}"{% if link.get('equipment_id', equipment) == group.equipment_id %} selected{% endif %}>{{ group.current_name or group.equipment_id }} ({{ group.equipment_id }})</option>{% endfor %}</select></label>
+<label>Équipement<select name="equipment_id" required>{% for key, info in catalog.items() %}<option value="{{ key }}"{% if link.get('equipment_id', equipment) == key %} selected{% endif %}>{{ info.get('display_name') or key }} ({{ key }})</option>{% endfor %}</select></label>
 <label>Usage déclaré<input name="usage" maxlength="32" list="equipment-usages" value="{{ link.get('usage','') }}" required></label>
 <label>Portée de l’affectation<select name="scope" required>{% for key,label in data.scopes.items() %}<option value="{{ key }}"{% if link.get('scope') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <label>Espace desservi (portée « espace »)<select name="space">{% for key,label in data.spaces.items() %}<option value="{{ key }}"{% if link.get('space') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -17,30 +22,35 @@
 {{ confirm() }}<button class="button" type="submit">{{ 'Enregistrer la correction' if link else 'Déclarer l’affectation' }}</button><output role="status"></output></form>
 {% endmacro %}
 {% block content %}
-<h1>Affectations d’équipements</h1>
+{{ compact_header("Affectations d’équipements",
+   facts=(["Date consultée : " ~ data.at|culture_date(data.timezone),
+           data.total ~ " période(s) déclarée(s)"] if data else [])) }}
 {% set culture_section = 'equipment' %}{% include 'culture_navigation.html' %}
-<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#catalogue">Catalogue courant</a><a href="#date">Consulter une date</a><a href="#affectations">Périodes</a></nav>
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates avant de confirmer une affectation.</p>{% endif %}
-<p>Déclarez l’usage des équipements et leurs périodes d’affectation. Cette saisie ne change ni câblage, ni réglage, ni horaire.</p>
+<nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#affectations">Déclaré dans le carnet</a><a href="#applique">Appliqué maintenant</a><a href="#catalogue">Catalogue de référence</a></nav>
 <datalist id="equipment-usages">{% for usage in data.usages %}<option value="{{ usage }}"></option>{% endfor %}</datalist>
-<section id="catalogue" class="card culture-section"><h2>Catalogue courant, en lecture seule</h2>
-<p>Ces identifiants et ces noms sont la source de vérité ; ils se modifient dans <a href="/conf#equipment">la configuration des équipements</a>, jamais dans le carnet. Chaque affectation copie le libellé connu <em>au moment de sa saisie</em> : renommer un équipement plus tard ne réécrit aucun libellé déjà enregistré.</p>
-<div class="culture-table-scroll" tabindex="0" role="group" aria-label="Catalogue courant des équipements"><table><thead><tr><th>Identifiant</th><th>Nom actuel</th><th>Usage du catalogue</th><th>Zone</th><th>État</th><th>Affectations</th></tr></thead><tbody>{% for group in data.equipments %}<tr><td>{{ group.equipment_id }}</td><td>{{ group.current_name or '—' }}</td><td>{{ group.current_usage or '—' }}</td><td>{{ group.zone or '—' }}</td><td>{{ 'Hors service' if group.out_of_service else 'En service' }}</td><td><a href="#equipement-{{ group.equipment_id }}">{{ group.links|length }} période(s)</a></td></tr>{% endfor %}</tbody></table></div></section>
-<section id="date" class="card culture-section"><h2>Contexte connu à une date</h2>
-<p>La résolution suit une cascade stricte : affectation datée du carnet, puis copie du catalogue portée par la saisie, puis « association inconnue à cette date ». Il n’y a jamais de repli sur le catalogue d’aujourd’hui.</p>
-<form method="get" class="culture-form">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}<label>Date consultée<input type="date" name="at" value="{{ filters.get('at','') }}" required></label><button class="button" type="submit">Résoudre cette date</button></form>
-{% if data.resolved %}<p data-equipment-resolved>{% if data.resolved.provenance == 'link' %}Affectation connue : {{ data.resolved.label }}.{% elif data.resolved.provenance == 'snapshot' %}Contexte connu à la saisie : {{ data.resolved.label }}.{% else %}Association inconnue à cette date.{% endif %}</p>
-{% if data.resolved.provenance == 'unknown' %}<p class="culture-note">Aucune affectation ne couvre le {{ data.at|culture_date(data.timezone) }}. Les saisies de cette période afficheront leur propre contexte de saisie s’il en existe un.</p>{% endif %}{% endif %}</section>
-<section id="affectations" class="culture-section"><h2>Périodes d’affectation par équipement</h2>
+{# Sélecteur d'abord : l'équipement et la date décident de ce que les deux blocs montrent.
+   Formulaire GET, valeurs conservées, aucune commande derrière une lecture. #}
+<form method="get" id="selection" class="culture-form culture-selector" data-offline-filter aria-label="Équipement et date consultés">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}
+<label>Équipement consulté<select name="equipment"><option value="">Tous les équipements</option>{% for key, info in catalog.items() %}<option value="{{ key }}"{% if filters.get('equipment') == key %} selected{% endif %}>{{ info.get('display_name') or key }} ({{ key }})</option>{% endfor %}</select></label>
+<label>Date consultée<input type="date" name="at" value="{{ filters.get('at','') }}" required></label>
+<button class="button" type="submit">Afficher</button></form>
+<p>Déclarez l’usage des équipements et leurs périodes d’affectation. Cette saisie ne change ni câblage, ni réglage, ni horaire.</p>
+{# Vue principale du lot G : les affectations. Le catalogue de référence est replié plus bas. #}
+<section id="affectations" class="culture-section"><h2>Déclaré dans le carnet</h2>
 <p>Un équipement n’a qu’une seule affectation courante à un instant donné : deux périodes qui se recouvrent sont refusées. Une sortie comme <code>cyclic_2</code> peut donc porter successivement deux usages, chacun avec ses propres dates ; clore la première période avant d’ouvrir la suivante.</p>
 <details class="card"><summary>Déclarer une affectation</summary>{{ link_form() }}</details>
-{% for group in data.equipments %}<article class="card culture-journal" id="equipement-{{ group.equipment_id }}">
+{% if not data.total and not filters.get('equipment') %}{{ empty_state("Aucune affectation déclarée", "Les saisies concernées afficheront « association inconnue à cette date » tant qu’aucune période n’est déclarée.") }}{% endif %}
+{# Un équipement sans période n'a rien à dire : six articles vides étaient l'essentiel de
+   la hauteur de la page. L'équipement explicitement consulté garde son article, pour que
+   le filtre réponde toujours quelque chose. #}
+{% for group in data.equipments if group.links or filters.get('equipment') %}<article class="card culture-journal" id="equipement-{{ group.equipment_id }}">
 <h3>{{ group.current_name or group.equipment_id }}</h3><p class="card-meta">Identifiant {{ group.equipment_id }}{{ ' · hors service' if group.out_of_service else '' }}{% if not group.known %} · absent du catalogue courant{% endif %}</p>
 {% for link in group.links %}<section class="equipment-window">
 <h4>{{ link.usage }} · {{ data.scopes[link.scope] }}{% if link.space %} · {{ data.spaces[link.space] }}{% elif link.reservoir_id %} · {{ data.reservoirs[link.reservoir_id] }}{% endif %}{{ ' · annulée' if link.cancelled else '' }}</h4>
-<p>Du {{ link.start_at|culture_date(data.timezone) }}{{ ' (approximatif)' if link.start_precision == 'approximative' else '' }} au {{ link.end_at|culture_date(data.timezone) if link.end_at else 'en cours' }}</p>
-<p class="card-meta">Libellé copié à la saisie : {{ link.display_name or 'non copié' }} · {{ data.sources[link.source] }} · saisi le {{ link.recorded_at|culture_date(data.timezone) }} · version {{ link.revision }}{{ ' · horloge non synchronisée' if link.clock_reliable == 0 else '' }}</p>
+<p class="num">Du {{ link.start_at|culture_date(data.timezone) }}{{ ' (approximatif)' if link.start_precision == 'approximative' else '' }} au {{ link.end_at|culture_date(data.timezone) if link.end_at else 'en cours' }}</p>
+<p class="card-meta num"><span class="culture-source">contexte copié à la saisie</span> : {{ link.display_name or 'non copié' }} · {{ data.sources[link.source] }} · saisi le {{ link.recorded_at|culture_date(data.timezone) }} · version {{ link.revision }}{{ ' · horloge non synchronisée' if link.clock_reliable == 0 else '' }}</p>
 <p class="culture-note">{{ link.note }}</p>{% if link.reason %}<p>Motif : {{ link.reason }}</p>{% endif %}
 {% if not link.cancelled %}<details><summary>Corriger cette affectation</summary>{{ link_form(link, group.equipment_id) }}</details>
 {% if not link.end_at %}<details><summary>Clore cette affectation</summary><form class="culture-form equipment-form" data-equipment-form data-operation="close" data-id="{{ link.id }}" data-version="{{ link.revision }}">
@@ -49,8 +59,25 @@
 <label>Motif<input name="reason" maxlength="500"></label>{{ confirm() }}<button class="button" type="submit">Clore l’affectation</button><output role="status"></output></form></details>{% endif %}
 <details><summary>Annuler cette affectation</summary><p>Une annulation conserve l’historique : la période cesse de résoudre un contexte, elle ne disparaît pas du carnet.</p><form class="culture-form equipment-form" data-equipment-form data-operation="cancel" data-id="{{ link.id }}" data-version="{{ link.revision }}">
 <label>Motif de l’annulation<input name="reason" maxlength="500" required></label>{{ confirm() }}<button class="button" type="submit">Annuler l’affectation</button><output role="status"></output></form></details>{% endif %}
-{% if link.revisions %}<details><summary>Versions précédentes ({{ link.revisions|length }})</summary>{% for old in link.revisions %}<p>Version {{ old.revision }} · {{ old.usage }} · du {{ old.start_at|culture_date(data.timezone) }} au {{ old.end_at|culture_date(data.timezone) if old.end_at else 'en cours' }}{{ ' · annulée' if old.cancelled else '' }} · libellé « {{ old.display_name or 'non copié' }} » · saisi le {{ old.recorded_at|culture_date(data.timezone) }}</p>{% if old.reason %}<p>Motif : {{ old.reason }}</p>{% endif %}{% endfor %}</details>{% endif %}
+{% if link.revisions %}<details><summary>Versions précédentes ({{ link.revisions|length }})</summary>{% for old in link.revisions %}<p class="num">Version {{ old.revision }} · {{ old.usage }} · du {{ old.start_at|culture_date(data.timezone) }} au {{ old.end_at|culture_date(data.timezone) if old.end_at else 'en cours' }}{{ ' · annulée' if old.cancelled else '' }} · libellé « {{ old.display_name or 'non copié' }} » · saisi le {{ old.recorded_at|culture_date(data.timezone) }}</p>{% if old.reason %}<p>Motif : {{ old.reason }}</p>{% endif %}{% endfor %}</details>{% endif %}
 </section>{% else %}<p>Aucune affectation enregistrée pour cet équipement. Les saisies concernées afficheront « association inconnue à cette date » tant qu’aucune période n’est déclarée.</p>{% endfor %}
 </article>{% endfor %}</section>
+{# Résultat de la cascade à la date consultée, et rien d'autre : la règle est repliée
+   juste dessous, l'indication de source reste collée à la valeur. #}
+<section id="applique" class="card culture-section"><h2>Appliqué maintenant</h2>
+{% if data.resolved and data.resolved.provenance == 'link' %}
+<p data-equipment-resolved>Affectation connue : {{ data.resolved.label }}.</p>
+<ul class="culture-resolution num">{% for item in data.resolved['items'] %}<li>{{ item.display_name or item.equipment_id }} · {{ item.usage or 'usage non renseigné' }} · <span class="culture-source">affectation du {{ item.start_at|culture_date(data.timezone) }}</span></li>{% endfor %}</ul>
+{% elif data.resolved and data.resolved.provenance == 'snapshot' %}
+<p data-equipment-resolved>Contexte connu à la saisie : {{ data.resolved.label }}. <span class="culture-source">contexte copié à la saisie</span></p>
+{% else %}
+<p data-equipment-resolved>Association inconnue à cette date. <span class="culture-source">inconnu</span></p>
+{{ empty_state("Aucune affectation ne couvre cette date", "Aucune affectation ne couvre le " ~ data.at|culture_date(data.timezone) ~ ". Les saisies de cette période afficheront leur propre contexte de saisie s’il en existe un.") }}
+{% endif %}
+<details><summary>Comment cette valeur est choisie</summary><p>La résolution suit une cascade stricte : affectation datée du carnet, puis copie du catalogue portée par la saisie, puis « association inconnue à cette date ». Il n’y a jamais de repli sur le catalogue d’aujourd’hui : un nom porté aujourd’hui par un équipement n’est pas une association d’hier.</p></details></section>
+{# Référence en lecture seule, repliée : ce n'est pas ce qu'on vient lire sur cette page. #}
+<details id="catalogue" class="card culture-section"><summary>Catalogue courant, en lecture seule</summary>
+<p>Ces identifiants et ces noms sont la source de vérité ; ils se modifient dans <a href="/conf#equipment">la configuration des équipements</a>, jamais dans le carnet. Chaque affectation copie le libellé connu <em>au moment de sa saisie</em> : renommer un équipement plus tard ne réécrit aucun libellé déjà enregistré.</p>
+<div class="culture-table-scroll" tabindex="0" role="group" aria-label="Catalogue courant des équipements"><table><thead><tr><th>Identifiant</th><th>Nom actuel</th><th>Usage du catalogue</th><th>Zone</th><th>État</th><th>Affectations</th></tr></thead><tbody>{% for group in data.equipments %}<tr><td>{{ group.equipment_id }}</td><td>{{ group.current_name or '—' }}</td><td>{{ group.current_usage or '—' }}</td><td>{{ group.zone or '—' }}</td><td>{{ 'Hors service' if group.out_of_service else 'En service' }}</td><td class="num">{% if group.links %}<a class="action-link" href="#equipement-{{ group.equipment_id }}">{{ group.links|length }} période(s)</a>{% else %}aucune période{% endif %}</td></tr>{% endfor %}</tbody></table></div></details>
 {% endif %}{% endblock %}
 {% block page_scripts %}<script src="/static/js/culture_forms.js?v={{ asset_versions.culture_forms }}" defer></script><script src="/static/js/culture_equipment.js?v={{ asset_versions.culture_equipment }}" defer></script>{% endblock %}

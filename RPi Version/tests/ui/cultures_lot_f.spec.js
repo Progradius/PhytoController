@@ -30,11 +30,27 @@ test("repères : écart informatif, minuterie désactivée et horaires inchangé
   await expect(page.getByText("Aucun repère enregistré pour cette culture à cette date")).toBeVisible();
   await enregistrer(page, {label: "Végétatif 18/6", minutes: 1080});
   await expect(page.getByRole("heading", {name: "Végétatif 18/6"})).toBeVisible();
-  const carte = page.locator(".culture-light-card").filter({hasText: "Mère repères éclairage"});
-  await expect(carte).toContainText("18 h / 6 h");
-  await expect(carte).toContainText("08:00 → 20:00");
-  await expect(carte).toContainText("−6 h d’éclairage configuré");
-  await expect(carte.getByRole("link", {name: "Ouvrir les réglages de l’éclairage 1"})).toHaveAttribute("href", "/conf#daily-timer-1");
+  // R2.7 : le repère déclaré et ce qui est réellement appliqué ne sont plus la même carte.
+  const declare = page.locator("[data-light-declared]").filter({hasText: "Mère repères éclairage"});
+  await expect(declare).toContainText("18 h / 6 h");
+  // Indication de source : la portée qui a emporté la résolution, ici le repère commun.
+  await expect(declare).toContainText("Toutes les cultures");
+  const applique = page.locator('[data-light-applied="space_1"]');
+  await expect(applique).toContainText("08:00 → 20:00");
+  await expect(applique).toContainText("−6 h d’éclairage configuré");
+  await expect(applique.getByRole("link", {name: "Ouvrir les réglages de l’éclairage 1"})).toHaveAttribute("href", "/conf#daily-timer-1");
+  // Sélecteur d'abord, puis « Déclaré dans le carnet », puis « Appliqué maintenant ».
+  const hauts = await page.evaluate(() => ["selection", "declare", "applique"]
+    .map(id => document.getElementById(id).getBoundingClientRect().top));
+  expect(hauts[0]).toBeLessThan(hauts[1]);
+  expect(hauts[1]).toBeLessThan(hauts[2]);
+  await expect(page.locator("#declare").getByText("Comment cette valeur est choisie")).toBeVisible();
+  // Un espace consulté ne rapproche que cet espace ; la valeur du sélecteur est conservée.
+  await page.goto("/cultures/light?focus=space_2");
+  await expect(page.locator('[data-light-applied="space_2"]')).toHaveCount(1);
+  await expect(page.locator('[data-light-applied="space_1"]')).toHaveCount(0);
+  await expect(page.locator('#selection select[name="focus"]')).toHaveValue("space_2");
+  await page.goto("/cultures/light");
   // Un repère ne change ni les horaires configurés, ni les sorties.
   const after = (await (await request.get("/api/v1/state")).json());
   expect(after.timers).toEqual(before.timers);
@@ -44,12 +60,18 @@ test("repères : écart informatif, minuterie désactivée et horaires inchangé
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("repères : état opérationnel indisponible et correction tracée", async ({page}, testInfo) => {
+test("repères : état opérationnel nommé et correction tracée", async ({page}, testInfo) => {
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
   await createMother(page, "Mère correction repère");
   await page.goto("/cultures/light");
-  // Sans publication des boucles de contrôle, l'absence d'état est explicite.
-  await expect(page.getByText("État opérationnel indisponible").first()).toBeVisible();
+  // `tests/ui_server.py` publie désormais l'état des six équipements : le serveur de test
+  // n'a plus d'état manquant à montrer. Ce qui reste vérifiable ici, c'est que l'état publié
+  // est **nommé** et jamais rendu vide. La branche « aucune publication » — le libellé
+  // « État opérationnel indisponible » — est couverte par pytest
+  // (`tests/test_culture_light.py::test_page_rapproche_repere_horaires_et_etat_sans_effet`),
+  // où la publication est contrôlée équipement par équipement.
+  await expect(page.locator('[data-light-applied="space_1"]')).toContainText("état relu");
+  await expect(page.locator('[data-light-applied="space_2"]')).toContainText("état relu");
   await enregistrer(page, {label: "Repère à corriger", minutes: 720,
                            scope: "Un espace", space: "Espace 2", stage: "Floraison"});
   const article = page.locator("article.culture-journal").filter({hasText: "Repère à corriger"}).first();

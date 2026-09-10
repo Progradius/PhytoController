@@ -366,4 +366,92 @@ async def test_journal_http_reconduit_recherche_et_periodes_rapides(web_context)
                           if day <= 31 else f"2026-08-{day - 31:02d}")
     paginated = await (await client.get("/cultures/journal?q=epinard&target=space_2")).text()
     assert 'data-journal-offset="40" href="?target=space_2&amp;q=epinard&amp;offset=40"' in paginated
-    assert "42 opération(s) pour ce filtre" in paginated
+    assert '<span class="num">42</span> opération(s) pour ce filtre' in paginated
+
+
+async def test_journal_rend_une_ligne_par_operation_avec_details_replies(web_context):
+    """R2.8 : une opération = une ligne rendue par la macro partagée `journal_entry`.
+
+    L'article extérieur reste le repère focalisable (`#entry-…`) visé par la galerie et par
+    le retour après enregistrement ; la ligne porte date, opération, cible et résumé ; tout
+    ce qui sert à *résoudre* l'entrée — version, contexte de saisie, motif, liens, galerie,
+    versions antérieures — vit dans le `<details>` du `caller`, replié par défaut.
+    """
+    client, server, *_ = web_context
+    store = server.cultures.store
+    for index in range(3):
+        await observation(store, "space_2", f"Bac {index} rincé")
+    html = await (await client.get("/cultures/journal?target=space_2")).text()
+
+    # Une ligne par opération : autant d'articles de macro que d'articles-repères.
+    # R2.8 : l'entrée est une ligne, pas une carte — `.card` (remplissage + bordure) coûtait
+    # 34 px par opération, soit une ligne de texte entière sur vingt entrées.
+    assert html.count('<article class="culture-journal-entry"') == 3
+    assert 'class="card culture-journal-entry"' not in html
+    assert html.count('<article class="ui-journal-entry">') == 3
+    assert html.count("<summary>Détails de l’opération</summary>") == 3
+    ligne = html.split('<article class="ui-journal-entry">')[1].split("<details>")[0]
+    assert '<time class="num">01/09/2026</time>' in ligne
+    assert "<strong>Espace · Observation</strong> Espace 2" in ligne
+    assert "Bac 2 rincé" in ligne
+    # La résolution n'est plus sur la ligne : elle est derrière le repli.
+    assert 'version <span class="num">1</span>' not in ligne
+    assert "Ouvrir la fiche liée" not in ligne
+    details = html.split("<summary>Détails de l’opération</summary>")[1].split("</details>")[0]
+    assert 'version <span class="num">1</span> · saisie le' in details
+    assert "Ouvrir la fiche liée" in details
+
+
+async def test_journal_rejoue_ses_filtres_dans_les_liens_de_retour(web_context):
+    """R2.8 : ouvrir une fiche depuis le journal doit ramener au journal **filtré**.
+
+    Le paramètre `retour` porte l'adresse relative complète de la vue courante, filtres et
+    page comprises, dans la forme normalisée par la route — pas celle de la requête brute.
+    """
+    client, server, *_ = web_context
+    store = server.cultures.store
+    mere = await mother(store, "Mère du retour")
+    for day in range(1, 42):
+        await observation(store, "space_2", f"Bac {day:02d} rincé",
+                          effective_at=f"2026-07-{day:02d}" if day <= 31 else f"2026-08-{day - 31:02d}")
+
+    html = await (await client.get("/cultures/journal?target=space_2&q=%20rinc%C3%A9%20")).text()
+    # `q` est repris **borné et détouré** par la route, pas recopié de la requête brute :
+    # le lien de retour rejoue exactement la page servie.
+    assert "retour=/cultures/journal%3Ftarget%3Dspace_2%26q%3Drinc%25C3%25A9" in html
+    assert "%26offset%3D40" not in html
+    seconde = await (await client.get("/cultures/journal?target=space_2&q=%20rinc%C3%A9%20&offset=40")).text()
+    assert "retour=/cultures/journal%3Ftarget%3Dspace_2%26q%3Drinc%25C3%25A9%26offset%3D40" in seconde
+    # Sans filtre ni page, le retour reste l'adresse nue du journal.
+    nu = await (await client.get(f"/cultures/journal?target={mere['subject_id']}")).text()
+    assert f"retour=/cultures/journal%3Ftarget%3D{mere['subject_id']}" in nu
+    # L'ancre du lien reste en dernier : `?retour=…#event-…`, jamais l'inverse.
+    lien = nu.split('class="action-link" href="/cultures/' + mere["subject_id"], 1)[1]
+    assert lien.startswith("?retour=") and "#event-" in lien.split('"', 1)[0]
+
+
+async def test_journal_gabarit_photo_brouillon_et_inventaire_partage(web_context):
+    """R5.4, R3.4 et R2.5 côté journal, vérifiés sur le HTML réellement servi."""
+    client, server, *_ = web_context
+    # Une observation existante : c'est elle qui porte le formulaire d'ajout de photo.
+    await observation(server.cultures.store, "space_2", "Bac rincé")
+    html = await (await client.get("/cultures/journal")).text()
+    # R5.4 : `capture` n'est plus imposé par le gabarit ; `accept` reste.
+    assert "capture=" not in html and 'type="file" name="photo" accept="image/*"' in html
+    # R3.4 : l'observation d'espace est inscrite au dispositif de brouillon, bannière hors
+    # du `<details>` replié, et chaque champ restaurable est marqué.
+    assert '<div data-culture-draft-banner="space_event"></div>' in html
+    banniere, reste = html.split('<div data-culture-draft-banner="space_event"></div>', 1)
+    assert reste.lstrip().startswith("<details")
+    formulaire = reste.split("</form>", 1)[0]
+    assert 'data-culture-draft="space_event"' in formulaire
+    assert 'data-draft-target="journal"' in formulaire and 'data-draft-version="' in formulaire
+    for champ in ('name="space" data-draft-field', 'name="kind" data-draft-field',
+                  'name="effective_at" data-draft-field', 'name="precision" data-draft-field',
+                  'name="note" maxlength="4000" data-draft-field'):
+        assert champ in formulaire, champ
+    # R2.5 : un seul inventaire hors ligne, celui du fragment partagé, et la recherche du
+    # journal n'est pas un outil local — elle interroge le serveur.
+    assert html.count("data-culture-offline-index") == 1
+    assert 'id="copies"' in html and "data-offline-latest" in html
+    assert "data-offline-local" not in html

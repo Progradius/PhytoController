@@ -81,7 +81,12 @@ def render(item, detail=None):
                            csrf_token="jeton", overview=overview,
                            detail=detail if detail is not None else build_detail(item), error=None,
                            archives=False, stages=STAGES, spaces={"space_1": "Espace 1", "space_2": "Espace 2"},
-                           event_kinds=KINDS, creation=CREATION, lighting=[])
+                           event_kinds=KINDS, creation=CREATION, lighting=[],
+                           # R1.8 : `return_url` et son libellé sont décidés par
+                           # `CultureViews.return_link` — ancre `#culture-{id}` comprise,
+                           # puisqu'elle ne vaut que pour un retour vers la liste.
+                           return_url="/cultures#culture-" + item["id"],
+                           return_label="Retour aux cultures")
 
 
 def assert_equivalence(html, item):
@@ -95,8 +100,11 @@ def assert_equivalence(html, item):
     assert PRIMARY_ACTION.findall(html) == promoted
     assert html.count("data-culture-observation") == 1
     assert set(EVENT_FORM.findall(html)) | {"note"} == set(allowed_actions(item))
-    assert ('<a class="button culture-primary-action" href="/cultures/solutions?target='
-            f'{item["id"]}&amp;kind=reading#saisie">Relevé</a>') in html
+    reading_href = (f'/cultures/solutions?target={item["id"]}'
+                    '&amp;kind=reading&amp;view=saisir#saisie')
+    assert html.count(f'href="{reading_href}"') >= 1
+    assert '>Saisir un relevé</a>' in html
+    assert f'href="/cultures#culture-{item["id"]}"' in html
 
 
 MATRIX = [subject(kind, stage, space, archived, origin_type)

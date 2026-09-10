@@ -53,7 +53,7 @@ const declare = async (page, {equipment, usage, scope, target, start}) => {
 const showDay = async (page, day) => {
   await expect.poll(async () => {
     try {
-      await page.goto(`/cultures/solutions?kind=renewal&start=${day}&end=${day}`);
+      await page.goto(`/cultures/solutions?view=releves&kind=renewal&start=${day}&end=${day}`);
       return await page.locator("article.solution-journal").count();
     } catch (_error) { return 0; }
   }, {timeout: 20000, message: "Ouverture de la saisie enregistrée"}).toBe(1);
@@ -69,8 +69,16 @@ test("changement d'usage de cyclic_2 : périodes successives et contexte résolu
 
   await page.goto("/cultures/equipment");
   await expect(page.getByRole("heading", {level: 1})).toHaveText("Affectations d’équipements");
-  // Le catalogue courant est une lecture seule : aucun champ de saisie dans son tableau.
+  // R2.7 : les affectations sont le premier bloc après le sélecteur, le catalogue est replié.
+  const hauts = await page.evaluate(() => ["selection", "affectations", "applique", "catalogue"]
+    .map(id => document.getElementById(id).getBoundingClientRect().top));
+  expect(hauts[0]).toBeLessThan(hauts[1]);
+  expect(hauts[1]).toBeLessThan(hauts[2]);
+  expect(hauts[2]).toBeLessThan(hauts[3]);
   const catalogue = page.locator("#catalogue");
+  expect(await catalogue.evaluate(element => element.open)).toBe(false);
+  await catalogue.locator(":scope > summary").click();
+  // Le catalogue courant est une lecture seule : aucun champ de saisie dans son tableau.
   await expect(catalogue.getByRole("cell", {name: "cyclic_2", exact: true})).toBeVisible();
   await expect(catalogue.locator("input, select, textarea")).toHaveCount(0);
 
@@ -97,13 +105,21 @@ test("changement d'usage de cyclic_2 : périodes successives et contexte résolu
   expect(opened.answer.status(), opened.answer.status() === 200 ? "" : await opened.answer.text()).toBe(200);
   await expect(windows(page, "cyclic_2")).toHaveCount(2);
   // Le libellé du catalogue est copié à la saisie, et affiché comme tel.
-  await expect(page.locator("#equipement-cyclic_2")).toContainText("Libellé copié à la saisie : Sortie cyclique 2");
+  await expect(page.locator("#equipement-cyclic_2")).toContainText("contexte copié à la saisie : Sortie cyclique 2");
 
-  // Résolution rétrospective : chaque date retrouve l'usage réellement déclaré.
+  // Résolution rétrospective : chaque date retrouve l'usage réellement déclaré, et
+  // l'indication courte de la source reste contre la valeur.
   await page.goto("/cultures/equipment?at=2026-06-15");
   await expect(page.locator("[data-equipment-resolved]")).toContainText(first);
+  await expect(page.locator("#applique .culture-source").first()).toHaveText(`affectation du ${START.split("-").reverse().join("/")}`);
+  await expect(page.locator('#selection input[name="at"]')).toHaveValue("2026-06-15");
   await page.goto("/cultures/equipment?at=2026-07-15");
   await expect(page.locator("[data-equipment-resolved]")).toContainText(second);
+  // Jamais de repli sur le catalogue d'aujourd'hui : hors fenêtre, la valeur est inconnue.
+  await page.goto("/cultures/equipment?at=2026-05-01");
+  await expect(page.locator("[data-equipment-resolved]")).toContainText("Association inconnue à cette date");
+  await expect(page.locator("#applique .culture-source")).toHaveText("inconnu");
+  await page.goto("/cultures/equipment");
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
@@ -119,9 +135,9 @@ test("une intervention affiche le contexte d'équipement résolu à sa propre da
   await release(page, "cyclic_1");
 
   // Une intervention saisie sans affectation déclarée porte sa propre copie de catalogue.
-  await page.goto("/cultures/solutions");
-  await page.locator("#saisie > summary").click();
+  await page.goto("/cultures/solutions?view=saisir");
   const entry = page.locator("form[data-solution-entry]").first();
+  await expect(entry).toBeVisible();
   await entry.locator('[name="kind"]').selectOption("renewal");
   await entry.locator('[name="target"]').selectOption("reservoir_2");
   await entry.locator('[name="effective_at"]').fill(day);
@@ -131,6 +147,7 @@ test("une intervention affiche le contexte d'équipement résolu à sa propre da
   expect((await saved).status()).toBe(200);
 
   const article = await showDay(page, day);
+  await article.locator("details.solution-entry-details > summary").click();
   const context = article.locator("[data-equipment-context]");
   await expect(context).toBeVisible();
   expect(["snapshot", "unknown"]).toContain(await context.getAttribute("data-equipment-context"));
@@ -142,6 +159,7 @@ test("une intervention affiche le contexte d'équipement résolu à sa propre da
   await expect(windows(page, "cyclic_1")).toHaveCount(1);
 
   const resolved = await showDay(page, day);
+  await resolved.locator("details.solution-entry-details > summary").click();
   await expect(resolved.locator('[data-equipment-context="link"]')).toContainText(usage);
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);

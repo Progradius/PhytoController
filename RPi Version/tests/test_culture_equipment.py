@@ -266,3 +266,36 @@ async def test_page_affectations_sans_effet_sur_la_configuration(web_context, mo
     assert config.current.to_json() == original and writes == []
     assert sensors.reconfigured == 0
     assert (await client.get("/health/ready")).status == 200
+
+
+async def test_page_affectations_en_vue_principale_et_catalogue_replie(web_context):  # noqa: F811
+    """R2.7 : sélecteur, puis les affectations, puis l'appliqué ; catalogue replié."""
+    client, *_ = web_context
+    headers = {"X-CSRF-Token": CSRF_TOKEN}
+    body = await (await client.get("/cultures/equipment")).text()
+    # Les libellés imposés sont vérifiés sur les titres, pas sur les liens de la page.
+    assert body.index('id="selection"') < body.index("<h2>Déclaré dans le carnet</h2>")
+    assert body.index("<h2>Déclaré dans le carnet</h2>") < body.index("<h2>Appliqué maintenant</h2>")
+    # Le catalogue de référence est replié et passe après les deux blocs.
+    assert body.index("<h2>Appliqué maintenant</h2>") < body.index('<details id="catalogue"')
+    assert "Catalogue courant, en lecture seule" in body
+    assert "Comment cette valeur est choisie" in body
+    # Sans affectation déclarée, la valeur appliquée est explicitement inconnue.
+    assert "Association inconnue à cette date" in body and ">inconnu<" in body
+    assert "affectation du" not in body
+
+    command = {"request_id": str(uuid.uuid4()), "operation": "link", "equipment_id": "cyclic_2",
+               "usage": "irrigation espace 2", "scope": "space", "space": "space_2",
+               "start_at": "2026-06-01"}
+    assert (await client.post("/api/v1/cultures/equipment", json=command,
+                              headers=headers)).status == 200
+    page = await (await client.get("/cultures/equipment")).text()
+    # Indication courte contre la valeur résolue, et copie de catalogue nommée comme telle.
+    assert "affectation du 01/06/2026" in page
+    assert "contexte copié à la saisie" in page
+    # Hors de la fenêtre, aucun repli sur le catalogue courant : l'association reste inconnue.
+    ancienne = await (await client.get("/cultures/equipment?at=2026-05-01")).text()
+    assert ">inconnu<" in ancienne and "affectation du" not in ancienne
+    # Consulter un équipement ne retire pas les autres du formulaire de déclaration.
+    filtree = await (await client.get("/cultures/equipment?equipment=cyclic_2")).text()
+    assert 'value="cyclic_1"' in filtree and 'value="cyclic_2"' in filtree

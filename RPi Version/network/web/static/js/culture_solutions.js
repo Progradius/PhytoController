@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  const currentRubric = document.querySelector(".culture-navigation [aria-current=page]");
+  if (currentRubric) requestAnimationFrame(() => currentRubric.scrollIntoView({block: "nearest", inline: "nearest"}));
   const forms = window.PhytoCultureForms;
   const params = new URLSearchParams(location.search);
   // La saisie s'ouvre sur l'ancre habituelle et sur une intention choisie en tête de page.
@@ -223,6 +225,7 @@
       const next = new URL(location.href); next.searchParams.delete("offset"); next.searchParams.delete("entry"); next.searchParams.delete("kind");
       next.searchParams.delete("start"); next.searchParams.delete("end");
       if (command.operation !== "recipe") next.searchParams.set("target", command.reservoir_id || command.targets[0]);
+      next.searchParams.set("view", command.operation === "recipe" ? "saisir" : "releves");
       next.hash = command.operation === "recipe" ? "recettes" : `entry-${result.id}`;
       // L'entrée peut être rétrospective ; la page serveur choisit sa pagination.
       if (command.operation !== "recipe") next.searchParams.set("entry", result.id);
@@ -264,18 +267,18 @@
     const metric = svg.dataset.metric;
     // Le nom de la source dit déjà la cible **et** la période : il tient la place des deux,
     // et remplace le « repère : … » qui les répétait une troisième fois.
-    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : p[metric]} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""} · ${p.annotations.join(', ')}`;
+    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : window.PhytoCultureAnalysis.formatNombre(p[metric], 2)} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_min"], 2)}, max ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_max"], 2)}` : ""} · ${p.annotations.join(', ')}`;
     // Tableau équivalent : une colonne par nature de donnée. Une lacune s'écrit
     // « mesure absente » dans la colonne valeur, jamais 0.
     const columns = ["Date", "Valeur", "Unité", "Cible ou capteur", "Période", "Agrégats", "Lacune"];
     const cells = p => [
       p.at,
-      p[metric] === null ? "mesure absente" : String(p[metric]),
+      p[metric] === null ? "mesure absente" : window.PhytoCultureAnalysis.formatNombre(p[metric], 2),
       metric === "ec" ? "mS/cm" : "sans unité",
       sourceName(p),
       p.period || "manuelle",
       p[metric + "_count"]
-        ? `${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}`
+        ? `${p[metric + "_count"]} mesures, min ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_min"], 2)}, max ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_max"], 2)}`
         : "aucun agrégat",
       p[metric] === null ? "oui" : "non",
     ];
@@ -344,7 +347,7 @@
         const classes = ["solution-dot"];
         if (p.variant !== undefined && p.variant !== null) classes.push(`solution-source-${p.variant}`);
         const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: classes.join(" "), "data-analysis-index": i});
-        dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${p[metric + "_min"]}, max ${p[metric + "_max"]}` : ""}`)); svg.append(dot);
+        dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_min"], 2)}, max ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_max"], 2)}` : ""}`)); svg.append(dot);
         places[i] = {x: x(p), y: y(p)};
       });
       refreshSelection(places);

@@ -140,13 +140,17 @@ test("lot UI 2 : la fiche montre l'essentiel et l'observation revient sur son en
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
   test.setTimeout(90000);
   const id = await createMother(page, "Mère fiche dossier");
-  const head = page.locator(".culture-head");
+  const head = page.locator(".ui-compact-header");
   await expect(head).toContainText("Mère fiche dossier");
   await expect(head).toContainText(/\bJ\d+/);
   await expect(head).toContainText("Espace 1");
 
-  await expect(page.getByRole("link", {name: "Relevé", exact: true}))
-    .toHaveAttribute("href", `/cultures/solutions?target=${id}&kind=reading#saisie`);
+  // R1.8 : l'action principale est remontée dans l'en-tête compact et son libellé dit le
+  // geste (« Saisir un relevé »). Elle ouvre la vue Saisir de la page Solutions (R1.6),
+  // d'où le `view=saisir` de l'URL. Le même lien reste offert par la triade plus bas :
+  // l'assertion est donc portée par l'en-tête, pas par la page entière.
+  await expect(head.getByRole("link", {name: "Saisir un relevé", exact: true}))
+    .toHaveAttribute("href", `/cultures/solutions?target=${id}&kind=reading&view=saisir#saisie`);
   await expect(page.locator("#observation")).toBeVisible();
   const others = page.locator("details.card.culture-section").filter({hasText: "Autres opérations"});
   await expect(others).toHaveCount(1);
@@ -343,8 +347,8 @@ test("lot UI 2 : une fiche archivée ne propose plus de progression, seulement l
   });
   expect(archived.status, JSON.stringify(archived.body)).toBe(200);
   await page.goto(`/cultures/${mother}`);
-  await expect(page.locator(".culture-head")).toContainText("Archivé");
-  await expect(page.locator(".culture-head")).toContainText("Espace libéré");
+  await expect(page.locator(".ui-compact-header")).toContainText("Archivé");
+  await expect(page.locator(".ui-compact-header")).toContainText("Espace libéré");
   await expect(page.locator("#action-stage")).toHaveCount(0);
   await expect(page.locator("#action-archive")).toHaveCount(0);
   await expect(page.locator("#action-release")).toHaveCount(0);
@@ -366,7 +370,7 @@ test("lot UI 2 : une fiche archivée ne propose plus de progression, seulement l
   expect(finished.status, JSON.stringify(finished.body)).toBe(200);
 
   await page.goto(`/cultures/${id}`);
-  await expect(page.locator(".culture-head")).toContainText("Archivé");
+  await expect(page.locator(".ui-compact-header")).toContainText("Archivé");
   await expect(page.locator("#action-stage")).toHaveCount(0);
   await expect(page.locator("#action-finish")).toHaveCount(0);
   const release = page.locator("#action-release");
@@ -382,7 +386,7 @@ test("lot UI 2 : une fiche archivée ne propose plus de progression, seulement l
 
   await page.goto(`/cultures/${id}`);
   await expect(page.locator("#action-release")).toHaveCount(0);
-  await expect(page.locator(".culture-head")).toContainText("Espace libéré");
+  await expect(page.locator(".ui-compact-header")).toContainText("Espace libéré");
 });
 
 // ---------------------------------------------------------------------------
@@ -393,7 +397,7 @@ test("lot UI 2 : une intention de saisie ouvre et présélectionne le formulaire
   test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
   test.setTimeout(90000);
   // Un renouvellement vise un réservoir : c'est la cible que la page présélectionne.
-  await page.goto("/cultures/solutions?target=reservoir_2&kind=renewal#saisie");
+  await page.goto("/cultures/solutions?target=reservoir_2&kind=renewal&view=saisir#saisie");
   const entry = page.locator("#saisie");
   await expect(entry).toHaveAttribute("open", "");
   await expect(entry.locator(":scope > summary")).toHaveText("Saisir : Renouvellement");
@@ -476,8 +480,8 @@ test("lot UI 2 : « Je démarre » déduit stade et dates, « déjà en cours »
   await form.locator('[name="origin_at"]').fill(origin);
   await form.getByRole("button", {name: "Créer un lot", exact: true}).click();
   await expect(page.getByRole("heading", {level: 1})).toHaveText("Semis démarrés");
-  await expect(page.locator(".culture-head")).toContainText("Germination");
-  await expect(page.locator(".culture-head")).toContainText("6 plantes restantes");
+  await expect(page.locator(".ui-compact-header")).toContainText("Germination");
+  await expect(page.locator(".ui-compact-header")).toContainText("6 plantes restantes");
 });
 
 // ---------------------------------------------------------------------------
@@ -511,7 +515,7 @@ test("lot UI 2 : accueil, fiche, archives, solutions et état d'erreur restent a
 
   for (const [name, path] of [["accueil", "/cultures"], ["fiche", `/cultures/${id}`],
                               ["archives", "/cultures?archives=1"],
-                              ["solutions", "/cultures/solutions?kind=water#saisie"]]) {
+                              ["solutions", "/cultures/solutions?kind=water&view=saisir#saisie"]]) {
     await page.goto(path);
     await audit(name);
   }
@@ -782,7 +786,7 @@ test("lot UI 2 : une transition guidée se vérifie avant d'écrire et atterrit 
   await panel.getByRole("button", {name: "Confirmer et enregistrer", exact: true}).click();
   await expect(page).toHaveURL(/#verifications$/);
   expect(posts.mutation).toHaveLength(1);
-  await expect(page.locator(".culture-head")).toContainText("Végétatif");
+  await expect(page.locator(".ui-compact-header")).toContainText("Végétatif");
   // Le focus se pose sur les vérifications du nouveau stade : elles sont la confirmation.
   expect(await focusedId(page)).toBe("verifications");
   await expect(page.locator("#verifications")).toBeVisible();
@@ -813,7 +817,7 @@ test("lot UI 2 : la récolte annonce sa date de séchage dans la vérification",
   await expect(panel).toContainText(`Début du séchage déclaré : ${day(0)}`);
   await panel.getByRole("button", {name: "Confirmer et enregistrer", exact: true}).click();
   await expect(page).toHaveURL(/#verifications$/);
-  await expect(page.locator(".culture-head")).toContainText("Séchage");
+  await expect(page.locator(".ui-compact-header")).toContainText("Séchage");
 });
 
 test("lot UI 2 : la recherche de l'accueil est un formulaire GET qui va au-delà de la page", async ({page}, testInfo) => {
@@ -852,4 +856,33 @@ test("lot UI 2 : la recherche de l'accueil est un formulaire GET qui va au-delà
   // Une recherche sans résultat le dit, sans prétendre que le carnet est vide.
   await page.goto("/cultures?q=introuvable");
   await expect(page.locator("#liste")).toContainText("Aucune culture ne porte « introuvable »");
+});
+
+test("R1.8 : le retour à la liste repose sur l'élément d'origine, filtres rejoués", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+  test.setTimeout(90000);
+  const id = await createMother(page, "Mère retour");
+  await createMother(page, "Mère voisine");
+
+  // On part d'une liste filtrée : c'est l'état que le retour doit retrouver, sinon
+  // l'opérateur doit refaire sa recherche à chaque fiche consultée.
+  await page.goto("/cultures?q=retour");
+  const listing = page.locator("#liste");
+  await expect(listing.locator("[data-culture-item]")).toHaveCount(1);
+  await listing.getByRole("link", {name: "Mère retour", exact: true}).click();
+  await expect(page.getByRole("heading", {level: 1})).toHaveText("Mère retour");
+
+  const retour = page.locator(".ui-compact-header").getByRole("link", {name: "Retour aux cultures", exact: true});
+  await expect(retour).toHaveAttribute("href", new RegExp(`^/cultures\\?[^"]*q=[^"]*#culture-${id}$`));
+  await retour.click();
+
+  // Les filtres sont rejoués : la liste revient telle qu'elle était, pas au carnet entier.
+  await expect(page).toHaveURL(new RegExp(`[?&]q=retour.*#culture-${id}$`));
+  await expect(page.locator("#liste").locator("[data-culture-item]")).toHaveCount(1);
+  // Et le focus est réellement sur la carte d'origine : c'est l'ancre `#culture-{id}`
+  // posée sur un élément `tabindex="-1"` qui le porte, aucun paramètre serveur.
+  const card = page.locator(`#culture-${id}`);
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute("tabindex", "-1");
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).toBe(`culture-${id}`);
 });
