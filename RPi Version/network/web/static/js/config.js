@@ -1,11 +1,9 @@
 (() => {
   "use strict";
-  // Le sélecteur natif `time` occupe presque tout l'écran sur certains
-  // navigateurs mobiles et ses actions peuvent sortir de la zone visible.
-  // Deux champs numériques intégrés à la page gardent la saisie compacte. Le
-  // champ natif reste la source soumise au serveur et le repli sans JavaScript.
+  // Le champ natif reste soumis ; les champs séparés ne servent qu’au repli.
   const padTimePart = (value) => String(value).padStart(2, "0");
   document.querySelectorAll("input[data-compact-time]").forEach((input) => {
+    if (input.type === "time" && !input.closest(".field-invalid")) return;
     const field = input.closest(".field");
     const fieldLabel = field?.querySelector(`label[for="${CSS.escape(input.id)}"]`);
     if (!field || !fieldLabel) return;
@@ -89,6 +87,86 @@
     sync(true);
   });
 
+  // ── Champs numériques en saisie libre ───────────────────────────────────
+  // Mesuré sur Chromium en locale fr-FR (`tests/ui/config.spec.js`) :
+  // `type="number"` **efface** la virgule — « 20,5 » y devient « 205 » — et
+  // vide silencieusement une saisie non numérique en la déclarant valide. Les
+  // champs décimaux (et tout champ que le serveur vient de refuser) sont donc
+  // des `type="text"` ; la validation native qu'ils perdent est reproduite ici.
+  //
+  // La règle du pas est celle du HTML, pas une approximation : la base est
+  // `min` s'il existe, sinon la valeur **initiale** du champ, sinon 0. Une
+  // autre base refuserait des valeurs que `type="number"` acceptait.
+  const frenchNumber = (value) => String(value).replace(".", ",");
+  const numericAttribute = (input, name) => {
+    const raw = input.getAttribute(name);
+    if (raw === null || raw.trim() === "") return null;
+    const parsed = Number(raw.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const validateNumeric = (input) => {
+    const raw = input.value.trim();
+    // Un champ vide relève de `required` (ou reste facultatif) : ce n'est pas
+    // un nombre mal saisi, et l'annoncer comme tel masquerait la vraie cause.
+    if (raw === "") { input.setCustomValidity(""); return; }
+    const decimals = input.inputMode === "decimal";
+    if (!(decimals ? /^-?\d+([.,]\d+)?$/ : /^-?\d+$/).test(raw)) {
+      input.setCustomValidity(decimals
+        ? "Saisir un nombre (virgule ou point comme séparateur décimal)."
+        : "Saisir un nombre entier.");
+      return;
+    }
+    const value = Number(raw.replace(",", "."));
+    const minimum = numericAttribute(input, "min");
+    const maximum = numericAttribute(input, "max");
+    if (minimum !== null && value < minimum) {
+      input.setCustomValidity(`Saisir une valeur supérieure ou égale à ${frenchNumber(minimum)}.`);
+      return;
+    }
+    if (maximum !== null && value > maximum) {
+      input.setCustomValidity(`Saisir une valeur inférieure ou égale à ${frenchNumber(maximum)}.`);
+      return;
+    }
+    const step = numericAttribute(input, "step");
+    if (step !== null && step > 0) {
+      const initial = numericAttribute(input, "value");
+      const base = minimum !== null ? minimum : (initial === null ? 0 : initial);
+      // Le pas est comparé à l'échelle du pas lui-même : en virgule flottante,
+      // (20,5 − (−20)) / 0,1 vaut 405,00000000000006, ce qu'un test d'égalité
+      // stricte refuserait.
+      const scale = 10 ** (String(step).split(".")[1] || "").length;
+      const units = (value * scale - base * scale) / (step * scale);
+      if (Math.abs(units - Math.round(units)) > 1e-6) {
+        input.setCustomValidity(
+          `Saisir un multiple de ${frenchNumber(step)}`
+          + (minimum !== null ? ` à partir de ${frenchNumber(minimum)}.` : "."),
+        );
+        return;
+      }
+    }
+    input.setCustomValidity("");
+  };
+  document.querySelectorAll("input[data-numeric]").forEach((input) => {
+    input.addEventListener("input", () => validateNumeric(input));
+    input.addEventListener("change", () => validateNumeric(input));
+    validateNumeric(input);
+  });
+
+  const simpleForm = document.querySelector('form[action="/conf/simple"]');
+  const updateGroupSummaries = () => {
+    if (!simpleForm) return;
+    const value = name => simpleForm.elements.namedItem(name)?.value || "—";
+    const summaries = {
+      day: `${value("start_time")} → ${value("stop_time")}`,
+      light: `Éclairage 1 : ${value("daily1_start")} → ${value("daily1_stop")} · Éclairage 2 : ${value("daily2_start")} → ${value("daily2_stop")}`,
+      climate: `Jour ${value("target_temp_min_day")}–${value("target_temp_max_day")} °C · Nuit ${value("target_temp_min_night")}–${value("target_temp_max_night")} °C`,
+    };
+    simpleForm.querySelectorAll("[data-config-group-summary]").forEach(node => { node.textContent = summaries[node.dataset.configGroupSummary]; });
+  };
+  simpleForm?.addEventListener("input", updateGroupSummaries);
+  simpleForm?.addEventListener("reset", () => setTimeout(updateGroupSummaries, 0));
+  updateGroupSummaries();
+
   const setConditionalState = (container, visible) => {
     container.hidden = !visible;
     container.querySelectorAll("input, select, textarea, button").forEach((control) => { control.disabled = !visible; });
@@ -120,10 +198,32 @@
   // Seules les différences **réelles** comptent : taper une valeur puis la
   // remettre ne doit ni allumer le bouton d'annulation ni retenir la page.
   const dirtyForms = new Set();
+  const previousDirty = window.PhytoForms?.isDirty;
+  window.PhytoForms = {isDirty: () => dirtyForms.size > 0 || Boolean(previousDirty?.())};
   const cancelActions = new WeakMap();
   let activeDirtyForm = null;
   const dirtyBar = document.getElementById("config-dirty-bar");
   const dirtyLabel = document.getElementById("config-dirty-label");
+  const reserveDirtySpace = () => {
+    const height = dirtyBar?.classList.contains("is-visible") ? Math.ceil(dirtyBar.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty("--config-dirty-height", `${height}px`);
+  };
+  if (dirtyBar && "ResizeObserver" in window) new ResizeObserver(reserveDirtySpace).observe(dirtyBar);
+  // Un envoi refusé émet **un** `invalid` par commande fautive, dans l'ordre du
+  // document, alors que le navigateur ne focalise que la première. Défiler à
+  // chaque événement amenait donc la page sur la **dernière** : la commande
+  // focalisée, celle que l'opérateur doit corriger, restait hors écran. Seule
+  // la première commande encore refusée du formulaire commande le défilement.
+  // `validity.valid` est relu sans `checkValidity()`, qui réémettrait `invalid`.
+  document.addEventListener("invalid", (event) => {
+    const control = event.target;
+    const first = control.form && [...control.form.elements].find(
+      (candidate) => candidate.willValidate && !candidate.validity.valid,
+    );
+    if (first && first !== control) return;
+    control.scrollIntoView({block: "center"});
+  }, true);
+
   const warnOnUnload = (event) => { event.preventDefault(); event.returnValue = ""; };
   const formLabel = (form) => form.closest("details")?.querySelector("summary span")?.textContent?.trim() || "Cette section";
   const updateDirtyBar = () => {
@@ -250,27 +350,21 @@
       line(panel, "Aucun écart avec la configuration enregistrée.", "preview-title");
     } else {
       line(panel, `${changes.length} champ${changes.length > 1 ? "s" : ""} serai${changes.length > 1 ? "ent" : "t"} modifié${changes.length > 1 ? "s" : ""} :`, "preview-title");
-      const list = document.createElement("ul");
-      changes.forEach((change) => {
-        const item = document.createElement("li");
-        item.textContent = change.secret
-          ? `${change.label} : nouvelle valeur (masquée)`
-          : `${change.label} : ${change.from} → ${change.to}`;
-        list.appendChild(item);
+      const table = document.createElement("table");
+      const caption = table.createCaption(); caption.textContent = "Valeur modifiée → valeur appliquée";
+      const head = table.createTHead().insertRow();
+      for (const title of ["Champ et valeur précédente", "Valeur appliquée"]) {
+        const cell = document.createElement("th"); cell.scope = "col"; cell.textContent = title; head.append(cell);
+      }
+      const body = table.createTBody();
+      [...changes, ...(result.profile_changes || [])].forEach(change => {
+        const row = body.insertRow();
+        row.insertCell().textContent = change.secret ? change.label : `${change.label} : ${change.from}`;
+        row.insertCell().textContent = change.secret ? "Nouvelle valeur masquée" : String(change.to);
       });
-      panel.appendChild(list);
+      panel.append(table);
     }
-    const profile = result.profile_changes || [];
-    if (profile.length > 0) {
-      line(panel, "Réglages fins ramenés au profil de conduite :", "preview-warning");
-      const list = document.createElement("ul");
-      profile.forEach((change) => {
-        const item = document.createElement("li");
-        item.textContent = `${change.label} : ${change.from} → ${change.to}`;
-        list.appendChild(item);
-      });
-      panel.appendChild(list);
-    }
+    if ((result.profile_changes || []).length) line(panel, "Le tableau inclut les réglages fins ramenés au profil de conduite.", "preview-warning");
     if (result.apply_note) line(panel, result.apply_note, "preview-detail");
     if (!result.climate_relevant || !result.climate) return;
     const climate = result.climate;
@@ -364,9 +458,38 @@
   const switcher = document.querySelector("[data-mode-switch]");
   const modeContent = document.querySelector("[data-config-mode-content]");
   const modeLoading = document.querySelector(".config-mode-loading");
+  // Le premier champ refusé, pas le bandeau : c'est là que la correction se
+  // fait. Un groupe de boutons radio n'est pas focalisable lui-même, on vise
+  // donc la première commande qu'il contient.
+  //
+  // L'appel est **suspendu à la révélation du contenu** : tant que
+  // `.config-mode-content.is-pending` est posé, `style.css` masque toute la
+  // configuration (`display: none !important`), et un `focus()` sur un élément
+  // masqué ne fait rien — la page restait sur `<body>`, le champ fautif hors
+  // écran, et le `scrollIntoView({block:"center"})` de la fiche R2.1 sans
+  // aucun effet. Une seule fois : `revealModeContent` a plusieurs appelants.
+  let invalidFocused = false;
+  const focusFirstInvalid = () => {
+    if (invalidFocused) return;
+    invalidFocused = true;
+    const firstInvalid = document.querySelector('[aria-invalid="true"]');
+    if (!firstInvalid) {
+      document.getElementById("form-errors")?.focus();
+      return;
+    }
+    const target = firstInvalid.matches("input, select, textarea")
+      ? firstInvalid
+      : firstInvalid.querySelector("input, select, textarea");
+    const focusable = target || firstInvalid;
+    focusable.closest("details")?.setAttribute("open", "");
+    focusable.focus({ preventScroll: true });
+    focusable.scrollIntoView({ block: "center" });
+  };
+
   const revealModeContent = () => {
     modeContent?.classList.remove("is-pending");
     if (modeLoading) modeLoading.hidden = true;
+    focusFirstInvalid();
   };
   const hashTarget = (() => {
     if (!window.location.hash) return null;
@@ -435,19 +558,4 @@
     }
   }
 
-  // Le premier champ refusé, pas le bandeau : c'est là que la correction se
-  // fait. Un groupe de boutons radio n'est pas focalisable lui-même, on vise
-  // donc la première commande qu'il contient.
-  const firstInvalid = document.querySelector('[aria-invalid="true"]');
-  if (firstInvalid) {
-    const target = firstInvalid.matches("input, select, textarea")
-      ? firstInvalid
-      : firstInvalid.querySelector("input, select, textarea");
-    const focusable = target || firstInvalid;
-    focusable.closest("details")?.setAttribute("open", "");
-    focusable.focus({ preventScroll: true });
-    focusable.scrollIntoView({ block: "center" });
-  } else {
-    document.getElementById("form-errors")?.focus();
-  }
 })();

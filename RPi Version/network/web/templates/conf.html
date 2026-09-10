@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/ui.html" import field_group %}
 {#
   Chaque champ est rendu par une macro qui prend la **portée** de son formulaire
   en premier argument : l'identifiant de section, ou « sensor-quality:<clé> »
@@ -8,12 +9,23 @@
   `form_value` et `field_error` viennent du contexte de rendu (pages.py) et sont
   donc visibles depuis les macros.
 #}
+{#
+  Index de recherche de réglage (R2.1, **préparé, non activé**).
+  Il est alimenté par les macros elles-mêmes, à l'endroit exact où le libellé
+  est rendu : une seconde liste tenue à la main serait une seconde vérité,
+  fausse au premier libellé retouché. Il est sérialisé en fin de page dans un
+  `<template>` — inerte, jamais exécuté, invisible tant qu'aucune interface ne
+  le lit.
+#}
+{% set search_index = [] %}
+{% macro index_field(scope, name, label, help='') %}{% set _ = search_index.append({'section': scope, 'field': name, 'label': label, 'help': help}) %}{% endmacro %}
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
 {% macro err_attrs(scope, name, control_id) %}{% if field_error(scope, name) %} aria-invalid="true" aria-describedby="{{ control_id }}-error"{% endif %}{% endmacro %}
 {% macro err_note(scope, name, control_id) %}{% set message = field_error(scope, name) %}{% if message %}<p class="field-error" id="{{ control_id }}-error">{{ message }}</p>{% endif %}{% endmacro %}
 {% macro switch(scope, name, checked, label='État', id_prefix='', on_value='enabled', off_value='disabled') %}
 {% set control_id = id_prefix or name %}
 {% set shown = form_value(scope, name, on_value if checked else off_value)|string %}
+{{ index_field(scope, name, label) }}
 <fieldset class="segmented-field{% if field_error(scope, name) %} field-invalid{% endif %}"{{ err_attrs(scope, name, control_id) }}>
   <legend>{{ label }}</legend>
   <div class="segmented-control">
@@ -28,6 +40,7 @@
 {% macro radios(scope, name, current, label, options, id_prefix='') %}
 {% set control_id = id_prefix or name %}
 {% set shown = form_value(scope, name, current)|string %}
+{{ index_field(scope, name, label) }}
 <fieldset class="segmented-field{% if field_error(scope, name) %} field-invalid{% endif %}"{{ err_attrs(scope, name, control_id) }}>
   <legend>{{ label }}</legend>
   <div class="segmented-control">
@@ -39,12 +52,21 @@
 {% macro number(scope, name, label, value, unit='', min='', max='', step='1', help='', id_prefix='', required=False) %}
 {% set control_id = id_prefix or name %}
 {% set invalid = field_error(scope, name) %}
+{% set decimal = step|string != '1' %}
 {% set shown = form_value(scope, name, value) %}
+{{ index_field(scope, name, label, help) }}
 <div class="field{% if invalid %} field-invalid{% endif %}">
   <label for="{{ control_id }}">{{ label }}</label>
-  {# Un champ refusé repasse en texte : `type="number"` vide silencieusement une
-     saisie non numérique, et l'opérateur ne verrait jamais ce qui a été rejeté. #}
-  <div class="input-with-unit"><input id="{{ control_id }}" name="{{ name }}" type="{{ 'text' if invalid else 'number' }}"{% if invalid %} inputmode="decimal"{% endif %} value="{{ shown }}" step="{{ step }}"{% if min != '' %} min="{{ min }}"{% endif %}{% if max != '' %} max="{{ max }}"{% endif %}{% if required %} required{% endif %}{{ err_attrs(scope, name, control_id) }}><span>{{ unit }}</span></div>
+  {# Mesuré le 10/09/2026 sur Chromium en locale fr-FR (`tests/ui/config.spec.js`) :
+     `type="number"` **efface** la virgule — « 20,5 » y devient « 205 », soit une
+     valeur fausse et silencieuse — et « abc » y devient une valeur vide jugée
+     valide. Un champ décimal reste donc en `type="text"` avec le clavier
+     décimal et un motif qui accepte les deux séparateurs ; `config.js` y
+     reproduit `min`, `max` et le pas pour retrouver la validation native, la
+     saisie fautive restant visible. Un champ entier garde `type="number"`
+     (aucun séparateur décimal n'y entre), sauf lorsque le serveur vient de le
+     refuser : la saisie rejetée doit rester lisible pour être corrigée. #}
+  <div class="input-with-unit"><input id="{{ control_id }}" name="{{ name }}" type="{{ 'text' if invalid or decimal else 'number' }}"{% if decimal %} inputmode="decimal" pattern="-?[0-9]+([.,][0-9]+)?" data-numeric{% elif invalid %} inputmode="numeric" pattern="-?[0-9]+" data-numeric{% endif %} value="{{ shown }}" step="{{ step }}"{% if min != '' %} min="{{ min }}"{% endif %}{% if max != '' %} max="{{ max }}"{% endif %}{% if required %} required{% endif %}{{ err_attrs(scope, name, control_id) }}><span>{{ unit }}</span></div>
   {{ err_note(scope, name, control_id) }}
   {% if help %}<p class="field-help">{{ help }}</p>{% endif %}
 </div>
@@ -52,6 +74,7 @@
 {% macro text(scope, name, label, value, type='text', help='', id_prefix='', maxlength='', required=False, placeholder='', autocomplete='', sticky=True) %}
 {% set control_id = id_prefix or name %}
 {% set shown = form_value(scope, name, value) if sticky else value %}
+{{ index_field(scope, name, label, help) }}
 <div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
   <label for="{{ control_id }}">{{ label }}</label>
   <input id="{{ control_id }}" name="{{ name }}" type="{{ type }}" value="{{ shown }}"{% if type == 'time' %} step="60" data-compact-time{% endif %}{% if maxlength != '' %} maxlength="{{ maxlength }}"{% endif %}{% if required %} required{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{{ err_attrs(scope, name, control_id) }}>
@@ -63,6 +86,7 @@
 {% set control_id = id_prefix or name %}
 {# Un secret n'est jamais réémis, refusé ou non : il repartirait dans le HTML
    d'une interface sans authentification. #}
+{{ index_field(scope, name, label, help_suffix) }}
 <div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
   <label for="{{ control_id }}">{{ label }}</label>
   <div class="secret-input"><input id="{{ control_id }}" name="{{ name }}" type="password" value="" autocomplete="new-password" data-secret{{ err_attrs(scope, name, control_id) }}><button type="button" class="reveal-button" data-reveal="{{ control_id }}" aria-label="Afficher la nouvelle valeur">Afficher</button></div>
@@ -73,6 +97,7 @@
 {% macro choice(scope, name, label, value, options, id_prefix='') %}
 {% set control_id = id_prefix or name %}
 {% set shown = form_value(scope, name, value)|string %}
+{{ index_field(scope, name, label) }}
 <div class="field{% if field_error(scope, name) %} field-invalid{% endif %}">
   <label for="{{ control_id }}">{{ label }}</label>
   <select id="{{ control_id }}" name="{{ name }}"{{ err_attrs(scope, name, control_id) }}>{% for option in options %}<option value="{{ option }}"{% if shown == option %} selected{% endif %}>{{ option }}</option>{% endfor %}</select>
@@ -124,7 +149,8 @@
 </div>
 
 <nav class="config-toc" aria-label="Sommaire de la configuration" data-config-mode="advanced">
-  <a href="#culture">Culture</a><a href="#equipements">Équipements</a><a href="#planification">Planification</a><a href="#climat">Climat</a><a href="#capteurs">Capteurs</a><a href="#reseau">Réseau</a><a href="#systeme">Système</a>
+  {# Actions autonomes les plus fréquentes de la page (R5.3) : cible tactile pleine. #}
+  <a class="action-link" href="#culture">Culture</a><a class="action-link" href="#equipements">Équipements</a><a class="action-link" href="#planification">Planification</a><a class="action-link" href="#climat">Climat</a><a class="action-link" href="#capteurs">Capteurs</a><a class="action-link" href="#reseau">Réseau</a><a class="action-link" href="#systeme">Système</a>
 </nav>
 
 <div class="config-layout">
@@ -135,14 +161,21 @@
     <form method="post" action="/conf/simple" data-config-form>{{ csrf() }}
       <p class="field-help">Cette section enregistre en une fois le planning, les consignes et la ventilation. Les réglages fins sont ramenés au profil de conduite ; la prévisualisation ci-dessous montre exactement ce qui changera.</p>
 
-      <h3>Jour et nuit</h3>
+      {% call field_group("Jour/nuit") %}
+      {# Le résumé initial est rendu **ici**, pas attendu du script : sans JS la
+         page doit dire l'état, pas annoncer un chargement. `config.js` reprend
+         la même formule au premier `input`, à la virgule près, pour qu'aucune
+         valeur ne change en apparence à la première frappe. #}
+      <p class="num" data-config-group-summary="day">{{ '%02d:%02d'|format(config.day_night.start_hour, config.day_night.start_minute) }} → {{ '%02d:%02d'|format(config.day_night.stop_hour, config.day_night.stop_minute) }}</p>
       {{ radios('simple', 'source', config.day_night.source, 'Référence jour / nuit', (('dailytimer1','Suivre l’éclairage 1'),('custom','Horaires personnalisés')), 'simple-source') }}
       <div class="field-grid two">
         {{ text('simple', 'start_time', 'Début du jour', '%02d:%02d'|format(config.day_night.start_hour, config.day_night.start_minute), type='time', required=True, id_prefix='simple-day-start') }}
         {{ text('simple', 'stop_time', 'Fin du jour', '%02d:%02d'|format(config.day_night.stop_hour, config.day_night.stop_minute), type='time', required=True, id_prefix='simple-day-stop') }}
       </div>
 
-      <h3>Éclairage</h3>
+      {% endcall %}
+      {% call field_group("Éclairage") %}
+      <p class="num" data-config-group-summary="light">Éclairage 1 : {{ '%02d:%02d'|format(config.daily_timer1.start_hour, config.daily_timer1.start_minute) }} → {{ '%02d:%02d'|format(config.daily_timer1.stop_hour, config.daily_timer1.stop_minute) }} · Éclairage 2 : {{ '%02d:%02d'|format(config.daily_timer2.start_hour, config.daily_timer2.start_minute) }} → {{ '%02d:%02d'|format(config.daily_timer2.stop_hour, config.daily_timer2.stop_minute) }}</p>
       {% for num, timer in ((1, config.daily_timer1), (2, config.daily_timer2)) %}
       <fieldset class="metadata-fieldset"><legend>Éclairage {{ num }}</legend>
         {{ switch('simple', 'daily' ~ num ~ '_enabled', timer.enabled, 'Activation', 'simple-daily-' ~ num) }}
@@ -153,6 +186,9 @@
       </fieldset>
       {% endfor %}
 
+      {% endcall %}
+      {% call field_group("Climat") %}
+      <p class="num" data-config-group-summary="climate">Jour {{ config.temperature.target_temp_min_day }}–{{ config.temperature.target_temp_max_day }} °C · Nuit {{ config.temperature.target_temp_min_night }}–{{ config.temperature.target_temp_max_night }} °C</p>
       <h3>Températures visées</h3>
       <div class="field-grid two">
         {{ number('simple', 'target_temp_min_day', 'Jour · minimum', config.temperature.target_temp_min_day, '°C', -20, 60, '0.1', '', 'simple-min-day') }}
@@ -173,6 +209,7 @@
       {% endif %}
       {{ switch('simple', 'heater_enabled', config.heater_settings.enabled, 'Chauffage', 'simple-heater') }}
 
+      {% endcall %}
       {% if simple.profile_pending %}
       <div class="notice warning">
         <div><strong>Réglages fins ramenés au profil de conduite.</strong>
@@ -239,7 +276,7 @@
   {% for num, timer in ((1, config.daily_timer1), (2, config.daily_timer2)) %}
   {% set scope = 'daily-timer-' ~ num %}
   <details class="config-section" id="daily-timer-{{ num }}"{% if active_section == scope %} open{% endif %}>
-    <summary><span>Minuterie quotidienne {{ num }}</span><span class="summary-value">{{ '%02d:%02d'|format(timer.start_hour, timer.start_minute) }} → {{ '%02d:%02d'|format(timer.stop_hour, timer.stop_minute) }}</span></summary>
+    <summary><span>Minuterie quotidienne {{ num }}</span><span class="summary-value num">{{ '%02d:%02d'|format(timer.start_hour, timer.start_minute) }} → {{ '%02d:%02d'|format(timer.stop_hour, timer.stop_minute) }}</span></summary>
     <form method="post" action="/conf/daily-timer-{{ num }}" data-config-form>{{ csrf() }}
       {{ switch(scope, 'enabled', timer.enabled, 'Activation', 'daily-' ~ num ~ '-enabled') }}
       <div class="field-grid two">
@@ -413,11 +450,20 @@
   </details>
   <details class="config-section hardware" id="gpio"><summary><span>Matériel GPIO</span><span class="summary-value">Lecture seule</span></summary>
     <div class="notice warning"><strong>Configuration sensible.</strong> Les sorties génériques sont actives-BAS et le moteur actif-HAUT. Toute modification exige une validation matérielle et un redémarrage.</div>
-    <dl class="gpio-list">{% for field, value in gpio_fields %}<div><dt>{{ field }}</dt><dd>GPIO {{ value }}</dd></div>{% endfor %}</dl>
+    <dl class="gpio-list">{% for field, value in gpio_fields %}<div><dt>{{ field }}</dt><dd class="num">GPIO {{ value }}</dd></div>{% endfor %}</dl>
   </details>
 </section>
 </div>
 </div>
+{#
+  Index de recherche de réglage — **préparé, pas activé** (R2.1).
+  Rendu après toutes les sections : chaque entrée a été posée par la macro qui
+  a rendu le champ, à son libellé exact. Aucun script ne le lit aujourd'hui et
+  aucune interface de recherche n'est visible ; l'activation est suspendue à
+  R4.3. Un `<template>` n'est ni rendu, ni exécuté, ni parcouru par les
+  technologies d'assistance : il ne coûte que son texte.
+#}
+<template id="config-search-index" data-config-search-index>{% for entry in search_index %}<span data-section="{{ entry.section }}" data-field="{{ entry.field }}" data-label="{{ entry.label }}"{% if entry.help %} data-help="{{ entry.help }}"{% endif %}></span>{% endfor %}</template>
 <aside id="config-dirty-bar" class="config-dirty-bar" aria-live="polite">
   <span id="config-dirty-label">Modifications non enregistrées</span>
   <button class="button button-secondary" type="button" data-dirty-cancel>Annuler</button>
