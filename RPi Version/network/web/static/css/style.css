@@ -1,15 +1,25 @@
 @font-face { font-family: "Visitor"; src: url("/static/fonts/visitor1.ttf") format("truetype"); font-display: swap; }
 :root {
   color-scheme: dark; --bg: #07100c; --surface: #0d1812; --raised: #122119;
-  --soft: #17291f; --border: #2c4939; --border-strong: #4a755d;
+  /* `--border-strong` est la limite visible d'un composant : elle doit tenir 3:1 (WCAG
+     1.4.11) contre **toutes** les surfaces du thème, `--soft` comprise, où l'ancienne
+     valeur tombait à 2,91. */
+  --soft: #17291f; --border: #2c4939; --border-strong: #4c7960;
   --text: #edf7f0; --muted: #a0b9aa; --green: #50e38a; --green-strong: #22c96d;
   --amber: #f5bd4f; --red: #ff6b6b; --blue: #75baff; --radius: 14px;
   --radius-sm: 9px; --content: 1400px; --gap: clamp(1rem, 2vw, 1.5rem);
   --on-accent: #031b0d; --shadow: rgb(0 0 0 / 24%);
   --chart-muted: #a0b9aa; --chart-grid: rgb(176 205 186 / 16%); --chart-off: #0d1812;
   --chart-label: #dbe9df; --chart-crosshair: rgb(237 247 240 / 72%);
-  --chart-0: #50e38a; --chart-1: #65b9ff; --chart-2: #ffc857;
-  --chart-3: #d88cff; --chart-4: #ff7b7b; --chart-5: #8ee3ef;
+  /* Séries de graphiques. En deutéranopie, l'ancien `--chart-1` (bleu) et `--chart-3`
+     (violet) tombaient à ΔE 1,7 : la même couleur à l'écran. La palette respecte
+     désormais ΔE >= 15 entre **toutes** les paires en vue normale, en deutéranopie et en
+     protanopie (Machado 2009, sévérité 1,0, ΔE CIE76), au plus près des teintes
+     d'origine ; `--chart-0` reste le vert de marque, alias de `--green`. La couleur n'est
+     jamais seule à distinguer une série : le tracé et le marqueur restent le premier
+     niveau de lecture. */
+  --chart-0: #50e38a; --chart-1: #7abdff; --chart-2: #ffc252;
+  --chart-3: #bd7aff; --chart-4: #e56c6c; --chart-5: #8ee2eb;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 [data-theme="daylight"] {
@@ -19,8 +29,8 @@
   --amber: #7a4b00; --red: #b42323; --blue: #075ea8; --on-accent: #fff;
   --shadow: rgb(16 34 25 / 12%); --chart-muted: #4f685a; --chart-grid: rgb(79 104 90 / 22%);
   --chart-off: #e8f1eb; --chart-label: #102219; --chart-crosshair: rgb(16 34 25 / 72%);
-  --chart-0: #0b7c3d; --chart-1: #075ea8; --chart-2: #7a4b00;
-  --chart-3: #71389b; --chart-4: #b42323; --chart-5: #086b73;
+  --chart-0: #0b7c3d; --chart-1: #1466b8; --chart-2: #703e00;
+  --chart-3: #752b82; --chart-4: #cc0029; --chart-5: #197176;
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
@@ -55,7 +65,7 @@ h3 { margin-bottom: .35rem; font-size: 1.03rem; }
 .hero.compact { align-items: center; }
 .hero-actions { display: grid; justify-items: end; gap: .65rem; }
 .hero-copy { max-width: 62ch; color: var(--muted); }
-.eyebrow { margin-bottom: .4rem; color: var(--green); font-family: Visitor, ui-monospace, monospace; font-size: .75rem; letter-spacing: .13em; text-transform: uppercase; }
+.eyebrow { margin-bottom: .4rem; color: var(--green); font-family: system-ui, sans-serif; font-size: .85rem; letter-spacing: normal; text-transform: none; }
 .freshness, .section-count, .summary-value { color: var(--muted); font-size: .86rem; }
 .freshness { white-space: nowrap; }
 .freshness.is-stale { color: var(--amber); }
@@ -83,7 +93,7 @@ section + section { margin-top: clamp(2.2rem, 5vw, 4rem); }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: var(--gap); }
 .card { min-width: 0; padding: clamp(1rem, 2vw, 1.35rem); border: 1px solid var(--border); border-radius: var(--radius); background: linear-gradient(145deg, rgb(255 255 255 / 2%), transparent), var(--surface); box-shadow: 0 18px 50px var(--shadow); }
 [data-theme="daylight"] .card { background: var(--surface); }
-.card-kicker { display: flex; justify-content: space-between; gap: .7rem; margin-bottom: 1rem; color: var(--muted); font-family: Visitor, ui-monospace, monospace; font-size: .72rem; letter-spacing: .09em; text-transform: uppercase; }
+.card-kicker { display: flex; justify-content: space-between; gap: .7rem; margin-bottom: 1rem; color: var(--muted); font-family: system-ui, sans-serif; font-size: .85rem; letter-spacing: normal; text-transform: none; }
 .metric { margin: 1rem 0 .2rem; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; }
 .metric-unit { color: var(--muted); font-size: .85rem; font-weight: 400; }
 .card-meta { margin-bottom: 0; color: var(--muted); font-size: .84rem; }
@@ -123,7 +133,9 @@ progress::-webkit-progress-bar { background: var(--soft); } progress::-webkit-pr
 .dialog-panel { padding: 1.4rem 1.4rem .6rem; } .dialog-panel p:not(.eyebrow) { color: var(--muted); }
 .dialog-actions { margin-top: 1rem; } .dialog-confirm-form { padding: 0 1.4rem 1.4rem; }
 .config-toc { position: sticky; z-index: 10; top: 0; display: flex; gap: .35rem; margin-bottom: 1.7rem; padding: .55rem; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); }
-.config-toc a { min-height: 40px; display: inline-flex; align-items: center; padding: .4rem .75rem; border-radius: var(--radius-sm); color: var(--muted); text-decoration: none; white-space: nowrap; }
+/* Pas de `min-height` ici : c'est `.action-link` qui définit la cible tactile (44 px), et
+   une règle plus spécifique qui la redit à 40 px ne fait que la neutraliser. */
+.config-toc a { display: inline-flex; align-items: center; padding: .4rem .75rem; border-radius: var(--radius-sm); color: var(--muted); text-decoration: none; white-space: nowrap; }
 .config-toc a:hover { background: var(--soft); color: var(--text); }
 .config-layout { display: grid; gap: clamp(2.2rem, 5vw, 4rem); }
 .config-layout > section { margin-top: 0; scroll-margin-top: 5rem; }
@@ -170,7 +182,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .reveal-button { min-height: 44px; padding-inline: .8rem; border: 1px solid var(--border-strong); border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--soft); color: var(--text); cursor: pointer; }
 .segmented-field { margin: 0 0 1rem; padding: 0; border: 0; }
 .metadata-fieldset { margin: 1.25rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.metadata-fieldset legend { padding-inline: .4rem; color: var(--green); font-family: Visitor, ui-monospace, monospace; }
+.metadata-fieldset legend { padding-inline: .4rem; color: var(--green); font-family: system-ui, sans-serif; }
 .segmented-control { display: flex; flex-wrap: wrap; gap: .45rem; }
 .segmented-control label { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: .55rem .9rem; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--muted); cursor: pointer; }
 .segmented-control input:checked + label { border-color: var(--green); background: rgb(80 227 138 / 14%); color: var(--green); }
@@ -186,7 +198,11 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .console-control { display: flex; flex-direction: column; gap: .2rem; }
 .console-control-wide { flex: 1 1 14rem; }
 .console-control label { color: var(--muted); font-size: .78rem; }
-.console-control select, .console-control input { padding: .4rem .55rem; border: 1px solid var(--border); border-radius: calc(var(--radius) / 2); background: var(--surface); color: var(--text); }
+/* `--border-strong`, jamais `--border` : la limite d'un champ de saisie est un composant
+   d'interface (WCAG 1.4.11, 3:1 contre la surface environnante). C'est cette règle et
+   celle du formulaire de confirmation qui rétrogradaient la bordure des `select`/`input`
+   à 1,95:1 en sombre et 1,59:1 en plein jour, la règle de base étant déjà correcte. */
+.console-control select, .console-control input { padding: .4rem .55rem; border: 1px solid var(--border-strong); border-radius: calc(var(--radius) / 2); background: var(--surface); color: var(--text); }
 .console-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-left: auto; }
 .console-counters { margin-bottom: .5rem; color: var(--muted); font-size: .82rem; }
 .console-line { display: block; }
@@ -208,9 +224,16 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .overview-copy { min-width: 0; flex: 1; }.overview-facts { display: flex; flex-wrap: wrap; gap: .45rem 1.2rem; color: var(--muted); font-size: .82rem; }.overview-facts a:hover { color: var(--green); }
 .actuator-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
 .actuator-group + .actuator-group { margin-top: 1.5rem; }
-.actuator-group-title { margin-bottom: .7rem; color: var(--muted); font-family: Visitor, ui-monospace, monospace; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; }
+.actuator-group-title { margin-bottom: .7rem; color: var(--muted); font-family: system-ui, sans-serif; font-size: .85rem; letter-spacing: normal; text-transform: none; }
 .climate-actuator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.automation-actuator-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+/* 280 px donnaient quatre colonnes à 1280 px : la ligne compacte n'était plus une ligne —
+   le nom passait sous le chevron, « À la prochaine condition de régulation » se coupait
+   mot par mot et les deux actions écrasaient le nom. Une ligne compacte a besoin de sa
+   largeur : deux colonnes jusqu'à ~1280 px, davantage seulement si l'écran le permet. */
+.automation-actuator-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); }
+/* Les cartes d'une rangée ne s'alignent plus sur la plus haute : une ligne compacte se
+   terminait par 200 px de vide parce que sa voisine était développée. */
+.actuator-grid { align-items: start; }
 .actuator-card { display: flex; flex-direction: column; box-shadow: 0 12px 34px rgb(0 0 0 / 18%); }
 .actuator-card.is-forced { border-color: var(--amber); background: linear-gradient(145deg, rgb(245 189 79 / 10%), transparent 46%), var(--surface); }
 .actuator-heading { align-items: flex-start; }.actuator-heading > div { min-width: 0; }.actuator-name { overflow-wrap: anywhere; }
@@ -245,9 +268,9 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .badge-warning { padding: .05rem .4rem; border-radius: 999px; background: rgb(255 200 87 / 18%); color: var(--amber); font-size: .75rem; }
 .section-note { max-width: 44ch; margin-bottom: 0; color: var(--muted); font-size: .88rem; }
 .dialog-confirm-form label { display: block; margin-bottom: .25rem; color: var(--muted); font-size: .85rem; }
-.dialog-confirm-form input { width: 100%; margin-bottom: .8rem; padding: .5rem .6rem; border: 1px solid var(--border); border-radius: calc(var(--radius) / 2); background: var(--surface); color: var(--text); }
+.dialog-confirm-form input { width: 100%; margin-bottom: .8rem; padding: .5rem .6rem; border: 1px solid var(--border-strong); border-radius: calc(var(--radius) / 2); background: var(--surface); color: var(--text); }
 .pwa-connection-banner { position: sticky; z-index: 120; top: 0; display: flex; align-items: center; justify-content: center; gap: .75rem; padding: .8rem clamp(1rem, 4vw, 3rem); border-bottom: 2px solid #fff; background: #9f1717; color: #fff; box-shadow: 0 .6rem 2rem rgb(0 0 0 / 45%); }
-.pwa-connection-banner strong { font-family: Visitor, ui-monospace, monospace; letter-spacing: .1em; }
+.pwa-connection-banner strong { font-family: system-ui, sans-serif; letter-spacing: normal; }
 .pwa-connection-banner.is-degraded { border-bottom-color: #fff; background: #815600; }
 .pwa-connection-banner button { flex: none; padding: .35rem .9rem; border: 2px solid #fff; border-radius: .3rem; background: #fff; color: #7d1212; font-weight: 700; cursor: pointer; }
 .pwa-connection-banner button:hover { background: #ffe9e9; }
@@ -278,8 +301,13 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .chart-legend-button:hover, .chart-legend-button[aria-pressed="true"] { border-color: var(--border-strong); background: var(--soft); color: var(--text); }
 .chart-legend-button[aria-pressed="false"] { opacity: .48; text-decoration: line-through; }
 .chart-legend-swatch { width: 1.35rem; height: .5rem; flex: 0 0 auto; border-radius: 999px; background: var(--chart-color, var(--green)); }
-.chart-legend-swatch.is-line { height: 0; border-top: 2px solid var(--chart-color, var(--green)); border-radius: 0; background: none; }
-.chart-legend-swatch.is-line.series-style-1 { border-top-style: dashed; }.chart-legend-swatch.is-line.series-style-2 { border-top-style: dotted; }
+/* Pastille dessinée : `history.js` y rejoue le vrai `setLineDash` et le vrai marqueur de la
+   série, et fixe `width`/`height` en ligne pour la mise à l'échelle `devicePixelRatio`. Le
+   fond et l'arrondi hérités doivent être neutralisés, sinon une gélule verte apparaît
+   derrière le canevas transparent. Les anciennes `.is-line` / `.series-style-N` ne
+   couvraient que trois variantes pour six motifs : elles décrivaient une autre série dès la
+   quatrième courbe, et plus aucun script ne les pose. */
+.chart-legend-swatch.is-plot { flex: 0 0 auto; height: auto; background: none; border-radius: 0; }
 .chart-legend-swatch.is-dashed { height: 0; border-top: 2px dashed var(--chart-color, var(--amber)); border-radius: 0; background: none; }
 .chart-legend-swatch.is-long-dash { height: 2px; border: 0; background: repeating-linear-gradient(90deg, var(--chart-color, var(--amber)) 0 10px, transparent 10px 15px); }
 .chart-legend-swatch.is-band { height: .7rem; border: 1px solid var(--chart-color, var(--blue)); border-radius: 2px; background: rgb(117 186 255 / 14%); }
@@ -333,7 +361,9 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .action-toast { position: fixed; z-index: 160; right: 1rem; bottom: 1rem; width: min(24rem, calc(100vw - 2rem)); padding: .8rem 1rem; border: 1px solid var(--green); border-radius: var(--radius-sm); background: var(--raised); color: var(--text); box-shadow: 0 14px 42px var(--shadow); font-weight: 650; }
 
 @media (max-width: 800px) {
-  html { scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  /* `scroll-padding-bottom` est posé une seule fois, plus bas et dans ce même `@media`,
+     en tenant compte de la barre de saisie (`--config-dirty-height`) : la déclaration qui
+     vivait ici était systématiquement écrasée. */
   :where(a, button, input, select, textarea, summary, [tabindex]):focus { scroll-margin-bottom: calc(80px + env(safe-area-inset-bottom)); }
   body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   .site-header { min-height: 58px; padding-top: max(.7rem, env(safe-area-inset-top)); }
@@ -341,6 +371,12 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   .mobile-navbar { position: fixed; z-index: 110; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: calc(64px + env(safe-area-inset-bottom)); padding: 0 .3rem env(safe-area-inset-bottom); border-top: 1px solid var(--border-strong); background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(12px); }
   .mobile-navbar > a, .mobile-more > summary { position: relative; min-width: 0; min-height: 64px; display: flex; align-items: center; justify-content: center; gap: .25rem; padding: .45rem .25rem; color: var(--muted); font-size: .78rem; font-weight: 650; text-align: center; text-decoration: none; list-style: none; cursor: pointer; }
   .mobile-navbar > a[aria-current="page"], .mobile-more[data-current="true"] > summary { color: var(--green); }
+  /* Plein jour : le vert courant tombait à 4,32:1 sur le fond translucide de la barre
+     (0,18 sous le seuil, seule violation axe de la campagne). Le vert appuyé y monte à
+     6,04:1. En sombre, `--green` est déjà très contrasté sur une barre sombre : rien à
+     changer, et l'assombrir l'affaiblirait. */
+  [data-theme="daylight"] .mobile-navbar > a[aria-current="page"],
+  [data-theme="daylight"] .mobile-more[data-current="true"] > summary { color: var(--green-strong); }
   .mobile-navbar > a[aria-current="page"]::before, .mobile-more[data-current="true"] > summary::before { position: absolute; top: 0; right: 18%; left: 18%; height: 2px; border-radius: 999px; background: var(--green); content: ""; }
   .mobile-more > summary::-webkit-details-marker { display: none; }
   .mobile-more-panel { position: fixed; z-index: 112; right: .75rem; bottom: calc(70px + env(safe-area-inset-bottom)); width: min(19rem, calc(100vw - 1.5rem)); display: grid; gap: .45rem; padding: 1rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--raised); box-shadow: 0 20px 60px var(--shadow); text-align: left; }
@@ -393,4 +429,207 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   .status-dot, .nav-count, .chart-legend-swatch { forced-color-adjust: none; }
   .card, .control-overview, .config-section, .mobile-navbar, .action-toast { box-shadow: none; border: 1px solid CanvasText; }
   .button, .theme-toggle, .mode-button, .segmented-control label { border: 1px solid ButtonText; }
+}
+
+/* Composants partagés : lecture compacte avant les détails secondaires. */
+.ui-compact-header { padding: 1rem; margin-block: .5rem 1rem; border: 1px solid var(--border); border-radius: 1rem; }
+.ui-compact-header h1 { margin: 0 0 .5rem; font-size: 1.7rem; }
+.ui-facts { display:flex; flex-wrap:wrap; gap:.5rem 1rem; list-style:none; padding:0; }
+/* Cible tactile d'une action autonome : 44 px dans les DEUX dimensions. Sans `min-width`,
+   un libellé de deux caractères respectait la hauteur et restait sous les 24 px de large
+   exigés par WCAG 2.2. Le remplissage — sur les DEUX axes — ne s'applique qu'aux liens
+   nus : sur un `.button`, il écraserait celui du bouton, déjà dimensionné, et un
+   `padding-block` imposé y déformait la hauteur des commandes. */
+.action-link { display:inline-flex; align-items:center; justify-content:center; min-height:44px; min-width:44px; }
+.action-link:not(.button) { padding-block:.35rem; padding-inline:.5rem; }
+.num, time, .freshness { font-variant-numeric:tabular-nums; }
+.ui-equipment-row > summary { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; min-height:44px; cursor:pointer; }
+.ui-equipment-row > summary .actuator-next { flex-basis:100%; margin:0; }
+.ui-equipment-row > summary::before { content:'▸'; } .ui-equipment-row[open] > summary::before { content:'▾'; }
+.actuator-card:has(.ui-equipment-row) { padding:.75rem; }
+.actuator-card:has(.ui-equipment-row) .equipment-actions { margin-top:.5rem; }
+.ui-compact-header .control-overview { padding:.5rem; margin:.25rem 0; }
+.ui-compact-header .overview-facts { margin-top:.25rem; }
+.ui-compact-header .dashboard-section { margin-top:.5rem; }
+.ui-compact-header .climate-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.ui-compact-header .climate-summary-item { padding:.5rem; }
+.ui-compact-header .climate-summary-item strong { font-size:1.6rem; }
+.ui-compact-header .section-heading { margin-bottom:.25rem; }
+.ui-compact-header .eyebrow { display:none; }
+.dashboard-priorities h2 { font-size:1.1rem; }
+.console-tools { margin-block:.75rem; }
+/* Le journal ne récupère la hauteur qu'en dessous du point de rupture, là où les outils
+   sont repliés : sur poste, `min(68vh, 760px)` de la règle de base reste la bonne valeur,
+   et 45dvh l'aurait rapetissé. */
+@media (max-width: 800px) { .console-output { min-height:45dvh; } }
+/* Sections repliées du tableau de bord : hauteur d'une ligne quand elles sont fermées. */
+.dashboard-fold { margin-block:.6rem; }
+.dashboard-fold > summary { min-height:44px; display:flex; align-items:center; gap:.4rem; padding:.3rem .1rem; color:var(--muted); cursor:pointer; }
+.dashboard-fold > summary::before { content:'▸'; } .dashboard-fold[open] > summary::before { content:'▾'; }
+.dashboard-fold > .dashboard-section { margin-top:.2rem; }
+/* Capteurs en liste : mesure, unité et statut restent lus repliés, sans le très grand
+   chiffre de la carte d'origine, qui coûtait à lui seul près de trois lignes. */
+.sensor-card { padding:.3rem .6rem; }
+.sensor-card > .sensor-details > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; }
+.sensor-line { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; width:100%; }
+.sensor-card .metric { margin:0; font-size:1.15rem; }
+.sensor-card .sensor-status { margin-left:auto; color:var(--muted); font-size:.78rem; }
+/* Densité du tableau de bord à 390 px (acceptation R1.2 : hauteur au moins divisée par
+   deux). Rien n'est retiré ici : ce sont les marges et les très grands corps de texte de
+   la version « une carte par chose » qui sont ramenés à une densité de lecture mobile. */
+/* La ligne compacte et ses deux actions partagent la même rangée : empilées, elles
+   coûtaient une seconde hauteur de bouton par équipement, soit six lignes de 44 px pour
+   une information déjà tenue sur une seule. Les actions restent côte à côte. */
+.actuator-card:has(.ui-equipment-row) { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; column-gap:.5rem; padding:.45rem .6rem; }
+.actuator-card:has(.ui-equipment-row) > .ui-equipment-row { grid-column:1; }
+.actuator-card:has(.ui-equipment-row) > .equipment-actions { grid-column:2; grid-row:1; margin-top:0; gap:.35rem; }
+.actuator-card:has(.ui-equipment-row) > .equipment-actions .button { padding-inline:.5rem; font-size:.8rem; }
+.actuator-card:has(.ui-equipment-row) > .normally-hidden { grid-column:1 / -1; }
+.actuator-group { margin-block:.4rem; }
+.actuator-group-title { margin:.3rem 0 .2rem; }
+.actuator-grid { gap:.4rem; }
+.ui-compact-header { padding:.7rem; margin-block:.4rem .7rem; }
+.ui-compact-header h1 { margin:0 0 .3rem; font-size:1.35rem; }
+/* Les trois raccourcis d'ancre tenaient chacun sa propre ligne de 44 px : trois lignes de
+   hauteur tactile pour trois liens qui, resserrés, tiennent sur une seule. La cible
+   tactile reste entière (44 px de haut, 44 px de large au minimum) : seul le texte est
+   ramené à la taille d'un libellé secondaire. */
+.ui-compact-header > .action-link { padding-inline:.35rem; font-size:.8rem; }
+.ui-compact-header .climate-summary-item { padding:.3rem .4rem; }
+.ui-compact-header .climate-summary-item strong { font-size:1.15rem; }
+.ui-compact-header .climate-summary { margin-top:.4rem; gap:.4rem; }
+.ui-compact-header .climate-summary-item { padding:.4rem; }
+.ui-compact-header .climate-summary-item strong { font-size:1.3rem; }
+.ui-compact-header .climate-context { padding:.4rem .5rem; }
+.ui-compact-header #climate-summary { margin-block:.3rem 0; }
+.ui-compact-header .overview-copy h2 { margin:0; font-size:1.05rem; }
+/* Faits d'état et destinations sur la même ligne : les deux liens gardent leurs 44 px de
+   cible, mais leur libellé est resserré pour qu'ils ne s'empilent pas chacun sur sa
+   rangée — c'était 88 px pour deux mots. */
+.ui-compact-header .overview-facts { align-items:center; gap:0 .5rem; font-size:.78rem; }
+.ui-compact-header .overview-facts > .action-link { padding-inline:.25rem; font-size:.78rem; }
+.ui-compact-header .climate-context { gap:0 .5rem; padding:.3rem .45rem; font-size:.75rem; }
+.ui-compact-header .freshness { margin-block:.2rem; font-size:.8rem; }
+.ui-compact-header .section-heading { margin-bottom:.2rem; }
+.ui-compact-header .climate-summary-detail { font-size:.72rem; }
+.section-heading { margin-bottom:.35rem; }
+.section-heading h2 { margin:0; font-size:1.1rem; }
+.dashboard-priorities { margin-block:.5rem; }
+.dashboard-priorities h2 { margin:0 0 .2rem; }
+.dashboard-priorities p { margin:.2rem 0; font-size:.82rem; }
+/* Mêmes 44 px de cible, libellé resserré : les trois raccourcis tiennent sur une rangée
+   au lieu de deux. */
+.dashboard-priorities .action-link { padding-inline:.25rem; font-size:.82rem; }
+.dashboard-priorities h2 { font-size:1rem; }
+.dashboard-section { margin-block:.6rem; }
+/* Aperçu du carnet sur le tableau de bord : une ligne par espace, pas une carte pleine. */
+[data-culture-preview] { display:grid; gap:.4rem; }
+[data-culture-preview] .card { padding:.5rem .7rem; }
+[data-culture-preview] h3 { margin:0; font-size:.95rem; }
+[data-culture-preview] p { margin:.15rem 0; font-size:.85rem; }
+/* « Saisir un relevé » des cartes d'espace : action autonome, mesurée à moins de 24 px.
+   `cultures.js` (hors de ce périmètre) la construit sans classe ; le sélecteur vise
+   l'enfant **direct** de la carte, donc l'action seule — les noms de culture, eux, sont
+   des liens au milieu d'une phrase et gardent leur hauteur de texte. Demande déposée pour
+   que le script pose `action-link` lui-même. */
+[data-culture-preview] .card > a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; min-width:44px; padding-block:.35rem; padding-inline:.5rem; }
+.sensor-grid { gap:.35rem; }
+[data-culture-updated] { margin:.2rem 0 0; font-size:.75rem; }
+/* Zone sensible : un repli fermé n'a pas besoin de trois lignes pour s'annoncer. */
+.administration-section { margin-block:.5rem; }
+.administration-panel > summary { min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.3rem .1rem; font-size:.85rem; }
+.administration-panel > summary .eyebrow { display:none; }
+/* Densité mobile du tableau de bord. Les phrases d'explication de section (`.section-note`)
+   disent ce que la section montre déjà ; sur un écran de 390 px elles coûtent une ligne
+   pleine chacune et repoussent les équipements. Elles restent lues sur poste. */
+@media (max-width: 700px) {
+  main { padding-block: .5rem; }
+  .dashboard-section > .section-heading .section-note { display:none; }
+  /* Le surtitre répète le titre qui le suit (« Pilotage » / « Équipements », « Mesures » /
+     « Capteurs actifs ») : une ligne pleine par section pour le redire autrement. */
+  .dashboard-section > .section-heading .eyebrow { display:none; }
+  .actuator-group-title { font-size:.78rem; }
+  .dashboard-section, .dashboard-fold { margin-block:.45rem; }
+  .card-grid { gap:.4rem; }
+  .ui-compact-header .control-overview { padding:.4rem; margin:.2rem 0; }
+  .site-footer { padding-block:.6rem; font-size:.72rem; }
+}
+.ui-alarm-summary p { margin-block:.4rem; }
+.priority-reminders { margin:.4rem 0 0; padding-left:1.1rem; }
+.priority-reminders li { margin-block:.2rem; }
+/* Résumé court des alarmes : une ligne qui s'enroule, pas cinq blocs empilés. En grille,
+   les cinq enfants occupaient 197 px à 390 px de large — avant même la première
+   occurrence, que la fiche R1.1 veut lisible sans défilement. L'en-tête compact porte déjà
+   un cadre : un second autour du résumé n'apporte rien. */
+.ui-compact-header .alarm-summary { display:flex; flex-wrap:wrap; align-items:baseline; gap:.15rem .6rem; min-width:0; padding:.25rem 0; border:0; background:none; }
+.ui-compact-header .alarm-summary strong { font-size:1.5rem; }
+.alarm-summary-detail { flex-basis:100%; }
+/* Le dégradé de bord n'annonce un défilement que là où il y en a un : au-delà de 30 rem
+   les sept rubriques tiennent, et l'ombre au bord n'était plus qu'une décoration
+   trompeuse. Peint en `--border-strong` pour rester perceptible en plein jour. */
+@media (max-width: 30rem) {
+  .culture-navigation { background:linear-gradient(90deg,transparent 95%,var(--border-strong)); }
+}
+/* Le `<details>` des outils de console n'existe que pour le mobile. Au-dessus du point de
+   rupture son `summary` disparaît et il est rendu `open` par le serveur : les filtres sont
+   donc visibles sur poste **sans JavaScript**. L'ancien contournement
+   (`.console-tools:not([open]) > .console-controls { display:grid }`) ne fonctionne plus
+   sur Chromium récent, où le contenu d'un `<details>` fermé est masqué par
+   `::details-content { content-visibility:hidden }` de l'arbre d'ombre UA : un `display`
+   posé sur l'enfant ne le révèle pas, et les filtres devenaient invisibles sur poste. */
+@media (min-width: 761px) { .console-tools > summary { display:none; } }
+/* Sous le point de rupture le `summary` est la commande qui ouvre les outils : cible
+   tactile pleine. Barre primaire (Pause / Suivi auto) distincte de la barre secondaire. */
+@media (max-width: 760px) { .console-tools > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; } }
+.console-primary-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-block:.4rem; }
+
+.ui-field-group { min-width: 0; margin-block: .8rem; padding: .8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.ui-empty-state { padding: 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); }
+.ui-chart-detail dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3rem .7rem; }
+.ui-network-state { display: block; }
+.history-series-picker { display: none; }
+/* La fiche du point choisi est rendue par la macro `chart_detail` : `white-space: pre-line`
+   ferait parler l'indentation du balisage, et `:empty` ne peut plus se déclencher — la
+   région porte toujours au moins « Aucun point sélectionné ». L'habillage passe donc sur
+   la fiche, pas sur la région `aria-live`, qui n'est jamais déplacée. */
+.history-selection-output { display: block; margin-block: .7rem; }
+.history-selection-output .ui-chart-detail { padding: .75rem .85rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: .82rem; }
+.history-selection-output .ui-chart-detail p { margin: 0 0 .45rem; color: var(--green); font-weight: 650; }
+.history-selection-output .ui-chart-detail dt { color: var(--muted); overflow-wrap: anywhere; }
+.history-selection-output .ui-chart-detail dd { margin: 0; text-align: right; }
+.chart-full-legend { margin-top: .35rem; }
+.chart-full-legend > summary { min-height: 44px; display: flex; align-items: center; color: var(--muted); font-size: .78rem; cursor: pointer; }
+.chart-legend-full { flex-direction: column; align-items: flex-start; gap: .35rem; }
+.chart-legend-note { width: 100%; margin: 0; color: var(--muted); font-size: .76rem; }
+.history-metrics { margin: 0 0 1rem; }
+.config-form, [data-config-form] { padding-bottom: var(--config-dirty-height, 0px); }
+html { scroll-padding-bottom: calc(var(--config-dirty-height, 0px) + 1.5rem); }
+/* `[hidden]` met déjà l'élément en `display:none` : la garde `:not([hidden])` n'ajoutait
+   rien qu'une spécificité de plus. La gouttière suit celle du contenu de la page. */
+#pwa-update-banner { padding: .6rem 1rem; background: var(--raised); border: 1px solid var(--border-strong); }
+/* La bannière de mise à jour est insérée entre l'en-tête et `<main>`, hors du flux de la
+   page : elle n'hérite donc d'aucune marge latérale, et son bouton s'étirait faute d'être
+   sorti du calage haut de `.notice`. */
+#pwa-update-banner { margin: 0 clamp(1rem, 5vw, 4rem) 1.1rem; align-items: center; justify-content: space-between; }
+#pwa-update-banner .button { flex: 0 0 auto; }
+/* Choix de la source d'une photo, posés par `culture_forms.js` après le libellé du champ :
+   sans règle propre, les deux boutons se collaient au champ et débordaient la grille du
+   formulaire à 320 px. */
+.culture-photo-choices { display: flex; flex-wrap: wrap; gap: .6rem; margin: .5rem 0 .2rem; grid-column: 1 / -1; }
+/* Bannière de brouillon : le texte garde une largeur lisible et les deux boutons passent à
+   la ligne plutôt que de la comprimer. */
+[data-culture-draft-notice] { flex-wrap: wrap; align-items: center; gap: .6rem; }
+[data-culture-draft-notice] p { flex: 1 1 16rem; }
+@media (max-width: 800px) {
+  html { scroll-padding-bottom: calc(var(--config-dirty-height, 0px) + 84px + env(safe-area-inset-bottom)); }
+  [data-config-form] { padding-bottom: calc(var(--config-dirty-height, 0px) + 84px + env(safe-area-inset-bottom)); }
+  :where(input, select, textarea):focus { scroll-margin-bottom: calc(var(--config-dirty-height, 0px) + 84px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 700px) {
+  .history-series-picker { display: grid; gap: .4rem; }
+  .history-tooltip { display: none; }
+  .history-grid .chart-card[data-mobile-chart-hidden="true"] { display: none; }
+  /* L'habillage porte sur la fiche, pas sur la région qui la contient : sur la région, le
+     cadre serait doublé avec celui posé plus haut. */
+  .history-selection-output .ui-chart-detail { padding: .8rem; border-color: var(--border-strong); background: var(--raised); font-size: .9rem; }
 }

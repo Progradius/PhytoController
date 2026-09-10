@@ -4,6 +4,18 @@
 <section aria-labelledby="console-title">
   <div class="console-toolbar"><h2 id="console-title">Flux système</h2><span id="connection-state" class="connection-state" role="status" aria-live="polite">Connexion…</span></div>
 
+  {# Barre primaire : Pause et Suivi auto restent hors du repli « Filtres et outils », ce
+     sont les deux seules commandes utilisées en lecture. Classe distincte de la barre
+     secondaire (`.console-actions`, à l'intérieur du repli), qui n'a ni la même place ni
+     la même densité. #}
+  <div class="console-primary-actions">
+      <button id="console-pause" class="button button-secondary" type="button" aria-pressed="false">Pause</button>
+      <button id="console-follow" class="button button-secondary" type="button" aria-pressed="true">Suivi auto</button>
+</div>
+  {# Ouvert par défaut : sans JavaScript, les filtres restent atteignables partout, et sur
+     poste le `summary` est masqué par la feuille de style. `console.js` ne le referme que
+     sous le point de rupture, où le journal doit récupérer la hauteur. #}
+  <details class="console-tools" open><summary>Filtres et outils</summary>
   <div class="console-controls">
     <div class="console-control">
       <label for="console-level">Niveau minimal</label>
@@ -24,16 +36,16 @@
       <input id="console-search" type="search" placeholder="texte contenu dans le message" autocomplete="off">
     </div>
     <div class="console-actions">
-      <button id="console-pause" class="button button-secondary" type="button" aria-pressed="false">Pause</button>
-      <button id="console-follow" class="button button-secondary" type="button" aria-pressed="true">Suivi auto</button>
       <button id="console-copy" class="button button-secondary" type="button">Copier</button>
-      <button id="console-download" class="button button-secondary" type="button">Télécharger</button>
+      <button id="console-download" class="button button-secondary" type="button">Exporter</button>
       <button id="console-clear" class="button button-secondary" type="button">Effacer la vue</button>
     </div>
   </div>
 
+  </details>
+  <output id="console-status" role="status"></output>
   <p id="console-counters" class="console-counters"></p>
-  <pre id="console-output" class="console-output" tabindex="0" aria-label="Journal système en direct"></pre>
+  <section role="region" aria-labelledby="console-output-title"><h3 id="console-output-title" class="visually-hidden">Journal système en direct</h3><pre id="console-output" class="console-output" tabindex="0"></pre></section>
 </section>
 {% endblock %}
 {% block page_scripts %}<script src="/static/js/console.js?v={{ asset_versions.console }}" defer></script>{% endblock %}

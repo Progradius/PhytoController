@@ -27,6 +27,23 @@
   const downloadButton = document.getElementById("console-download");
   const clearButton = document.getElementById("console-clear");
 
+  // L'annonce est facultative : la console doit continuer à afficher le flux même si la
+  // région d'état disparaît du gabarit. Sans cette garde, un filtre ou une pause levait.
+  const statusOutput = document.getElementById("console-status");
+  const announce = message => { if (statusOutput) statusOutput.textContent = message; };
+
+  // Les outils ne sont repliés que sur mobile, où le journal doit récupérer la hauteur.
+  // Le gabarit les sert `open` (lisibles sans JavaScript) et c'est ici, et seulement ici,
+  // qu'ils se referment. Un repli posé en CSS ne se rouvrirait pas : le contenu d'un
+  // `<details>` fermé est masqué par l'arbre d'ombre du navigateur, hors de portée d'une
+  // règle d'auteur.
+  const tools = document.querySelector(".console-tools");
+  if (tools) {
+    const compact = window.matchMedia("(max-width: 760px)");
+    const applyCompact = () => { tools.open = !compact.matches; };
+    applyCompact();
+    compact.addEventListener("change", applyCompact);
+  }
   const records = [];
   const components = new Set();
   let paused = false;
@@ -163,7 +180,7 @@
     state.className = "connection-state is-offline";
   };
 
-  [levelSelect, componentSelect].forEach((node) => node?.addEventListener("change", render));
+  [levelSelect, componentSelect].forEach((node) => node?.addEventListener("change", () => { render(); announce("Filtre du journal actualisé."); }));
   searchInput?.addEventListener("input", render);
 
   pauseButton?.addEventListener("click", () => {
@@ -174,13 +191,14 @@
       pendingWhilePaused = 0;
       render();
     }
-    window.PhytoPwa?.announce(paused ? "Console mise en pause." : "Console relancée.");
+    announce(paused ? "Console mise en pause." : "Console relancée.");
   });
 
   followButton?.addEventListener("click", () => {
     follow = !follow;
     followButton.setAttribute("aria-pressed", String(follow));
     followButton.textContent = follow ? "Suivi auto" : "Suivi figé";
+    announce(follow ? "Suivi automatique activé." : "Suivi figé.");
     scrollIfFollowing();
   });
 
@@ -203,8 +221,11 @@
     try {
       await navigator.clipboard.writeText(filteredText());
       copyButton.textContent = "Copié";
+      announce("Journal copié.");
     } catch (error) {
-      copyButton.textContent = "Copie refusée";
+      const range = document.createRange(); range.selectNodeContents(output);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      announce("Copie indisponible sur cette connexion, utilisez Exporter");
     }
     window.setTimeout(() => { copyButton.textContent = "Copier"; }, 2000);
   });

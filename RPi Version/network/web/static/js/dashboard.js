@@ -2,8 +2,11 @@
   "use strict";
 
   const sensorStatusLabels = {normal: "normal", degraded: "dégradé", absent: "absent", inconsistent: "incohérent", disabled: "désactivé"};
-  const timeLabels = {unknown: "inconnue", reliable: "fiable", unreliable: "non fiable"};
-  const networkLabels = {unknown: "inconnu", online: "en ligne", offline: "hors ligne", degraded: "dégradé"};
+  // Mêmes tables que `pages.py` (TIME_LABELS / NETWORK_LABELS). Les clés sont celles de
+  // l'API : `synchronized` / `plausible` / `unknown`. Les anciennes `reliable` /
+  // `unreliable` n'existaient nulle part, donc l'état brut « synchronized » s'affichait.
+  const timeLabels = {synchronized: "synchronisée", plausible: "plausible", unknown: "inconnue"};
+  const networkLabels = {online: "en ligne", degraded: "dégradé", offline: "hors ligne", unknown: "inconnu"};
   let lastGeneratedAt = null;
   let lastReceivedAt = null;
   let fetchFailed = false;
@@ -48,7 +51,10 @@
     return "INCONNU";
   };
   const requestedLabel = (value) => value === "on" ? "EN MARCHE" : value === "off" ? "ARRÊTÉ" : value === "unknown" || value === undefined || value === null ? "INCONNU" : String(value);
-  const countLabel = (count, singular, plural) => `${count} ${count === 1 ? singular : plural}`;
+  // En français, seul un nombre **strictement supérieur à 1** prend la marque du pluriel :
+  // « 0 alarme active », « 1 alarme active », « 2 alarmes actives ». La règle précédente
+  // (`=== 1`) accordait zéro au pluriel, comme en anglais.
+  const countLabel = (count, singular, plural) => `${count} ${count > 1 ? plural : singular}`;
   let toastTimer = null;
   const showActionStatus = (message) => {
     const node = document.getElementById("dashboard-action-status");
@@ -84,7 +90,7 @@
     }
     const alarmCount = state.alarms?.active_count ?? 0;
     text("#alarm-count", alarmCount);
-    text("#alarm-count-label", alarmCount === 1 ? "alarme" : "alarmes");
+    text("#alarm-count-label", alarmCount > 1 ? "alarmes" : "alarme");
     text("#time-state", `Heure ${timeLabels[state.time?.state] || state.time?.state || "inconnue"}`);
     text("#network-state", `Réseau ${networkLabels[state.network?.status] || state.network?.status || "inconnu"}`);
     text("#history-state", `Historique ${state.history?.available ? "disponible" : "indisponible"}`);
@@ -114,7 +120,9 @@
         const title = document.createElement("strong"); const detail = document.createElement("span"); const link = document.createElement("a");
         link.href = "/#actionneurs"; link.textContent = "Examiner"; banner.append(title, detail, link); document.querySelector(".site-header")?.after(banner);
       }
-      text("strong", `${countLabel(count, "forçage « arrêt » actif", "forçages « arrêt » actifs")}`, banner);
+      // Même texte, mot pour mot, que l'état initial rendu par `base.html` : la bannière
+      // changerait de vocabulaire au premier rafraîchissement si les deux divergeaient.
+      text("strong", `${countLabel(count, "coupure active", "coupures actives")}`, banner);
       text("span", "Équipements concernés coupés volontairement — la conduite normale est suspendue", banner);
     }
     document.querySelectorAll("[data-actuator]").forEach((card) => {
@@ -153,6 +161,22 @@
       : `${prefix} · cycle séquentiel jour/nuit`;
   };
 
+  // Compteurs de la section « Anomalies et interventions prioritaires ». Les sélecteurs
+  // sont globaux : les écrire depuis la boucle par actionneur les réécrivait six fois par
+  // tick, avec la même valeur.
+  // Libellé complet, identique à celui du gabarit — même pluriel, même espace. Écrire le
+  // seul nombre dans un `.action-link` (conteneur flex) supprimait l'espace qui le suivait.
+  const updatePriorities = (state) => {
+    const alarmes = state.alarms?.active_count;
+    const coupures = state.overrides?.active_count;
+    text("[data-priority-alarms]", alarmes == null
+      ? "Alarmes actives indisponibles"
+      : countLabel(alarmes, "alarme active", "alarmes actives"));
+    text("[data-priority-overrides]", coupures == null
+      ? "Coupures indisponibles"
+      : countLabel(coupures, "coupure active", "coupures actives"));
+  };
+
   const updateActuators = (state) => {
     const timers = new Map((state.timers || []).map((timer) => [timer.equipment_id, timer]));
     Object.entries(state.actuators || {}).forEach(([key, actuator]) => {
@@ -161,6 +185,11 @@
       card.dataset.dashboardVisible = String(metadata.dashboard_visible !== false);
       card.classList.remove("tracking-ok", "tracking-mismatch", "tracking-known_hardware_fault", "tracking-unknown");
       card.classList.add(`tracking-${actuator.tracking || "unknown"}`);
+      const row = card.querySelector(".ui-equipment-row");
+      const forced = (state.overrides?.items || []).some(item => item.target === key);
+      if (row && (forced || actuator.tracking !== "ok" || actuator.actual == null || actuator.actual === "unknown")) row.open = true;
+      // Nom, état et prochaine transition n'ont plus qu'un porteur chacun : la ligne
+      // compacte. Les doublons du corps de carte ont été retirés du gabarit.
       text(".actuator-name", metadata.display_name || key, card);
       text(".actuator-usage", `${metadata.usage_type || "équipement"}${metadata.zone ? ` · ${metadata.zone}` : ""}`, card);
       text(".actuator-actual", stateLabel(key, actuator.actual), card);
@@ -240,7 +269,7 @@
   const updateState = (state, {fresh = true, receivedAt = Date.now()} = {}) => {
     lastGeneratedAt = state.generated_at;
     if (fresh) { lastReceivedAt = receivedAt; fetchFailed = false; }
-    updateOverview(state); updateGlobalAlarm(state.alarms); updateActuators(state); updateOverrides(state.overrides); updateSensors(state.sensors, state.stats); updateClimateSummary(state); updateFreshness();
+    updateOverview(state); updateGlobalAlarm(state.alarms); updatePriorities(state); updateActuators(state); updateOverrides(state.overrides); updateSensors(state.sensors, state.stats); updateClimateSummary(state); updateFreshness();
     document.dispatchEvent(new CustomEvent("phyto:history-availability", {detail: {available: Boolean(state.history?.available)}}));
   };
 
@@ -279,7 +308,16 @@
 
   document.querySelectorAll("[data-override-form]").forEach((form) => form.addEventListener("submit", async (event) => {
     event.preventDefault(); const target = String(new FormData(form).get("target") || "");
-    const ok = await submitEnhanced(form, async (payload) => { updateOverrides(payload); showActionStatus(target === "all" ? "Intervention groupée appliquée." : `Intervention appliquée sur ${target}.`); await refresh(); });
+    // Le nom affiché, jamais la clé technique : le message annonçait « appliquée sur
+    // heater ». Il est posé par le gabarit, qui le connaît déjà (`data-target-label`).
+    const nom = form.dataset.targetLabel || target;
+    // Le même écouteur sert la pose et la levée d'une coupure : dire « appliquée » pour une
+    // reprise annonçait exactement le contraire de ce qui venait de se passer.
+    const leve = /\/cancel$/.test(new URL(form.action, location.href).pathname);
+    const message = target === "all"
+      ? (leve ? "Coupures levées." : "Coupure générale appliquée.")
+      : (leve ? `Coupure levée sur ${nom}.` : `Coupure appliquée sur ${nom}.`);
+    const ok = await submitEnhanced(form, async (payload) => { updateOverrides(payload); showActionStatus(message); await refresh(); });
     if (ok) form.closest("dialog")?.close();
   }));
   document.querySelectorAll("[data-stat-form]").forEach((form) => form.addEventListener("submit", async (event) => {
@@ -287,6 +325,83 @@
   }));
   document.querySelectorAll("[data-open-dialog]").forEach((button) => button.addEventListener("click", () => { activeDialogOpener = button; document.getElementById(button.dataset.openDialog)?.showModal(); }));
   document.querySelectorAll(".confirm-dialog").forEach((dialog) => { dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); }); dialog.addEventListener("close", () => activeDialogOpener?.focus()); });
+
+  // Rappels du jour du carnet.
+  //
+  // Le bloc est **déjà rendu par le serveur** (`main.html`) : ce code n'affiche jamais un
+  // texte de chargement, il ne fait que remplacer un contenu exact par un contenu exact.
+  // Le balisage reconstruit ici est celui du gabarit, à l'identique — même classes, mêmes
+  // liens, mêmes états d'absence.
+  //
+  // La cadence n'est PAS celle des 5 s de `/api/v1/state` : le carnet vit sur un thread
+  // SQLite unique et `agenda=1` lui coûte une projection complète. Un sondage à 5 s
+  // occuperait ce thread en continu pour des échéances qui se comptent en jours. La
+  // lecture suit donc la même cadence que l'aperçu du carnet (60 s), plus le retour sur
+  // la page — et rien n'est mis en attente ni rejoué.
+  const remindersBlock = document.querySelector("[data-priority-reminders]");
+  const dateFrancaise = (iso) => (typeof iso === "string" && iso.length === 10
+    ? iso.split("-").reverse().join("/") : (iso || "—"));
+
+  const paragraph = (message) => {
+    const node = document.createElement("p"); node.textContent = message; return node;
+  };
+
+  const renderReminders = (agenda) => {
+    if (!remindersBlock) return;
+    if (!agenda) { remindersBlock.replaceChildren(paragraph("Carnet indisponible ; le contrôle de la serre reste actif.")); return; }
+    const reminders = agenda.agenda?.reminders || {};
+    const due = [...(reminders.overdue || []), ...(reminders.due_today || [])];
+    if (!due.length) { remindersBlock.replaceChildren(paragraph("Aucun rappel aujourd’hui.")); return; }
+    const list = document.createElement("ul"); list.className = "priority-reminders";
+    for (const reminder of due) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.className = "action-link";
+      link.href = `/cultures/cycles?reminder=${encodeURIComponent(reminder.id)}#reminder-${encodeURIComponent(reminder.id)}`;
+      link.textContent = reminder.title;
+      const stamp = document.createElement("span"); stamp.className = "num"; stamp.textContent = dateFrancaise(reminder.due_date);
+      item.append(link, ` · ${reminder.target?.name || "cible inconnue"} · `, stamp);
+      list.append(item);
+    }
+    const nodes = [list];
+    const extra = (reminders.overdue_more || 0) + (reminders.due_today_more || 0);
+    if (extra) {
+      const more = document.createElement("p");
+      const link = document.createElement("a"); link.className = "action-link"; link.href = "/cultures/cycles#rappels";
+      const count = document.createElement("span"); count.className = "num"; count.textContent = String(extra);
+      link.append("… et ", count, " autres rappels");
+      more.append(link); nodes.push(more);
+    }
+    remindersBlock.replaceChildren(...nodes);
+  };
+
+  const refreshReminders = async () => {
+    if (!remindersBlock || document.visibilityState === "hidden") return;
+    try {
+      const response = await request("/api/v1/cultures?agenda=1", {headers: {Accept: "application/json"}, cache: "no-store"}, 10000);
+      // Un 503 du carnet est un état affichable, pas une exception : il ne dégrade rien
+      // d'autre sur cette page.
+      renderReminders(response.ok ? await response.json() : null);
+    } catch (_error) {
+      renderReminders(null);
+    }
+  };
+
+  if (remindersBlock) {
+    // Pas de lecture au chargement : le bloc est **déjà rendu par le serveur**, à jour à la
+    // milliseconde près. En redemander une aussitôt faisait payer une projection complète
+    // du carnet pour réécrire à l'identique ce qui venait d'être servi.
+    let derniereLecture = Date.now();
+    const relireSiUtile = () => {
+      if (Date.now() - derniereLecture < 60000) return;
+      derniereLecture = Date.now();
+      refreshReminders();
+    };
+    window.setInterval(relireSiUtile, 60000);
+    // Le retour sur l'onglet ne déclenche pas non plus plus d'une lecture par minute :
+    // alterner entre deux fenêtres occupait sinon le thread SQLite du carnet en continu.
+    window.addEventListener("focus", relireSiUtile);
+  }
 
   updateFreshness();
   window.setInterval(() => { if (document.visibilityState === "visible") updateFreshness(); }, 5000);

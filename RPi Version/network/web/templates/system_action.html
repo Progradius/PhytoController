@@ -4,8 +4,7 @@
   <div>
     <p class="eyebrow">Action système</p>
     <h1>{{ action_label }} demandé</h1>
-    <p class="hero-copy">La commande part dans une seconde. Cette page suit l’état de la machine ;
-      elle n’a besoin d’aucune action de votre part.</p>
+    <p class="hero-copy">{% if action == 'reboot' %}Le redémarrage est en cours, la page se reconnectera d’elle-même.{% else %}L’extinction est en cours. Une remise sous tension manuelle sera nécessaire.{% endif %}</p>
   </div>
 </section>
 
@@ -13,6 +12,7 @@
   <div class="section-heading"><h2 id="system-progress-title">Suivi</h2></div>
   <p id="system-state" class="system-state" role="status" aria-live="polite">Commande transmise…</p>
 
+  <details><summary>Détails techniques</summary>
   {% if action == 'reboot' %}
   <p class="section-note">Le redémarrage coupe la régulation puis la relance. Le retour est confirmé
     par deux réponses successives de la sonde de vie, jamais par une seule.</p>
@@ -21,6 +21,7 @@
     Attendez que la LED d’activité cesse de clignoter avant de couper l’alimentation :
     la carte SD écrit encore.</p>
   {% endif %}
+  </details>
 
   <p id="system-failure" class="system-failure" hidden>
     La machine répond toujours après trente secondes : la commande a probablement échoué.

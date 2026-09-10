@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  const currentRubric = document.querySelector(".culture-navigation [aria-current=page]");
+  if (currentRubric) requestAnimationFrame(() => currentRubric.scrollIntoView({block: "nearest", inline: "nearest"}));
   // Ce script est aussi chargé par le tableau de bord, où aucun formulaire du carnet
   // n'existe : le socle partagé n'y est pas nécessaire et son absence ne doit rien casser.
   const forms = window.PhytoCultureForms;
@@ -31,6 +33,9 @@
           }
         }
         const quick = document.createElement("a"); quick.href = `/cultures/solutions?target=${id === "space_1" ? "cuttings_1" : "reservoir_2"}`;
+        // Action autonome (R5.3) : la cible tactile de 44 px est portée par la classe, pas par une
+        // règle CSS sur « l'enfant direct de la carte », qui dépendrait de la place du lien.
+        quick.className = "action-link";
         quick.textContent = "Saisir un relevé"; card.append(quick);
         preview.append(card);
       }

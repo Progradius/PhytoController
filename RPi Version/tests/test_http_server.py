@@ -605,6 +605,385 @@ async def test_erreurs_html_texte_redirection_et_allow(web_context):
     assert "Allow" in method.headers
 
 
+@pytest.mark.parametrize("referer,expected", [
+    (None, False), ("https://example.org/ailleurs", False),
+    ("internal", True), ("internal-double-slash", False),
+])
+async def test_erreur_retour_limite_a_la_meme_origine(web_context, referer, expected):
+    client, *_ = web_context
+    headers = {"Accept": "text/html"}
+    if referer:
+        headers["Referer"] = (str(client.make_url("/history?hours=48")) if referer == "internal"
+                              else str(client.make_url("/")) + "/example.org" if referer == "internal-double-slash"
+                              else referer)
+    response = await client.get("/inexistante", headers=headers)
+    body = await response.text()
+    assert ("Revenir à la page précédente" in body) is expected
+    assert "Réessayer" not in body
+
+
+@pytest.mark.parametrize("method,status,expected", [
+    ("GET", 500, True), ("GET", 502, True), ("GET", 503, True),
+    ("GET", 504, True), ("GET", 404, False), ("POST", 500, False),
+    ("POST", 503, False),
+])
+async def test_reessai_erreur_uniquement_lecture(web_context, method, status, expected):
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+    _, server, *_ = web_context
+    request = make_mocked_request(method, "/history?hours=48", headers={
+        "Accept": "text/html", "Host": "127.0.0.1",
+    })
+    errors = {500: web.HTTPInternalServerError, 502: web.HTTPBadGateway,
+              503: web.HTTPServiceUnavailable, 504: web.HTTPGatewayTimeout,
+              404: web.HTTPNotFound}
+    response = server._error_response(request, errors[status]())
+    assert ("Réessayer" in response.text) is expected
+    if expected:
+        assert 'href="/history?hours=48"' in response.text
+
+
+async def test_page_application_et_ressource_hachee(web_context):
+    client, _, store, *_ = web_context
+    response = await client.get("/app")
+    body = await response.text()
+    assert response.status == 200
+    assert "Application sur ce téléphone" in body
+    assert "data-culture-offline-index" in body
+    assert "data-pwa-update-state" in body
+    assert store.current.network.wifi_password not in body
+    assert response.headers["Cache-Control"] == "no-store"
+    asset = await client.get("/static/js/app.js")
+    assert asset.status == 200
+    worker = await client.get("/service-worker.js")
+    assert "/static/js/app.js?v=" in await worker.text()
+
+
+async def test_configuration_accepte_la_virgule_sans_modifier_la_precision(web_context):
+    client, _, store, *_ = web_context
+    response = await client.post("/conf/temperature", data={
+        "csrf_token": CSRF_TOKEN, "target_temp_min_day": "20,125",
+    }, allow_redirects=False)
+    assert response.status == 303
+    assert store.current.temperature.target_temp_min_day == 20.125
+
+
+def _quality_profile_form(**overrides) -> dict:
+    """Sous-fiche qualité complète : la route refuse tout champ manquant ou en trop."""
+    return {
+        "csrf_token": CSRF_TOKEN, "sensor_key": "BME280T",
+        "offset": "0.4", "calibrated_at": "2026-08-27",
+        "calibration_valid_days": "365", "freshness_seconds": "20",
+        "plausible_min": "-20", "plausible_max": "60",
+        "freeze_epsilon": "0.02", "freeze_after_seconds": "1800",
+        "freeze_min_samples": "10",
+    } | overrides
+
+
+async def test_qualite_capteurs_accepte_la_virgule_par_le_meme_chemin(web_context):
+    """R2.1 — une seule conversion décimale pour tout `/conf`.
+
+    La sous-fiche qualité parsait ses flottants en dur : le même clavier passait
+    dans Climat et était refusé ici, sur le même écran.
+    """
+    client, _server, store, *_ = web_context
+    response = await client.post("/conf/sensor-quality", data=_quality_profile_form(
+        offset="0,45", freshness_seconds="20,5", plausible_min="-19,5",
+        plausible_max="59,5", freeze_epsilon="0,02", freeze_after_seconds="1800,5",
+    ), allow_redirects=False)
+    assert response.status == 303
+    profile = store.current.sensor_quality.profiles["BME280T"]
+    assert (profile.offset, profile.freshness_seconds) == (0.45, 20.5)
+    assert (profile.plausible_min, profile.plausible_max) == (-19.5, 59.5)
+    assert (profile.freeze_epsilon, profile.freeze_after_seconds) == (0.02, 1800.5)
+
+    group = await client.post("/conf/sensor-quality", data={
+        "csrf_token": CSRF_TOKEN, "sensor_key": "__group__",
+        "group_name": "air", "members": "BME280T,DS18B#3",
+        "tolerance": "1,5", "minimum_agreeing": "2",
+    }, allow_redirects=False)
+    assert group.status == 303
+    assert store.current.sensor_quality.redundancy_groups["air"].tolerance == 1.5
+
+
+async def test_refus_numerique_de_la_qualite_parle_la_meme_langue(web_context):
+    """Le refus vient de la conversion partagée : plus de phrase anglaise de CPython."""
+    client, _server, store, *_ = web_context
+    before = store.current.sensor_quality.profiles.get("BME280T")
+    response = await client.post(
+        "/conf/sensor-quality", data=_quality_profile_form(plausible_max="abc"),
+    )
+    assert response.status == 422
+    body = await response.text()
+    assert "Saisir un nombre (virgule ou point comme séparateur décimal)." in body
+    assert "could not convert string to float" not in body
+    assert store.current.sensor_quality.profiles.get("BME280T") == before
+
+
+async def test_champs_decimaux_gardent_bornes_pas_et_saisie_visible(web_context):
+    """R2.1 — le champ décimal n'est plus un `type="text"` sans contrat.
+
+    Mesuré sur Chromium fr-FR : `type="number"` efface la virgule. Le champ
+    décimal reste donc en texte, mais **avec** le clavier décimal, un motif qui
+    accepte les deux séparateurs et les bornes que `config.js` rejoue. Un champ
+    entier, lui, n'a aucune raison de perdre la saisie assistée native.
+    """
+    client, *_ = web_context
+    body = await (await client.get("/conf")).text()
+    decimal_field = next(
+        line for line in body.splitlines() if 'id="target_temp_min_day"' in line
+    )
+    assert 'type="text"' in decimal_field
+    assert 'inputmode="decimal"' in decimal_field
+    assert 'pattern="-?[0-9]+([.,][0-9]+)?"' in decimal_field
+    assert "data-numeric" in decimal_field
+    assert 'step="0.1"' in decimal_field and 'min="-20"' in decimal_field
+    assert 'max="60"' in decimal_field
+
+    integer_field = next(
+        line for line in body.splitlines() if 'id="retention_days"' in line
+    )
+    assert 'type="number"' in integer_field
+    assert "data-numeric" not in integer_field
+
+
+async def test_champ_entier_refuse_redevient_lisible_et_verifie(web_context):
+    """Une saisie rejetée reste affichée : `type="number"` la viderait."""
+    client, *_ = web_context
+    response = await client.post(
+        "/conf/logs", data={"csrf_token": CSRF_TOKEN, "level": "INFO",
+                            "retention_days": "abc"},
+    )
+    assert response.status == 422
+    body = await response.text()
+    field = next(line for line in body.splitlines() if 'id="retention_days"' in line)
+    assert 'value="abc"' in field
+    assert 'type="text"' in field and 'inputmode="numeric"' in field
+    assert "data-numeric" in field
+
+
+async def test_index_de_recherche_des_reglages_est_prepare_sans_interface(web_context):
+    """R2.1 — index préparé, **non activé** : aucune commande de recherche visible."""
+    client, *_ = web_context
+    body = await (await client.get("/conf")).text()
+    start = body.index('<template id="config-search-index"')
+    index = body[start:body.index("</template>", start)]
+    assert 'data-section="temperature" data-field="target_temp_min_day"' in index
+    assert 'data-label="Jour · minimum"' in index
+    assert 'data-section="logs" data-field="retention_days"' in index
+    assert 'data-section="wifi" data-field="wifi_ssid"' in index
+    assert 'data-help="Information descriptive, sans effet direct sur les sorties."' in index
+    # Chaque section enregistrable est représentée : l'index ne peut pas rester
+    # partiel sans que la future recherche mente sur ce qu'elle couvre.
+    for section in server_module.SECTION_FIELDS:
+        # Les sous-fiches qualité portent leur portée complète (`sensor-quality:<clé>`),
+        # celle-là même qui rattache une saisie refusée au bon capteur.
+        marker = 'data-section="sensor-quality:' if section == "sensor-quality" else (
+            f'data-section="{section}"'
+        )
+        assert marker in index, section
+    # Rien n'est activé : pas de champ de recherche, et le `<template>` n'est
+    # lu par aucun script.
+    assert '<input type="search"' not in body
+    assert "config-search-index" not in (
+        (pages_module.STATIC_DIR / "js" / "config.js").read_text(encoding="utf-8")
+    )
+
+
+async def test_resumes_de_groupe_sont_rendus_par_le_serveur(web_context):
+    """Sans JS, un résumé de groupe dit l'état — jamais « en cours de chargement »."""
+    client, _server, store, *_ = web_context
+    body = await (await client.get("/conf")).text()
+    summaries = {
+        line.split('data-config-group-summary="')[1].split('"')[0]:
+            line.split(">", 1)[1].rsplit("</p>", 1)[0]
+        for line in body.splitlines() if "data-config-group-summary=" in line
+    }
+    assert set(summaries) == {"day", "light", "climate"}
+    assert all(text.strip() for text in summaries.values())
+    config = store.current
+    assert summaries["day"] == (
+        f"{config.day_night.start_hour:02d}:{config.day_night.start_minute:02d} → "
+        f"{config.day_night.stop_hour:02d}:{config.day_night.stop_minute:02d}"
+    )
+    assert summaries["climate"] == (
+        f"Jour {config.temperature.target_temp_min_day}–"
+        f"{config.temperature.target_temp_max_day} °C · "
+        f"Nuit {config.temperature.target_temp_min_night}–"
+        f"{config.temperature.target_temp_max_night} °C"
+    )
+    assert str(config.daily_timer1.start_hour).zfill(2) in summaries["light"]
+
+
+@pytest.mark.parametrize("value,decimals,expected", [
+    (None, 2, "—"), (0, 2, "0,00"), (1.4 + .05, 2, "1,45"),
+    (12.125, 1, "12,1"),
+])
+def test_nombre_francais_presentation(value, decimals, expected):
+    """La mise en forme est inchangée ; seule l'enveloppe `.num` est nouvelle."""
+    assert pages_module.env.filters["nombre_texte"](value, decimals) == expected
+    assert pages_module.env.filters["nombre"](value, decimals) == (
+        f'<span class="num">{expected}</span>'
+    )
+
+
+def test_nombre_pose_la_classe_num_et_echappe_toujours():
+    """Le filtre pose `.num` lui-même (R5.1), sans jamais laisser passer de balisage."""
+    rendered = pages_module.env.from_string(
+        "{{ valeur|nombre(1, unite) }}"
+    ).render(valeur=3.14, unite="<script>")
+    assert rendered == '<span class="num">3,1 &lt;script&gt;</span>'
+    # Le contexte qui n'accepte pas de balisage garde la même règle d'arrondi.
+    assert pages_module.env.from_string(
+        "{{ valeur|nombre_texte(1, unite) }}"
+    ).render(valeur=3.14, unite="<script>") == "3,1 &lt;script&gt;"
+
+
+def _alarm(identifier, severity, started_ts, **extra):
+    return {"id": identifier, "severity": severity, "category": "control",
+            "title": f"Alarme {identifier}", "detail": "Détail technique",
+            "consequence": "Conséquence mesurée", "advice": "Action conseillée",
+            "affects_control": True, "link": "/console", "started_ts": started_ts,
+            "duration_seconds": 60, "acknowledged_ts": None, "acknowledged_by": None,
+            "status": "active", **extra}
+
+
+ALARM_FILTERS = {"status": "active", "severity": "", "category": "", "acknowledged": ""}
+
+
+async def test_tableau_de_bord_rend_les_rappels_du_jour_du_carnet(web_context):
+    """R1.2 : le bloc prioritaire porte les rappels dus, pas un texte de chargement."""
+    import uuid
+
+    client, server, *_ = web_context
+    await server.cultures.store.call("cycle_mutate", {
+        "operation": "reminder", "request_id": str(uuid.uuid4()), "target": "reservoir_2",
+        "title": "Contrôler le pH du réservoir", "due_date": "2026-09-07",
+        "interval_days": 2})
+    body = await (await client.get("/")).text()
+    bloc = body.split("data-priority-reminders", 1)[1].split("</section>", 1)[0]
+    assert "Contrôler le pH du réservoir" in bloc
+    assert "/cultures/cycles?reminder=" in bloc
+    assert "#reminder-" in bloc
+    assert "Réservoir de l’espace 2" in bloc
+    assert "en cours de lecture" not in body
+
+
+async def test_tableau_de_bord_dit_l_absence_de_rappel(web_context):
+    client, *_ = web_context
+    body = await (await client.get("/")).text()
+    bloc = body.split("data-priority-reminders", 1)[1].split("</section>", 1)[0]
+    assert "Aucun rappel aujourd’hui." in bloc
+
+
+async def test_tableau_de_bord_survit_a_un_carnet_indisponible(web_context):
+    """Un carnet muet n'empêche ni le rendu de la page ni la lecture du contrôle."""
+    from utils.culture_store import CultureUnavailable
+
+    client, server, *_ = web_context
+
+    async def refuse(*_args):
+        raise CultureUnavailable("Carnet indisponible ; aucune écriture confirmée.")
+
+    server.cultures.store.call = refuse
+    response = await client.get("/")
+    body = await response.text()
+    assert response.status == 200
+    assert "Carnet indisponible" in body
+    assert 'id="control-overview"' in body
+
+
+async def test_etats_du_tableau_de_bord_sont_traduits(web_context):
+    """Aucun état brut de l'API ne doit atteindre l'écran (« Heure synchronized »)."""
+    client, *_ = web_context
+    body = await (await client.get("/")).text()
+    bande = body.split('id="time-state"', 1)[1].split("</div>", 1)[0]
+    assert "synchronized" not in bande and "unreliable" not in bande
+    assert "Heure " in bande
+    for brut in ("Réseau online", "Réseau offline", "Réseau degraded", "Réseau unknown"):
+        assert brut not in body
+    # Les tables de traduction couvrent toutes les valeurs que l'API sait produire.
+    assert set(pages_module.TIME_LABELS) == {"synchronized", "plausible", "unknown"}
+    assert set(pages_module.NETWORK_LABELS) == {"online", "degraded", "offline", "unknown"}
+
+
+async def test_compteurs_prioritaires_portent_un_libelle_accorde(web_context):
+    """Ni « 0alarme(s) » (espace mangé par le conteneur flex) ni pluriel entre parenthèses."""
+    client, *_ = web_context
+    body = await (await client.get("/")).text()
+    bloc = body.split('data-priority-alarms', 1)[1].split("</p>", 1)[0]
+    assert "(s)" not in bloc
+    # Le libellé complet vit dans le nœud que le JS réécrit : nombre et mot ne sont pas
+    # séparés par un espace que le rendu flex supprimerait.
+    assert ">0 alarme active<" in body
+    assert ">0 coupure active<" in body
+    html = pages_module.alarms_page(
+        [_alarm("a", "warning", 100), _alarm("b", "critical", 50),
+         _alarm("c", "critical", 200), _alarm("d", "error", 300)],
+        dict(ALARM_FILTERS),
+        {"active_count": 4, "control_count": 4, "auxiliary_count": 0,
+         "highest_severity": "critical"},
+        CSRF_TOKEN,
+    )
+    ordre = [html.index(f'data-alarm-id="{identifier}"') for identifier in "cbda"]
+    assert ordre == sorted(ordre)
+
+
+def test_alarme_la_plus_importante_est_developpee_et_les_autres_non():
+    html = pages_module.alarms_page(
+        [_alarm("mineure", "warning", 100), _alarm("majeure", "critical", 50)],
+        dict(ALARM_FILTERS),
+        {"active_count": 2, "control_count": 2, "auxiliary_count": 0,
+         "highest_severity": "critical"},
+        CSRF_TOKEN,
+    )
+    principale = html.index('data-alarm-id="majeure"')
+    suivante = html.index('data-alarm-id="mineure"')
+    assert "<details open>" in html[principale:suivante]
+    assert "<details open>" not in html[suivante:]
+    assert html.count("<details open>") == 1
+
+
+def test_resume_court_des_alarmes_porte_gravite_et_derniere_occurrence():
+    html = pages_module.alarms_page(
+        [_alarm("a", "warning", 100), _alarm("b", "critical", 4200)],
+        dict(ALARM_FILTERS),
+        {"active_count": 2, "control_count": 2, "auxiliary_count": 0,
+         "highest_severity": "critical"},
+        CSRF_TOKEN,
+    )
+    assert "Plus haute gravité : critique" in html
+    assert 'class="num" data-timestamp="4200"' in html
+    # Un seul prédicat de vue vivante, servi à l'attribut comme au bouton « Actualiser ».
+    assert 'data-live-refresh="true"' in html
+    assert "Actualiser" not in html
+
+
+def test_resume_court_des_alarmes_sans_occurrence():
+    html = pages_module.alarms_page(
+        [], {"status": "resolved", "severity": "", "category": "", "acknowledged": ""},
+        {"active_count": 0, "control_count": 0, "auxiliary_count": 0,
+         "highest_severity": None},
+        CSRF_TOKEN,
+    )
+    assert "Aucune alarme active" in html
+    assert "Aucune occurrence datée" in html
+    assert 'data-live-refresh="false"' in html
+    assert "Actualiser" in html
+
+
+def test_alarme_sans_horodatage_ne_casse_pas_le_tri():
+    """`started_ts` absent ou nul : la page se rend, l'occurrence passe en dernier."""
+    html = pages_module.alarms_page(
+        [_alarm("sans", "critical", None), _alarm("avec", "critical", 10)],
+        dict(ALARM_FILTERS),
+        {"active_count": 2, "control_count": 2, "auxiliary_count": 0,
+         "highest_severity": "critical"},
+        CSRF_TOKEN,
+    )
+    assert html.index('data-alarm-id="avec"') < html.index('data-alarm-id="sans"')
+
+
 async def test_saisie_refusee_est_reaffichee_sans_secret(web_context):
     """Un refus ne doit pas obliger à ressaisir la section (jalon 3, 3a)."""
     client, *_ = web_context
@@ -673,7 +1052,10 @@ async def test_valeur_non_numerique_reste_visible_et_expliquee(web_context):
     assert response.status == 422
     body = await response.text()
     assert 'value="abc"' in body
-    assert "Saisir un nombre (séparateur décimal : le point)." in body
+    # R2.1 : le message nomme les deux séparateurs acceptés, la virgule l'étant
+    # désormais partout. Exiger le point ici alors que le serveur accepte la
+    # virgule serait une contradiction affichée à l'opérateur.
+    assert "Saisir un nombre (virgule ou point comme séparateur décimal)." in body
 
 
 async def test_champ_inattendu_ne_perd_pas_la_saisie_valide(web_context):

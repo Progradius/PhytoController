@@ -28,6 +28,7 @@ from network.web.pages import (
     ASSET_VERSIONS,
     PWA_CACHE_VERSION,
     alarms_page,
+    app_page,
     conf_page,
     console_page,
     error_page,
@@ -55,6 +56,8 @@ from utils.overrides import (
 from utils.schedule import day_night_times
 from utils.time_reliability import time_reliability
 from network.web.cultures import CultureViews
+from model.culture import CultureError
+from utils.culture_store import CultureUnavailable
 
 
 LOGGER_NAME = "http"
@@ -354,8 +357,8 @@ PYDANTIC_MESSAGES: dict[str, str] = {
     "int_parsing": "Saisir un nombre entier.",
     "int_type": "Saisir un nombre entier.",
     "int_from_float": "Saisir un nombre entier, sans décimale.",
-    "float_parsing": "Saisir un nombre (séparateur décimal : le point).",
-    "float_type": "Saisir un nombre (séparateur décimal : le point).",
+    "float_parsing": "Saisir un nombre (virgule ou point comme séparateur décimal).",
+    "float_type": "Saisir un nombre (virgule ou point comme séparateur décimal).",
     "finite_number": "Saisir un nombre fini.",
     "bool_parsing": "Choisir « activé » ou « désactivé ».",
     "string_type": "Saisir du texte.",
@@ -371,6 +374,31 @@ PYDANTIC_MESSAGES: dict[str, str] = {
     "enum": "Choisir une des valeurs proposées.",
     "extra_forbidden": "Ce champ n’est pas accepté ici.",
 }
+
+
+def form_decimal(raw: object) -> float:
+    """Seule conversion décimale de `/conf` : virgule **ou** point.
+
+    Toutes les sections passent par ici, Qualité capteurs comprise. Deux
+    fonctions de conversion, c'était un même écran où le clavier français
+    passait dans une fiche et était refusé dans la suivante — et un message
+    d'erreur qui ne pouvait être juste que pour l'une des deux.
+    Le `ValueError` levé porte **le** message français : les chemins qui ne
+    rattachent pas le refus à un champ (`_format_validation_errors` sur une
+    exception hors Pydantic) affichaient sinon la phrase anglaise de CPython.
+    """
+    try:
+        return float(str(raw).replace(",", "."))
+    except (TypeError, ValueError):
+        raise ValueError(PYDANTIC_MESSAGES["float_parsing"]) from None
+
+
+def form_integer(raw: object) -> int:
+    """Pendant entier de `form_decimal` : même point d'entrée, même langue."""
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        raise ValueError(PYDANTIC_MESSAGES["int_parsing"]) from None
 
 # Sections dont la saisie passe par `_apply_section_to_payload` : les seules que
 # la prévisualisation sache projeter sur un candidat `AppConfig` complet.
@@ -565,6 +593,8 @@ class Server:
             web.get("/app.webmanifest", self._manifest),
             web.get("/service-worker.js", self._service_worker),
             web.get("/offline", self._offline),
+            web.get("/app", self._app_page),
+            web.get("/static/js/app.js", self._app_js),
             web.get("/static/css/style.css", self._style),
             web.get("/static/js/pwa.js", self._pwa_js),
             web.get("/static/js/theme.js", self._theme_js),
@@ -732,8 +762,7 @@ class Server:
                 raise web.HTTPForbidden(text="Origine non autorisée")
         return await handler(request)
 
-    @staticmethod
-    def _error_response(request: web.Request, exc: web.HTTPException) -> web.Response:
+    def _error_response(self, request: web.Request, exc: web.HTTPException) -> web.Response:
         """Rend les erreurs en HTML pour un navigateur, en texte pour le reste.
 
         Les redirections (3xx) sont aussi des `HTTPException` : elles doivent
@@ -741,9 +770,24 @@ class Server:
         """
         if exc.status < 400 or "text/html" not in request.headers.get("Accept", ""):
             return exc
+        previous_url = None
+        try:
+            ref = urllib.parse.urlsplit(request.headers.get("Referer", ""))
+            host = _host_without_port(request.host)
+            allowed = host in self._allowed_names
+            if not allowed:
+                address = ipaddress.ip_address(host)
+                allowed = address.is_private or address.is_loopback or address.is_link_local
+            if allowed and ref.scheme == request.scheme and ref.netloc.lower() == request.host.lower() and not ref.username and not ref.password:
+                previous_url = urllib.parse.urlunsplit(("", "", ref.path or "/", ref.query, ref.fragment))
+                if previous_url.startswith("//"):
+                    previous_url = None
+        except ValueError:
+            pass
+        retry_url = str(request.rel_url) if request.method == "GET" and exc.status in {500, 502, 503, 504} else None
         title = HTTP_ERROR_TITLES.get(exc.status, "Requête refusée")
         response = web.Response(
-            text=error_page(exc.status, title, exc.text or title),
+            text=error_page(exc.status, title, exc.text or title, previous_url=previous_url, retry_url=retry_url),
             status=exc.status,
             content_type="text/html",
             charset="utf-8",
@@ -758,8 +802,25 @@ class Server:
     def _html(body: str, status: int = 200) -> web.Response:
         return web.Response(text=body, status=status, content_type="text/html", charset="utf-8")
 
+    async def _culture_agenda(self) -> dict | None:
+        """Rappels du jour du carnet, ou `None` si le carnet ne répond pas.
+
+        Même lecture que `/api/v1/cultures?agenda=1` et par le même chemin : le magasin
+        du carnet sur son thread unique (`CultureStore.call`), jamais de SQLite dans
+        l'event loop et **aucune projection neuve** — l'agenda est celui que le carnet
+        calcule déjà pour son accueil.
+
+        Une indisponibilité du carnet ne dégrade rien d'autre : la page du contrôle se
+        rend, le dit à l'opérateur, et la régulation n'est pas concernée.
+        """
+        try:
+            return await self.cultures.store.call("overview", False, 0, True, "")
+        except (CultureUnavailable, CultureError):
+            return None
+
     async def _dashboard(self, request: web.Request) -> web.Response:
-        return self._html(main_page(self._state_payload(), self.csrf_token))
+        return self._html(main_page(self._state_payload(), self.csrf_token,
+                                    await self._culture_agenda()))
 
     async def _history(self, request: web.Request) -> web.Response:
         return self._html(history_page(self._state_payload(), self.csrf_token))
@@ -1129,9 +1190,9 @@ class Server:
                 if isinstance(current, bool):
                     value = raw.lower() in {"enabled", "true", "1", "yes"}
                 elif isinstance(current, int):
-                    value = int(raw)
+                    value = form_integer(raw)
                 elif isinstance(current, float):
-                    value = float(raw)
+                    value = form_decimal(raw)
                 else:
                     value = raw
             except ValueError:
@@ -1263,24 +1324,24 @@ class Server:
                     members = [item.strip() for item in str(form.get("members", "")).split(",") if item.strip()]
                     quality["redundancy_groups"][name] = {
                         "members": members,
-                        "tolerance": float(form.get("tolerance", "")),
-                        "minimum_agreeing": int(form.get("minimum_agreeing", "")),
+                        "tolerance": form_decimal(form.get("tolerance", "")),
+                        "minimum_agreeing": form_integer(form.get("minimum_agreeing", "")),
                     }
             elif action in SENSORS_BY_KEY:
                 profile = {
-                    "offset": float(form.get("offset", 0)),
+                    "offset": form_decimal(form.get("offset", 0)),
                     "calibrated_at": str(form.get("calibrated_at", "")).strip() or None,
-                    "calibration_valid_days": int(form["calibration_valid_days"])
+                    "calibration_valid_days": form_integer(form["calibration_valid_days"])
                     if str(form.get("calibration_valid_days", "")).strip() else None,
-                    "freshness_seconds": float(form.get("freshness_seconds", "")),
-                    "plausible_min": float(form.get("plausible_min", "")),
-                    "plausible_max": float(form.get("plausible_max", "")),
-                    "freeze_epsilon": float(form.get("freeze_epsilon", "")),
+                    "freshness_seconds": form_decimal(form.get("freshness_seconds", "")),
+                    "plausible_min": form_decimal(form.get("plausible_min", "")),
+                    "plausible_max": form_decimal(form.get("plausible_max", "")),
+                    "freeze_epsilon": form_decimal(form.get("freeze_epsilon", "")),
                     "freeze_after_seconds": (
                         "disabled" if str(form.get("freeze_after_seconds", "")).strip().lower() == "disabled"
-                        else float(form.get("freeze_after_seconds", ""))
+                        else form_decimal(form.get("freeze_after_seconds", ""))
                     ),
-                    "freeze_min_samples": int(form.get("freeze_min_samples", "")),
+                    "freeze_min_samples": form_integer(form.get("freeze_min_samples", "")),
                 }
                 previous = quality["profiles"].get(action, {})
                 quality["profiles"][action] = profile
@@ -2029,6 +2090,7 @@ class Server:
         source = (STATIC_DIR / "service-worker.js").read_text(encoding="utf-8")
         precache = [
             "/offline",
+            f"/static/js/app.js?v={ASSET_VERSIONS['app']}",
             f"/app.webmanifest?v={PWA_CACHE_VERSION}",
             f"/static/css/style.css?v={ASSET_VERSIONS['style']}",
             f"/static/js/pwa.js?v={ASSET_VERSIONS['pwa']}",
@@ -2063,6 +2125,12 @@ class Server:
         response.headers["Cache-Control"] = "no-cache"
         response.headers["Service-Worker-Allowed"] = "/"
         return response
+
+    async def _app_page(self, request: web.Request) -> web.Response:
+        return self._html(app_page())
+
+    async def _app_js(self, request):
+        return await self._asset("js/app.js", "application/javascript")
 
     async def _offline(self, request: web.Request) -> web.Response:
         return self._html(offline_page())

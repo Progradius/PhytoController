@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import socket
 from datetime import datetime
@@ -10,6 +11,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 from controllers.sensor_catalog import SENSOR_CATALOG, effective_quality_profile
 from utils.overrides import shared_overrides
@@ -47,6 +49,51 @@ def _mesure(value, decimals=1) -> str:
 env.filters["mesure"] = _mesure
 
 
+def _nombre_texte(value, decimals, unit=None) -> str:
+    """Mise en forme française, en texte nu. Présentation seulement.
+
+    Seule définition de l'arrondi d'affichage du carnet : les valeurs saisies, l'API et
+    la persistance gardent la précision complète. `_nombre` n'en est que l'habillage.
+    """
+    if value is None:
+        return "—"
+    try:
+        # L'entrée est un nombre venu du magasin ou de l'API. Une **chaîne** peut toutefois
+        # arriver d'une saisie réaffichée après refus (`/conf`, formulaires du carnet), et
+        # elle porte alors la virgule française : la rejeter afficherait « — » à la place
+        # de ce que l'opérateur vient de taper, exactement quand il relit sa saisie.
+        if isinstance(value, str):
+            value = value.strip().replace(",", ".")
+        number = float(value)
+        places = max(0, min(6, int(decimals)))
+        if not math.isfinite(number):
+            return "—"
+    except (TypeError, ValueError):
+        return "—"
+    result = f"{number:.{places}f}".replace(".", ",")
+    return f"{result} {unit}" if unit else result
+
+
+def _nombre(value, decimals, unit=None) -> Markup:
+    """Même mise en forme, portée par `.num` (chiffres tabulaires).
+
+    Le `Markup` est construit ici pour que la classe soit posée par le filtre lui-même :
+    sans cela, chaque gabarit devait se souvenir d'ajouter `class="num"` à la main et les
+    colonnes de chiffres s'alignaient ou non selon la page. La valeur **et** l'unité
+    restent échappées : `escape()` les traite exactement comme l'autoescape l'aurait fait,
+    seule l'enveloppe est du balisage.
+
+    Un contexte qui n'accepte pas de balisage (`<option>`, attribut, `title=`) utilise
+    `nombre_texte`, la même mise en forme sans enveloppe — une seule règle d'arrondi,
+    deux présentations.
+    """
+    return Markup('<span class="num">{}</span>').format(_nombre_texte(value, decimals, unit))
+
+
+env.filters["nombre"] = _nombre
+env.filters["nombre_texte"] = _nombre_texte
+
+
 def _culture_date(value, zone="Europe/Paris"):
     """Dates lisibles ; la valeur ISO exacte reste dans les formulaires et l'API."""
     if not value:
@@ -80,6 +127,7 @@ def _asset_versions() -> dict[str, str]:
         "cultures": STATIC_DIR / "js" / "cultures.js",
         "cultures_style": STATIC_DIR / "css" / "cultures.css",
         "pwa": STATIC_DIR / "js" / "pwa.js",
+        "app": STATIC_DIR / "js" / "app.js",
         "theme": STATIC_DIR / "js" / "theme.js",
         "service_worker": STATIC_DIR / "service-worker.js",
         "font": STATIC_DIR / "fonts" / "visitor1.ttf",
@@ -139,8 +187,28 @@ def _override_summary() -> dict | None:
         return None
 
 
+# Vocabulaire d'état affiché. Les valeurs de gauche sont celles de l'API — `state` de
+# `time_reliability().snapshot()` et `status` du service opérateur — et ne changent pas :
+# seule leur traduction vit ici. Les anciens gabarits mappaient `reliable` / `unreliable`,
+# des clés qu'aucune couche n'a jamais produites : la correspondance ne s'appliquait donc
+# jamais et « Heure synchronized » s'affichait tel quel. `dashboard.js` porte la même table.
+TIME_LABELS = {
+    "synchronized": "synchronisée",
+    "plausible": "plausible",
+    "unknown": "inconnue",
+}
+NETWORK_LABELS = {
+    "online": "en ligne",
+    "degraded": "dégradé",
+    "offline": "hors ligne",
+    "unknown": "inconnu",
+}
+
+
 def render_template(template_name: str, **context) -> str:
     template = env.get_template(template_name)
+    context.setdefault("time_labels", TIME_LABELS)
+    context.setdefault("network_labels", NETWORK_LABELS)
     context.setdefault("alarm_summary", None)
     context.setdefault("override_summary", _override_summary())
     context.setdefault("pwa_url", _pwa_url())
@@ -148,13 +216,20 @@ def render_template(template_name: str, **context) -> str:
     return template.render(asset_versions=ASSET_VERSIONS, **context)
 
 
-def main_page(state: dict, csrf_token: str) -> str:
+def main_page(state: dict, csrf_token: str, culture_agenda: dict | None = None) -> str:
+    """Tableau de bord. `culture_agenda` est **déjà lu** par l'appelant.
+
+    Le carnet vit sur son propre thread SQLite : la lecture appartient à la route, jamais
+    au rendu. `None` signifie « carnet indisponible » et la page le dit ; un agenda présent
+    mais vide reste un état d'absence explicite, pas un chargement sans fin.
+    """
     return render_template(
         "main.html",
         page_title="Tableau de bord",
         current_page="dashboard",
         state=state,
         alarm_summary=state.get("alarms"),
+        culture_agenda=culture_agenda,
         csrf_token=csrf_token,
     )
 
@@ -267,21 +342,45 @@ def console_page(csrf_token: str, *, alarm_summary=None) -> str:
     )
 
 
+SEVERITY_RANK = {"critical": 3, "error": 2, "warning": 1}
+SEVERITY_LABELS = {"critical": "critique", "error": "erreur", "warning": "avertissement"}
+
+
+def _alarm_order(alarm: dict) -> tuple[int, float]:
+    """Gravité d'abord, occurrence la plus récente ensuite.
+
+    `started_ts` peut manquer ou valoir `None` (occurrence reconstruite, champ absent
+    d'une charge stockée) : comparer `None` à un nombre lèverait un `TypeError` et la
+    page d'alarmes serait vide au moment précis où elle sert. Une occurrence sans
+    horodatage est donc la plus ancienne, jamais une erreur.
+    """
+    return (SEVERITY_RANK.get(alarm.get("severity"), 0), alarm.get("started_ts") or 0)
+
+
 def alarms_page(
     alarms: list[dict], filters: dict, alarm_summary: dict, csrf_token: str
 ) -> str:
+    ordered = sorted(alarms, key=_alarm_order, reverse=True)
+    # Résumé court : combien d'actives et à quelle gravité — repris du résumé global, celui
+    # que `pwa.js` maintient déjà en vivant — puis depuis quand date la plus récente des
+    # occurrences affichées. Un horodatage calculé ailleurs que sur la liste sous les yeux
+    # de l'opérateur serait une seconde vérité.
+    latest = max((alarm.get("started_ts") or 0 for alarm in ordered
+                  if alarm.get("status") != "resolved"), default=0)
     return render_template(
         "alarms.html",
         page_title="Alarmes",
         current_page="alarms",
-        alarms=alarms,
+        alarms=ordered,
+        alarm_severity_labels=SEVERITY_LABELS,
+        alarm_latest_ts=latest or None,
         filters=filters,
         alarm_summary=alarm_summary,
         csrf_token=csrf_token,
     )
 
 
-def error_page(status: int, title: str, message: str) -> str:
+def error_page(status: int, title: str, message: str, *, previous_url=None, retry_url=None) -> str:
     return render_template(
         "error.html",
         page_title=title,
@@ -289,6 +388,8 @@ def error_page(status: int, title: str, message: str) -> str:
         status=status,
         title=title,
         message=message,
+        previous_url=previous_url,
+        retry_url=retry_url,
     )
 
 
@@ -299,3 +400,10 @@ def offline_page() -> str:
         current_page="offline",
         csrf_token=None,
     )
+
+
+def app_page() -> str:
+    """Aide locale, installation et inventaire des copies sans commande."""
+    return render_template("pwa.html", page_title="Application sur ce téléphone",
+                           current_page="app", csrf_token=None,
+                           cache_version=PWA_CACHE_VERSION)
