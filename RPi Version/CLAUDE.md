@@ -33,8 +33,10 @@ docker build -t phyto . && docker run --privileged -p 8123:8123 \
 
 Web UI: `http://<pi>:8123` — `/` action-oriented dashboard with 5 s live refresh, `/history` for
 the detailed 24/48/72 h charts, `/conf` section-based config form,
-`/console` (SSE log stream), `/api/v1/state` (versioned JSON), `/health/live`, `/health/ready` and the
-legacy `/status`. `/monitor` redirects to the dashboard; reset/reboot/poweroff remain **POST-only**.
+`/console` (SSE log stream), `/app` (per-device PWA page: connection, install, offline copies,
+notifications, active worker version), `/api/v1/state` (versioned JSON), `/health/live`,
+`/health/ready` and the legacy `/status`. `/monitor` redirects to the dashboard;
+reset/reboot/poweroff remain **POST-only**.
 
 The repository has a small `pytest` suite under `tests/`; run it for every Python change. It uses a
 recording fake for GPIO and temporary configuration files, and must remain runnable without root,
@@ -221,16 +223,34 @@ to `PuppetMaster`.
   to reach the quality policy, whose freeze test lives on the acquisition noise. Rounding belongs to
   presentation, which uses the catalog's `decimals` (`mesure` Jinja filter, `toFixed` in the JS).
 - `network/web/server.py` — aiohttp server with explicit routes and exact static-asset allow-list. It
-  enforces a 64 KiB body limit, per-process CSRF token, same-origin POSTs, private/LAN `Host` validation,
+  enforces a 64 KiB body limit, a persisted CSRF token (see below), same-origin POSTs, private/LAN `Host` validation,
   security headers and no-store on dynamic responses. `/conf/{section}` builds and validates a complete
   candidate `AppConfig` before the atomic save; blank secret fields mean “unchanged”, and GPIO is read-only.
   Errors ≥400 render `templates/error.html` for a browser and stay plain text for anything else —
-  redirects are `HTTPException`s too and must never go through that path. The CSRF token comes from
+  redirects are `HTTPException`s too and must never go through that path. That page offers at most
+  three links, and `_error_response()` decides: « Revenir à la page précédente » only when the
+  `Referer` is **same-origin and validated** (same scheme, same host, host itself in the LAN
+  allow-list, no credentials) and re-emitted **path-only**, never `//…`; « Réessayer » only for a
+  GET whose status is 500/502/503/504 — never after a POST, and never on a 4xx, which retrying
+  cannot fix; the dashboard, always. Never derive a link from a raw request header here.
+  `/app` is a plain read page (no CSRF, no secret), served like the other read pages. The CSRF token comes from
   `utils/csrf.py` and is **persisted** in `param/.csrf_token` (0600, gitignored) so a `systemctl restart`
   does not 403 every page left open; a fresh token per process was pure friction, not extra safety.
 - `network/web/pages.py` — Jinja2 with autoescape; asset URLs carry a content hash so a redeployed
   CSS/JS file is not served from cache. Every page must stay inline-script/style free: the CSP has
-  no `unsafe-inline`.
+  no `unsafe-inline`. Two display filters share **one** rounding rule: `nombre` returns a
+  `Markup('<span class="num">…</span>')` — the tabular-figures class is posed by the filter itself,
+  value and unit still escaped — and `nombre_texte` the exact same formatting **bare**, for the
+  three contexts that render no markup (`<option>`, an attribute, `title=`). `mesure` stays the
+  dashboard-side rounding, kept identical to the JS `toFixed`. Rounding lives here and nowhere
+  upstream.
+- `network/web/templates/macros/ui.html` — the eight shared presentation macros
+  (`compact_header`, `empty_state`, `alarm_summary`, `equipment_row`, `journal_entry`,
+  `field_group`, `chart_detail`, `network_state`). **Presentation only**: no business rule, no
+  implicit command. An action is a `{href, label}` pair rendered as a GET **link**; anything that
+  POSTs belongs in the `caller` block the macro yields to. Optional keys are read through
+  `is defined` guards so a caller may omit them. A page reuses these instead of re-inventing a
+  header, an empty state or a journal line; changing a signature is a repo-wide change.
 - `network/web/static/service-worker.js` + `network/web/static/js/pwa.js` — PWA locale **à
   fraîcheur dominante**. Le service worker ne met jamais en cache `/api/`, `/health/`, `/status`,
   le SSE ni une méthode mutante ; il conserve seulement les assets hachés et les dernières pages de
@@ -238,7 +258,35 @@ to `PuppetMaster`.
   « HORS LIGNE — données datant de… — lecture seule » et ne déclenchent jamais de notification.
   Aucune commande n'est mise en attente ou rejouée. HTTPS `:443` est un second point d'écoute
   optionnel ; tout échec TLS laisse HTTP `:8123` et le contrôle actifs. Les notifications sont
-  locales, opt-in, limitées aux alarmes de contrôle/critiques et sans garantie PWA fermée.
+  locales, opt-in, limitées aux alarmes de contrôle/critiques et sans garantie PWA fermée ; le
+  texte affiché à une permission refusée vient de la fonction **pure** `notificationDenialHelp`
+  (agent utilisateur en entrée, aucun accès au DOM ni à l'horloge), jamais d'une chaîne de
+  ternaires enfouie dans un rendu.
+  Le worker **n'active plus une version de lui-même** : plus de `skipWaiting()` spontané, une
+  version installée attend le message `{type:"activer"}` que seul le bouton « Mettre à jour » de
+  la bannière de `base.html` envoie (`{type:"version"}` sert seulement à afficher la version
+  active). Sur `controllerchange`, la page ne recharge **que** si `window.PhytoForms.isDirty()`
+  est faux ; sinon elle annonce « La mise à jour s'appliquera à la prochaine ouverture ». Les
+  anciens caches ne sont purgés qu'à l'activation, **après** `clients.claim()` : une page ouverte,
+  y compris hors ligne, continue de vivre sur les caches de sa propre version. Budgets d'attente
+  explicites (`fetchWithBudget`) : 8 s pour une navigation de page, 15 s pour le précache et le
+  préchauffage de `/`, `/history`, `/alarms`, `/app`. Le précache est **parallèle** et reste
+  atomique (`Promise.all` rejette au premier échec, donc pas de version incomplète). Le repli sur
+  une copie datée n'a lieu que sur un **échec de transport** : une réponse HTTP du contrôleur est
+  toujours servie telle quelle, et un **5xx n'est ni mis en cache ni remplacé par une copie**.
+  Côté `pwa.js`, deux attributs de gabarit pilotent le verrou hors ligne : `data-offline-local`
+  exempte les seuls outils de **lecture locale** (recherche dans les lignes déjà chargées,
+  explorateur de graphique, sélection de série, onglets de vue) — jamais un envoi, jamais un
+  `[type=submit]` ; `data-offline-filter` déclare un **filtre serveur**, qui reçoit alors la note
+  « Filtre indisponible hors ligne : seules les données conservées sont affichées », posée à côté
+  du formulaire et non dedans. À défaut de l'attribut, le discriminant est « formulaire GET sans
+  `data-form-key` », la clé que pose le socle du carnet sur les formulaires qu'il intercepte.
+  L'inventaire des copies conservées est un **fragment partagé**, `templates/offline_index.html`
+  (section `#copies`, `[data-culture-offline-index]`, `[data-offline-latest]`), inclus par `/app`,
+  `/offline`, `/cultures/cycles` et `/cultures/journal` : une page qui veut l'afficher l'inclut,
+  elle ne le recopie pas. `/app` (`templates/pwa.html`) est la page de cet appareil — connexion,
+  installation, notifications, version active du worker, copies — et ne porte **pas** de second
+  bouton « Mettre à jour » : la bannière de `base.html` en est l'unique propriétaire.
 - `network/web/influx_handler.py` — InfluxDB **v1** line protocol over async aiohttp with a bounded timeout.
   It consumes the shared sensor snapshot and never performs or duplicates a hardware read.
 - `controllers/OperatorService.py` + `utils/alarm_manager.py` + `utils/operator_history.py` — couche
@@ -266,8 +314,32 @@ modèle pur + sa vue ; ne pas rapatrier de règle métier dans `culture_store.py
 `templates/culture_navigation.html` en lui passant `culture_section` (`''`, `solutions`, `cycles`,
 `targets`, `light`, `equipment`, `journal`) : c'est lui qui rend les sept rubriques, `aria-current`,
 le contexte conservé (`detail`, `selected`, `culture_subjects`, `filters.target`) et le lien
-« Vue globale », qui reste toujours dans la rubrique courante. Une nouvelle page ne réinvente pas
-sa navigation. Tout y est **déclaratif** : jamais un accès GPIO, une modification de
+« Vue globale », qui reste toujours dans la rubrique courante — et, pour la rubrique
+« Solutions et relevés », la **vue courante** : la navigation du carnet conserve `view` au même
+titre que `detail` et `selected`, sans quoi quitter puis revenir sur la rubrique repartait au
+défaut et perdait l'onglet choisi. Une nouvelle page ne réinvente pas sa navigation.
+`/cultures/solutions` et `/cultures/cycles` servent toutes leurs vues sur la **même** route, par
+`?view=` (`SOLUTION_VIEWS = saisir|releves|analyser` dans `network/web/cultures.py`,
+`CYCLE_VIEWS = faire|comparer` dans `network/web/culture_cycles.py`) : aucune route nouvelle,
+tous les panneaux rendus, ceux qui ne sont pas la vue courante marqués `hidden`. Ces « onglets »
+sont des **liens** qui rechargent la page : `aria-current="page"` et rien d'autre — jamais
+`role="tablist"`/`role="tab"`/`aria-selected` sur un `<a href>`, qui promettraient un panneau
+échangé sur place et une navigation aux flèches. Une valeur inconnue retombe sur le défaut plutôt
+que de refuser la page, et rien n'est persisté : `view` n'est qu'un choix d'affichage.
+Un lien du journal vers une fiche ou vers un relevé porte `retour=` — l'adresse de la vue courante
+du journal, filtres **normalisés** et `offset` compris, construite par `JournalViews.return_url()`
+(`network/web/culture_journal.py`) et non dans un gabarit, où l'auto-échappement produisait des
+`&amp;` dans le paramètre. `CultureViews.page` ne l'accepte que s'il désigne une adresse **locale
+du carnet** (préfixe `/cultures`, ni `//` initial ni `\`) : sans schéma ni hôte possibles, la
+fiche ne peut pas offrir un lien sortant choisi par l'appelant. Un `retour` refusé est ignoré,
+jamais une erreur — le lien de retour existe toujours, simplement non contextualisé.
+La cascade des plages cibles est rendue par la seule opération de magasin **en lecture seule**
+`target_resolution` (`utils/culture_targets_store.py`), qui lit les associations d'alimentation
+réellement déclarées à la date consultée (`_feeding_at`, dans `utils/culture_solution_store.py`,
+domaine propriétaire des tables) puis appelle la règle **pure** `resolve_targets` sans la
+dupliquer ; la vue `network/web/culture_targets.py` n'y ajoute que le libellé court de la source
+(« cible directe », « sujet alimenté », « réservoir »). Ne jamais rejouer cette cascade dans un
+gabarit ni en JavaScript. Tout y est **déclaratif** : jamais un accès GPIO, une modification de
 `param.json`, un override, un changement du watchdog ni une nouvelle acquisition capteur, et jamais
 de SQLite dans l'event loop (`CultureStore.call(...)`). Une erreur, une corruption ou un schéma
 inconnu conserve la base et rend le carnet indisponible **sans** dégrader `control_healthy()` ni le
@@ -320,10 +392,20 @@ Conventions d'interface des lots UI 1 et 2 (aucune route ni persistance nouvelle
 (identifiants stables, rejouable après un clonage d'origines), `submitJson` / `submitBinary`
 (CSRF, garde hors ligne, clé d'idempotence conservée tant que la saisie ne change pas) et
 `showError` (résumé en tête + message au champ) ; un formulaire nouveau l'adopte au lieu de refaire
-sa gestion d'erreur. La passe « photos » y ajoute deux conventions : `register` pose lui-même
+sa gestion d'erreur. La clé d'idempotence est mémorisée **par destination** (`requestKey(form,
+channel, signature)`), pas seulement par formulaire : un même formulaire porte deux actes
+successifs et distincts — l'observation, puis sa photo — et une mémoire unique laissait le second
+effacer la clé du premier, donc créer une seconde note si la première réponse s'était perdue.
+La passe « photos » y ajoute deux conventions : `register` pose lui-même
 l'**aperçu local** (`data-culture-photo-preview`, `URL.createObjectURL` révoquée au changement, au
 `reset` et au `pagehide` hors cache arrière/avant) sur tout champ fichier d'images — aucune page ne
-le réécrit, et l'aperçu n'émet rien. Tout y est indexé par **contrôle**, jamais par formulaire :
+le réécrit, et l'aperçu n'émet rien. `attachPhotoChoices` pose de son côté les deux boutons
+« Prendre une photo » / « Choisir une image existante » (`.culture-photo-choices`, après le
+`<label>`) : c'est **le seul** endroit où `capture="environment"` est posé, et il est retiré par
+l'autre bouton — aucun gabarit ne doit réintroduire l'attribut, qui interdisait la photothèque, et
+`accept="image/*"` reste le repli sans JavaScript. Les deux boutons visent le même champ, donc la
+même mutation et la même clé d'idempotence : « Reprendre la photo » ne peut pas faire de doublon.
+Tout y est indexé par **contrôle**, jamais par formulaire :
 deux champs photo d'un même formulaire partageraient sinon une URL d'objet et une zone. Et
 `submitBinary` passe par `sendUpload` (`XMLHttpRequest`, pour la seule progression d'envoi), qui
 rend **exactement** les quatre formes de retour du contrat — hors ligne, occupé, réponse HTTP,
@@ -378,7 +460,21 @@ réunit base, médias et manifeste SHA-256, et `scripts/restore-cultures.py [--b
 jamais que vers une copie isolée nouvelle. Les photos sont réencodées sans métadonnées et bornées
 en taille, dimensions, nombre et espace disque. La PWA garde au plus 20 pages du carnet et 40 photos
 consultées, datées, relues après **échec réseau** seulement ; aucun rappel ne déclenche de
-notification système et aucune mutation n'est mise en attente ou rejouée. La fixture Playwright du
+notification système et aucune mutation n'est mise en attente ou rejouée.
+Une **seconde** base IndexedDB, `phyto-culture-drafts`, conserve les **brouillons** des formulaires
+du carnet explicitement inscrits — `data-culture-draft` sur le formulaire, `data-draft-field` sur
+chaque champ, et `[data-culture-draft-banner="<clé>"]` dans le gabarit pour poser la bannière
+**hors** du `<details>` qui replie le formulaire, sans quoi un brouillon en attente resterait
+invisible. Le périmètre est fermé et vérifié à l'inscription : texte, dates et sélections
+seulement, jamais une mesure (`ph`, `ec`, `volume`, `temperature`), une confirmation, un secret
+(`data-secret`, `password`, `token`, `csrf`…), une photo, ni rien hors `/cultures`. C'est du texte
+d'opérateur **en clair sur l'appareil** : expiration 24 h, purge une fois par page à l'ouverture de
+la base, plafond de 50 brouillons (le plus ancien évincé). La restauration est **explicite** —
+bouton « Restaurer le brouillon », après revalidation de la cible, de la version de la fiche, de
+l'expiration et de chaque valeur (option toujours présente et non désactivée, `checkValidity`) — et
+elle **régénère la clé d'idempotence** au lieu de rejouer l'ancienne. Aucune soumission automatique,
+aucune file, aucun rejeu : l'invariant « aucune mutation n'est mise en attente ou rejouée » reste
+entier — un brouillon est une saisie **non envoyée**, pas une commande différée. La fixture Playwright du
 carnet démarre **un serveur par test** : l'espace 2 est exclusif et une occupation ouverte n'a pas
 de fin, donc deux specs ne peuvent pas partager une base. Les tests navigateur mutateurs sont
 désactivés sur toute cible `PHYTO_UI_BASE_URL` externe ; leur base locale est temporaire.

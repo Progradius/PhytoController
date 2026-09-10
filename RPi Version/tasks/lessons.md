@@ -353,3 +353,36 @@ bien. Chaque bascule réémettait en plus une annonce `aria-live`.
    Il appartient au formulaire qui l'a déclenché.
 4. Signaler une dette hors périmètre plutôt que l'élargir en silence est la bonne conduite ; mais
    la signaler avec son **coût réel**, pas avec son symptôme, pour que l'arbitrage soit possible.
+
+## 2026-09-10 — Reprendre un plan interrompu : l'état se relit dans le code, jamais dans le rapport
+
+**Contexte.** Le plan de remédiation web/mobile/PWA (32 fiches) avait été « implémenté » en une
+passe unique, interrompue : tous les lots touchés en surface, aucune case cochée, 3 tests pytest
+rouges, une légende protégée par un garde-fou du plan remplacée par une légende générique, des
+gabarits compressés en lignes de 300 caractères, des tests écrits par regex sur le texte source.
+
+**Règles.**
+1. Une reprise commence par une **relecture fiche par fiche** (Cible / Garde-fous / Acceptation)
+   contre le code, par des relecteurs indépendants en lecture seule, puis contre-vérification des
+   constats forts par l'orchestrateur ; un constat d'agent peut être faux (« `touch-action` absent »
+   alors que la règle existait) — on grep avant d'attribuer.
+2. « Fait » = test d'acceptation **réel** (comportement, pas présence d'une chaîne, pas regex sur
+   le source) **et** branché dans une suite exécutée (`npm run test:js` a dû être créé pour les
+   tests Node orphelins). Un test qui ne peut ni passer (fixture vide) ni échouer (compare le
+   client à lui-même après le premier sondage) ne prouve rien : lire le HTML serveur par
+   `request.get` **avant** tout sondage.
+3. Les **preuves de mesure** (hauteurs, contrastes, budgets) se prennent sur l'arbre final ; une
+   preuve antérieure à une correction contredit le plan sans que personne ne le voie. Les
+   acceptations chiffrées (« divisée par deux », « −1/3 ») se **mesurent** avant d'être déclarées,
+   et un écart mesuré est un chantier (tableau de bord 5 474 → 2 491 px, journal −37,8 %), pas un
+   commentaire.
+4. Agents parallèles : fichiers **disjoints listés**, CSS partagé par demandes croisées appliquées
+   par le propriétaire ou l'orchestrateur (un doublon de règles est apparu quand les deux l'ont
+   fait), Playwright **sérialisé** par `flock` sur un verrou unique et `--workers=1` pour les specs
+   du carnet (un serveur par test, deux workers se disputent le port), jamais `pkill -f` large
+   (un agent a tué le serveur d'un autre). Une coupure de quota API se reprend par message au
+   même agent : le contexte survit, l'état des fichiers se relit sur disque avant de continuer.
+5. Un harnais de test peut mentir par omission : `tests/ui_server.py` ne publiait aucun état
+   d'actionneur (six lignes « non relues », donc ouvertes) et faisait échouer toute coupure
+   (méthode absente, horloge non fiable). Trois défauts de harnais expliquaient l'absence
+   historique de tests de coupure — les corriger est le seul chemin vers une mesure honnête.

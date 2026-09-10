@@ -12,6 +12,8 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 |---|---|---|---|
 | GET | `/`, `/index.html` | Tableau de bord, rafraîchi toutes les 5 s par `/api/v1/state` | HTML 200 |
 | GET | `/history` | Historique détaillé sur 24, 48 ou 72 h, alimenté par `/api/v1/history` | HTML 200 |
+| GET | `/alarms` | Alarmes actives et occurrences résolues, alimentées par `/api/v1/alarms` | HTML 200 |
+| GET | `/app` | Page de **cet appareil** : type de connexion, installation, inventaire des copies hors ligne, notifications locales, version active du service worker. Page de lecture, sans CSRF ni secret, mise en cache comme les autres pages de lecture | HTML 200 |
 | GET | `/conf` | Formulaire de configuration, une section dépliable par domaine | HTML 200 |
 | POST | `/conf/{section}` | Valide et enregistre **une seule** section | 303 vers `/conf?flash=…` ; 422 si refus |
 | GET | `/console` | Console de journalisation | HTML 200 |
@@ -33,11 +35,29 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | POST | `/monitor` | Compatibilité : `reset_sensor`, `reboot=1`, `poweroff=1` | Comme les routes dédiées |
 | GET | `/favicon.ico`, `/favicon.svg` | Icône | 302 puis fichier |
 | GET | `/app.webmanifest`, `/service-worker.js`, `/offline` | Manifeste, worker racine et repli PWA | Manifeste/JS/HTML 200 |
+| GET | `/cultures…`, `/api/v1/cultures/…` | Carnet de cultures — contrat détaillé dans [API du carnet](cultures-api.md) | HTML / JSON |
 | GET | `/static/css/style.css`, `/static/js/*.js`, `/static/fonts/visitor1.ttf` | Assets locaux | Fichier |
 | GET | `/static/icons/pwa-*.png` | Icônes PWA normale et maskable | PNG |
 
-Toute autre route renvoie 404. Il n'existe **pas** de service de répertoire : la liste ci-dessus
-est la liste exhaustive des chemins servis, ce qui remplace l'ancien `/static/` non confiné.
+Toute autre route renvoie 404. Il n'existe **pas** de service de répertoire : les chemins servis sont
+exactement ceux de la liste ci-dessus et ceux du carnet, ce qui remplace l'ancien `/static/` non confiné.
+
+### Paramètres de lecture
+
+Ces paramètres ne changent **que** ce qui est affiché : aucune écriture, aucune persistance, aucune
+route nouvelle. Une valeur inconnue retombe sur le défaut, elle n'est jamais un refus.
+
+| Route | Paramètre | Effet |
+|---|---|---|
+| `GET /cultures/solutions` | `view=saisir\|releves\|analyser` | Choisit la vue servie. Les trois panneaux sont rendus ; ceux qui ne sont pas la vue courante portent `hidden`. Sans `view`, le défaut se déduit de la demande : `kind=` ouvre la saisie, `entry=` montre les relevés, une cible encore sans relevé ouvre la saisie, sinon les relevés |
+| `GET /cultures/cycles` | `view=faire\|comparer` | Idem, défaut `faire` — tout ce qui vit dans « Comparer » (comparaison, synthèse climatique, détail horaire, vérifications) n'est dans la page qu'avec `view=comparer` |
+| `GET /cultures/{id}` | `retour=<chemin>` | Adresse de retour contextualisée, émise par les liens du journal (vue courante, filtres normalisés et pagination). Acceptée **seulement** si elle commence par `/cultures` et ne contient ni `//` initial ni `\` ; sinon simplement ignorée, le retour restant non contextualisé |
+| `GET /cultures/targets` | `at=<AAAA-MM-JJ>` | Date à laquelle la plage applicable est résolue (défaut : aujourd'hui). Une date impossible est refusée (400), avec ou sans cible |
+
+Les « onglets » de vue sont des **liens** qui rechargent la page : l'état actif se lit sur
+`aria-current="page"`, jamais sur un `role="tab"`/`aria-selected`, qui promettraient un panneau
+échangé sur place. La navigation du carnet conserve la vue de « Solutions et relevés » d'une
+rubrique à l'autre.
 
 ## Règles de sécurité appliquées
 
@@ -58,7 +78,17 @@ est la liste exhaustive des chemins servis, ce qui remplace l'ancien `/static/` 
   dans les pages), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, et
   `Cache-Control: no-store` sur tout le contenu dynamique.
 - **Erreurs** : un navigateur reçoit une page HTML, un client non-HTML le texte brut. Les
-  redirections ne sont jamais transformées en page d'erreur.
+  redirections ne sont jamais transformées en page d'erreur. La page porte au plus trois liens,
+  tous décidés par le serveur (`_error_response`) :
+  - **« Revenir à la page précédente »** — seulement si l'en-tête `Referer` désigne la **même
+    origine** que la requête (même schéma, même hôte, hôte lui-même dans la liste autorisée,
+    sans identifiants dans l'URL). Il est réémis en **chemin seul** — chemin, requête, ancre —,
+    jamais en URL absolue, et un résultat commençant par `//` est écarté : une page d'erreur ne
+    doit pas pouvoir offrir un lien sortant choisi par l'appelant ;
+  - **« Réessayer »** — seulement pour une requête **GET** dont le statut est 500, 502, 503 ou
+    504. Jamais après un POST (rejouer une mutation n'est pas une réparation), jamais sur un 4xx,
+    qu'un simple renvoi ne corrigerait pas ;
+  - **« Retour au tableau de bord »** — toujours.
 - **Secrets** : `/conf` n'affiche plus aucun mot de passe. Les champs sensibles sont vides et
   indiquent seulement si une valeur est enregistrée ; les laisser vides conserve l'existant.
 
@@ -69,8 +99,34 @@ qui ont installé l'autorité locale, mais n'authentifie pas l'opérateur. Ne ja
 ## Cache PWA et fraîcheur
 
 Le service worker n'est enregistré que depuis une origine sécurisée. Il précache les assets hachés,
-garde la dernière réponse HTML 200 de `/`, `/history` et `/alarms`, et fournit `/offline` aux autres navigations
-injoignables. Ses règles sont volontairement asymétriques :
+garde la dernière réponse HTML 200 de `/`, `/history`, `/alarms` et `/app`, et fournit `/offline` aux autres
+navigations injoignables.
+
+Le service worker applique un budget d'attente explicite : 8 s pour une navigation de page
+(`/`, `/history`, `/alarms`, `/app`, pages du carnet et photos), 15 s pour le préchargement des
+ressources hachées et le préchauffage des pages de lecture. `/api/`, `/actions/`, `/health/`,
+`/status` et `/console/stream` restent **réseau uniquement** : jamais mis en cache, et sans aucun
+budget du worker — c'est la requête de la page qui décide de son propre délai. Seule l'adresse
+**sans paramètres** de `/`, `/history`, `/alarms` et `/app` est conservée comme page ; une adresse
+filtrée n'est pas une vue hors ligne. Le repli sur une copie datée n'a lieu que sur un **échec de transport** (erreur réseau
+ou expiration du budget) : une réponse HTTP du contrôleur est toujours servie telle quelle, et une
+réponse **5xx n'est jamais remplacée par une copie ni mise en cache** — c'est la page d'erreur du
+serveur qui s'affiche. Le worker n'active jamais une nouvelle version de lui-même : une version
+installée attend le message `{type:"activer"}` envoyé par le bouton « Mettre à jour ».
+
+Ce bouton est unique dans la page : il vit dans la bannière de mise à jour de `base.html`, et `/app`
+n'en porte pas de second. Après activation, la page ne se recharge que si aucune saisie n'est en
+cours (`window.PhytoForms.isDirty()` faux) ; sinon la mise à jour est annoncée comme effective à la
+prochaine ouverture. Les caches d'une version précédente ne sont supprimés qu'à l'activation, après
+`clients.claim()` : une page déjà ouverte, hors ligne comprise, continue de lire les copies de sa
+propre version tant que l'opérateur n'a pas activé la suivante.
+
+L'inventaire des copies conservées est rendu par un fragment partagé (`templates/offline_index.html`,
+section `#copies`) inclus par `/app`, `/offline`, `/cultures/cycles` et `/cultures/journal` : date de
+la dernière copie, liste des pages du carnet conservées, et le rappel que les filtres qui nécessitent
+le serveur restent indisponibles hors ligne.
+
+Ses règles sont volontairement asymétriques :
 
 - `/api/v1/**`, `/health/**`, `/status` et le SSE restent **réseau uniquement** ;
 - toute méthode mutante reste réseau uniquement, sans Background Sync ni rejeu ;
@@ -109,8 +165,10 @@ compteur de silence à zéro : une application rouverte après une longue absenc
 en rouge du seul fait de cette absence.
 
 La PWA demande la permission de notification uniquement sur clic. Elle notifie les nouvelles alarmes
-affectant le contrôle et toutes les alarmes critiques, avec déduplication par UUID. Il ne s'agit pas de
-Web Push : Chrome peut suspendre la page, donc aucune notification n'est garantie PWA fermée.
+affectant le contrôle et toutes les alarmes critiques, avec déduplication par UUID. Les notifications
+sont actives lorsque l’application est ouverte au premier plan et connectée au contrôleur. Le système
+peut les suspendre en arrière-plan ; ce n’est pas une alerte à distance. Il ne s’agit pas de Web Push
+et aucune notification n’est garantie une fois la PWA fermée.
 
 ## Lecture et annotation de l'historique
 

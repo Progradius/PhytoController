@@ -9,6 +9,24 @@ rattachées à un champ, bloc `agenda`, blocs de fiche, identité de l'entrée �
 qu'ils ajoutent est statique, `GET /static/js/culture_forms.js`, servie comme les autres actifs
 depuis la liste blanche du serveur, avec son empreinte de contenu en paramètre `v`.
 
+**La remédiation web / mobile / PWA du 9 septembre 2026 n'introduit aucun changement d'API** :
+aucune route JSON ajoutée, retirée ni renommée, aucun corps de requête modifié, aucune clé de
+réponse ajoutée ni supprimée, aucune persistance nouvelle. Un client existant n'a rien à changer.
+Elle n'ajoute que des **paramètres de requête sur les pages HTML**, purement d'affichage :
+
+| Page | Paramètre | Rôle |
+| --- | --- | --- |
+| `GET /cultures/solutions` | `view=saisir\|releves\|analyser` | Vue servie ; les trois panneaux sont rendus, les autres portent `hidden`. Défaut déduit de `kind`, `entry` et de l'existence d'un relevé pour la cible. `SOLUTION_VIEWS`, `network/web/cultures.py` |
+| `GET /cultures/cycles` | `view=faire\|comparer` | Idem, défaut `faire`. `CYCLE_VIEWS`, `network/web/culture_cycles.py` |
+| `GET /cultures/{id}` | `retour=<chemin>` | Adresse de retour émise par les liens du journal (`JournalViews.return_url()`). Acceptée seulement si elle commence par `/cultures` et ne contient ni `//` initial ni `\` ; sinon ignorée sans erreur |
+| `GET /cultures/targets` | `at=<AAAA-MM-JJ>` | Date à laquelle la plage applicable est résolue (défaut : aujourd'hui). Une date impossible est refusée, `400`, avec ou sans cible |
+
+Une valeur `view` inconnue retombe sur le défaut ; ce n'est jamais un refus. Ces paramètres ne sont
+lus par **aucune** route `/api/v1/cultures/…` : les réponses JSON sont identiques avec ou sans eux.
+Les brouillons de formulaire (base IndexedDB locale `phyto-culture-drafts`) ne touchent pas
+davantage à l'API : rien n'est envoyé, mis en file ni rejoué, et une restauration **régénère** la
+clé `request_id` au lieu de rejouer l'ancienne.
+
 Toutes les routes sont locales, dynamiques et `no-store`. Les POST exigent le jeton existant
 `X-CSRF-Token`, le Host autorisé et la même origine que le serveur. Corps JSON limité à 64 Kio.
 Les actions sont déclaratives, sans accès GPIO et sans écriture de configuration.
@@ -910,6 +928,19 @@ Un agrégat journalier ne porte une plage que si toutes ses mesures partagent la
 `GET /api/v1/cultures/solutions/export` gagne deux colonnes `ph_cible` et `ec_cible`, résolues à
 la date de chaque relevé et vides en l'absence de cible (bornes EC en mS/cm).
 
+La page `/cultures/targets` rend la même cascade pour une cible et une date consultées, via
+l'opération de magasin **en lecture seule** `target_resolution` (`utils/culture_targets_store.py`).
+Elle lit les alimentations déclarées à cette date (`_feeding_at`, dans `utils/culture_solution_store.py`,
+domaine propriétaire de `solution_links` / `solution_periods`), construit l'entrée d'un relevé fictif
+de cette cible à cette date, puis appelle la **même** règle pure `resolve_targets` — la cascade
+n'est jamais dupliquée. Un réservoir consulté fait apparaître l'étape « sujet alimenté » ; une
+culture consultée est la cible directe, son réservoir fermant la cascade, et **deux** réservoirs
+déclarés au même instant ne sont pas départagés : l'étape est rendue `ambiguous_reservoir`, pas
+devinée. Une cible inconnue ou une date impossible répond `400` ; sans cible, la page rend une
+résolution vide plutôt que d'en choisir une par défaut. Cette opération **n'est pas exposée en
+HTTP** : elle n'alimente que le rendu de la page, et `GET /api/v1/cultures/targets` reste
+inchangé (`target`, `scope`, `offset`, sans `at`).
+
 ### Lot F — repères d'éclairage
 
 Repères d'exploitation **informatifs** : les enregistrer, les corriger, les clore ou les
@@ -1038,6 +1069,14 @@ page contenant cette opération. Le filtre par cible passe par des `EXISTS` : la
 unique quel que soit le nombre de cibles satisfaisant le filtre. Seule la page renvoyée est
 enrichie (libellés, cibles nommées, `link` vers la fiche ou les relevés, `photos`,
 `revisions` des versions précédentes).
+
+Sur la **page** `/cultures/journal` — et là seulement, la réponse JSON étant inchangée — chaque lien
+sortant (`link`, `/cultures/{id}`, `/cultures/solutions?entry=…`) porte en plus
+`retour=<adresse de la vue courante>`, construite par `JournalViews.return_url()` : `/cultures/journal`
+suivi des filtres **normalisés** par `filters()` puis de `offset` s'il est non nul, l'ancre du lien
+restant en dernier. Elle est assemblée en Python et non dans le gabarit : sous l'auto-échappement de
+Jinja, une adresse construite en HTML porte déjà ses `&amp;`, que la ré-encoder transformait en
+séparateur invalide.
 
 `POST /api/v1/cultures/journal` — observations d'espace, avec `request_id` obligatoire
 (idempotence) et `confirm_date` si l'horloge n'est pas synchronisée.

@@ -283,6 +283,9 @@ version ; la saisie reste visible et un lien ouvre la fiche actualisée dans un 
 Si une réponse réseau est perdue, réessayer **sans changer les champs** : la même clé de requête
 permet de retrouver l'enregistrement au lieu de le dupliquer. Ne pas fermer la page contenant
 une saisie non confirmée. Aucun formulaire n'est enregistré ou envoyé automatiquement hors ligne.
+Seuls les formulaires de texte listés plus bas (voir « Un brouillon local, jamais un envoi
+différé ») gardent leur saisie sur l'appareil ; elle reste alors à **restaurer à la main**, et
+elle n'a rien d'un enregistrement.
 
 Dans la PWA, les pages du carnet déjà consultées peuvent être relues après un échec réseau,
 avec leur date de capture et une bannière de lecture seule. Le cache est borné à 20 pages et
@@ -351,6 +354,45 @@ Depuis une fiche de culture, **Solutions, relevés et arrosages** ouvre le carne
 culture. Depuis le tableau de bord, **Saisir un relevé** préremplit le réservoir de l'espace.
 La page `/cultures/solutions` présente les deux bacs, la date et l'âge de leur solution,
 les cultures alimentées, une saisie rapide, puis le journal, les courbes et les recettes.
+
+### Trois vues sur la même page
+
+Sous les intentions, trois liens — **Saisir**, **Relevés**, **Analyser** — choisissent ce que la
+page montre. Ce sont bien trois vues d'une **seule** page (`/cultures/solutions?view=…`), pas trois
+pages : la cible, la période et le type filtrés sont conservés en passant de l'une à l'autre, et la
+vue courante est marquée dans la liste. Passer par la navigation du carnet (Cycles, Plages, Journal)
+puis revenir sur « Solutions et relevés » **rend la vue que vous aviez choisie**.
+
+Sans choix explicite, la page ouvre celle qui correspond à ce que vous venez faire : une intention
+(« Arroser », « Mesurer pH / EC »…) ouvre **Saisir**, un lien qui désigne un relevé précis ouvre
+**Relevés**, une cible encore sans aucun relevé ouvre **Saisir**, sinon ce sont les **Relevés**.
+Le choix de vue n'est pas mémorisé sur le contrôleur : il ne vit que dans l'adresse de la page, et
+n'enregistre rien.
+
+La page **Cycles et rappels** (`/cultures/cycles`) fonctionne de la même façon avec deux vues :
+**À faire** — la vue d'ouverture, celle des rappels du jour — et **Comparer**. Tout ce qui relève
+de la comparaison (tableau comparatif, choix des cultures, synthèse climatique, détail horaire,
+vérifications d'équipement) se trouve dans la seconde : un lien envoyé à quelqu'un doit porter
+`view=comparer` pour l'y amener directement.
+
+### Un brouillon local, jamais un envoi différé
+
+Les formulaires de texte du carnet — l'observation d'une fiche, l'observation d'espace du journal —
+gardent votre saisie **sur cet appareil** si le navigateur se ferme ou si l'onglet est perdu. Un
+bandeau apparaît alors au-dessus du formulaire, hors du repli, avec deux boutons : **Restaurer le
+brouillon** et **Supprimer le brouillon**. Rien n'est restauré tout seul.
+
+Ce que le brouillon retient : du texte, des dates et des choix de liste. Ce qu'il ne retient
+**jamais** : une mesure (pH, EC, volume, température), une vérification cochée, une photo, un mot
+de passe ou quoi que ce soit de la configuration. Un brouillon expire au bout de **24 h** ; au-delà
+de 50 brouillons conservés, le plus ancien est supprimé. Si la fiche visée a changé de version, si
+la cible ou la date sont devenues invalides, ou si le délai est dépassé, la restauration est
+**refusée** en le disant — mieux vaut ressaisir que réécrire sur une fiche qui a bougé.
+
+Un brouillon est une saisie **non envoyée**, pas un enregistrement en attente : le carnet ne met
+aucune commande en file et ne rejoue jamais rien tout seul, hors ligne comme en ligne. C'est aussi
+du texte en clair sur l'appareil : un téléphone partagé le laisse lisible jusqu'à son expiration ou
+sa suppression.
 
 Pour reprendre une solution déjà en service, choisir **Renouvellement**, sa date connue ou
 approximative et son volume. Les produits sont facultatifs si le mélange initial est inconnu.
@@ -441,6 +483,22 @@ Trois gestes tracés, chacun créant une version consultable dans **Versions pr�
 **Corriger cette plage** (les bornes changent, la période reste), **Clore la validité** (la plage
 cesse de s'appliquer après la date choisie, sans effacer le passé) et **Annuler cette plage**
 (motif obligatoire ; elle sort de la lecture mais reste au carnet).
+
+La page **Plages cibles** répond aussi directement à la question « quelle plage s'applique à cette
+cible, ce jour-là ? » : choisir une cible et une date, et la page affiche la plage retenue avec
+**la source qui l'a fournie**. La cascade est toujours la même, dans cet ordre strict et **sans
+mélange** entre sources :
+
+1. **cible directe** — une plage visant la culture ou le réservoir consulté ;
+2. **sujet alimenté** — pour un réservoir consulté, la plage d'une culture qu'il alimente à cette
+   date, d'après les alimentations réellement déclarées ce jour-là ;
+3. **réservoir** — pour une culture consultée, la plage du réservoir qui l'alimentait à cette date.
+
+Sans plage à aucune de ces étapes, la page le dit au lieu d'en inventer une. Sans cible choisie,
+il n'y a rien à résoudre et la page le dit également. Si deux réservoirs sont déclarés au même
+instant pour la même culture, l'étape « réservoir » est annoncée **ambiguë** plutôt que devinée.
+Une date impossible est refusée, avec ou sans cible. La date consultée est celle du jour par
+défaut ; la changer relit le passé tel qu'il était, sans rien réécrire.
 
 Sur la page des solutions, chaque relevé affiche la plage applicable **à sa propre date**, avec
 son origine : cible directe du relevé, sujet alimenté par la solution, ou réservoir. Les courbes
@@ -828,6 +886,11 @@ des mères. Chaque entrée porte ses liens — fiche de culture, relevés et sol
 ses **versions précédentes** lorsqu'elle a été corrigée. Après une saisie ou une correction, le
 journal rouvre directement la page qui contient l'entrée concernée, même si elle est loin dans
 la pagination.
+
+Chaque lien sortant du journal **emporte la vue courante** : suivre un lien vers une fiche ou vers
+un relevé, puis revenir, ramène au journal avec les mêmes filtres et la même page, et non à un
+journal remis à zéro. Ce retour ne désigne jamais qu'une adresse du carnet ; une adresse d'un autre
+site glissée dans le lien est ignorée, le retour restant alors simplement non contextualisé.
 
 **Observer un espace.** Un espace se décrit sans passer par une plante : ouvrir « Enregistrer
 une observation d'espace », choisir l'espace, le genre (observation, maintenance, incident), la
