@@ -269,17 +269,17 @@ async def test_plages_applicables_ordre_strict_ecart_et_absence(cultures):
     assert await lines(measured) == ["Aucune plage applicable à cette cible à cette date (pH)."]
 
     await cultures.call("target_mutate", target(ph_min="5,8", ph_max="6,4"))
-    assert await lines(measured) == ["Plage applicable pH 5,8–6,4 (source : Réservoir de la mesure "
-                                     "— Réservoir de l’espace 2, plage du 2026-08-01) ; écart : +0,1."]
+    assert await lines(measured) == ["Plage applicable pH 5,80–6,40 (source : Réservoir de la mesure "
+                                     "— Réservoir de l’espace 2, plage du 2026-08-01) ; écart : +0,10."]
 
     # Une plage du sujet alimenté l'emporte sur celle du réservoir, sans mélange des bornes.
     await cultures.call("target_mutate", target(target=identifier, ph_min="5,5", ph_max="6"))
-    fed = ("Plage applicable pH 5,5–6 (source : Sujet alimenté par la solution — Semis, "
-           "plage du 2026-08-01) ; écart : +0,5.")
+    fed = ("Plage applicable pH 5,50–6,00 (source : Sujet alimenté par la solution — Semis, "
+           "plage du 2026-08-01) ; écart : +0,50.")
     assert await lines(measured) == [fed]
     # Écart négatif, et EC non renseignée : aucune ligne d'EC, donc aucun écart inventé.
-    assert await lines(measured, ph=5.0) == ["Plage applicable pH 5,5–6 (source : Sujet alimenté "
-                                             "par la solution — Semis, plage du 2026-08-01) ; écart : -0,5."]
+    assert await lines(measured, ph=5.0) == ["Plage applicable pH 5,50–6,00 (source : Sujet alimenté "
+                                             "par la solution — Semis, plage du 2026-08-01) ; écart : -0,50."]
     # Une mesure dans la plage le dit aussi, plutôt que de taire l'écart.
     assert "écart : aucun, la mesure est dans la plage" in (await lines(measured, ph=5.7))[0]
     # EC renseignée alors que la plage ne borne que le pH : la cible d'EC n'est pas fabriquée.
@@ -288,8 +288,8 @@ async def test_plages_applicables_ordre_strict_ecart_et_absence(cultures):
     # Relevé visant la culture elle-même : la cible directe est la source retenue.
     direct = {"operation": "entry", "request_id": str(uuid.uuid4()), "kind": "reading",
               "targets": [identifier], "effective_at": "2026-08-05", "ph": 6.5}
-    assert await lines(direct) == ["Plage applicable pH 5,5–6 (source : Cible directe de la mesure "
-                                   "— Semis, plage du 2026-08-01) ; écart : +0,5."]
+    assert await lines(direct) == ["Plage applicable pH 5,50–6,00 (source : Cible directe de la mesure "
+                                   "— Semis, plage du 2026-08-01) ; écart : +0,50."]
 
 
 def test_categories_priorite_et_ancienneté_du_dernier_releve():

@@ -243,9 +243,14 @@ to `PuppetMaster`.
   no `unsafe-inline`. Two display filters share **one** rounding rule: `nombre` returns a
   `Markup('<span class="num">…</span>')` — the tabular-figures class is posed by the filter itself,
   value and unit still escaped — and `nombre_texte` the exact same formatting **bare**, for the
-  three contexts that render no markup (`<option>`, an attribute, `title=`). `mesure` stays the
-  dashboard-side rounding, kept identical to the JS `toFixed`. Rounding lives here and nowhere
-  upstream.
+  three contexts that render no markup (`<option>`, an attribute, `title=`). Both delegate to the
+  pure `model/nombre.nombre_texte` — the **single** server-side French rounding rule, also used by
+  the presentation sentences computed in models (`chart_summary`, assistance hints); never write a
+  `:.2f` for display again. `mesure` stays the dashboard-side rounding, kept identical to the JS
+  `toFixed`. Browser side, `formatNombre` (`culture_analysis.js`, `history.js`) is the aligned
+  replica; `culture_cycles.js` and `culture_solutions.js` delegate to it and only keep the same
+  `toLocaleString` options as a fallback so their charts still draw without the explorer asset.
+  Stored values, numeric API fields and CSV exports stay unrounded.
 - `network/web/templates/macros/ui.html` — the eight shared presentation macros
   (`compact_header`, `empty_state`, `alarm_summary`, `equipment_row`, `journal_entry`,
   `field_group`, `chart_detail`, `network_state`). **Presentation only**: no business rule, no

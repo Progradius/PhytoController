@@ -7,6 +7,7 @@ from model.culture import SPACES, STAGES, backfill_stages
 from model.culture_checklist import conflict, local_day
 from model.culture_solution import measurements
 from model.culture_targets import SOURCES
+from model.nombre import nombre_texte
 
 # Trois catégories, et seulement trois. « Information » n'en était pas une : elle mêlait
 # un fait daté à relire et une donnée qui manque, alors que l'opérateur n'en fait pas la
@@ -155,9 +156,12 @@ MEASURES = (("ph", "pH", ""), ("ec", "EC", " mS/cm"))
 
 
 def decimal(value):
-    """Nombre lisible en français : virgule décimale, zéros inutiles retirés."""
-    text = f"{float(value):.4f}".rstrip("0").rstrip(".")
-    return (text or "0").replace(".", ",")
+    """Nombre lisible : la règle française unique, deux décimales comme pH et EC partout.
+
+    Une règle à part (quatre décimales, zéros retirés) écrivait « 5,8–6,4 » ici quand la page
+    des plages écrit « 5,80 à 6,40 », et pouvait sortir un écart « 0,0833 ».
+    """
+    return nombre_texte(value, 2)
 
 
 def range_text(resolved, metric):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import math
 import os
 import socket
 from datetime import datetime
@@ -14,6 +13,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from controllers.sensor_catalog import SENSOR_CATALOG, effective_quality_profile
+from model.nombre import nombre_texte
 from utils.overrides import shared_overrides
 
 
@@ -50,28 +50,13 @@ env.filters["mesure"] = _mesure
 
 
 def _nombre_texte(value, decimals, unit=None) -> str:
-    """Mise en forme française, en texte nu. Présentation seulement.
+    """Mise en forme française, en texte nu : délègue à `model.nombre.nombre_texte`.
 
-    Seule définition de l'arrondi d'affichage du carnet : les valeurs saisies, l'API et
-    la persistance gardent la précision complète. `_nombre` n'en est que l'habillage.
+    La règle d'arrondi d'affichage n'est définie qu'une fois, dans `model/nombre.py`, pour
+    que les phrases calculées par les modèles (synthèse des courbes, repères) et les
+    gabarits écrivent un nombre de la même façon. `_nombre` n'en est que l'habillage.
     """
-    if value is None:
-        return "—"
-    try:
-        # L'entrée est un nombre venu du magasin ou de l'API. Une **chaîne** peut toutefois
-        # arriver d'une saisie réaffichée après refus (`/conf`, formulaires du carnet), et
-        # elle porte alors la virgule française : la rejeter afficherait « — » à la place
-        # de ce que l'opérateur vient de taper, exactement quand il relit sa saisie.
-        if isinstance(value, str):
-            value = value.strip().replace(",", ".")
-        number = float(value)
-        places = max(0, min(6, int(decimals)))
-        if not math.isfinite(number):
-            return "—"
-    except (TypeError, ValueError):
-        return "—"
-    result = f"{number:.{places}f}".replace(".", ",")
-    return f"{result} {unit}" if unit else result
+    return nombre_texte(value, decimals, unit)
 
 
 def _nombre(value, decimals, unit=None) -> Markup:

@@ -491,11 +491,11 @@ def test_synthese_de_courbe_compte_les_mesures_sans_inventer_de_zero():
                "ph_count": 3, "ph_min": 6.2, "ph_max": 6.6}]
     # Les clés sont UTC : minuit local du 2 août en heure d'été, pas le 1er.
     assert chart_summary(points, "ph", "pH", "", "Europe/Paris", names) == (
-        "pH · du 02/08/2026 au 04/08/2026 · 4 mesures · minimum 6.00, moyenne 6.30, maximum 6.60"
+        "pH · du 02/08/2026 au 04/08/2026 · 4 mesures · minimum 6,00, moyenne 6,30, maximum 6,60"
         " · 1 lacune · cibles : Réservoir de l’espace 2, Épinard.")
     # Aucune mesure d'EC : c'est « aucune mesure », jamais une moyenne de 0.
     absent = chart_summary(points, "ec", "EC", "mS/cm", "Europe/Paris", names)
-    assert "aucune mesure · 3 lacunes" in absent and "0.00" not in absent
+    assert "aucune mesure · 3 lacunes" in absent and "0.00" not in absent and "0,00" not in absent
     assert chart_summary([], "ph", "pH", "", "Europe/Paris", names) == "pH · aucune mesure sur ce filtre."
 
 
@@ -518,7 +518,8 @@ async def test_courbes_portent_leur_synthese_et_leurs_reperes(cultures):
     # légende ne montre, plutôt que l'identifiant technique de sa cible.
     assert [source["variant"] for source in data["chart_sources"]["all"]] == [0, 1]
     assert "2 mesures" in data["chart_summaries"]["ph"]
-    assert "minimum 6.10" in data["chart_summaries"]["ph"] and "maximum 6.50" in data["chart_summaries"]["ph"]
+    # `chart_summaries` est un texte de présentation : format français, comme sous la figure.
+    assert "minimum 6,10" in data["chart_summaries"]["ph"] and "maximum 6,50" in data["chart_summaries"]["ph"]
     assert data["chart_summaries"]["ec"].startswith("EC · ") and "aucune mesure" in data["chart_summaries"]["ec"]
 
 

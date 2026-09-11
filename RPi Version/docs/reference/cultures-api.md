@@ -573,7 +573,10 @@ valeurs n'est recalculée côté navigateur : une seconde date divergerait au pa
 
 Solutions : `solution_data` publie `chart_sources` **par mesure**
 (`{"ph": [{variant, label, target}, …], "ec": […], "all": […]}`) et
-`chart_summaries` (`{ph, ec}`, déjà en texte), et chaque point de `chart` porte `variant`,
+`chart_summaries` (`{ph, ec}`) — un **texte de présentation**, rendu tel quel sous la figure :
+ses nombres sont au format français de la règle unique `model/nombre.py` (virgule, deux
+décimales : `minimum 6,10, moyenne 6,30, maximum 6,50`), alors que les valeurs chiffrées de
+`chart` et des exports restent brutes —, et chaque point de `chart` porte `variant`,
 entier ≤ 6 où 6 est le repli partagé annoncé comme tel. `label` nomme la source entière
 (cibles et période), `target` les seules cibles : le tableau équivalent a une colonne « Cible
 ou capteur » et une colonne « Période », qui ne répètent pas la même phrase, et aucune des deux
@@ -1187,8 +1190,8 @@ existantes (`/cultures/solutions#saisie`, `/cultures/solutions?target=<réservoi
 **Lignes de plage cible du résumé.** Pour un relevé, le résumé ajoute une ligne par mesure
 renseignée (pH, EC) et aucune pour une mesure absente. La plage est résolue à la date effective de
 la saisie par l'ordre strict du carnet (cible directe → sujet alimenté → réservoir), sans fusion ni
-rétroactivité. Forme : `Plage applicable pH 5,8–6,4 (source : …, plage du 2026-08-01) ; écart :
-+0,1.` ; à l'intérieur des bornes : `écart : aucun, la mesure est dans la plage`. Sans plage
+rétroactivité. Forme : `Plage applicable pH 5,80–6,40 (source : …, plage du 2026-08-01) ; écart :
++0,10.` (nombres au format de la règle unique `model/nombre.py`, deux décimales) ; à l'intérieur des bornes : `écart : aucun, la mesure est dans la plage`. Sans plage
 applicable : `Aucune plage applicable à cette cible à cette date (pH).` Aucune ligne ne préremplit
 un champ.
 

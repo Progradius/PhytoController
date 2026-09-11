@@ -408,10 +408,12 @@ test("courbes de solutions : légende par source et synthèse textuelle", async 
   await ouvrirExplorateur(figure);
   // R3.3 : la synthèse vient du serveur ; une absence reste une absence, jamais un zéro.
   await expect(figure.locator("#resume-ph")).toContainText("2 mesures");
-  await expect(figure.locator("#resume-ph")).toContainText("minimum 6.10, moyenne 6.30, maximum 6.50");
+  await expect(figure.locator("#resume-ph")).toContainText("minimum 6,10, moyenne 6,30, maximum 6,50");
   const ec = page.locator(".solution-chart").nth(1);
   await expect(ec.locator("#resume-ec")).toContainText("1 mesure");
-  await expect(ec.locator("#resume-ec")).not.toContainText("0.00");
+  await expect(ec.locator("#resume-ec")).not.toContainText("0,00");
+  // R1.7 (écart E10) : la synthèse est un texte de présentation, au format français.
+  await expect(figure.locator("#resume-ph")).not.toContainText(/\d\.\d/);
   // Les points sans EC restent des lacunes ; aucune moyenne n'est inventée à leur place.
   await expect(ec.locator("#resume-ec")).toContainText("3 lacunes");
   await expect(figure.locator("svg")).toHaveAttribute("aria-describedby", "resume-ph legende-ph");

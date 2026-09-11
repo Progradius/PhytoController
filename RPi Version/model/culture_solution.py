@@ -5,6 +5,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from model.culture import CultureError, text_value
+from model.nombre import nombre_texte
 
 RESERVOIRS = {"reservoir_2": ("Réservoir de l’espace 2", "space_2"),
               "cuttings_1": ("Bac de bouturage de l’espace 1", "space_1")}
@@ -156,8 +157,12 @@ def chart_summary(points, metric, label, unit, zone, names):
     n'entre dans aucun calcul : elle est comptée comme lacune, jamais comme un zéro.
     La moyenne est pondérée par le nombre de mesures de chaque point, pour qu'un agrégat
     journalier ne pèse pas comme une mesure isolée.
+
+    C'est un texte de **présentation** (rendu sous la figure, publié tel quel dans
+    `chart_summaries`) : ses nombres suivent la règle française unique de
+    `model.nombre.nombre_texte`, deux décimales, comme la page. Les valeurs chiffrées de
+    l'API et du CSV restent brutes.
     """
-    suffix = f" {unit}" if unit else ""
     if not points:
         return f"{label} · aucune mesure sur ce filtre."
     days = sorted(_chart_day(point.get("at"), zone) for point in points)
@@ -185,8 +190,9 @@ def chart_summary(points, metric, label, unit, zone, names):
     parts = [label, period]
     if total:
         parts.append(_count(total, "mesure"))
-        parts.append(f"minimum {lowest:.2f}{suffix}, moyenne {weighted / total:.2f}{suffix}, "
-                     f"maximum {highest:.2f}{suffix}")
+        parts.append(f"minimum {nombre_texte(lowest, 2, unit)}, "
+                     f"moyenne {nombre_texte(weighted / total, 2, unit)}, "
+                     f"maximum {nombre_texte(highest, 2, unit)}")
     else:
         parts.append("aucune mesure")
     parts.append(_count(gaps, "lacune"))

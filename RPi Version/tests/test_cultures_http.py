@@ -499,9 +499,9 @@ async def test_courbes_de_solutions_portent_synthese_et_legende(web_context):
     page = await (await client.get("/cultures/solutions")).text()
     assert 'id="resume-ph"' in page and 'id="legende-ph"' in page
     assert 'aria-describedby="resume-ph legende-ph"' in page
-    assert "2 mesures · minimum 6.10, moyenne 6.30, maximum 6.50" in page
+    assert "2 mesures · minimum 6,10, moyenne 6,30, maximum 6,50" in page
     # Une absence reste une absence : aucune moyenne d'EC n'est inventée à 0.
-    assert "EC · du 01/08/2026 au 04/08/2026 · 1 mesure · minimum 1.80" in page
+    assert "EC · du 01/08/2026 au 04/08/2026 · 1 mesure · minimum 1,80 mS/cm" in page
     assert "Bande : plage cible résolue à la date des mesures." in page
     assert "Barre verticale : minimum et maximum du jour." in page
     assert "Lot courbes · solution manuelle" in page
@@ -526,7 +526,7 @@ async def test_courbes_de_solutions_portent_synthese_et_legende(web_context):
     assert [source["target"] for source in attribut["all"]] == [
         "Réservoir de l’espace 2", "Lot courbes", "Lot EC seul"]
     # Une absence reste une absence : les points sans pH sont comptés en lacunes, pas en zéros.
-    assert "maximum 6.50 · 2 lacunes" in page
+    assert "maximum 6,50 · 2 lacunes" in page
     # La consigne d'usage est rendue une seule fois, par le fragment de l'explorateur.
     assert "Toucher le graphique pour choisir le point le plus proche" not in page
 

@@ -386,3 +386,27 @@ gabarits compressés en lignes de 300 caractères, des tests écrits par regex s
    d'actionneur (six lignes « non relues », donc ouvertes) et faisait échouer toute coupure
    (méthode absente, horloge non fiable). Trois défauts de harnais expliquaient l'absence
    historique de tests de coupure — les corriger est le seul chemin vers une mesure honnête.
+
+## 2026-09-11 — Commiter par liste de fichiers quand des agents partagent l'index
+
+**Contexte.** Pendant la revérification de la remédiation web/mobile/PWA, un agent d'archivage a
+fait des `git mv` / `git rm` (donc **indexés**) pendant que l'orchestrateur commitait les lots
+voisins par `git add <fichiers> && git commit`. Ces commits ont embarqué tout l'index : 30
+déplacements et suppressions de docs sous un message `test(ui): …`, et les commits
+intermédiaires avaient des liens cassés. Réparé avant publication (commits locaux) en
+reconstruisant chaque commit par un index temporaire (`GIT_INDEX_FILE`, `read-tree`,
+`update-index --cacheinfo`, `commit-tree`), sans toucher l'arbre de travail où un agent
+travaillait encore.
+
+**Règles.**
+1. Dès que plusieurs agents travaillent dans le même arbre, commiter **uniquement** par
+   `git commit -- <fichiers>` (pathspec), après `git diff --cached --quiet` ; jamais
+   `git add … && git commit` seul, qui prend aussi ce qu'un autre a indexé.
+2. Un agent ne doit pas indexer : les déplacements se font par `git mv` au moment du commit par
+   l'orchestrateur, ou l'agent le signale explicitement dans son rapport.
+3. Des fichiers apparus dans l'arbre sans venir d'aucun agent lancé (autre session, utilisateur)
+   ne se commitent pas et ne se suppriment pas : on les signale.
+4. Mesurer « comme l'audit » veut dire **mêmes conditions** (carnet, fenêtre, thème) : l'outil
+   de mesure comparait un carnet rempli en 320 × 568 à un audit fait sur carnet vide en
+   320 × 844, et le README en concluait « carnets différents ». Consigner les conditions dans
+   chaque entrée (`carnet`, `viewport`) et refuser la comparaison quand elles diffèrent.
