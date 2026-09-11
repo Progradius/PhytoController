@@ -35,6 +35,10 @@ const ouvrirSaisie = async page => {
 };
 
 test("lot multi-mères, carnet et correction sur téléphone et bureau", sauf("Parcours PWA exercé séparément.", "pwa-chromium"), async ({page}, testInfo) => {
+  // Trois créations, une note, sa correction et une analyse axe : 14 à 17 s sur une machine au
+  // repos (mesuré le 11 septembre 2026), soit l'essentiel des 20 s du délai global, qui cédait sous
+  // charge. Même budget que les autres parcours complets de ce fichier.
+  test.setTimeout(60000);
   const suffix = `${testInfo.project.name}-${Date.now()}`;
   const motherA = await createMother(page, `Mère A ${suffix}`);
   const motherB = await createMother(page, `Mère B ${suffix}`);

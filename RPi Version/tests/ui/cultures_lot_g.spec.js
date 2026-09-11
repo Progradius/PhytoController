@@ -144,6 +144,11 @@ test("une intervention affiche le contexte d'équipement résolu à sa propre da
   const saved = page.waitForResponse(r => r.url().endsWith("/api/v1/cultures/solutions") && r.request().method() === "POST");
   await entry.getByRole("button", {name: "Enregistrer la saisie"}).click();
   expect((await saved).status()).toBe(200);
+  // L'enregistrement fait naviguer la page d'elle-même vers l'entrée créée
+  // (`culture_solutions.js`, `location.assign(…&entry=<id>)`). Un `goto` lancé avant la fin de
+  // cette navigation entrait en course avec elle : supplanté, il restait suspendu sans lever
+  // d'erreur, et consommait tout le délai du sondage (trace du 11 septembre 2026).
+  await page.waitForURL(url => url.searchParams.has("entry"));
 
   const article = await showDay(page, day);
   await article.locator("details.solution-entry-details > summary").click();
