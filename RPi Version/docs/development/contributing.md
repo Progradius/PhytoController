@@ -93,9 +93,10 @@ Le fichier est écrit **une seule fois**, en fin d'exécution.
 
 `PHYTO_MEASURE_DIR` choisit le répertoire, `PHYTO_MEASURE_SCREENSHOTS=1` conserve les
 captures, `PHYTO_MEASURE_WIDTHS=390` permet un diagnostic court et `PHYTO_UI_MEASURE_PORT`
-(40123 par défaut, plus 40124 pour le scénario d'alarme) évite toute collision avec le
-serveur de la suite Playwright (38123) et avec les fixtures du carnet (39123 + rang du
-worker). Avec `PHYTO_UI_BASE_URL=http://adresse-du-pi:8123`, seules les lectures sont
+fixe le port du serveur de mesure (40123 par défaut, plus 40124 pour le scénario d'alarme). Ce
+port reste fixe parce qu'un arbre ancien servi par `PHYTO_MEASURE_ROOT` ne sait pas annoncer un
+port choisi par le noyau ; les serveurs dédiés de la suite Playwright, eux, n'en réservent
+aucun (`PHYTO_UI_TEST_PORT=0`). Avec `PHYTO_UI_BASE_URL=http://adresse-du-pi:8123`, seules les lectures sont
 autorisées : aucune création, aucun POST. Cette variable doit être une origine HTTP(S) nue
 (sans identifiant, chemin ni query) ; toutes les requêtes vers une autre origine sont
 bloquées, y compris les redirections et sous-ressources.

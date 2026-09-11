@@ -9,6 +9,9 @@ const webServerTmpdir = webServerScratchDir();
 
 // Chaque profil écarte, avant toute fixture, les tests que `pour()`/`sauf()` lui refusent
 // (`tests/ui/profils.js`). Le nom du projet est la clé de ces étiquettes.
+// Citation POSIX d'un argument pour `/bin/sh`.
+const citer = argument => `'${argument.replace(/'/g, "'\\''")}'`;
+
 const profil = (name, use) => ({name, use, grepInvert: exclusions(name)});
 
 const projects = [
@@ -73,7 +76,8 @@ module.exports = defineConfig({
     // joue **pas** le `trap EXIT` quand il meurt d'un signal non capté. Et parce que le shell
     // capte `TERM`, POSIX lui impose de différer le trap jusqu'à la fin de la commande au premier
     // plan : la suppression suit donc la mort du serveur, jamais l'inverse.
-    command: `trap 'rm -rf "$TMPDIR"' EXIT INT TERM HUP; mkdir -p "$TMPDIR" && ${process.env.PHYTO_TEST_PYTHON || "python3"} tests/ui_server.py`,
+    // L'interpréteur est cité : un chemin avec espace (`…/RPi Version/.venv/bin/python`) cassait la commande.
+    command: `trap 'rm -rf "$TMPDIR"' EXIT INT TERM HUP; mkdir -p "$TMPDIR" && ${citer(process.env.PHYTO_TEST_PYTHON || "python3")} tests/ui_server.py`,
     env: {TMPDIR: webServerTmpdir},
     port: 38123,
     reuseExistingServer: false,

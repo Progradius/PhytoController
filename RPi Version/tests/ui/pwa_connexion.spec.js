@@ -102,12 +102,10 @@ for (const cas of [
     attendu: "Installer l’application", absent: "Partager",
   },
 ]) {
-  test(`sans invite d’installation, l’aide ${cas.nom} reste visible`, pour("Contrat de rendu, une cible suffit.", CIBLE), async ({browser}, testInfo) => {
-    // Contexte dédié : l'agent utilisateur ne se change pas sur un contexte déjà ouvert.
-    const context = await browser.newContext({
-      userAgent: cas.userAgent,
-      baseURL: process.env.PHYTO_UI_BASE_URL || "http://127.0.0.1:38123",
-    });
+  test(`sans invite d’installation, l’aide ${cas.nom} reste visible`, pour("Contrat de rendu, une cible suffit.", CIBLE), async ({browser, baseURL}) => {
+    // Contexte dédié : l'agent utilisateur ne se change pas sur un contexte déjà ouvert. Il
+    // reprend la `baseURL` de la fixture, jamais un port écrit ici.
+    const context = await browser.newContext({userAgent: cas.userAgent, baseURL});
     try {
       const page = await context.newPage();
       await page.goto("/app");

@@ -1,7 +1,14 @@
-"""Serveur matériel-neutre ; les mutations du carnet restent dans une base temporaire."""
+"""Serveur matériel-neutre ; les mutations du carnet restent dans une base temporaire.
+
+`python3 tests/ui_server.py` sert l'application sur `PHYTO_UI_TEST_PORT` (38123 par défaut, `0`
+pour un port libre choisi par le noyau) et annonce `PHYTO_UI_READY <port>` sur sa sortie standard
+dès qu'il accepte des requêtes.
+"""
 
 from pathlib import Path
+import asyncio
 import os
+import signal
 import sys
 import tempfile
 
@@ -165,6 +172,43 @@ def build_app():
     return app
 
 
+# Ligne de disponibilité, lue par `tests/ui/serveurs.js`. Elle est écrite **après** l'ouverture de
+# l'écoute et le démarrage de l'application (`on_startup`) : qui la lit peut envoyer une requête.
+# C'est un protocole entre processus, pas un journal — elle ne passe donc pas par `pretty_console`,
+# dont la mise en forme (couleurs, préfixes) la rendrait illisible pour la fixture.
+READY_PREFIX = "PHYTO_UI_READY"
+
+
+def annoncer(port: int) -> None:
+    """Écrit la ligne de disponibilité d'un seul `write`, pour qu'aucun journal ne s'y intercale."""
+    os.write(sys.stdout.fileno(), f"{READY_PREFIX} {port}\n".encode())
+
+
+async def servir(port: int) -> None:
+    """Sert l'application jusqu'à SIGTERM/SIGINT, puis l'arrête proprement.
+
+    `port=0` laisse le noyau choisir un port libre. C'est la seule façon d'exclure toute collision :
+    les anciens ports fixes (38123, 39123 + rang du worker…) tombent dans la plage éphémère de Linux
+    (32768–60999), où n'importe quelle connexion sortante peut les occuper au hasard — un
+    `EADDRINUSE` constaté le 11 septembre 2026 sans qu'aucun serveur n'écoute sur le port.
+    """
+    app = build_app()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    try:
+        site = web.TCPSite(runner, "127.0.0.1", port)
+        await site.start()
+        arret = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(signum, arret.set)
+        annoncer(runner.addresses[0][1])
+        await arret.wait()
+    finally:
+        # `on_cleanup` ferme le carnet ; le répertoire temporaire ne disparaît qu'ensuite.
+        await runner.cleanup()
+        app["ui_test_temporary"].cleanup()
+
+
 if __name__ == "__main__":
-    web.run_app(build_app(), host="127.0.0.1",
-                port=int(os.environ.get("PHYTO_UI_TEST_PORT", "38123")), print=None)
+    asyncio.run(servir(int(os.environ.get("PHYTO_UI_TEST_PORT", "38123"))))

@@ -48,8 +48,8 @@ contrôleur :
 | Variable | Usage |
 |---|---|
 | `PHYTO_UI_BASE_URL` | Cible externe au lieu du serveur de test local ; les tests mutateurs sont alors ignorés, et la mesure reste strictement en lecture. Une origine HTTP(S) nue, sans identifiant ni chemin |
-| `PHYTO_TEST_PYTHON` | Interpréteur qui lance `tests/ui_server.py` (défaut `python3`), par exemple `.venv/bin/python` |
-| `PHYTO_UI_TEST_PORT` | Port du serveur de test `tests/ui_server.py` (défaut `38123`) ; posé par les fixtures pour les serveurs dédiés |
+| `PHYTO_TEST_PYTHON` | Interpréteur qui lance `tests/ui_server.py` (défaut `python3`), par exemple `~/.venvs/phyto/bin/python` ; un chemin avec espace est accepté |
+| `PHYTO_UI_TEST_PORT` | Port du serveur de test `tests/ui_server.py` lancé à la main (défaut `38123`) ; `0` laisse le noyau choisir un port libre, que le serveur annonce par la ligne `PHYTO_UI_READY <port>`. Les fixtures posent toujours `0` |
 | `PHYTO_UI_MEASURE_SCENARIO` | `critical` fait publier une alarme critique factice par `tests/ui_server.py` ; posé par les fixtures et la mesure |
 | `PHYTO_UI_MEASURE_PORT` | Port du serveur lancé par `tests/ui/measure_pages.js` (défaut `40123`) |
 | `PHYTO_MEASURE_WIDTHS` | Largeurs mesurées, séparées par des virgules (défaut `320,390,1440`) |
