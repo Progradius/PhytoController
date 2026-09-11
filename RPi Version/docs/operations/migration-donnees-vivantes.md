@@ -103,9 +103,15 @@ Vérifier enfin dans le journal que la configuration chargée est la bonne (hora
 Sur une copie du dépôt, hors production, le scénario d'origine ne doit plus rien casser :
 
 ```bash
+AVANT="$(stat -c '%s %Y' "$HOME/phyto-data/param.json") $(sha256sum < "$HOME/phyto-data/param.json")"
 git checkout e93644a          # une révision qui suit encore param.json
-cat "$HOME/phyto-data/param.json"   # intact
+APRES="$(stat -c '%s %Y' "$HOME/phyto-data/param.json") $(sha256sum < "$HOME/phyto-data/param.json")"
+[ "$AVANT" = "$APRES" ] && echo "param.json intact" || echo "ÉCART : param.json modifié"
 ```
+
+La preuve compare taille, date de modification et empreinte SHA-256 : elle n'imprime aucune valeur
+du fichier, qui contient des secrets. Ne jamais l'afficher avec `cat`, `less` ou
+`jq` pour « vérifier » — la sortie d'un terminal finit dans un historique, une capture ou un ticket.
 
 ## Consigne d'exploitation
 

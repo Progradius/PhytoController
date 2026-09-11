@@ -27,6 +27,8 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | GET | `/health/live` | Le processus HTTP répond et annonce le commit chargé | JSON 200, `live=true`, `version` |
 | GET | `/health/ready` | Superviseur sain | JSON 200 ou **503** |
 | POST | `/actions/stats/reset` | Efface un min/max (`key=`) | JSON si demandé, sinon 303 vers la carte du capteur |
+| POST | `/actions/sensors/reset-quality` | Réarme les diagnostics qualité (mémoire de figement, décision, compteurs) d'une mesure du catalogue (`key=`), sans lecture matérielle | 303 vers `/conf#sensor-quality` ; 400 si clé inconnue |
+| POST | `/actions/alarms/ack` | Acquitte une occurrence d'alarme active (`occurrence_id=`, `alias` facultatif) sans la résoudre | JSON si demandé, sinon 303 vers `/alarms` ; 400 si occurrence ou alias invalide, 503 sans service d'alarmes |
 | POST | `/actions/overrides/create`, `/actions/overrides/cancel` | Pose ou lève une coupure opérateur temporaire | JSON si demandé, sinon 303 vers l'actionneur ou la maintenance |
 | POST | `/actions/history/notes` | Ajoute une annotation opérateur sans effet sur la régulation | JSON 201 si demandé, sinon 303 vers `/history#operator-notes` |
 | POST | `/actions/system/reboot` | `sudo reboot` | 202 |
@@ -35,12 +37,27 @@ relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-
 | POST | `/monitor` | Compatibilité : `reset_sensor`, `reboot=1`, `poweroff=1` | Comme les routes dédiées |
 | GET | `/favicon.ico`, `/favicon.svg` | Icône | 302 puis fichier |
 | GET | `/app.webmanifest`, `/service-worker.js`, `/offline` | Manifeste, worker racine et repli PWA | Manifeste/JS/HTML 200 |
-| GET | `/cultures…`, `/api/v1/cultures/…` | Carnet de cultures — contrat détaillé dans [API du carnet](cultures-api.md) | HTML / JSON |
-| GET | `/static/css/style.css`, `/static/js/*.js`, `/static/fonts/visitor1.ttf` | Assets locaux | Fichier |
-| GET | `/static/icons/pwa-*.png` | Icônes PWA normale et maskable | PNG |
+| GET | `/cultures`, `/cultures/{subject_id}`, `/cultures/solutions`, `/cultures/cycles`, `/cultures/targets`, `/cultures/light`, `/cultures/equipment`, `/cultures/journal` | Pages du carnet de cultures | HTML 200 |
+| GET | `/cultures/photos/{photo_id}` | Photo du carnet | JPEG |
+| GET | `/api/v1/cultures`, `/api/v1/cultures/{subject_id}`, `/api/v1/cultures/assistance/{subject_id}`, `/api/v1/cultures/solutions`, `/api/v1/cultures/cycles`, `/api/v1/cultures/targets`, `/api/v1/cultures/light`, `/api/v1/cultures/equipment`, `/api/v1/cultures/journal` | Lectures du carnet | JSON |
+| GET | `/api/v1/cultures/export`, `/api/v1/cultures/bundle`, `/api/v1/cultures/solutions/export`, `/api/v1/cultures/targets/export`, `/api/v1/cultures/journal/export` | Exports et sauvegarde complète ZIP | Fichier |
+| POST | `/api/v1/cultures`, `/api/v1/cultures/solutions`, `/api/v1/cultures/cycles`, `/api/v1/cultures/targets`, `/api/v1/cultures/light`, `/api/v1/cultures/equipment`, `/api/v1/cultures/journal` | Mutations du carnet | JSON |
+| POST | `/api/v1/cultures/photos`, `/api/v1/cultures/journal/photos` | Envoi d'une photo (corps binaire) | JSON |
+| POST | `/api/v1/cultures/preview/{domain}` | Prévalidation d'une saisie, transaction annulée même au succès | JSON |
+| GET | `/static/css/style.css`, `/static/css/cultures.css` | Feuilles de style | CSS |
+| GET | `/static/js/app.js`, `pwa.js`, `theme.js`, `dashboard.js`, `config.js`, `console.js`, `system.js`, `alarms.js`, `history.js` | Scripts de l'interface, tous sous `/static/js/` | JS |
+| GET | `/static/js/cultures.js`, `culture_forms.js`, `culture_analysis.js`, `culture_cycles.js`, `culture_solutions.js`, `culture_targets.js`, `culture_light.js`, `culture_equipment.js`, `culture_journal.js` | Scripts du carnet, tous sous `/static/js/` | JS |
+| GET | `/static/fonts/visitor1.ttf`, `/static/equipment-icons.svg` | Police et planche d'icônes des équipements | Fichier |
+| GET | `/static/icons/pwa-192.png`, `/static/icons/pwa-512.png`, `/static/icons/pwa-maskable-512.png` | Icônes PWA normale et maskable | PNG |
 
-Toute autre route renvoie 404. Il n'existe **pas** de service de répertoire : les chemins servis sont
-exactement ceux de la liste ci-dessus et ceux du carnet, ce qui remplace l'ancien `/static/` non confiné.
+Le contrat détaillé des routes du carnet (paramètres, corps, erreurs) est dans
+[API du carnet](cultures-api.md). Chaque route `GET` répond aussi à `HEAD` (comportement par défaut
+d'`aiohttp`).
+
+Toute autre route renvoie 404, et une méthode non prévue sur une route connue 405. Il n'existe
+**pas** de service de répertoire : les chemins servis sont exactement ceux de la liste ci-dessus,
+enregistrés un par un dans `Server.create_app()` et `CultureViews.routes()`, ce qui remplace
+l'ancien `/static/` non confiné.
 
 ### Paramètres de lecture
 
@@ -64,7 +81,8 @@ rubrique à l'autre.
 - Aucun effet persistant ou destructeur derrière un GET.
 - **CSRF** : jeton comparé en temps constant sur `POST`, `PUT`, `PATCH`, `DELETE`, présent dans
   chaque formulaire et dans `<meta name="csrf-token">`. Il est **persistant** : conservé dans
-  `param/.csrf_token` (mode 0600, hors git), il survit à un redémarrage du service, de sorte
+  `.csrf_token` du répertoire des données vivantes (`PHYTO_DATA_DIR`, sinon `param/` ; mode 0600,
+  hors git), il survit à un redémarrage du service, de sorte
   qu'une page laissée ouverte pendant un `systemctl restart` reste valide. Un fichier absent,
   illisible ou corrompu entraîne la génération d'un nouveau jeton ; si l'écriture échoue, le
   serveur retombe sur un jeton en mémoire et le journalise.
@@ -310,6 +328,11 @@ normalement.
   carte à jour seulement après la réponse ; le formulaire HTML reste le repli complet ;
 - `POST /actions/overrides/create` et `/actions/overrides/cancel` utilisent la même amélioration
   progressive. Aucun ordre n'est optimiste, mémorisé hors ligne ou rejoué ;
+- `POST /actions/alarms/ack` acquitte une occurrence active : l'alarme reste active tant que sa
+  cause persiste, seul son état « non acquittée » change ;
+- `POST /actions/sensors/reset-quality` avec `key=` parmi les mesures du catalogue réarme les
+  diagnostics qualité de cette mesure (la mémoire est aussi réinitialisée à la persistance), sans
+  toucher au matériel ni à la configuration ;
 - `POST /actions/system/reboot` et `/actions/system/poweroff` : jeton CSRF **et** confirmation
   explicite dans une boîte de dialogue du navigateur ; réponse 202, ou 500 si la commande
   échoue ;

@@ -1,11 +1,36 @@
 # Sauvegarde et restauration
 
+## Répertoire des données vivantes
+
+Toutes les données écrites à l'exécution vivent dans **un seul** répertoire, résolu une fois au
+démarrage par `utils/runtime_paths.py` : **`PHYTO_DATA_DIR` s'il est posé et non vide, sinon
+`param/` du dépôt**. Le défaut garde le développement, les tests et l'image Docker inchangés ; en
+production, l'unité versionnée `deploy/phyto.service` pose `PHYTO_DATA_DIR` hors du répertoire de
+travail Git, pour qu'aucun checkout, merge, reset ou `git clean` ne puisse plus écraser la
+configuration (incident du 08/09/2026, voir [la migration](migration-donnees-vivantes.md)).
+
+Pour toute commande de production, lire ce répertoire **dans l'unité systemd**, exactement comme le
+fait `scripts/deploy.sh` :
+
+```bash
+DONNEES="$(systemctl show phyto -p Environment --value | tr ' ' '\n' | sed -n 's/^PHYTO_DATA_DIR=//p' | tail -n 1)"
+test -d "$DONNEES" && echo "Données vivantes : $DONNEES" || echo "ARRÊT : PHYTO_DATA_DIR absente de l'unité ou répertoire introuvable"
+```
+
+Ne rien enchaîner après un « ARRÊT ». Si l'unité ne pose pas la variable (installation non encore
+migrée), le service lit bien `param/` du dépôt : poser alors `DONNEES` explicitement, en
+connaissance de cause. Ne jamais écrire `${PHYTO_DATA_DIR:-param}` dans un shell : la variable
+appartient au service, pas à la session, et ce défaut retomberait silencieusement sur `param/`, un
+répertoire que le service n'utilise plus après la migration.
+
+Dans la suite, `$DONNEES/…` désigne un fichier de ce répertoire.
+
 ## Carnet de cultures
 
-`param/cultures.sqlite3` et ses annexes sont locaux et ignorés par Git. Le schéma courant est le
+`$DONNEES/cultures.sqlite3` et ses annexes sont locaux et hors de Git. Le schéma courant est le
 **4**. Les données n'ont pas la rétention de 72 h de l'historique technique. Utiliser la sauvegarde
 complète ZIP depuis `/cultures/cycles` : elle inclut la copie SQLite cohérente malgré le WAL, les
-fichiers `param/culture_media/` — photos d'événements **et** d'observations d'espace — et leur
+fichiers `$DONNEES/culture_media/` — photos d'événements **et** d'observations d'espace — et leur
 manifeste SHA-256 (`format=phyto-cultures-bundle`, chaque fichier avec sa taille et son SHA-256).
 Une sauvegarde SQLite seule ne suffit plus dès qu’une photo est enregistrée.
 
@@ -32,14 +57,22 @@ automatiquement.
 
 | Fichier | Contenu | Sensibilité |
 |---|---|---|
-| `param/param.json` | Configuration, Wi-Fi, InfluxDB, GPIO | Critique : secrets et sécurité physique |
-| `param/equipment_metadata.json` | Noms et annotations des équipements | Faible à moyenne |
-| `param/sensor_stats.json` | Minimums et maximums de capteurs | Faible à moyenne |
-| `logs/phyto.log*` | Diagnostic applicatif | Peut contenir topologie et événements |
+| `$DONNEES/param.json` (et `param.json.bak`) | Configuration, Wi-Fi, InfluxDB, GPIO | Critique : secrets et sécurité physique |
+| `$DONNEES/equipment_metadata.json` | Noms et annotations des équipements | Faible à moyenne |
+| `$DONNEES/sensor_stats.json` | Minimums et maximums de capteurs | Faible à moyenne |
+| `$DONNEES/runtime_state.json` | Budgets hiver, phase des cycliques, forçages « arrêt » | Faible |
+| `$DONNEES/.csrf_token` | Jeton CSRF de l'interface | Local, ne pas copier ailleurs |
+| `$DONNEES/operator_history.sqlite3` (et `-wal`, `-shm`) | Historique opérateur de 72 h, alarmes résolues | Faible à moyenne |
+| `$DONNEES/cultures.sqlite3` (et annexes), `$DONNEES/culture_media/` | Carnet de cultures et photos | Moyenne : texte d'opérateur |
+| `logs/phyto.log*` (dans le dépôt) | Diagnostic applicatif | Peut contenir topologie et événements |
 
-Le script de déploiement sauvegarde les trois fichiers `param/` avant toute mise à jour. Ils sont tous
-ignorés par Git et ne sont ni retirés ni restaurés pendant une bascule de code. Ce mécanisme n'est pas
-une sauvegarde hors machine : une panne de carte SD peut détruire le dépôt et `~/phyto-backups` simultanément.
+Les journaux applicatifs restent sous `logs/` du dépôt : ils ne passent pas par `PHYTO_DATA_DIR`.
+
+Le script de déploiement sauvegarde `param.json`, `equipment_metadata.json` et `sensor_stats.json`
+du répertoire de données lu dans l'unité avant toute mise à jour. Aucun de ces fichiers n'est suivi
+par Git, et aucune bascule de code ne les retire ni ne les restaure. Ce mécanisme n'est pas une
+sauvegarde hors machine : une panne de carte SD peut détruire le dépôt, `$DONNEES` et
+`~/phyto-backups` simultanément.
 
 ## Contrôle des sauvegardes de déploiement
 
@@ -66,7 +99,8 @@ Une restauration peut changer les GPIO, consignes et identifiants. Avant de remp
 3. sauvegarder le fichier actuel sous un nom horodaté et protégé ;
 4. identifier explicitement la sauvegarde source ;
 5. restaurer en conservant propriétaire et permissions ;
-6. valider avec `AppConfig.load()` sans imprimer les valeurs ;
+6. valider le fichier restauré sans imprimer les valeurs — commande du
+   [runbook](incident-runbook.md#configuration-invalide-ou-boot-impossible) ;
 7. comparer les noms de champs et la matrice GPIO ;
 8. redémarrer sous surveillance ;
 9. vérifier `healthy`, alarmes, logs et sorties physiques.
@@ -77,12 +111,13 @@ Les commandes d'écrasement sont volontairement absentes de cette première vers
 
 Une sauvegarde n'est qualifiée que si elle peut restaurer configuration, statistiques et unité systemd sur un Pi de remplacement, avec secrets injectés séparément et vérifications matérielles avant raccordement des charges.
 
-## `param/runtime_state.json`
+## `runtime_state.json`
 
-État de régulation reporté d'un démarrage à l'autre : budgets horaires du mode hiver et phase
-séquentielle des minuteurs cycliques. Propre à la machine, ignoré par git, **non sauvegardé** par
-`scripts/deploy.sh` — comme `.csrf_token`, il survit aux déploiements parce que `git reset --hard`
-ne touche pas les fichiers ignorés.
+État de régulation reporté d'un démarrage à l'autre : budgets horaires du mode hiver, phase
+séquentielle des minuteurs cycliques et forçages « arrêt » en cours. Propre à la machine, hors de
+Git, **non sauvegardé** par `scripts/deploy.sh` — comme `.csrf_token`, il survit aux déploiements
+parce que le script ne fait qu'un `git checkout --detach` du code, qui ne touche ni les fichiers
+ignorés ni, depuis la migration, un répertoire situé hors de l'arbre de travail.
 
 Sa perte n'est pas dangereuse : les budgets repartent pleins et la phase séquentielle recommence.
 La conséquence est celle que ce fichier existe précisément pour éviter — un redémarrage réaccorde
@@ -92,10 +127,9 @@ redémarrages se succèdent.
 Un fichier corrompu est détecté au chargement et réinitialisé plutôt que de lever : la régulation
 démarre toujours.
 
-## `param/.csrf_token`
+## `.csrf_token`
 
-Ce fichier contient le jeton CSRF de l'interface web (mode 0600, ignoré par git). Il **n'est pas
-sauvegardé** par `scripts/deploy.sh` et n'a pas à l'être : `git reset --hard` et `git checkout` ne
-suppriment pas les fichiers ignorés, il survit donc à un déploiement. S'il disparaît, le serveur en
-génère un nouveau au démarrage ; la seule conséquence est que les pages laissées ouvertes devront
-être rechargées. Ne pas le recopier vers une autre machine.
+Ce fichier contient le jeton CSRF de l'interface web (mode 0600, hors de Git). Il **n'est pas
+sauvegardé** par `scripts/deploy.sh` et n'a pas à l'être : un déploiement ne le supprime pas. S'il
+disparaît, le serveur en génère un nouveau au démarrage ; la seule conséquence est que les pages
+laissées ouvertes devront être rechargées. Ne pas le recopier vers une autre machine.

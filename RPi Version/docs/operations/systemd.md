@@ -4,7 +4,7 @@
 
 ## Contrat applicatif
 
-`PuppetMaster` appelle `sd_notify(READY=1)` après l'enregistrement et le démarrage des tâches. Le watchdog envoie `WATCHDOG=1` seulement lorsque le superviseur est sain.
+`PuppetMaster` appelle `sd_notify(READY=1)` après l'enregistrement et le démarrage des tâches. Le watchdog envoie `WATCHDOG=1` seulement lorsque les tâches de contrôle sont saines (`TaskSupervisor.control_healthy()`, tâches `gates_watchdog=True`) ; une tâche auxiliaire malsaine ne coupe pas les caresses.
 
 Les paramètres doivent respecter :
 
@@ -30,7 +30,16 @@ Restart=always
 L'unité principale observée est versionnée dans `deploy/phyto.service` et le fragment dans `deploy/phyto.service.d/watchdog.conf`. Les propriétés effectives étaient : service actif, `Type=notify`, `Restart=always`, `RestartSec=5`, `WatchdogUSec=10min`, `NRestarts=0`.
 
 L'unité principale utilise `User=progradius`, le venv du dépôt, `PHYTO_RUN_MODE=service`,
-`PHYTO_HW_WATCHDOG=0` et les capacités ambiantes historiques `CAP_SYS_ADMIN CAP_SYS_RAWIO`.
+`PHYTO_HW_WATCHDOG=0`, `PHYTO_DATA_DIR=/home/progradius/phyto-data` et les capacités ambiantes
+historiques `CAP_SYS_ADMIN CAP_SYS_RAWIO`. `PHYTO_DATA_DIR` place toutes les données écrites à
+l'exécution (configuration, état, historique, carnet) **hors** du répertoire de travail Git ; sans
+elle, le processus écrit dans `param/` du dépôt. L'unité est la source de vérité de ce chemin :
+`scripts/deploy.sh` et les commandes d'exploitation la relisent avec `systemctl show`, voir
+[Répertoire des données vivantes](backup-and-restore.md#répertoire-des-données-vivantes). Si le
+répertoire posé est inutilisable, le service s'arrête au démarrage avant d'avoir touché une broche.
+Toute modification de cette ligne suit la [migration des données vivantes](migration-donnees-vivantes.md) :
+déplacer les fichiers service arrêté ; un répertoire sans `param.json` ni `param.json.bak` fait
+refuser le démarrage, et l'état, l'historique et le carnet y repartiraient de zéro.
 Le drop-in PWA ajoute `CAP_NET_BIND_SERVICE` pour le port HTTPS 443 et les chemins du certificat ;
 il réénumère explicitement les trois capacités après remise à zéro de la liste. Voir
 [PWA locale et TLS](pwa-local-tls.md). systemd tient parallèlement le watchdog matériel avec

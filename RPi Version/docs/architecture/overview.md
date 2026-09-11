@@ -1,8 +1,8 @@
 # Vue d'ensemble de l'architecture
 
 **Public** : développement, exploitation avancée et audit.
-**Référence** : commit `61ad3df`.
-**Dernière vérification** : 25 août 2026, lecture du code.
+**Référence** : commit `e29bf96`.
+**Dernière vérification** : 11 septembre 2026, lecture du code (séquence de boot, travaux supervisés, flux de configuration).
 
 ## Responsabilité du système
 
@@ -23,16 +23,21 @@ Le programme n'utilise pas de framework applicatif. `main.py` exécute la séque
 ```text
 Processus Python
   │
+  ├─ 0. ensure_data_dir() : répertoire des données vivantes créé et contrôlé,
+  │     sortie en erreur si PHYTO_DATA_DIR est posée mais inutilisable
   ├─ 1. verrou d'instance abstrait, avant tout GPIO
   ├─ 2. handlers SIGINT/SIGTERM/SIGHUP et atexit
-  ├─ 3. chargement et validation de param/param.json
-  ├─ 4. configuration de la journalisation
-  ├─ 5. moteur forcé à LOW
-  ├─ 6. sorties génériques forcées à HIGH
-  ├─ 7. tentative Wi-Fi, NTP et test de l'hôte
-  ├─ 8. construction des composants, timers et capteurs
-  ├─ 9. construction de PuppetMaster
-  └─ 10. asyncio.run(PuppetMaster.main_loop())
+  ├─ 3. shared_config().current : chargement et validation de param.json
+  │     (repli sur param.json.bak, sinon refus de démarrer)
+  ├─ 4. historique opérateur et gestionnaire d'alarmes
+  ├─ 5. configuration de la journalisation et flux /console
+  ├─ 6. moteur forcé à LOW
+  ├─ 7. sorties génériques forcées à HIGH
+  ├─ 8. tentative Wi-Fi, NTP et test de l'hôte
+  ├─ 9. reprise des forçages « arrêt » encore valides
+  ├─ 10. construction des composants, timers et capteurs
+  ├─ 11. construction de PuppetMaster
+  └─ 12. asyncio.run(PuppetMaster.main_loop())
           ├─ enregistrement des tâches
           ├─ démarrage du superviseur
           ├─ démarrage du watchdog
@@ -40,14 +45,16 @@ Processus Python
           └─ attente du superviseur
 ```
 
-Le verrou est volontairement pris avant l'enregistrement des handlers de sortie : un processus surnuméraire doit quitter sans appliquer une séquence d'arrêt qui toucherait les broches du processus légitime.
+`ensure_data_dir()` passe en premier : aucun fichier n'est lu ni écrit avant que le répertoire des données vivantes soit résolu (`PHYTO_DATA_DIR` s'il est posé, sinon `param/` du dépôt), et un répertoire inutilisable arrête le processus avant toute broche, sans repli silencieux vers `param/`. Le verrou est volontairement pris avant l'enregistrement des handlers de sortie : un processus surnuméraire doit quitter sans appliquer une séquence d'arrêt qui toucherait les broches du processus légitime.
 
 ## Composants principaux
 
 | Couche | Responsabilité | Fichiers principaux |
 |---|---|---|
 | Boot | Ordre d'initialisation, niveaux sûrs, signaux | `main.py`, `function.py` |
-| Configuration | Modèles Pydantic, lecture et écriture atomique | `param/config.py`, `utils/atomic_io.py` |
+| Données vivantes | Résolution unique du répertoire des fichiers écrits à l'exécution (`PHYTO_DATA_DIR`) | `utils/runtime_paths.py` |
+| Configuration | Schéma Pydantic (`AppConfig`, sans écriture) | `param/config.py` |
+| Magasin de configuration | Propriétaire et seul écrivain de `param.json` : relecture sur empreinte, sauvegarde `.bak`, écriture atomique, repli au boot | `param/config_store.py`, `utils/atomic_io.py` |
 | Modèle GPIO | Polarité et état logique des sorties | `model/Component.py`, `model/Motor.py` |
 | Timers | Calcul des horaires et périodes | `model/DailyTimer.py`, `model/CyclicTimer.py` |
 | Boucles métier | Timers, moteur, chauffage | `components/*_handler.py` |
@@ -63,20 +70,23 @@ Le verrou est volontairement pris avant l'enregistrement des handlers de sortie 
 
 ## Tâches supervisées
 
-`PuppetMaster` enregistre jusqu'à huit travaux :
+`PuppetMaster._register_jobs()` enregistre toujours onze travaux :
 
-| Nom `/status` | Responsabilité | État sûr avant relance |
-|---|---|---|
-| `daily_timer_1` | Première sortie journalière | Sortie OFF, GPIO HIGH |
-| `daily_timer_2` | Deuxième sortie journalière | Sortie OFF, GPIO HIGH |
-| `cyclic_timer_1` | Première sortie cyclique | Sortie OFF, GPIO HIGH |
-| `cyclic_timer_2` | Deuxième sortie cyclique | Sortie OFF, GPIO HIGH |
-| `climate_control` | Arbitre thermique : chauffage **et** ventilation | Chauffage OFF (GPIO HIGH) puis quatre relais moteur LOW |
-| `sensor_snapshot` | Acquisition partagée des capteurs | Aucun GPIO |
-| `influx_push` | Export des mesures, si hôte déclaré online | Aucun GPIO |
-| `http_server` | Interface sur le port 8123 | Aucun GPIO |
+| Nom `/status` | Responsabilité | Domaine | Garde le watchdog | Silence max | État sûr avant relance |
+|---|---|---|---|---|---|
+| `daily_timer_1` | Première sortie journalière | `timers` | oui | 300 s | Sortie OFF, GPIO HIGH |
+| `daily_timer_2` | Deuxième sortie journalière | `timers` | oui | 300 s | Sortie OFF, GPIO HIGH |
+| `cyclic_timer_1` | Première sortie cyclique | `timers` | oui | 300 s | Sortie OFF, GPIO HIGH |
+| `cyclic_timer_2` | Deuxième sortie cyclique | `timers` | oui | 300 s | Sortie OFF, GPIO HIGH |
+| `climate_control` | Arbitre thermique : chauffage **et** ventilation | `climate` | oui | 300 s | Chauffage OFF (GPIO HIGH) puis quatre relais moteur LOW |
+| `sensor_snapshot` | Acquisition partagée des capteurs | `sensors` | oui | 300 s | Aucun GPIO |
+| `influx_push` | Export des mesures, actif ou suspendu à chaud selon l'hôte | `telemetry` | non | aucun | Aucun GPIO |
+| `culture_service` | Agrégats climatiques horaires du carnet de cultures | `cultures` | non | 300 s | Aucun GPIO |
+| `http_server` | Interface sur le port 8123 (et HTTPS optionnel) | `http` | non | aucun | Aucun GPIO |
+| `time_monitor` | Surveillance de la fiabilité de l'heure | `time` | non | 120 s | Aucun GPIO |
+| `operator_service` | Couche opérateur : alarmes, historique SQLite, sonde réseau | `operations` | non | 120 s | Aucun GPIO |
 
-Chaque travail long est fourni sous forme de fabrique de coroutine afin de pouvoir être recréé après une panne. Les boucles métier battent leur cœur et utilisent le sommeil du superviseur. Le serveur HTTP est exempté de contrôle de silence : attendre une connexion est son fonctionnement normal.
+Chaque travail long est fourni sous forme de fabrique de coroutine afin de pouvoir être recréé après une panne. Les boucles métier battent leur cœur et utilisent le sommeil du superviseur. Le serveur HTTP et l'export InfluxDB sont exemptés de contrôle de silence : attendre une connexion, ou rester suspendu tant que l'hôte est absent, est leur fonctionnement normal. Seuls les six travaux marqués « oui » entrent dans `control_healthy()` ; une panne des cinq autres dégrade `healthy` et `/health/ready`, jamais les caresses du watchdog.
 
 ## Santé et watchdog
 
@@ -89,7 +99,7 @@ Le superviseur expose pour chaque travail :
 - nombre de blocages détectés ;
 - dernière erreur.
 
-Le watchdog n'est caressé que si `TaskSupervisor.is_healthy()` est vrai. Deux voies sont possibles :
+Le watchdog n'est caressé que si `TaskSupervisor.control_healthy()` est vrai, c'est-à-dire si les six travaux `gates_watchdog=True` sont vivants et récents. `is_healthy()`, qui couvre les onze travaux, alimente `healthy` et `/health/ready`. Deux voies sont possibles :
 
 1. systemd si `NOTIFY_SOCKET` et `WATCHDOG_USEC` sont fournis ;
 2. `/dev/watchdog` dans les autres cas, sauf `PHYTO_HW_WATCHDOG=0`.
@@ -98,15 +108,15 @@ La période de caresse systemd est plafonnée à 30 secondes dans le code couran
 
 ## Flux de configuration
 
-Le système ne possède pas encore de magasin de configuration unique, mais l'écriture est devenue transactionnelle :
+`param/config_store.py` (`ConfigStore`, singleton `shared_config()`) est le **seul propriétaire et le seul écrivain** de `param.json`, situé dans le répertoire des données vivantes :
 
-- `main.py` charge une instance au boot, partagée par tous les consommateurs ;
-- les timers cycliques et journaliers relisent le fichier au cours de leurs boucles, avec repli sur la dernière configuration valide ;
-- `POST /conf/{section}` construit un `AppConfig` candidat **complet**, le valide intégralement, l'écrit atomiquement, puis publie le résultat dans l'instance partagée via `replace_from()` ; un rejet ne laisse ni fichier ni mémoire modifiés ;
-- les travaux concernés sont ensuite relancés par `supervisor.request_reload()`, état sûr réappliqué, de sorte que moteur, chauffage et minuteries repartent sur la nouvelle consigne sans redémarrage ;
+- `main.py` prend `shared_config().current` au boot et distribue cette **unique** instance à tous les consommateurs ; elle n'est jamais remplacée, seulement mutée en place (`replace_from()`) ;
+- les boucles `timer_daily`, `timer_cyclic` et `climate_control` appellent `shared_config().refresh()` à chaque itération : aucune I/O tant que l'empreinte `(mtime_ns, taille)` du fichier est inchangée, jamais d'exception, et un fichier illisible garde la configuration courante ;
+- `POST /conf/{section}` construit un `AppConfig` candidat **complet**, le valide intégralement, puis le magasin copie l'ancien contenu en `.bak` et écrit atomiquement ; un rejet ne laisse ni fichier ni mémoire modifiés ;
+- les travaux concernés sont ensuite relancés par `supervisor.request_reload()`, **sans** réappliquer l'état sûr (la tâche était saine : couper la charge à chaque enregistrement ferait clignoter le relais), de sorte que moteur, chauffage et minuteries repartent sur la nouvelle consigne sans redémarrage ;
 - le `SensorController` est unique et **reconfiguré en place** : le bus I²C n'est jamais rouvert.
 
-Reste ouvert : la séparation des secrets et le magasin de configuration unique (chantier « configuration »).
+Reste ouvert : la séparation des secrets (chantier « configuration »).
 
 ## Arbitre thermique
 
@@ -121,7 +131,7 @@ Chauffage et ventilation régulent la même température : ils sont pilotés par
 
 ## État reporté d'un démarrage à l'autre
 
-`utils/state_store.py` persiste dans `param/runtime_state.json` (écriture atomique, throttlée à une par minute) ce qui ne doit pas repartir de zéro :
+`utils/state_store.py` persiste dans `runtime_state.json`, dans le répertoire des données vivantes (écriture atomique, throttlée à une par minute) ce qui ne doit pas repartir de zéro :
 
 - les budgets hiver de l'arbitre thermique — sinon chaque relance réaccorde une fenêtre complète de ventilation ;
 - la phase séquentielle des minuteurs cycliques — sinon chaque relance rejoue une phase ON complète.
@@ -153,11 +163,10 @@ Aucune requête HTTP ne déclenche de lecture matérielle : le job supervisé `s
 
 ## Limites architecturales connues
 
-- chauffage et ventilation ne sont pas arbitrés par une décision thermique unique ;
 - des I/O bloquantes subsistent hors capteurs et export : commandes système et Wi-Fi ;
 - `/status` répond `200` même lorsque `healthy` est faux — utiliser `/health/ready`, dont le code passe à `503` ;
-- l'heure non synchronisée ne bloque pas les décisions jour/nuit ;
-- l'unité systemd installée n'est pas encore versionnée dans le dépôt ;
+- sans RTC, une heure inconnue ne suspend les minuteries journalières que 15 minutes (`UNKNOWN_SUSPENSION_SECONDS`), après quoi elles reprennent sur l'heure « plausible » ; climat et séquentiels restent en paramètres de nuit tant que l'heure n'est pas prouvée synchronisée ;
+- l'unité versionnée `deploy/phyto.service` et ses drop-ins doivent encore être recopiés à la main dans `/etc/systemd/system/` : `deploy.sh` ne les installe pas ;
 - la configuration et les secrets ne sont pas séparés.
 
 Ces limites sont suivies dans le [registre des risques](../risk-register.md) et ordonnées dans la [roadmap](../roadmap.md).

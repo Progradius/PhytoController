@@ -7,7 +7,14 @@ publier ni le forcer dans l’index. `param/param.example.json` est le seul exem
 
 ## Chargement et sauvegarde
 
-`AppConfig.load()` lit `param/param.json` et valide avec Pydantic v2. `ConfigStore.save()` sérialise
+Le fichier vivant est `param.json` dans le répertoire des données vivantes, résolu par
+`utils/runtime_paths.py` : `PHYTO_DATA_DIR` s'il est posé et non vide, sinon `param/` du dépôt. En
+production, l'unité systemd pose `PHYTO_DATA_DIR` hors du répertoire de travail Git (voir
+[Répertoire des données vivantes](../operations/backup-and-restore.md#répertoire-des-données-vivantes)).
+Le chemin est mémorisé au premier accès : changer la variable en cours de processus ne crée pas de
+seconde vérité.
+
+`AppConfig.load()` lit ce fichier et valide avec Pydantic v2. `ConfigStore.save()` sérialise
 par alias, reconvertit les booléens legacy et écrit atomiquement. Le magasin partagé relit le fichier
 seulement lorsque son empreinte `(mtime_ns, taille)` change et publie la nouvelle configuration dans
 l’instance unique détenue par les composants.
@@ -89,7 +96,7 @@ divergentes. Trois comparaisons cohérentes consécutives sont requises pour sor
 
 Modifier l'offset ou la date de calibration réinitialise les compteurs qualité et les min/max de la
 mesure concernée. L'état de figement et les compteurs sont conservés dans
-`param/runtime_state.json`; les instants monotones ne sont volontairement pas restaurés.
+`runtime_state.json` (répertoire des données vivantes) ; les instants monotones ne sont volontairement pas restaurés.
 
 ## Timers journaliers
 
@@ -126,7 +133,7 @@ Le mode journalier recalcule une échéance strictement future toutes les 30 sec
 
 ## Métadonnées d'équipements
 
-`param/equipment_metadata.json` est volontairement séparé de `param.json` et écrit atomiquement. Il indexe `daily_1`, `daily_2`, `cyclic_1`, `cyclic_2`, `motor` et `heater`. Les champs descriptifs (`display_name`, `usage_type`, `zone`, `icon`, `wiring_note`, `dashboard_visible`, `out_of_service`) n'ont aucun effet sur le contrôle. Les booléens sont des booléens JSON natifs. Un fichier absent ou illisible rend le catalogue par défaut sans empêcher le démarrage.
+`equipment_metadata.json`, dans le même répertoire des données vivantes, est volontairement séparé de `param.json` et écrit atomiquement. Il indexe `daily_1`, `daily_2`, `cyclic_1`, `cyclic_2`, `motor` et `heater`. Les champs descriptifs (`display_name`, `usage_type`, `zone`, `icon`, `wiring_note`, `dashboard_visible`, `out_of_service`) n'ont aucun effet sur le contrôle. Les booléens sont des booléens JSON natifs. Un fichier absent ou illisible rend le catalogue par défaut sans empêcher le démarrage.
 
 ## Température et chauffage
 
@@ -169,7 +176,7 @@ Un validateur de modèle refuse un minimum supérieur au maximum, de jour comme 
 | `winter_humidity_threshold` | 0–100 | Seuil RH déclenchant la déshumidification |
 | `winter_humidity_minutes_per_hour` | 0–60 | Budget horaire de déshumidification, **distinct** du précédent (0 = désactivée) |
 
-`target_temp` et `hysteresis` ne sont pas exposés par l'IHM et ne sont plus lus par la régulation : celle-ci utilise `Temperature_Settings`. Les deux budgets hiver sont comptés en minutes **réellement écoulées** sur une fenêtre glissante d'une heure, et persistés dans `param/runtime_state.json` : un redémarrage ne réaccorde plus une fenêtre complète.
+`target_temp` et `hysteresis` ne sont pas exposés par l'IHM et ne sont plus lus par la régulation : celle-ci utilise `Temperature_Settings`. Les deux budgets hiver sont comptés en minutes **réellement écoulées** sur une fenêtre glissante d'une heure, et persistés dans `runtime_state.json` (répertoire des données vivantes) : un redémarrage ne réaccorde plus une fenêtre complète.
 
 ## GPIO
 

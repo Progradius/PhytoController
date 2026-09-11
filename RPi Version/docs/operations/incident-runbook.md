@@ -42,7 +42,9 @@ timedatectl status
 - équipements physiquement actifs ;
 - dernière modification de configuration ou dernier déploiement.
 
-Ne jamais joindre `param/param.json` à un ticket : il contient des secrets.
+Ne jamais joindre `param.json` à un ticket : il contient des secrets. En production, il ne vit plus
+dans `param/` du dépôt mais dans le répertoire de données posé par l'unité (`PHYTO_DATA_DIR`, voir
+[Répertoire des données vivantes](backup-and-restore.md#répertoire-des-données-vivantes)).
 
 ## `/status` répond avec `healthy=false`
 
@@ -195,11 +197,26 @@ Ne pas lancer une seconde instance manuelle tant que le service existe. Le verro
 
 ### Précautions
 
-Ne jamais afficher le fichier complet dans un canal enregistré. Valider sans imprimer les valeurs :
+Ne jamais afficher le fichier complet dans un canal enregistré. Valider **le fichier vivant**, sans
+imprimer les valeurs, depuis `RPi Version/` :
 
 ```bash
-venv/bin/python3 -c 'from param.config import AppConfig; AppConfig.load(); print("configuration valide")'
+DONNEES="$(systemctl show phyto -p Environment --value | tr ' ' '\n' | sed -n 's/^PHYTO_DATA_DIR=//p' | tail -n 1)"
+if [ -n "$DONNEES" ] && [ -d "$DONNEES" ]; then
+  echo "Données vivantes : $DONNEES"
+  PHYTO_CONFIG_A_VALIDER="$DONNEES/param.json" venv/bin/python3 -c \
+    'import json, os; from pathlib import Path; from param.config import AppConfig; AppConfig.model_validate(json.loads(Path(os.environ["PHYTO_CONFIG_A_VALIDER"]).read_text(encoding="utf-8")))' \
+    >/dev/null 2>&1 && echo "configuration valide" || echo "configuration INVALIDE ou illisible"
+else
+  echo "ARRÊT : PHYTO_DATA_DIR absente de l'unité ou répertoire introuvable"
+fi
 ```
+
+C'est la validation que fait `scripts/deploy.sh` avant toute mutation. Deux pièges qu'elle évite :
+un simple `AppConfig.load()` lancé depuis un shell ne voit pas `PHYTO_DATA_DIR`, qui appartient à
+l'unité, et validerait donc le `param/` du dépôt au lieu du fichier que lit le service ; et un refus
+Pydantic peut recopier une valeur saisie, secret compris, dans la sortie — d'où la sortie masquée.
+Si l'unité ne pose pas la variable, suivre [Répertoire des données vivantes](backup-and-restore.md#répertoire-des-données-vivantes).
 
 Le script de déploiement conserve des sauvegardes sous `~/phyto-backups/<horodatage>/`. Identifier la sauvegarde voulue en lecture seule :
 

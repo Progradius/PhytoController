@@ -30,6 +30,28 @@ Exemple abrégé, sans valeurs de production :
     "state": "synchronized", "observed_state": "synchronized",
     "daily_timers_suspended": false, "alarm": null
   },
+  "alarms": {
+    "active_count": 0, "unacknowledged_count": 0, "critical_count": 0,
+    "control_count": 0, "auxiliary_count": 0, "highest_severity": null
+  },
+  "history": {
+    "available": true, "last_sample_ts": 1756156440.0, "last_error_class": null,
+    "retention_hours": 72, "recovered_corrupt_path": null
+  },
+  "network": {
+    "status": "online", "interface": "wlan0", "connection": "<nom-de-connexion>",
+    "ipv4": "192.0.2.10", "gateway": "192.0.2.1", "degraded_seconds": 0.0
+  },
+  "overrides": {
+    "active_count": 1, "unconfirmed_count": 0,
+    "items": [
+      {"target": "cyclic_1", "reason": "maintenance", "confirmed": true,
+       "expires_epoch": 1756160043.0, "remaining_seconds": 3600.0}
+    ],
+    "limits_minutes": {"daily_1": 1440, "daily_2": 1440, "cyclic_1": 1440,
+                       "cyclic_2": 1440, "motor": 240, "heater": 240},
+    "default_minutes": 60
+  },
   "day_night": {"source": "dailytimer1", "start": "19:00", "stop": "07:00", "empty": false},
   "equipment": {"daily_1": {"display_name": "Éclairage 1", "dashboard_visible": true}},
   "actuators": {
@@ -98,6 +120,10 @@ Exemple abrégé, sans valeurs de production :
 | `health.tasks` | Snapshot par travail supervisé |
 | `outputs` | État **logique** de chaque sortie : `on`, `off` ou `unknown` |
 | `time` | Fiabilité de l'heure, suspension bornée des minuteries et alarme éventuelle |
+| `alarms` | Résumé des occurrences **actives** tenues en mémoire par `AlarmManager` : `active_count`, `unacknowledged_count`, `critical_count`, `control_count` (affectant le contrôle), `auxiliary_count`, et `highest_severity` (`warning`, `error`, `critical` ou `null`). `deploy.sh` exige `critical_count = 0` |
+| `history` | État de l'historique opérateur SQLite : `available`, `last_sample_ts` (epoch s ou `null`), `last_error_class` (nom de classe seulement), `retention_hours` (72) et `recovered_corrupt_path` (base corrompue mise de côté au démarrage, sinon `null`). Sans service opérateur, seulement `{"available": false}` |
+| `network` | Dernière sonde `nmcli`, toutes les 30 s : `status` (`online`, `degraded` — adresse sans passerelle, ou connexion de secours `phyto-rescue` —, `offline`, `unknown`), `interface`, `connection`, `ipv4`, `gateway`, et `degraded_seconds` depuis la dernière sonde `online`. Sans service opérateur, seulement `{"status": "unknown"}` |
+| `overrides` | Coupures opérateur « arrêt » en cours : `active_count`, `unconfirmed_count` (reprises au démarrage avant une heure fiable, « à confirmer »), `items` triés par cible (`target`, `reason` telle que saisie, `confirmed`, `expires_epoch`, `remaining_seconds`), plafonds `limits_minutes` par équipement et durée par défaut `default_minutes` |
 | `day_night` | Source et plage jour/nuit effectivement résolues |
 | `equipment` | Métadonnées descriptives, sans effet sur le contrôle |
 | `actuators` | Consigne, relecture GPIO instantanée, motif, durée monotone, prochaine transition et suivi demandé/réel |
@@ -167,12 +193,12 @@ Le registre `actuators` ne conserve jamais l'état matériel réel : celui-ci es
 ## `/health/live` et `/health/ready`
 
 ```json
-{"live": true}
+{"live": true, "version": "0123456789abcdef0123456789abcdef01234567"}
 {"ready": false, "unhealthy": ["climate_control"]}
 ```
 
-`/health/live` répond 200 tant que le serveur HTTP tourne : il ne prouve rien sur la
-régulation. `/health/ready` répond **503** dès qu'un travail supervisé est en défaut et nomme
+`/health/live` répond 200 tant que le serveur HTTP tourne et annonce le commit chargé
+(`version`, même valeur que dans `/api/v1/state`) : il ne prouve rien sur la régulation. `/health/ready` répond **503** dès qu'un travail supervisé est en défaut et nomme
 les fautifs. C'est la sonde à brancher sur une supervision externe.
 
 ## `/status` (ancien format)
@@ -184,15 +210,21 @@ les fautifs. C'est la sonde à brancher sur une supervision externe.
   "dailytimer1": {"start": "19:00", "stop": "07:00"},
   "cyclic": {"period": 1, "duration": 30},
   "heater_alarm": null,
+  "time": {"state": "synchronized"},
+  "operator": {"alarms": {"active_count": 0}, "history": {"available": true},
+               "network": {"status": "online"}},
   "healthy": true,
   "control_healthy": true,
-  "time": {"state": "synchronized"},
-  "tasks": {}
+  "tasks": {},
+  "health_domains": {}
 }
 ```
 
-Les champs historiques restent figés ; les ajouts `control_healthy`, `time` et `health_domains`
-sont additifs. `cyclic.period` est désormais une période en **jours** (`period_days`) ; le contournement par
+Les champs historiques restent figés ; les ajouts `control_healthy`, `time`, `operator` et
+`health_domains` sont additifs. `operator` regroupe les trois blocs `alarms`, `history` et `network`
+décrits pour `/api/v1/state` (abrégés ci-dessus). `healthy`, `control_healthy`, `tasks` et
+`health_domains` ne sont présents que si le superviseur est branché, ce qui est toujours le cas en
+production. `cyclic.period` est désormais une période en **jours** (`period_days`) ; le contournement par
 `getattr` a disparu en même temps que le champ `period_minutes` inexistant lu par
 `SystemStatus.get_cyclic_period()`. Les détails d'actionneurs restent réservés à `/api/v1/state`.
 

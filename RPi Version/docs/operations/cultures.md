@@ -307,8 +307,12 @@ SHA-256. Une base SQLite seule ne contient pas les fichiers photo ; sa restaurat
 elle en référence. JSON et CSV restent des exports, sans import automatique.
 
 Conserver régulièrement une sauvegarde complète ZIP hors du Pi et impérativement avant une migration
-de schéma. Le fichier vivant est `param/cultures.sqlite3` avec ses annexes `-wal` et `-shm`.
-Git les ignore. Le script de déploiement ne remplace pas une sauvegarde du carnet.
+de schéma. Le fichier vivant est `cultures.sqlite3`, avec ses annexes `-wal` et `-shm` et le
+répertoire `culture_media/`, dans le répertoire des données vivantes : `PHYTO_DATA_DIR` s'il est
+posé, sinon `param/` du dépôt. En production, lire ce répertoire dans l'unité systemd (voir
+[Répertoire des données vivantes](backup-and-restore.md#répertoire-des-données-vivantes)) ; il est
+noté `$DONNEES` ci-dessous. Git ne suit aucun de ces fichiers. Le script de déploiement ne remplace
+pas une sauvegarde du carnet.
 
 Le carnet crée en outre ses propres copies avant chaque migration :
 `cultures.sqlite3.before-v2.sqlite3`, `.before-v3.sqlite3` et `.before-v4.sqlite3`, une par version
@@ -522,8 +526,9 @@ Les trois migrations se comportent de la même façon ; l'état courant est le *
 plus bas dans « [Migration vers le schéma 4](#migration-vers-le-schéma-4) ».
 
 La première ouverture d'une base de schéma 1 crée automatiquement
-`param/cultures.sqlite3.before-v2.sqlite3` par l'API SQLite, puis migre en une transaction.
-Cette copie est ignorée par Git, comme le carnet actif ; en conserver une copie hors du Pi.
+`cultures.sqlite3.before-v2.sqlite3`, à côté du carnet dans le répertoire des données vivantes, par
+l'API SQLite, puis migre en une transaction.
+Cette copie est hors de Git, comme le carnet actif ; en conserver une copie hors du Pi.
 Une sauvegarde préalable déjà présente n'est jamais écrasée. Si une tentative a été interrompue
 et que la base est encore en version 1, faire vérifier/restaurer cette sauvegarde vers une copie
 isolée avec le script ci-dessus, conserver les fichiers de diagnostic, puis résoudre la tentative
@@ -853,17 +858,27 @@ réessayer. » C'est voulu : une tentative précédente doit être arbitrée par
 watchdog et `control_healthy()` reste vrai.
 
 1. Arrêter le service : `sudo systemctl stop phyto`.
-2. Constater l'état réel des deux fichiers, sans les modifier :
-   `sqlite3 param/cultures.sqlite3 'PRAGMA user_version; PRAGMA quick_check;'` puis la même
-   commande sur `param/cultures.sqlite3.before-v4.sqlite3`. Le carnet actif doit être en
-   version 3 et la sauvegarde en version 3 également.
-3. Copier la sauvegarde hors de `param/` (clé USB, poste d'exploitation) et la vérifier sur une
-   destination isolée : `python3 scripts/restore-cultures.py <copie> /tmp/verification.sqlite3`.
+2. Lire le répertoire des données vivantes dans l'unité, puis constater l'état réel des deux
+   fichiers, sans les modifier :
+
+   ```bash
+   DONNEES="$(systemctl show phyto -p Environment --value | tr ' ' '\n' | sed -n 's/^PHYTO_DATA_DIR=//p' | tail -n 1)"
+   test -d "$DONNEES" && echo "Données vivantes : $DONNEES" || echo "ARRÊT : PHYTO_DATA_DIR absente de l'unité ou répertoire introuvable"
+   sqlite3 "$DONNEES/cultures.sqlite3" 'PRAGMA user_version; PRAGMA quick_check;'
+   sqlite3 "$DONNEES/cultures.sqlite3.before-v4.sqlite3" 'PRAGMA user_version; PRAGMA quick_check;'
+   ```
+
+   Ne pas poursuivre après un « ARRÊT » (voir
+   [Répertoire des données vivantes](backup-and-restore.md#répertoire-des-données-vivantes)). Le
+   carnet actif doit être en version 3 et la sauvegarde en version 3 également.
+3. Copier la sauvegarde hors du répertoire des données vivantes (clé USB, poste d'exploitation) et
+   la vérifier sur une destination isolée :
+   `python3 scripts/restore-cultures.py <copie> /tmp/verification.sqlite3`.
    Cette commande ne touche jamais le carnet actif.
 4. Comparer les volumes attendus (cultures, événements, relevés, vérifications, photos) entre le
    carnet actif et la copie vérifiée. Si le carnet actif est le plus complet, il est la référence.
-5. Seulement alors, retirer la sauvegarde du répertoire de travail :
-   `sudo mv param/cultures.sqlite3.before-v4.sqlite3 <archive hors serre>`. Ne jamais la
+5. Seulement alors, retirer la sauvegarde du répertoire des données vivantes :
+   `sudo mv "$DONNEES/cultures.sqlite3.before-v4.sqlite3" <archive hors serre>`. Ne jamais la
    supprimer sans en conserver une copie ailleurs.
 6. Relancer : `sudo systemctl start phyto`. La migration reprend depuis le début, produit une
    nouvelle sauvegarde `.before-v4.sqlite3` et aboutit.
