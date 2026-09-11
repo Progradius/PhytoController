@@ -43,6 +43,20 @@ donnée d'exécution (largeur de fenêtre, variable d'environnement) et à la ga
 du carnet. Les noms de profils n'existent qu'une fois, dans `PROFILS` : un nom inconnu casse le
 chargement de la spec (`npm run test:js` couvre ces règles).
 
+Sous WSL, placer le venv de test **hors de `/mnt/c`** : chaque serveur de spec importe tout
+l'applicatif, et le système de fichiers Windows monté (drvfs) rend cet import jusqu'à dix fois
+plus lent qu'ext4 (mesures du 11 septembre 2026 : 3,3 s depuis `/mnt/c`, 1,6 à 2 s avec le seul
+venv sur ext4, 0,3 s avec l'arbre aussi ; à 8 démarrages simultanés, 7 à 8 s contre 1 s).
+
+```bash
+python3 -m venv ~/.venvs/phyto
+~/.venvs/phyto/bin/pip install -r requirements-dev.txt
+PHYTO_TEST_PYTHON=~/.venvs/phyto/bin/python npm run test:ui
+```
+
+Un clone de travail sous `~/` (ext4) apporte le reste du gain, si l'outillage Windows n'exige pas
+les fichiers sous `C:`.
+
 ## Style
 
 - Code, commentaires, messages et logs en français.
