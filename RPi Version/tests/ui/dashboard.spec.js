@@ -1,4 +1,4 @@
-const {test, expect} = require("@playwright/test");
+const {test, expect} = require("./serveurs");
 const AxeBuilder = require("@axe-core/playwright").default;
 const {historyFixture, testAlarmeCritique, testServeurJetable} = require("./fixtures");
 const {pour, sauf} = require("./profils");

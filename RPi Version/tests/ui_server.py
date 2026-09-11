@@ -3,14 +3,22 @@
 `python3 tests/ui_server.py` sert l'application sur `PHYTO_UI_TEST_PORT` (38123 par défaut, `0`
 pour un port libre choisi par le noyau) et annonce `PHYTO_UI_READY <port>` sur sa sortie standard
 dès qu'il accepte des requêtes.
+
+`python3 tests/ui_server.py --zygote` est le mode des specs navigateur : un processus par worker
+Playwright, qui duplique un serveur neuf par test (voir `zygote()` et `tests/ui/serveurs.js`).
 """
 
 from pathlib import Path
 import asyncio
+import json
 import os
+import selectors
 import signal
 import sys
 import tempfile
+import threading
+import time
+import traceback
 
 from aiohttp import web
 
@@ -172,19 +180,23 @@ def build_app():
     return app
 
 
-# Ligne de disponibilité, lue par `tests/ui/serveurs.js`. Elle est écrite **après** l'ouverture de
-# l'écoute et le démarrage de l'application (`on_startup`) : qui la lit peut envoyer une requête.
-# C'est un protocole entre processus, pas un journal — elle ne passe donc pas par `pretty_console`,
-# dont la mise en forme (couleurs, préfixes) la rendrait illisible pour la fixture.
+# Ligne de disponibilité du mode autonome. Elle est écrite **après** l'ouverture de l'écoute et le
+# démarrage de l'application (`on_startup`) : qui la lit peut envoyer une requête. C'est un
+# protocole entre processus, pas un journal — elle ne passe donc pas par `pretty_console`, dont la
+# mise en forme (couleurs, préfixes) la rendrait illisible pour l'appelant.
 READY_PREFIX = "PHYTO_UI_READY"
 
 
+def _ecrire_ligne(ligne: str) -> None:
+    """Un seul `write` par ligne : aucun journal ne peut s'y intercaler."""
+    os.write(sys.stdout.fileno(), f"{ligne}\n".encode())
+
+
 def annoncer(port: int) -> None:
-    """Écrit la ligne de disponibilité d'un seul `write`, pour qu'aucun journal ne s'y intercale."""
-    os.write(sys.stdout.fileno(), f"{READY_PREFIX} {port}\n".encode())
+    _ecrire_ligne(f"{READY_PREFIX} {port}")
 
 
-async def servir(port: int) -> None:
+async def servir(port: int, annonce=annoncer) -> None:
     """Sert l'application jusqu'à SIGTERM/SIGINT, puis l'arrête proprement.
 
     `port=0` laisse le noyau choisir un port libre. C'est la seule façon d'exclure toute collision :
@@ -202,7 +214,7 @@ async def servir(port: int) -> None:
         loop = asyncio.get_running_loop()
         for signum in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(signum, arret.set)
-        annoncer(runner.addresses[0][1])
+        annonce(runner.addresses[0][1])
         await arret.wait()
     finally:
         # `on_cleanup` ferme le carnet ; le répertoire temporaire ne disparaît qu'ensuite.
@@ -210,5 +222,152 @@ async def servir(port: int) -> None:
         app["ui_test_temporary"].cleanup()
 
 
+# ---------------------------------------------------------------------------------------------
+# Zygote : un processus par worker Playwright, un `fork()` par test.
+#
+# Chaque test garde **son** processus serveur, donc aucun état partagé : espace 2 exclusif du
+# carnet, overrides, registre d'état et `ConfigStore` sont des singletons de module, et seul un
+# processus neuf les isole sans dépendre d'une remise à zéro. Ce qui change, c'est le prix : l'import
+# de l'applicatif (0,3 s sur ext4, 3 à 8 s depuis `/mnt/c`) n'est payé qu'une fois par worker, et
+# chaque serveur ne coûte plus que `fork()` + `build_app()`, ≈ 20 ms.
+#
+# Protocole, une ligne JSON par message, préfixée pour la distinguer des journaux :
+#   stdin  {"op": "demarrer", "id": n, "env": {...}}   → stdout {"id": n, "pid": p} puis, de l'enfant,
+#                                                          {"id": n, "port": x}
+#   stdin  {"op": "arreter", "id": n, "pid": p}        → stdout {"id": n, "code": c}
+#   un enfant mort sans qu'on l'ait arrêté              → stdout {"id": n, "mort": c}
+#   fin de stdin (worker terminé, même tué)             → tous les enfants arrêtés, puis sortie.
+#
+# Le zygote n'appelle **jamais** `build_app()` et ne crée ni boucle asyncio ni thread : chaque enfant
+# part de l'état d'un processus qui vient d'importer ses modules, exactement comme un interpréteur
+# neuf. Un thread présent au moment du `fork()` pourrait détenir un verrou (journalisation,
+# allocation) que l'enfant hériterait verrouillé à jamais ; le zygote refuse donc de dupliquer un
+# processus qui en a plus d'un.
+# ---------------------------------------------------------------------------------------------
+ZYGOTE_PREFIX = "PHYTO_UI_ZYGOTE"
+ARRET_DELAI_SECONDES = 10.0
+
+
+def _repondre(message: dict) -> None:
+    _ecrire_ligne(f"{ZYGOTE_PREFIX} {json.dumps(message)}")
+
+
+def _verifier_fork_sur() -> None:
+    if threading.active_count() != 1:
+        raise RuntimeError(
+            f"zygote : {threading.active_count()} threads actifs, fork() refusé "
+            f"({[thread.name for thread in threading.enumerate()]})"
+        )
+
+
+def _mourir_avec_le_zygote(pid_zygote: int) -> None:
+    """Un zygote tué par SIGKILL ne doit laisser aucun serveur orphelin (Linux : PR_SET_PDEATHSIG)."""
+    try:
+        import ctypes
+
+        ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+    except (OSError, AttributeError):
+        pass  # hors Linux, la fin de stdin reste le seul signal — elle couvre la fin normale
+    if os.getppid() != pid_zygote:  # le zygote est mort avant le prctl
+        os._exit(1)
+
+
+def _enfant(identifiant: int, environnement: dict, pid_zygote: int) -> None:
+    """Corps de l'enfant : ne rend jamais la main au zygote (`os._exit`)."""
+    code = 1
+    try:
+        _mourir_avec_le_zygote(pid_zygote)
+        # stdin porte le protocole du zygote : l'enfant ne doit ni le lire ni le garder ouvert.
+        nul = os.open(os.devnull, os.O_RDONLY)
+        os.dup2(nul, 0)
+        os.close(nul)
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(signum, signal.SIG_DFL)
+        os.environ.update(environnement)
+        # `tempfile` mémorise son répertoire au premier appel : sans cette remise à zéro, le
+        # `TMPDIR` propre à ce test serait ignoré au profit de celui qu'a vu le zygote.
+        tempfile.tempdir = None
+        asyncio.run(servir(0, annonce=lambda port: _repondre({"id": identifiant, "port": port})))
+        code = 0
+    except BaseException:  # noqa: BLE001 — l'enfant rapporte tout, puis sort sans remonter
+        traceback.print_exc()
+    finally:
+        # `os._exit` : ni les `atexit` hérités du zygote, ni un retour dans sa boucle.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+
+
+def _attendre_sortie(pid: int) -> int:
+    """SIGTERM, puis SIGKILL passé le délai ; rend le code de sortie de l'enfant."""
+    os.kill(pid, signal.SIGTERM)
+    fin = time.monotonic() + ARRET_DELAI_SECONDES
+    while True:
+        termine, statut = os.waitpid(pid, os.WNOHANG)
+        if termine:
+            return os.waitstatus_to_exitcode(statut)
+        if time.monotonic() >= fin:
+            os.kill(pid, signal.SIGKILL)
+            return os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
+        time.sleep(0.01)
+
+
+def zygote() -> None:
+    _verifier_fork_sur()
+    pid_zygote = os.getpid()
+    enfants: dict[int, int] = {}  # pid → identifiant de la demande
+    morts: dict[int, int] = {}  # pid récolté avant sa demande d'arrêt → code
+    selecteur = selectors.DefaultSelector()
+    selecteur.register(0, selectors.EVENT_READ)
+    tampon = b""
+    _repondre({"pret": True})
+    try:
+        while True:
+            # Récolte des enfants morts d'eux-mêmes : la fixture l'apprend tout de suite, au lieu
+            # d'attendre un port qui ne viendra jamais.
+            while enfants:
+                pid, statut = os.waitpid(-1, os.WNOHANG)
+                if not pid:
+                    break
+                code = os.waitstatus_to_exitcode(statut)
+                morts[pid] = code
+                _repondre({"id": enfants.pop(pid), "mort": code})
+            if not selecteur.select(timeout=0.2):
+                continue
+            morceau = os.read(0, 65536)
+            if not morceau:
+                return  # fin de stdin : le worker est parti
+            tampon += morceau
+            while b"\n" in tampon:
+                ligne, tampon = tampon.split(b"\n", 1)
+                if not ligne.strip():
+                    continue
+                demande = json.loads(ligne)
+                if demande["op"] == "demarrer":
+                    _verifier_fork_sur()
+                    pid = os.fork()
+                    if pid == 0:
+                        selecteur.close()
+                        _enfant(demande["id"], demande.get("env") or {}, pid_zygote)
+                    enfants[pid] = demande["id"]
+                    _repondre({"id": demande["id"], "pid": pid})
+                elif demande["op"] == "arreter":
+                    pid = demande["pid"]
+                    if pid in enfants:
+                        del enfants[pid]
+                        code = _attendre_sortie(pid)
+                    else:
+                        code = morts.pop(pid, None)
+                    _repondre({"id": demande["id"], "code": code})
+                else:
+                    raise ValueError(f"zygote : opération inconnue {demande['op']!r}")
+    finally:
+        for pid in list(enfants):
+            _attendre_sortie(pid)
+
+
 if __name__ == "__main__":
-    asyncio.run(servir(int(os.environ.get("PHYTO_UI_TEST_PORT", "38123"))))
+    if sys.argv[1:] == ["--zygote"]:
+        zygote()
+    else:
+        asyncio.run(servir(int(os.environ.get("PHYTO_UI_TEST_PORT", "38123"))))

@@ -37,8 +37,8 @@ const ROUTES = ["/", "/alarms", "/history", "/conf", "/console", "/cultures", "/
 // la page par défaut n'est ni la liste des relevés ni l'explorateur. Elles sont mesurées ici
 // pour que l'acceptation se lise dans le JSON versionné, et non dans une sonde jetable.
 const VUES_ACCEPTATION = ["/cultures/solutions?view=releves", "/cultures/solutions?view=analyser"];
-// Port dédié à la mesure : la suite Playwright réserve 38123 et les fixtures du carnet
-// 39123 + rang du worker. Deux exécutions ne doivent jamais se disputer un port ni une base.
+// Port dédié à la mesure. Il reste fixe parce qu'un arbre ancien (`PHYTO_MEASURE_ROOT`) ne sait
+// pas annoncer un port choisi par le noyau ; la suite Playwright, elle, n'en réserve aucun.
 const PORT = Number(process.env.PHYTO_UI_MEASURE_PORT || 40123);
 const CRITICAL_PORT = PORT + 1;
 // Seuil de l'audit : une cible est « petite » dès qu'une de ses deux dimensions est sous

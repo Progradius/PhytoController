@@ -1,4 +1,4 @@
-const {test, expect} = require("@playwright/test");
+const {test, expect} = require("./serveurs");
 const {historyFixture} = require("./fixtures");
 const {pour} = require("./profils");
 

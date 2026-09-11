@@ -43,7 +43,22 @@ donnée d'exécution (largeur de fenêtre, variable d'environnement) et à la ga
 du carnet. Les noms de profils n'existent qu'une fois, dans `PROFILS` : un nom inconnu casse le
 chargement de la spec (`npm run test:js` couvre ces règles).
 
-Sous WSL, placer le venv de test **hors de `/mnt/c`** : chaque serveur de spec importe tout
+**Chaque test a son propre serveur**, y compris ceux qui ne font que lire : un processus neuf, sur
+un port choisi par le noyau (`tests/ui/serveurs.js`). Un spec importe donc `test` depuis
+`./serveurs` (ou `./culture_fixtures`, `./fixtures`), jamais depuis `@playwright/test`, sans quoi
+il n'aurait aucune `baseURL`. Il n'y a plus de `webServer` partagé : aucun état de processus
+(carnet, overrides, limiteur de prévisualisation de `/conf`) ne relie deux tests, et deux
+exécutions de la suite peuvent tourner en même temps sur la même machine (ports libres, dossier de résultats par exécution —
+`tests/ui/sortie.js`). Aucun verrou `flock` ni `--workers=1` n'est nécessaire pour cela.
+
+Ces serveurs ne coûtent pas un interpréteur chacun : chaque worker garde un **zygote**
+(`tests/ui_server.py --zygote`) qui importe l'applicatif une fois et duplique un serveur par test
+(`fork()` + `build_app()`, ≈ 20 ms). Le zygote refuse de dupliquer un processus qui a plus d'un
+thread, et ses serveurs meurent avec lui même s'il est tué ; `tests/test_ui_server.py` fixe ce
+contrat. Ne jamais appeler `build_app()`, ouvrir une boucle asyncio ou démarrer un thread dans le
+zygote lui-même.
+
+Sous WSL, placer le venv de test **hors de `/mnt/c`** : le zygote de chaque worker importe tout
 l'applicatif, et le système de fichiers Windows monté (drvfs) rend cet import jusqu'à dix fois
 plus lent qu'ext4 (mesures du 11 septembre 2026 : 3,3 s depuis `/mnt/c`, 1,6 à 2 s avec le seul
 venv sur ext4, 0,3 s avec l'arbre aussi ; à 8 démarrages simultanés, 7 à 8 s contre 1 s).

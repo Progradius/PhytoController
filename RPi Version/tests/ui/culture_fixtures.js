@@ -1,14 +1,13 @@
 "use strict";
 
-const {test: base, expect} = require("@playwright/test");
+const {test: base, expect, servir} = require("./serveurs");
 const AxeBuilder = require("@axe-core/playwright").default;
-const {serveurDeTest} = require("./serveurs");
 
 // Chaque test possède son carnet : l'espace 2 est exclusif et une occupation en
 // cours s'étend sans date de fin, donc deux scénarios ne peuvent pas partager une
 // base sans se disputer l'espace ni fausser les comptages du journal.
 const test = base.extend({
-  cultureBaseURL: [async ({}, use) => {
+  cultureBaseURL: [async ({zygote}, use) => {
     // La garde vit DANS la fixture, jamais dans un `test.beforeEach` de module : le cache
     // CommonJS n'exécute ce fichier qu'une fois par worker, donc un hook de module ne
     // s'attacherait qu'au premier fichier de spec chargé et laisserait les suivants écrire
@@ -17,7 +16,7 @@ const test = base.extend({
     // fichier. Ces scénarios écrivent UNIQUEMENT dans la base temporaire de tests/ui_server.py.
     test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Aucune création de culture sur une cible externe.");
     // Un serveur neuf pour ce seul test (`tests/ui/serveurs.js`), démarré après la garde.
-    await serveurDeTest({})({}, use);
+    await servir(zygote, {}, use);
   // Le démarrage du serveur (interpréteur, schéma, WAL) a son propre délai, distinct du
   // délai du test : sous contention (suite complète, autre charge sur la machine) il a
   // dépassé les 20 s du délai global et faisait échouer des scénarios sans rapport.

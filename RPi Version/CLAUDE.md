@@ -44,6 +44,16 @@ external network or Raspberry Pi hardware (HTTP tests use loopback only). It doe
 pins, relays or loads also require the supervised procedure in `docs/development/hardware-validation.md`.
 There is still no linter configured; do not invent one as part of an unrelated change.
 
+Browser specs (`tests/ui/`): **every test gets its own server process** on a kernel-chosen port —
+there is no shared `webServer`. Each Playwright worker keeps a zygote (`tests/ui_server.py
+--zygote`) that imports the application once and forks one fresh server per test (≈ 20 ms), so the
+isolation of a new process costs nothing; never call `build_app()`, open an event loop or start a
+thread in the zygote itself (it refuses to fork with more than one thread). A spec imports `test`
+from `./serveurs` (or `./culture_fixtures`, `./fixtures`), never from `@playwright/test`, and picks
+its profiles **at declaration** with `pour()`/`sauf()` from `./profils` — never with
+`test.skip(testInfo.project.name …)` in the body, which runs after the fixtures. Point
+`PHYTO_TEST_PYTHON` at a venv outside `/mnt/c` under WSL. Details: `docs/development/contributing.md`.
+
 ## Architecture
 
 Boot sequence lives entirely in `main.py` (module-level, not in a `main()`): **take the instance lock** →

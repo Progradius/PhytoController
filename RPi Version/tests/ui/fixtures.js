@@ -1,30 +1,26 @@
 "use strict";
 
-const {test: base} = require("@playwright/test");
-const {serveurDeTest} = require("./serveurs");
+const {test: base, servir} = require("./serveurs");
 
-// Serveur dédié à un scénario.
-//
-// Le `webServer` de `playwright.config.js` est **unique** et partagé par toute la suite :
-// il ne peut porter ni la variable d'environnement d'un scénario (`PHYTO_UI_MEASURE_SCENARIO`)
-// ni une mutation qui survivrait aux tests suivants. Un test qui a besoin de l'une ou de
-// l'autre démarre donc son propre serveur (`tests/ui/serveurs.js`), comme le carnet, et le
-// laisse mourir avec lui.
+// Serveurs de scénario. Chaque test a déjà son serveur (`tests/ui/serveurs.js`) ; ces variantes
+// y ajoutent ce que le serveur par défaut ne porte pas : une variable de scénario lue par
+// `tests/ui_server.py` (`PHYTO_UI_MEASURE_SCENARIO`), ou le refus explicite d'écrire sur une
+// cible externe.
 
 // Alarme critique de fixture (`_FakeAlarmManager` de `tests/ui_server.py`).
 const testAlarmeCritique = base.extend({
-  baseURL: [async ({}, use) => {
+  baseURL: [async ({zygote}, use) => {
     test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Scénario servi par un serveur local dédié.");
-    await serveurDeTest({PHYTO_UI_MEASURE_SCENARIO: "critical"})({}, use);
+    await servir(zygote, {PHYTO_UI_MEASURE_SCENARIO: "critical"}, use);
   }, {scope: "test", timeout: 60000}],
 });
 
 // Serveur jetable pour les scénarios qui **écrivent** (créer une coupure) : la coupure ne
 // doit pas survivre au test ni fuiter vers les suivants, et jamais viser une cible externe.
 const testServeurJetable = base.extend({
-  baseURL: [async ({}, use) => {
+  baseURL: [async ({zygote}, use) => {
     test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Aucune écriture sur une cible externe.");
-    await serveurDeTest({})({}, use);
+    await servir(zygote, {}, use);
   }, {scope: "test", timeout: 60000}],
 });
 

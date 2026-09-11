@@ -2,9 +2,10 @@
 
 // Fiche R2.1 « Configuration lisible ». Aucune de ces specs n'enregistre de section :
 // les seuls POST joués sont **refusés** (422) et la prévisualisation n'écrit jamais.
-// Le serveur partagé de `playwright.config.js` reste donc dans l'état où il a démarré.
+// Chaque test a de toute façon son propre serveur (`tests/ui/serveurs.js`) : le limiteur de
+// prévisualisation de `/conf`, commun à tout un processus, ne peut plus opposer deux tests.
 
-const {test, expect} = require("@playwright/test");
+const {test, expect} = require("./serveurs");
 
 const CHAMP_DECIMAL = "#target_temp_min_day";
 const DERNIER_CHAMP = "#min_dwell_seconds";

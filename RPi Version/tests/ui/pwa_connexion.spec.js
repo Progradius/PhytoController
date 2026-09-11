@@ -3,7 +3,7 @@
 // Verdict de connexion de la PWA : ce qui fait entrer en « HORS LIGNE », ce qui l'en fait sortir,
 // et ce qui n'a pas le droit de l'en faire sortir. Scénarios volontairement temporels : ils
 // mesurent des délais réels, `page.clock` fausserait aussi les délais de garde de `fetchWithTimeout`.
-const {test, expect} = require("@playwright/test");
+const {test, expect} = require("./serveurs");
 const {test: testCarnet, expect: expectCarnet, createMother} = require("./culture_fixtures");
 const {pour} = require("./profils");
 

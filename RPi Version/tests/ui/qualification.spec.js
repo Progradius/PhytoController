@@ -11,7 +11,7 @@
 // qu'un élément est « visible » — Playwright le juge visible même sous une barre fixe. On
 // mesure le **recouvrement** entre la boîte de l'élément focalisé et celle de chaque barre
 // fixe réellement affichée. Un recouvrement non nul est un échec.
-const {test, expect} = require("@playwright/test");
+const {test, expect} = require("./serveurs");
 const {test: testCarnet, expect: expectCarnet, createMother} = require("./culture_fixtures");
 const {testAlarmeCritique} = require("./fixtures");
 const crypto = require("node:crypto");
@@ -105,7 +105,7 @@ const verifierTemoin = async (page, expecter, temoin) => {
   expecter(resultat.violations).toEqual([]);
 };
 
-// Témoins visibles sans donnée particulière : le serveur partagé de la suite suffit.
+// Témoins visibles sans donnée particulière : le serveur par défaut du test suffit.
 const TEMOINS = [
   {macro: "compact_header", route: "/", classe: ".ui-compact-header"},
   {macro: "equipment_row", route: "/", classe: ".ui-equipment-row"},
