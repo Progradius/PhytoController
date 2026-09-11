@@ -247,8 +247,11 @@ to `PuppetMaster`.
   pure `model/nombre.nombre_texte` — the **single** server-side French rounding rule, also used by
   the presentation sentences computed in models (`chart_summary`, assistance hints); never write a
   `:.2f` for display again. `mesure` stays the dashboard-side rounding, kept identical to the JS
-  `toFixed`. Browser side, `formatNombre` (`culture_analysis.js`, `history.js`) is the aligned
-  replica; `culture_cycles.js` and `culture_solutions.js` delegate to it and only keep the same
+  `toFixed`. Both sides round **half away from zero** on the short decimal representation
+  (`Decimal(repr(x)).quantize(ROUND_HALF_UP)` mirrors `Intl`'s `halfExpand`): the shared vectors of
+  `tests/fixtures/nombre-vecteurs.json` are replayed by pytest **and** by a Node test, so a
+  divergence fails instead of showing 21,12 server-side and 21,13 in the tooltip of the same point.
+  Browser side, `formatNombre` (`culture_analysis.js`, `history.js`) is the aligned replica; `culture_cycles.js` and `culture_solutions.js` delegate to it and only keep the same
   `toLocaleString` options as a fallback so their charts still draw without the explorer asset.
   Stored values, numeric API fields and CSV exports stay unrounded.
 - `network/web/templates/macros/ui.html` — the eight shared presentation macros
