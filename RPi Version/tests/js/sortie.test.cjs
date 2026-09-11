@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const {nettoyerAnciens} = require("../ui/sortie.js");
+const {fichierDerniereExecution, nettoyerAnciens} = require("../ui/sortie.js");
 
 test("seuls les dossiers d'exécutions terminées sont supprimés", () => {
   const racine = fs.mkdtempSync(path.join(os.tmpdir(), "phyto-sortie-"));
@@ -25,4 +25,25 @@ test("seuls les dossiers d'exécutions terminées sont supprimés", () => {
   } finally {
     fs.rmSync(racine, {recursive: true, force: true});
   }
+});
+
+test("charger la config n'efface rien : seul le globalSetup nettoie", () => {
+  // `npm run test:js` charge la config (tests/js/profils.test.cjs) : il ne doit pas supprimer les
+  // traces de la dernière exécution Playwright.
+  const mort = spawnSync(process.execPath, ["-e", ""]).pid;
+  const dossier = path.join(os.tmpdir(), `phyto-playwright-results-${mort}`);
+  fs.mkdirSync(dossier, {recursive: true});
+  try {
+    const charge = spawnSync(process.execPath, ["-e", 'require("./playwright.config.js")'], {encoding: "utf8"});
+    assert.equal(charge.status, 0, charge.stderr);
+    assert.equal(fs.existsSync(dossier), true);
+  } finally {
+    fs.rmSync(dossier, {recursive: true, force: true});
+  }
+});
+
+test("le fichier --last-failed est stable par checkout et distinct entre checkouts", () => {
+  assert.equal(fichierDerniereExecution("/a/b"), fichierDerniereExecution("/a/b/"));
+  assert.notEqual(fichierDerniereExecution("/a/b"), fichierDerniereExecution("/a/c"));
+  assert.match(path.basename(fichierDerniereExecution("/a/b")), /^phyto-playwright-last-run-[0-9a-f]{12}\.json$/);
 });

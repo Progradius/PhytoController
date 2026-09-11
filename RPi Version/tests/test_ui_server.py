@@ -89,6 +89,8 @@ class _Zygote:
         )
         self.tampon = b""
         self.journal = b""
+        # Messages reçus mais pas encore attendus : le zygote et l'enfant écrivent sans ordre garanti.
+        self.recus: list[dict] = []
         assert self.attendre(lambda message: message.get("pret"))
 
     def envoyer(self, message: dict) -> None:
@@ -101,11 +103,13 @@ class _Zygote:
             while b"\n" in self.tampon:
                 ligne, self.tampon = self.tampon.split(b"\n", 1)
                 if ligne.startswith(self.PREFIXE):
-                    message = json.loads(ligne[len(self.PREFIXE):])
-                    if condition(message):
-                        return message
+                    self.recus.append(json.loads(ligne[len(self.PREFIXE):]))
                 else:
                     self.journal += ligne + b"\n"
+            for message in self.recus:
+                if condition(message):
+                    self.recus.remove(message)
+                    return message
             reste = fin - time.monotonic()
             selecteur = selectors.DefaultSelector()
             selecteur.register(self.process.stdout, selectors.EVENT_READ)
@@ -120,10 +124,12 @@ class _Zygote:
 
     def demarrer(self, identifiant: int, env: dict) -> tuple[int, int]:
         self.envoyer({"op": "demarrer", "id": identifiant, "env": env})
-        pid = self.attendre(lambda m: m.get("id") == identifiant and "pid" in m)["pid"]
-        port = self.attendre(lambda m: m.get("id") == identifiant and ("port" in m or "mort" in m))
-        assert "port" in port, port
-        return pid, port["port"]
+        fork = self.attendre(lambda m: m.get("id") == identifiant and "pid" in m and "port" not in m)
+        pret = self.attendre(lambda m: m.get("id") == identifiant and ("port" in m or "mort" in m))
+        assert "port" in pret, pret
+        # L'annonce de l'enfant porte son propre PID : c'est le même que celui du fork.
+        assert pret["pid"] == fork["pid"]
+        return pret["pid"], pret["port"]
 
     def arreter(self, identifiant: int, pid: int) -> int:
         self.envoyer({"op": "arreter", "id": identifiant, "pid": pid})
@@ -221,3 +227,9 @@ def test_fork_refuse_des_quun_second_thread_existe():
     finally:
         arret.set()
         thread.join()
+
+
+def test_arreter_un_pid_inconnu_est_refuse_explicitement(zygote):
+    # Un « code: null » silencieux laissait croire à un arrêt réussi d'un serveur jamais arrêté.
+    zygote.envoyer({"op": "arreter", "id": 9, "pid": 1})
+    assert "PID inconnu" in zygote.attendre(lambda m: m.get("id") == 9)["erreur"]

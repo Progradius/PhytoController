@@ -22,7 +22,6 @@
 
 const {test: base, expect} = require("@playwright/test");
 const {spawn} = require("node:child_process");
-const {once} = require("node:events");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -52,7 +51,9 @@ class Zygote {
     if (this.processus) return;
     const processus = spawn(python(), ["tests/ui_server.py", "--zygote"], {stdio: ["pipe", "pipe", "pipe"]});
     this.processus = processus;
-    this.sortie = once(processus, "close");
+    // Pas `once(processus, "close")` : il rejette sur « error » (interpréteur introuvable), et ce
+    // rejet non géré ferait tomber le worker au lieu de rapporter la panne.
+    this.sortie = new Promise(resolve => processus.once("close", resolve));
     let tampon = "";
     processus.stdout.setEncoding("utf8");
     processus.stdout.on("data", morceau => {
@@ -63,11 +64,16 @@ class Zygote {
         tampon = tampon.slice(fin + 1);
         if (!ligne.startsWith(PREFIXE)) { this.noter(ligne + "\n"); continue; }
         const message = JSON.parse(ligne.slice(PREFIXE.length));
-        this.attentes.get(message.id)?.(message);
+        const recevoir = this.attentes.get(message.id);
+        if (recevoir) recevoir(message);
+        // Annonce d'un serveur dont la demande a expiré : personne ne l'attend plus, il est arrêté.
+        else if ("port" in message) this.arreter(message.pid).catch(() => {});
       }
     });
     processus.stderr.on("data", morceau => this.noter(String(morceau)));
     const echec = raison => {
+      // « error » puis « close » pour un interpréteur introuvable : la première raison est la bonne.
+      if (this.panne) return;
       const erreur = new Error(`Zygote des serveurs de test ${raison} :\n${this.diagnostic}`);
       this.panne = erreur;
       for (const recevoir of [...this.attentes.values()]) recevoir({erreur});
@@ -88,27 +94,29 @@ class Zygote {
     this.lancer();
     const id = this.suivant++;
     return new Promise((resolve, reject) => {
-      let pid = null;
+      let pid = null; // connu par le zygote dès le fork, avant l'annonce de l'enfant
       const fin = erreur => {
         clearTimeout(minuterie);
         this.attentes.delete(id);
-        if (erreur) {
-          // Un enfant déjà dupliqué est rendu au zygote, qui l'arrête : aucun serveur perdu.
-          if (pid !== null) this.arreter(pid).catch(() => {});
-          reject(erreur);
-        }
+        if (!erreur) return;
+        // Un enfant déjà dupliqué est rendu au zygote, qui l'arrête ; le rejet n'intervient
+        // qu'ensuite, pour que l'appelant ne supprime pas le `TMPDIR` d'un serveur encore vivant.
+        if (pid === null) return reject(erreur);
+        this.arreter(pid).catch(() => {}).finally(() => reject(erreur));
       };
       const minuterie = setTimeout(
         () => fin(new Error(`Démarrage du serveur de test expiré (${DELAI_DEMARRAGE} ms) :\n${this.diagnostic}`)),
         DELAI_DEMARRAGE);
       this.attentes.set(id, message => {
         if (message.erreur) return fin(message.erreur);
-        if ("pid" in message) { pid = message.pid; return; }
         if ("mort" in message) {
           pid = null;
           return fin(new Error(`Serveur de test arrêté avant d'être prêt (code ${message.mort}) :\n${this.diagnostic}`));
         }
-        if ("port" in message) { fin(); resolve({pid, port: message.port}); }
+        // Le zygote et l'enfant écrivent sans ordre garanti : l'annonce de l'enfant porte son PID
+        // et fait foi (voir le protocole dans `tests/ui_server.py`).
+        if ("port" in message) { fin(); return resolve({pid: message.pid, port: message.port}); }
+        if ("pid" in message) pid = message.pid;
       });
       try { this.envoyer({op: "demarrer", id, env: environnement}); } catch (erreur) { fin(erreur); }
     });
@@ -119,7 +127,11 @@ class Zygote {
     const id = this.suivant++;
     return new Promise((resolve, reject) => {
       this.attentes.set(id, message => {
-        if (message.erreur) { this.attentes.delete(id); return reject(message.erreur); }
+        if (message.erreur) {
+          this.attentes.delete(id);
+          // Panne du zygote (objet `Error`) ou refus du zygote (PID inconnu, message texte).
+          return reject(message.erreur instanceof Error ? message.erreur : new Error(message.erreur));
+        }
         if ("code" in message) { this.attentes.delete(id); resolve(message.code); }
       });
       try { this.envoyer({op: "arreter", id, pid}); } catch (erreur) { this.attentes.delete(id); reject(erreur); }
@@ -150,8 +162,8 @@ const servir = async (zygote, environnement, use) => {
 };
 
 const test = base.extend({
-  // Portée worker : le zygote vit autant que le worker, et meurt avec lui (fin de stdin, ou
-  // PR_SET_PDEATHSIG côté serveurs si le worker est tué).
+  // Portée worker : le zygote vit autant que le worker. Worker parti, même tué : la fin de stdin
+  // fait arrêter au zygote ses serveurs. Zygote tué : PR_SET_PDEATHSIG arrête ses serveurs.
   zygote: [async ({}, use) => {
     const zygote = new Zygote();
     try {

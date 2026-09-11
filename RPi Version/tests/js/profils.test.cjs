@@ -36,6 +36,13 @@ test("un nom de profil n'en valide pas un autre qui le prolonge", () => {
   assert.equal(motif.test(titre({tag: ["@sauf-mobile-chromium-bis"]})), false);
 });
 
+test("un titre sur plusieurs lignes garde ses étiquettes", () => {
+  const details = pour("Une cible suffit.", "desktop-chromium");
+  const chaine = ["carnet.spec.js", "un parcours\nsur deux lignes"].concat(details.tag).join(" ");
+  assert.equal(exclusions("desktop-chromium").test(chaine), false);
+  assert.equal(exclusions("mobile-chromium").test(chaine), true);
+});
+
 test("la raison du choix reste attachée au test", () => {
   assert.deepEqual(pour("Une cible suffit.", "desktop-chromium").annotation,
     {type: "profils", description: "Une cible suffit."});

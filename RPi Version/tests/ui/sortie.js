@@ -12,10 +12,17 @@
 // dans chaque worker ; le processus principal pose donc `PHYTO_UI_RUN_ID` avant de lancer les
 // workers, qui en héritent et retrouvent le même dossier.
 //
-// Les dossiers d'exécutions terminées (PID disparu) sont supprimés par le processus principal
-// suivant : la trace d'un échec reste disponible jusqu'à l'exécution d'après, comme avec le
-// dossier fixe, sans accumulation dans `/tmp`.
+// Deux conséquences traitées ici :
+// * `--last-failed` lit `.last-run.json` dans l'`outputDir` du premier projet, qui change à chaque
+//   exécution : sans fichier trouvé, Playwright **rejoue toute la suite** sans le signaler. Le
+//   fichier de dernière exécution est donc fixé hors de ces dossiers, un par checkout
+//   (`PLAYWRIGHT_LAST_RUN_OUTPUT_FILE`, lue par Playwright après le chargement de la config) ;
+// * les dossiers des exécutions terminées sont supprimés par `nettoyerAnciens()`, appelé depuis le
+//   `globalSetup` — donc seulement au début d'une **vraie** exécution, jamais par un simple
+//   chargement de la config (`npm run test:js` en charge une). La trace d'un échec reste ainsi
+//   disponible jusqu'à l'exécution suivante, comme avec le dossier fixe.
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -41,14 +48,17 @@ const nettoyerAnciens = (racine = os.tmpdir()) => {
   }
 };
 
+/** Fichier `--last-failed` de ce checkout : stable d'une exécution à l'autre. */
+const fichierDerniereExecution = racineDepot => {
+  const empreinte = crypto.createHash("sha1").update(path.resolve(racineDepot)).digest("hex").slice(0, 12);
+  return path.join(os.tmpdir(), `phyto-playwright-last-run-${empreinte}.json`);
+};
+
 /** `outputDir` de l'exécution courante ; appelé par le processus principal comme par les workers. */
 const dossierDeSortie = () => {
-  if (!process.env.PHYTO_UI_RUN_ID) {
-    // Processus principal : premier à évaluer la configuration, avant tout worker.
-    process.env.PHYTO_UI_RUN_ID = String(process.pid);
-    nettoyerAnciens();
-  }
+  // Processus principal : premier à évaluer la configuration, avant tout worker.
+  process.env.PHYTO_UI_RUN_ID ||= String(process.pid);
   return path.join(os.tmpdir(), `${PREFIXE}${process.env.PHYTO_UI_RUN_ID}`);
 };
 
-module.exports = {dossierDeSortie, nettoyerAnciens};
+module.exports = {dossierDeSortie, fichierDerniereExecution, nettoyerAnciens};

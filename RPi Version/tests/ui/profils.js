@@ -70,7 +70,8 @@ const FIN = "(?![\\w-])";
  */
 const exclusions = profil => {
   verifier("exclusions", [profil]);
-  return new RegExp(`@sauf-${profil}${FIN}|^(?!.*@pour-${profil}${FIN}).*@pour-`);
+  // `[\s\S]` et non `.` : un titre sur plusieurs lignes ne doit pas faire perdre ses étiquettes.
+  return new RegExp(`@sauf-${profil}${FIN}|^(?![\\s\\S]*@pour-${profil}${FIN})[\\s\\S]*@pour-`);
 };
 
 module.exports = {PROFILS, pour, sauf, exclusions};

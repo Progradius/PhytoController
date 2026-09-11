@@ -232,17 +232,24 @@ async def servir(port: int, annonce=annoncer) -> None:
 # chaque serveur ne coûte plus que `fork()` + `build_app()`, ≈ 20 ms.
 #
 # Protocole, une ligne JSON par message, préfixée pour la distinguer des journaux :
-#   stdin  {"op": "demarrer", "id": n, "env": {...}}   → stdout {"id": n, "pid": p} puis, de l'enfant,
-#                                                          {"id": n, "port": x}
-#   stdin  {"op": "arreter", "id": n, "pid": p}        → stdout {"id": n, "code": c}
+#   stdin  {"op": "demarrer", "id": n, "env": {...}}   → stdout {"id": n, "pid": p} (zygote), et
+#                                                          {"id": n, "pid": p, "port": x} (enfant prêt)
+#   stdin  {"op": "arreter", "id": n, "pid": p}        → stdout {"id": n, "code": c}, ou
+#                                                          {"id": n, "erreur": "…"} pour un PID inconnu
 #   un enfant mort sans qu'on l'ait arrêté              → stdout {"id": n, "mort": c}
-#   fin de stdin (worker terminé, même tué)             → tous les enfants arrêtés, puis sortie.
+#   fin de stdin (le worker est parti, même tué)        → tous les enfants arrêtés, puis sortie.
+# Le zygote et l'enfant écrivent sur le même tube sans se synchroniser : l'ordre de leurs deux
+# messages n'est pas garanti. L'annonce de l'enfant porte donc son propre PID, et c'est elle qui
+# fait foi ; celle du zygote ne sert qu'à arrêter un enfant qui n'annoncerait jamais son port.
 #
 # Le zygote n'appelle **jamais** `build_app()` et ne crée ni boucle asyncio ni thread : chaque enfant
-# part de l'état d'un processus qui vient d'importer ses modules, exactement comme un interpréteur
-# neuf. Un thread présent au moment du `fork()` pourrait détenir un verrou (journalisation,
-# allocation) que l'enfant hériterait verrouillé à jamais ; le zygote refuse donc de dupliquer un
-# processus qui en a plus d'un.
+# part de l'état d'un processus qui vient d'importer ses modules. Tout ce qui ne dépend que de
+# l'import est donc identique à un interpréteur neuf ; ce qui est **lu dans l'environnement à
+# l'import** (niveau de journalisation `PHYTO_LOG_LEVEL`, par exemple) reste celui du zygote — l'`env`
+# d'une demande ne vaut que pour ce qui est lu après le `fork()`, comme `TMPDIR` ou
+# `PHYTO_UI_MEASURE_SCENARIO`. Un thread présent au moment du `fork()` pourrait détenir un verrou
+# (journalisation, allocation) que l'enfant hériterait verrouillé à jamais ; le zygote refuse donc de
+# dupliquer un processus qui en a plus d'un.
 # ---------------------------------------------------------------------------------------------
 ZYGOTE_PREFIX = "PHYTO_UI_ZYGOTE"
 ARRET_DELAI_SECONDES = 10.0
@@ -287,15 +294,21 @@ def _enfant(identifiant: int, environnement: dict, pid_zygote: int) -> None:
         # `tempfile` mémorise son répertoire au premier appel : sans cette remise à zéro, le
         # `TMPDIR` propre à ce test serait ignoré au profit de celui qu'a vu le zygote.
         tempfile.tempdir = None
-        asyncio.run(servir(0, annonce=lambda port: _repondre({"id": identifiant, "port": port})))
+        def annonce(port: int) -> None:
+            _repondre({"id": identifiant, "pid": os.getpid(), "port": port})
+
+        asyncio.run(servir(0, annonce=annonce))
         code = 0
     except BaseException:  # noqa: BLE001 — l'enfant rapporte tout, puis sort sans remonter
         traceback.print_exc()
     finally:
-        # `os._exit` : ni les `atexit` hérités du zygote, ni un retour dans sa boucle.
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(code)
+        # `os._exit` : ni les `atexit` hérités du zygote, ni un retour dans sa boucle — même si le
+        # vidage échoue (tube fermé par un worker disparu).
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        finally:
+            os._exit(code)
 
 
 def _attendre_sortie(pid: int) -> int:
@@ -359,10 +372,12 @@ def zygote() -> None:
                     pid = demande["pid"]
                     if pid in enfants:
                         del enfants[pid]
-                        code = _attendre_sortie(pid)
+                        _repondre({"id": demande["id"], "code": _attendre_sortie(pid)})
+                    elif pid in morts:
+                        # Déjà récolté : son code, sans signal envoyé à un PID peut-être recyclé.
+                        _repondre({"id": demande["id"], "code": morts.pop(pid)})
                     else:
-                        code = morts.pop(pid, None)
-                    _repondre({"id": demande["id"], "code": code})
+                        _repondre({"id": demande["id"], "erreur": f"zygote : PID inconnu {pid!r}"})
                 else:
                     raise ValueError(f"zygote : opération inconnue {demande['op']!r}")
     finally:

@@ -1,7 +1,11 @@
 const {defineConfig, devices} = require("@playwright/test");
 
 const {PROFILS, exclusions} = require("./tests/ui/profils.js");
-const {dossierDeSortie} = require("./tests/ui/sortie.js");
+const {dossierDeSortie, fichierDerniereExecution} = require("./tests/ui/sortie.js");
+
+// `--last-failed` retrouve la dernière exécution de ce checkout malgré un `outputDir` par
+// exécution (`tests/ui/sortie.js`). Une valeur posée par l'appelant reste prioritaire.
+process.env.PLAYWRIGHT_LAST_RUN_OUTPUT_FILE ||= fichierDerniereExecution(__dirname);
 
 // Chaque profil écarte, avant toute fixture, les tests que `pour()`/`sauf()` lui refusent
 // (`tests/ui/profils.js`). Le nom du projet est la clé de ces étiquettes.
@@ -38,6 +42,8 @@ module.exports = defineConfig({
   testDir: "./tests/ui",
   // Un dossier par exécution : deux exécutions simultanées ne s'effacent pas (`tests/ui/sortie.js`).
   outputDir: dossierDeSortie(),
+  // Suppression des dossiers de résultats des exécutions terminées, au début d'une vraie exécution.
+  globalSetup: require.resolve("./tests/ui/global_setup.js"),
   timeout: 20_000,
   forbidOnly: true,
   // Les tests d'un même fichier se répartissent entre workers : le fichier le plus long ne borne
