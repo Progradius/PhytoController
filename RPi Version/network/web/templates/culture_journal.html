@@ -54,7 +54,6 @@
 <button class="button action-link" type="submit">Afficher le journal</button>
 <a class="button button-secondary action-link" href="/cultures/journal">Retirer les filtres</a>
 </div></details></form>
-{% include 'offline_index.html' %}
 {% if data %}<nav class="culture-links" aria-label="Périodes rapides">{% for window in data.quick %}<a class="action-link" href="{{ query({'start': window.start, 'end': window.end}) }}"><span class="num">{{ window.days }}</span> jours</a>{% endfor %}<a class="action-link" href="{{ query({'start': '', 'end': ''}) }}">Toute la période</a></nav>{% endif %}
 {% if data %}<p class="culture-links"><a class="action-link" href="/api/v1/cultures/journal/export{{ query() }}">Exporter ce filtre en CSV</a></p>{% endif %}
 {% if data %}
@@ -129,5 +128,11 @@
 <label>Précision de la date<select name="precision" data-draft-field>{% for key,label in (('date','Date connue'),('approximative','Date approximative')) %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
 <label>Observation<textarea name="note" maxlength="4000" data-draft-field required></textarea></label>
 {{ confirm() }}<button class="button" type="submit">Enregistrer l’observation</button><output role="status" aria-live="polite"></output></form></details></section>
-{% endif %}{% endblock %}
+{% endif %}
+{# Index des copies hors ligne (fragment partagé, jamais recopié) **après** les opérations et
+   l'observation d'espace : c'est une information sur cet appareil, pas le contenu du journal.
+   Placé avant, il repoussait « Opérations du carnet » sous le premier écran à 390 × 844
+   (fiche R2.8). Hors du bloc conditionnel `data` : un carnet indisponible garde son inventaire, qui
+   est alors précisément ce qu'on vient chercher. #}
+{% include 'offline_index.html' %}{% endblock %}
 {% block page_scripts %}<script src="/static/js/culture_analysis.js?v={{ asset_versions.culture_analysis }}" defer></script><script src="/static/js/culture_forms.js?v={{ asset_versions.culture_forms }}" defer></script><script src="/static/js/culture_journal.js?v={{ asset_versions.culture_journal }}" defer></script>{% endblock %}

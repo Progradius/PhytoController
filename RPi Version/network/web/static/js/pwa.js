@@ -528,16 +528,35 @@
     notice.hidden = false;
   };
 
+  // iPhone, iPod ou iPad. L'iPad récent se déclare « MacIntel » : seul un écran tactile
+  // (`maxTouchPoints`) le sépare d'un ordinateur de bureau. Une seule définition, partagée
+  // par l'aide d'installation et par l'aide de refus des notifications.
+  const appareilApple = (userAgent = "", platform = "", maxTouchPoints = 0) => (
+    /iPhone|iPad|iPod/.test(String(userAgent)) || (platform === "MacIntel" && Number(maxTouchPoints) > 1)
+  );
+
+  // Fonction **pure**, comme `notificationDenialHelp` : l'aide d'installation affichée quand
+  // aucune invite `beforeinstallprompt` n'existe (fiche R2.4). Elle ne promet rien que la
+  // plateforme ne fasse : sur iOS et iPadOS, l'ouverture comme web app d'un site ajouté à
+  // l'écran d'accueil est le comportement du système depuis la version 26 — le texte le
+  // dit tel quel et laisse la vérification sur appareil à la qualification (R4.1).
+  const installationHelp = (userAgent = "", platform = "", maxTouchPoints = 0, secure = true) => {
+    if (!secure) return "Ouvrez l’adresse HTTPS du contrôleur et approuvez son certificat local avant l’installation.";
+    if (appareilApple(userAgent, platform, maxTouchPoints)) {
+      return "Sur iPhone ou iPad : ouvrez cette page dans Safari, puis Partager (ou menu ⋯ → Partager) → Sur l’écran d’accueil. "
+        + "Depuis iOS et iPadOS 26, un site ajouté à l’écran d’accueil s’ouvre comme une web app, sans la barre de Safari.";
+    }
+    if (/Firefox/.test(String(userAgent))) return "Dans Firefox Android : menu → Installer. Sur ordinateur, utilisez un raccourci vers cette page.";
+    return "Dans le menu du navigateur, choisissez Installer l’application ou Ajouter à l’écran d’accueil.";
+  };
+  window.PhytoPwa.installationHelp = installationHelp;
+
   const configureInstallation = () => {
     const button = document.getElementById("pwa-install-button");
     if (!button) return;
     const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
     pwaState("install", standalone ? "Application installée" : "Application ouverte dans le navigateur");
-    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const help = !window.isSecureContext ? "Ouvrez l’adresse HTTPS du contrôleur et approuvez son certificat local avant l’installation."
-      : ios ? "Sur iPhone ou iPad : ouvrez dans Safari, puis Partager → Sur l’écran d’accueil."
-      : /Firefox/.test(navigator.userAgent) ? "Dans Firefox Android : menu → Installer. Sur ordinateur, utilisez un raccourci vers cette page."
-      : "Dans le menu du navigateur, choisissez Installer l’application ou Ajouter à l’écran d’accueil.";
+    const help = installationHelp(navigator.userAgent, navigator.platform, navigator.maxTouchPoints, window.isSecureContext);
     document.querySelectorAll("[data-pwa-install-help]").forEach(node => { node.textContent = help; });
     if (standalone || !window.isSecureContext) return;
     window.addEventListener("beforeinstallprompt", (event) => {
@@ -734,11 +753,11 @@
   // la rend vérifiable — un test peut lui présenter trois agents utilisateur et lire le
   // libellé rendu, ce qu'une chaîne de ternaires enfouie dans un rendu ne permettait pas.
   // Aucune promesse de Web Push : on ne dit jamais que la notification arrivera
-  // application fermée. L'iPad récent se déclare « MacIntel » : seul un écran tactile
-  // (`maxTouchPoints`) le sépare d'un ordinateur de bureau.
+  // application fermée. La détection iPhone/iPad est `appareilApple`, commune à l'aide
+  // d'installation.
   const notificationDenialHelp = (userAgent = "", platform = "", maxTouchPoints = 0) => {
     const ua = String(userAgent);
-    const settings = /iPhone|iPad|iPod/.test(ua) || (platform === "MacIntel" && Number(maxTouchPoints) > 1)
+    const settings = appareilApple(ua, platform, maxTouchPoints)
       ? "les réglages Notifications de l’application ajoutée à l’écran d’accueil sur iOS"
       : /Firefox/.test(ua) ? "les permissions de ce site dans Firefox"
       : /Chrome|Chromium|Edg/.test(ua) ? "les paramètres de ce site dans votre navigateur Chromium"

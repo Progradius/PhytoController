@@ -455,3 +455,6 @@ async def test_journal_gabarit_photo_brouillon_et_inventaire_partage(web_context
     assert html.count("data-culture-offline-index") == 1
     assert 'id="copies"' in html and "data-offline-latest" in html
     assert "data-offline-local" not in html
+    # R2.8 : l'index des copies suit les opérations et l'observation d'espace ; placé avant,
+    # il repoussait « Opérations du carnet » sous le premier écran d'un téléphone.
+    assert html.index("<h2>Opérations du carnet</h2>") < html.index('id="observation"') < html.index('id="copies"')

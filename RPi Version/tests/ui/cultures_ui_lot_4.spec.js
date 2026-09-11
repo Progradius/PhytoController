@@ -615,4 +615,20 @@ test("R1.7 : la page affiche 1,45 quand la valeur persistée reste 1.45000000000
   await article.getByText("Corriger cette saisie", {exact: true}).click();
   await expect(page.locator('.solution-journal [data-solution-entry] [name="ec"]').first())
     .toHaveValue(String(mesure));
+
+  // Vue Analyser (écart E2) : l'infobulle `<title>` d'un point et les graduations suivent la
+  // même règle d'arrondi — `formatNombre`, deux décimales — et jamais la donnée brute. Le
+  // renouvellement ne porte aucune EC : il n'a pas de point, donc aucune infobulle qui
+  // pourrait écrire « null » ou « undefined » à sa place.
+  await page.goto("/cultures/solutions?target=reservoir_2&view=analyser");
+  const figureEc = page.locator('svg[data-metric="ec"]');
+  const infobulles = figureEc.locator("circle > title");
+  await expect(infobulles).toHaveCount(1);
+  await expect(infobulles.first()).toHaveText(/^[^:]+ : 1,45 mS\/cm · /);
+  const textes = await figureEc.evaluate(svg => [...svg.querySelectorAll("title, text")].map(node => node.textContent));
+  expect(textes.join(" | ")).not.toMatch(/1\.45|null|undefined|NaN/);
+  expect(textes).toContain("1,45");
+  const infobullePh = page.locator('svg[data-metric="ph"] circle > title');
+  await expect(infobullePh).toHaveCount(1);
+  await expect(infobullePh.first()).toHaveText(/^[^:]+ : 6,10 · /);
 });

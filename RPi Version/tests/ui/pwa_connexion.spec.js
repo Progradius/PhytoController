@@ -93,6 +93,9 @@ for (const cas of [
     nom: "iPhone",
     userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
     attendu: "Partager", absent: "Dans le menu du navigateur",
+    // Fiche R2.4 : l'aide iOS/iPadOS dit que les sites ajoutés s'ouvrent comme web apps
+    // depuis la version 26.
+    mention: "Depuis iOS et iPadOS 26, un site ajouté à l’écran d’accueil s’ouvre comme une web app",
   },
   {
     nom: "Android/Chromium",
@@ -118,6 +121,9 @@ for (const cas of [
       // Le texte servi par le gabarit cite les deux plateformes : son remplacement par
       // l'aide de la plateforme détectée se prouve par ce qui a **disparu**.
       await expect(aide).not.toContainText(cas.absent);
+      if (cas.mention) await expect(aide).toContainText(cas.mention);
+      // La mention iOS n'a rien à faire dans l'aide d'une autre plateforme.
+      else await expect(aide).not.toContainText("iOS");
       await expect(page.locator("main [data-pwa-install-state]")).toContainText("Application ouverte dans le navigateur");
     } finally {
       await context.close();
@@ -147,6 +153,35 @@ test("l’aide de refus des notifications s’adapte au navigateur", async ({pag
   // L'iPad récent se déclare « MacIntel » : seul l'écran tactile le distingue.
   expect(await libelle("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.5 Safari/605.1.15", "MacIntel", 5))
     .toContain("écran d’accueil sur iOS");
+});
+
+// R2.4 — l'aide d'installation est, elle aussi, une fonction pure : chaque branche se lit
+// ici, y compris l'iPad « MacIntel » et le contexte non sécurisé, qu'aucun agent
+// utilisateur simulé du test de rendu ne couvre.
+test("l’aide d’installation s’adapte à la plateforme sans rien promettre de plus", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== CIBLE, "Fonction pure, une cible suffit.");
+  await page.goto("/app");
+  const aide = (userAgent, platform, touches, secure = true) => page.evaluate(
+    ([ua, plateforme, points, sur]) => window.PhytoPwa.installationHelp(ua, plateforme, points, sur),
+    [userAgent, platform, touches, secure]);
+  const MENTION_IOS_26 = "Depuis iOS et iPadOS 26, un site ajouté à l’écran d’accueil s’ouvre comme une web app, sans la barre de Safari.";
+
+  const iphone = await aide("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Version/26.0 Mobile/15E148 Safari/604.1", "iPhone", 5);
+  expect(iphone).toContain("Partager (ou menu ⋯ → Partager) → Sur l’écran d’accueil.");
+  expect(iphone).toContain(MENTION_IOS_26);
+  // L'iPad récent se déclare « MacIntel » : seul l'écran tactile le distingue d'un Mac.
+  expect(await aide("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/26.0 Safari/605.1.15", "MacIntel", 5))
+    .toContain(MENTION_IOS_26);
+  expect(await aide("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/26.0 Safari/605.1.15", "MacIntel", 0))
+    .not.toContain("iOS");
+  expect(await aide("Mozilla/5.0 (Android 14; Mobile; rv:127.0) Gecko/127.0 Firefox/127.0", "Linux armv8l", 5))
+    .toBe("Dans Firefox Android : menu → Installer. Sur ordinateur, utilisez un raccourci vers cette page.");
+  expect(await aide("Mozilla/5.0 (Linux; Android 14; Pixel 5) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36", "Linux armv8l", 5))
+    .toBe("Dans le menu du navigateur, choisissez Installer l’application ou Ajouter à l’écran d’accueil.");
+  // Hors contexte sécurisé, aucune installation n'est possible : l'aide renvoie au certificat,
+  // quelle que soit la plateforme.
+  expect(await aide("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Version/26.0 Mobile/15E148 Safari/604.1", "iPhone", 5, false))
+    .toBe("Ouvrez l’adresse HTTPS du contrôleur et approuvez son certificat local avant l’installation.");
 });
 
 test("un raté isolé ne bascule pas l’interface en lecture seule", async ({page}, testInfo) => {

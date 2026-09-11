@@ -18,7 +18,7 @@
 <button type="button" class="button button-secondary" data-light-preset hidden>Utiliser le repère proposé</button>
 <p class="culture-note num" data-light-preview role="status">{{ target.get('on_minutes', 1080) }} min d’éclairage par jour. Le changement de stade conserve cette durée ; le bouton proposé permet de la remplacer.</p>
 <label>Début de validité<input type="date" name="start_at" value="{{ target.get('start_at', data.today) }}" required></label>
-<label>Fin de validité (facultative)<input type="date" name="end_at" value="{{ target.get('end_at','') }}"></label>
+<label>Fin de validité (facultative)<input type="date" name="end_at" value="{{ target.get('end_at') or '' }}"></label>
 <label>Note<textarea name="note" maxlength="4000">{{ target.get('note','') }}</textarea></label>
 {% if target %}<label>Motif de la correction<input name="reason" maxlength="500" required></label>{% endif %}
 {{ confirm() }}<button class="button" type="submit">{{ 'Corriger le repère' if target else 'Enregistrer le repère' }}</button><output role="status"></output></form>
@@ -78,7 +78,7 @@
 <p class="num">Jour/nuit : {{ data.operational.day_night.start }} → {{ data.operational.day_night.stop }} · source {{ 'minuterie quotidienne 1' if data.operational.day_night.source == 'dailytimer1' else 'horaires personnalisés' }}{% if data.operational.day_night.empty %} · plage vide{% endif %}. Ces règles proviennent des réglages existants et sont affichées telles quelles : le carnet ne les recalcule pas et ne les modifie pas.</p>
 <nav class="culture-links" aria-label="Réglages liés"><a class="action-link" href="/conf#motor">Réglages de la ventilation</a><a class="action-link" href="/conf#day-night">Réglages jour/nuit</a><a class="action-link" href="/conf#daily-timer-1">Éclairage 1</a><a class="action-link" href="/conf#daily-timer-2">Éclairage 2</a></nav></section>
 <section id="reperes" class="culture-section"><h2>Repères enregistrés</h2>
-<form method="get" class="culture-form">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}<input type="hidden" name="focus" value="{{ filters.get('focus','') }}"><input type="hidden" name="at" value="{{ filters.get('at','') }}">
+<form method="get" class="culture-form" data-offline-filter aria-label="Filtre des repères enregistrés">{% for id in culture_subjects %}<input type="hidden" name="subject" value="{{ id }}">{% endfor %}<input type="hidden" name="focus" value="{{ filters.get('focus','') }}"><input type="hidden" name="at" value="{{ filters.get('at','') }}">
 <label>Portée<select name="scope"><option value="">Toutes</option>{% for key,name in scopes.items() %}<option value="{{ key }}"{% if filters.get('scope') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <label>Stade<select name="stage"><option value="">Tous</option>{% for key,name in stages.items() %}<option value="{{ key }}"{% if filters.get('stage') == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
 <button class="button" type="submit">Filtrer</button></form>

@@ -548,7 +548,6 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   /* Le surtitre répète le titre qui le suit (« Pilotage » / « Équipements », « Mesures » /
      « Capteurs actifs ») : une ligne pleine par section pour le redire autrement. */
   .dashboard-section > .section-heading .eyebrow { display:none; }
-  .actuator-group-title { font-size:.78rem; }
   .dashboard-section, .dashboard-fold { margin-block:.45rem; }
   .card-grid { gap:.4rem; }
   .ui-compact-header .control-overview { padding:.4rem; margin:.2rem 0; }

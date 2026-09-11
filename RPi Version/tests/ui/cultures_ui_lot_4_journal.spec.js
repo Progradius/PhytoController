@@ -145,3 +145,37 @@ test("journal : filtres rapides 7 et 30 jours calculés sur la date du carnet", 
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
   await page.screenshot({path: testInfo.outputPath("journal-periodes-rapides.png"), fullPage: true});
 });
+
+// R2.8 (écart E5) : à 390 × 844, la liste des opérations commence dans le premier écran. La
+// recherche visible en tête et le titre « Opérations du carnet » y tiennent tous deux ; l'index
+// des copies hors ligne — fragment partagé — reste présent, mais après les opérations. Placé
+// avant, il repoussait le titre à y ≈ 865, sous la ligne de flottaison.
+test("journal : les opérations commencent dans le premier écran d’un téléphone", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Critère de premier écran à 390 × 844, mesuré sur le profil mobile de référence.");
+  test.setTimeout(90000);
+  await createMother(page, "Mère premier écran");
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto("/cultures/journal");
+  await expect(page.locator("article.culture-journal-entry").first()).toBeVisible();
+  const positions = await page.evaluate(() => {
+    const titre = [...document.querySelectorAll("h2")].find(node => node.textContent.trim() === "Opérations du carnet");
+    const boite = node => node.getBoundingClientRect();
+    return {
+      defilement: scrollY,
+      hauteur: innerHeight,
+      titreBas: titre ? boite(titre).bottom : null,
+      rechercheBas: boite(document.querySelector('form[data-journal-search] [name="q"]')).bottom,
+      titreHaut: titre ? boite(titre).top : null,
+      copiesHaut: boite(document.getElementById("copies")).top,
+    };
+  });
+  await testInfo.attach("positions-premier-ecran", {body: JSON.stringify(positions), contentType: "application/json"});
+  expect(positions.defilement).toBe(0);
+  expect(positions.hauteur).toBe(844);
+  expect(positions.titreBas, "« Opérations du carnet » doit tenir dans le premier écran").not.toBeNull();
+  expect(positions.titreBas).toBeLessThanOrEqual(positions.hauteur);
+  expect(positions.rechercheBas).toBeLessThanOrEqual(positions.hauteur);
+  // L'index des copies n'a pas disparu : il suit les opérations.
+  await expect(page.locator("#copies [data-culture-offline-index]")).toHaveCount(1);
+  expect(positions.copiesHaut).toBeGreaterThan(positions.titreHaut);
+});

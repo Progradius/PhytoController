@@ -263,24 +263,33 @@
   // parlent le même vocabulaire. Le repli reste `p.target`, qui est alors tout ce qu'on a.
   const sourceLabel = p => sourceLabels.get(p.variant) ?? `${p.target} · solution ${p.period || "manuelle"}`;
   const sourceName = p => sourceNames.get(p.variant) ?? p.target;
+  // Précision métier des deux mesures du carnet (fiche R1.7 : pH 2, EC 2). Tout nombre
+  // **affiché** par ce script — phrase du curseur, tableau équivalent, infobulle d'un point
+  // ou d'une plage, graduations — passe par `formatNombre`, l'unique règle d'arrondi côté
+  // navigateur. Les données `data-chart` restent brutes.
+  const DECIMALES = 2;
+  const nombre = value => window.PhytoCultureAnalysis.formatNombre(value, DECIMALES);
+  // Une absence s'écrit comme partout ailleurs dans le carnet : jamais « null », jamais 0.
+  const absente = value => value === null || value === undefined;
+  const valeur = value => absente(value) ? "mesure absente" : nombre(value);
   document.querySelectorAll("svg[data-metric]").forEach(svg => {
     const metric = svg.dataset.metric;
+    const unite = metric === "ec" ? " mS/cm" : "";
+    const agregats = p => `${p[metric + "_count"]} mesures, min ${nombre(p[metric + "_min"])}, max ${nombre(p[metric + "_max"])}`;
     // Le nom de la source dit déjà la cible **et** la période : il tient la place des deux,
     // et remplace le « repère : … » qui les répétait une troisième fois.
-    const describe = p => `${p.label} : ${p[metric] === null ? 'mesure absente' : window.PhytoCultureAnalysis.formatNombre(p[metric], 2)} ${metric === 'ec' ? 'mS/cm' : ''} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_min"], 2)}, max ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_max"], 2)}` : ""} · ${p.annotations.join(', ')}`;
+    const describe = p => `${p.label} : ${valeur(p[metric])}${unite} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${agregats(p)}` : ""} · ${p.annotations.join(', ')}`;
     // Tableau équivalent : une colonne par nature de donnée. Une lacune s'écrit
     // « mesure absente » dans la colonne valeur, jamais 0.
     const columns = ["Date", "Valeur", "Unité", "Cible ou capteur", "Période", "Agrégats", "Lacune"];
     const cells = p => [
       p.at,
-      p[metric] === null ? "mesure absente" : window.PhytoCultureAnalysis.formatNombre(p[metric], 2),
+      valeur(p[metric]),
       metric === "ec" ? "mS/cm" : "sans unité",
       sourceName(p),
       p.period || "manuelle",
-      p[metric + "_count"]
-        ? `${p[metric + "_count"]} mesures, min ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_min"], 2)}, max ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_max"], 2)}`
-        : "aucun agrégat",
-      p[metric] === null ? "oui" : "non",
+      p[metric + "_count"] ? agregats(p) : "aucun agrégat",
+      absente(p[metric]) ? "oui" : "non",
     ];
     const rows = points.map(p => ({text: describe(p), cells: cells(p)}));
     // Le dessin ne dépend jamais de l'explorateur : un asset manquant (précache partiel,
@@ -292,18 +301,18 @@
       const width = svg.getBoundingClientRect().width || 240;
       svg.setAttribute("viewBox", `0 0 ${width} 220`);
       const right = width - 20, span = right - 60;
-      const metric = svg.dataset.metric, measured = points.filter(p => p[metric] !== null);
+      const metric = svg.dataset.metric, measured = points.filter(p => !absente(p[metric]));
       if (!measured.length) { svg.append(svgNode("text", {x: 30, y: 100}, "Aucune mesure")); refreshSelection([]); return; }
       const times = points.map(p => Date.parse(p.at)), low = Math.min(...times), high = Math.max(...times);
       // Lot E : les bornes cibles n'écrasent pas l'échelle des mesures ; elles l'élargissent
       // seulement quand elles sont présentes, pour rester lisibles sans déformer la courbe.
-      const metricBands = bands.filter(b => b[metric + "_min"] !== null || b[metric + "_max"] !== null);
-      const bandValues = metricBands.flatMap(b => [b[metric + "_min"], b[metric + "_max"]].filter(v => v !== null && v !== undefined));
+      const metricBands = bands.filter(b => !absente(b[metric + "_min"]) || !absente(b[metric + "_max"]));
+      const bandValues = metricBands.flatMap(b => [b[metric + "_min"], b[metric + "_max"]].filter(v => !absente(v)));
       const values = measured.flatMap(p => [p[metric + "_min"] ?? p[metric], p[metric + "_max"] ?? p[metric]]).concat(bandValues), min = Math.min(...values), max = Math.max(...values);
       const x = p => 60 + span * (high === low ? 0.5 : (Date.parse(p.at) - low) / (high - low));
       const y = p => 160 - 115 * (max === min ? 0.5 : (p[metric] - min) / (max - min));
       svg.append(svgNode("path", {d: `M60 25V170H${right}`, class: "solution-axis"}));
-      svg.append(svgNode("text", {x: 4, y: 45}, max.toFixed(2)), svgNode("text", {x: 4, y: 160}, min.toFixed(2)));
+      svg.append(svgNode("text", {x: 4, y: 45}, nombre(max)), svgNode("text", {x: 4, y: 160}, nombre(min)));
       // Lot E : bandes de référence, tracées avant les mesures pour rester en arrière-plan.
       // Elles ne couvrent que la période où la plage a été résolue : aucune extrapolation.
       const xAt = at => 60 + span * (high === low ? 0.5 : (Date.parse(at) - low) / (high - low));
@@ -311,15 +320,15 @@
       metricBands.forEach(band => {
         const left = xAt(band.start), right = Math.max(xAt(band.end), left + 4);
         const lower = band[metric + "_min"], upper = band[metric + "_max"];
-        const title = `Plage cible ${band.label || ""} · ${lower === null || lower === undefined ? "sans minimum" : lower} à ${upper === null || upper === undefined ? "sans maximum" : upper}`;
-        if (lower !== null && lower !== undefined && upper !== null && upper !== undefined) {
+        const title = `Plage cible ${band.label || ""} · ${absente(lower) ? "sans minimum" : nombre(lower)} à ${absente(upper) ? "sans maximum" : nombre(upper)}`;
+        if (!absente(lower) && !absente(upper)) {
           const rect = svgNode("rect", {x: left, y: yValue(upper), width: right - left,
             height: Math.max(yValue(lower) - yValue(upper), 1), class: "solution-target-band"});
           rect.append(svgNode("title", {}, title)); svg.append(rect);
           return;
         }
         // Une seule borne reste une seule borne : jamais complétée par une valeur inventée.
-        const bound = lower !== null && lower !== undefined ? lower : upper;
+        const bound = absente(lower) ? upper : lower;
         const edge = svgNode("path", {d: `M${left} ${yValue(bound)}H${right}`, class: "solution-target-edge"});
         edge.append(svgNode("title", {}, title)); svg.append(edge);
       });
@@ -338,7 +347,7 @@
       // par redessin à la borne de 2 000 points.
       const places = [];
       points.forEach((p, i) => {
-        if (p[metric] === null) return;
+        if (absente(p[metric])) return;
         if (p[metric + "_count"]) {
           svg.append(svgNode("path", {d: `M${x(p)} ${y({...p, [metric]: p[metric + "_min"]})}V${y({...p, [metric]: p[metric + "_max"]})}`, class: "solution-range"}));
         }
@@ -347,7 +356,9 @@
         const classes = ["solution-dot"];
         if (p.variant !== undefined && p.variant !== null) classes.push(`solution-source-${p.variant}`);
         const dot = svgNode("circle", {cx: x(p), cy: y(p), r: 5, class: classes.join(" "), "data-analysis-index": i});
-        dot.append(svgNode("title", {}, `${p.label} : ${p[metric]} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${p[metric + "_count"]} mesures, min ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_min"], 2)}, max ${window.PhytoCultureAnalysis.formatNombre(p[metric + "_max"], 2)}` : ""}`)); svg.append(dot);
+        // Même phrase que le curseur, moins les annotations (tracées à part) : la valeur
+        // arrondie par `formatNombre`, jamais la donnée brute.
+        dot.append(svgNode("title", {}, `${p.label} : ${valeur(p[metric])}${unite} · ${p.at} · ${sourceLabel(p)}${p[metric + "_count"] ? ` · ${agregats(p)}` : ""}`)); svg.append(dot);
         places[i] = {x: x(p), y: y(p)};
       });
       refreshSelection(places);

@@ -114,6 +114,21 @@ test("repères : consultation datée hors ligne, aucune mutation rejouée", asyn
   const annulation = article.locator("form").filter({hasText: "Motif de l’annulation"});
   await expect(annulation.getByRole("button", {name: "Annuler le repère"})).toBeDisabled();
   await expect(annulation.locator('input[name="reason"]')).toBeDisabled();
+  // R2.5 (écart E3) : les deux filtres serveur de la page — sélecteur espace/culture et date,
+  // puis Portée/Stade des repères — sont **déclarés** comme tels (`data-offline-filter`), et
+  // non rattrapés par le discriminant de repli ; hors ligne, chacun est désactivé et suivi,
+  // hors du formulaire, de la note qui l'explique.
+  const filtres = page.locator('form[method="get"]');
+  await expect(filtres).toHaveCount(2);
+  for (const filtre of [page.locator("form#selection"), page.locator("#reperes form[method=\"get\"]")]) {
+    await expect(filtre).toHaveAttribute("data-offline-filter", "");
+    await expect(filtre.locator("select").first()).toBeDisabled();
+    await expect(filtre.locator("xpath=following-sibling::*[1]")).toHaveText(
+      "Filtre indisponible hors ligne : seules les données conservées sont affichées");
+    await expect(filtre.locator("xpath=following-sibling::*[1]")).toHaveAttribute("data-offline-filter-note", "");
+  }
+  await expect(page.locator("#reperes form[method=\"get\"] select[name=\"scope\"]")).toBeDisabled();
+  await expect(page.locator("#reperes form[method=\"get\"] select[name=\"stage\"]")).toBeDisabled();
   await page.context().setOffline(false);
   await page.reload();
   await expect(page.locator('meta[name="phyto-offline-snapshot"]')).toHaveCount(0);

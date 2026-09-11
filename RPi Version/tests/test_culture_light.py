@@ -274,6 +274,11 @@ async def test_page_eclairage_selecteur_puis_declare_puis_applique(web_context):
     assert "Repère consulté" in body and "Une culture" in body
     # Horaires et état relu restent dans « Appliqué maintenant », après le déclaré.
     assert body.index("<h2>Appliqué maintenant</h2>") < body.index('data-light-applied="space_1"')
+    # R2.5 : les deux formulaires GET de la page sont des filtres serveur **déclarés**.
+    assert body.count('<form method="get"') == 2
+    assert body.count('<form method="get"') == body.count("data-offline-filter")
+    # Un repère sans fin déclarée ne propose pas « None » comme date de fin à corriger.
+    assert 'value="None"' not in body
 
     # Aucune rétroactivité : avant son début, le repère ne s'applique pas.
     avant = await (await client.get("/cultures/light?at=2026-05-01")).text()

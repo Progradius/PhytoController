@@ -168,6 +168,27 @@ test("la police de marque est réellement décodable", async ({page}) => {
   })).toBe(true);
 });
 
+// R5.1 : les petits libellés (titres de groupe d'équipements, surtitres, en-têtes de carte)
+// passent en police système et ne descendent jamais sous 0,85 rem — y compris sous la
+// densité mobile du tableau, qui les ramenait à 0,78 rem (écart E1).
+test("les petits libellés restent en police système et à 0,85 rem au moins", async ({page}) => {
+  await page.goto("/");
+  const libelles = await page.evaluate(() => {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return [...document.querySelectorAll(".actuator-group-title, .eyebrow, .card-kicker")]
+      .filter((node) => node.getClientRects().length > 0)
+      .map((node) => {
+        const style = getComputedStyle(node);
+        return {texte: node.textContent.trim(), ratio: parseFloat(style.fontSize) / rem, police: style.fontFamily};
+      });
+  });
+  expect(libelles.some((item) => item.texte), "au moins un petit libellé doit être visible").toBe(true);
+  for (const item of libelles) {
+    expect(item.ratio, `« ${item.texte} »`).toBeGreaterThanOrEqual(0.85);
+    expect(item.police, `« ${item.texte} »`).not.toContain("Visitor");
+  }
+});
+
 test("un service partiellement indisponible ne simule pas une coupure réseau", async ({page}) => {
   await page.goto("/");
   // L'état injecté est relevé dans le même tour d'exécution : une réponse fraîche du contrôleur
