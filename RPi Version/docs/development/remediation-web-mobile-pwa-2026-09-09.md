@@ -814,7 +814,11 @@ du lot.
 
 ---
 
-## État d'avancement — reprise du 10 septembre 2026
+## État d'avancement — livraison du 11 septembre 2026
+
+Section écrite avec le plan (`ada577f`) avant la remesure finale, puis **revérifiée le 11 septembre 2026
+contre les commits de livraison** : chiffres réalignés sur la mesure finale, statuts des fiches dont
+l'acceptation n'est pas démontrée corrigés, écarts résiduels listés en fin de section.
 
 Une première implémentation avait couvert **tous les lots en surface** (deux salves d'écriture, 10 h 19
 à 10 h 24 puis 15 h 50 à 16 h 00, arrêtée en plein milieu, rien de commité) : gabarits compressés,
@@ -835,14 +839,22 @@ qui rechargent masquait le rôle « lien » et n'offrait aucune navigation par f
 **Preuves** : `docs/images/remediation-web-mobile-pwa-2026-09-09/` (mesures « après » au format de
 l'audit, comparateur `scripts/compare-measures.py`, rapport de contrastes et simulation
 deutéranopie/protanopie, captures) ; `docs/development/web-perf-baseline-2026-09-10.md` (banc HTTP
-30/90/365 jours, temps navigateur, budgets provisoires). À 390 px : tableau de bord 5 035 → 2 514 px
-(R1.2, ≤ 2 517), relevés de Solutions −40,1 % (R1.6), vue Analyser 3 022 → 1 899 px (R2.3, < 2 000),
-entrées du journal −37,8 % (R2.8) ; 0 violation axe sur 128 relevés dans les deux thèmes, 0 paire de
-contraste sous les seuils 4,5:1 / 3:1.
+30/90/365 jours, temps navigateur, budgets provisoires). Les chiffres qui font foi sont ceux du
+`README.md` de ce dossier et de `measures-apres-final.json` (`08a4815`). À 390 px, thème sombre :
+tableau de bord 2 514 px (R1.2, ≤ 2 517) ; relevés de Solutions 1 881 px sur `?view=releves`, soit
+−42,3 % par rapport aux 3 259 px de l'audit (R1.6 — les deux carnets diffèrent) ; vue Analyser
+1 754 px (R2.3, < 2 000) ; journal 115 px par entrée, la réduction d'un tiers restant **non
+vérifiable** faute d'un « avant » à 20 lignes (R2.8) ; 0 violation axe sur les 130 relevés qui
+portent une analyse (140 entrées au total), 0 paire de contraste sous les seuils 4,5:1 / 3:1
+(138 paires en sombre, 135 en plein jour). Hauteurs en hausse, carnets de mesure différents de
+ceux de l'audit : journal 1 250 → 2 797 px, plages cibles 999 → 1 600 px, éclairage
+2 762 → 3 862 px, cultures 2 159 → 2 852 px.
+
+Suites : `python3 -m pytest` 914 réussis, `npm run test:js` 9 réussis (11 septembre 2026).
 
 | Fiche | État | Ce qui a été fait, ce qui reste hors de portée ici |
 | --- | --- | --- |
-| R0.1 | **Fait** | `measure_pages.js` au format de `measures.json` (clés de l'audit conservées, ajouts en plus), 12 pages × 3 largeurs × 2 thèmes, états ouverts, refusé, menu, zoom police et `deviceScaleFactor`, bannière hors ligne réellement mesurée, alarme critique ; comparateur ±2 % `scripts/compare-measures.py` (`npm run measure:compare`) ; port dédié 40123, aucune requête sortante, mutations refusées sur cible externe |
+| R0.1 | **Fait, acceptation partielle** | `measure_pages.js` au format de `measures.json` (clés de l'audit conservées, ajouts en plus), 12 pages + 2 vues de Solutions × 3 largeurs × 2 thèmes (140 entrées), états ouverts, refusé, menu, zoom police et `deviceScaleFactor`, bannière hors ligne réellement mesurée, alarme critique ; comparateur ±2 % `scripts/compare-measures.py` (`npm run measure:compare`) ; port dédié 40123, aucune requête sortante, mutations refusées sur cible externe. Reproductibilité de l'outil prouvée (+0,00 % d'une exécution à l'autre) ; le rejeu à ±2 % de la baseline de l'audit n'est **pas** démontré (carnet de mesure différent), un seul JSON final au lieu d'un par lot ; serveur unique assumé (`measure_pages.js:85`) |
 | R0.2 | **Fait** (Pi : opérateur) | Banc HTTP 30/90/365 j, mode `--base-url` GET seul, temps navigateur (contenu visible, ouverture de formulaire, interaction graphique, retour après enregistrement, mémoire), budgets provisoires dérivés de la mesure et à confirmer sur Pi/téléphone (R4.2) |
 | R0.3 | **Fait** | 8 macros, toutes employées par au moins une page, clés optionnelles gardées, `role="list"` ; 31 tests rendent chaque macro sous `StrictUndefined` et compilent les exemples de `contributing.md` ; axe vert sur une page témoin par macro (`qualification.spec.js`) |
 | R1.1 | **Fait** | Résumé court (actives, gravité max, dernière occurrence), occurrence la plus grave développée, trois lignes via `alarm_summary`, phrase d'acquittement, `Actualiser` ; `alarms.js` reconstruit **exactement** le balisage du serveur (test d'équivalence lisant le HTML serveur avant tout sondage) ; première alarme critique et son action dans le premier écran à 390 × 844 (mesuré) |
@@ -850,31 +862,50 @@ contraste sous les seuils 4,5:1 / 3:1.
 | R1.3 | **Fait** | Barre Serre · Cultures · Alarmes · Plus, `aria-current` sur toute page du carnet, onglet actif ramené à la vue, sélecteur de rubrique préparé non activé, focus rendu à l'onglet emprunté au retour ; tests 320 × 568 et 568 × 320 (aller-retour, ≥ 50 % de hauteur utile) |
 | R1.4 | **Fait** | Région nommée sans `aria-live`, `<output role="status">`, outils repliés sur mobile seulement (`<details open>` servi, `summary` masqué au bureau, refermé sous 760 px par `matchMedia`), repli presse-papiers testé, `/console` dans la passe axe (deux thèmes) |
 | R1.5 | **Fait** | Texte exact, `notificationDenialHelp(userAgent, platform, maxTouchPoints)` pure exposée et testée sur trois agents utilisateur + repli ; docs `pwa-local-tls.md` et `http-interface.md` |
-| R1.6 | **Fait** | Trois vues `?view=` sur la même route (liens + `aria-current`, panneaux `hidden`, défaut `saisir`/`releves`, vue forcée par `kind`/`entry`), `view` conservé par `culture_navigation.html`, état vide, relevé compacté + `<details>`, légende par mesure rétablie dans `legende-{metric}` désignée par `aria-describedby` ; specs adaptées, −40,1 % mesuré |
-| R1.7 | **Fait** | Filtre `nombre` (`Markup` `.num`) et `nombre_texte` (contextes sans balisage), `formatNombre` unique côté JS (`useGrouping:false`), données `data-*`/`value`/CSV brutes ; tests aller-retour saisie → API (`1.1 + 0.35` → « 1,45 », brut persisté) |
-| R1.8 | **Fait** | `compact_header` nom/espace/stade/âge, deux actions, « Comprendre ces dates », « Corriger l'historique », retour ancré `#culture-{id}` avec filtres rejoués, `retour` du journal validé (même origine, `/cultures…` normalisé) ; test Playwright du retour sur l'élément d'origine |
+| R1.6 | **Fait** | Trois vues `?view=` sur la même route (liens + `aria-current`, panneaux `hidden`, défaut `saisir`/`releves`, vue forcée par `kind`/`entry`), `view` conservé par `culture_navigation.html`, état vide, relevé compacté + `<details>`, légende par mesure rétablie dans `legende-{metric}` désignée par `aria-describedby` ; specs adaptées ; 1 881 px, −42,3 % par rapport à la page de l'audit (3 259 px) |
+| R1.7 | **Fait, un reliquat** | Filtre `nombre` (`Markup` `.num`) et `nombre_texte` (contextes sans balisage), `formatNombre` en deux répliques alignées côté JS (`culture_analysis.js`, `history.js`, `useGrouping:false`), données `data-*`/`value`/CSV brutes ; tests aller-retour saisie → API (`1.1 + 0.35` → « 1,45 », brut persisté). Reste l'infobulle `<title>` des points de Solutions, qui affiche la valeur brute (écart E2) |
+| R1.8 | **Fait, acceptation non mesurée** | `compact_header` nom/espace/stade/âge, deux actions, « Comprendre ces dates », « Corriger l'historique », retour ancré `#culture-{id}` avec filtres rejoués, `retour` du journal validé (même origine, `/cultures…` normalisé) ; test Playwright du retour sur l'élément d'origine. La présence des deux actions dans le premier écran n'est mesurée nulle part (aucune fiche dans les routes de `measure_pages.js`) |
 | R1.9 | **Fait** | Liens décidés par le serveur (`Referer` même origine validé, réémis chemin seul ; « Réessayer » GET 5xx seulement), résumé + « Détails techniques » ; tests pytest, axe sur `/inexistant` |
 | R2.1 | **Fait** | Groupes `field_group` avec résumés rendus serveur et tenus par JS, `type=time` avec repli, tableau modifié → appliqué incluant les normalisations, barre non masquante (`ResizeObserver` + `scroll-padding`), premier champ refusé focalisé et centré (défaut réel corrigé), virgule acceptée par une conversion unique (Qualité capteurs comprise, message cohérent), index de recherche préparé non activé ; `config.spec.js` (11 tests) |
-| R2.2 | **Fait** | Indicateurs T/RH min-moy-max pondérés et part de lacunes, sélecteur d'indicateur, détail sous le graphique via `chart_detail` dans une région fixe annoncée sur sélection confirmée seulement, axes 13 px avec boîte de libellés mesurée, `touch-action: pan-y`, point conservé au redimensionnement, plus de rechargement réseau sur `resize` ; `history.spec.js` |
-| R2.3 | **Fait** | Légende courte + « Légende complète » sur Solutions et Historique (définition CSS unique), légende par mesure conservée ; vue Analyser 1 899 px à 390 px (exploration repliée sous 48 rem, intentions de saisie ramenées dans la vue Saisir) |
-| R2.4 | **Fait** | `/app` (allow-list, précache, préchauffé, page courante), cinq rubriques rendues serveur, aide par plateforme sans `beforeinstallprompt` (test asserte l'absence de l'autre plateforme), un seul bouton « Mettre à jour » (bannière de `base.html`), docs |
-| R2.5 | **Fait** | `data-offline-local` (outils locaux) et `data-offline-filter` (filtres serveur, posé sur tous les formulaires GET de filtre), note exacte posée à côté du formulaire, fragment `offline_index.html` unique (`/app`, `/offline`, Cycles, Journal), inventaire propriétaire unique (`app.js`) ; test `pwa-chromium` hors ligne |
+| R2.2 | **Fait** | Indicateurs T/RH min-moy-max pondérés et part de lacunes, sélecteur d'indicateur, détail sous le graphique via `chart_detail` dans une région fixe annoncée sur sélection confirmée seulement, axes 13 px avec boîte de libellés mesurée, `touch-action: pan-y`, point conservé au redimensionnement, plus de rechargement réseau sur `resize` ; `history.spec.js` (10 tests) |
+| R2.3 | **Fait** | Légende courte + « Légende complète » sur Solutions et Historique (définition CSS unique), légende par mesure conservée ; vue Analyser 1 754 px à 390 px (exploration repliée sous 48 rem, intentions de saisie ramenées dans la vue Saisir) |
+| R2.4 | **Fait** | `/app` (allow-list, précache, préchauffé, page courante), cinq rubriques rendues serveur, aide par plateforme sans `beforeinstallprompt` (test asserte l'absence de l'autre plateforme), un seul bouton « Mettre à jour » (bannière de `base.html`), docs. La mention iOS 26 demandée par la cible est absente de l'aide (écart E4) |
+| R2.5 | **Fait, un reliquat** | `data-offline-local` (outils locaux) et `data-offline-filter` (filtres serveur, posé sur les formulaires GET de filtre sauf Portée/Stade de `culture_light.html`, rattrapé par le discriminant de repli — écart E3), note exacte posée à côté du formulaire, fragment `offline_index.html` unique (`/app`, `/offline`, Cycles, Journal), inventaire propriétaire unique (`app.js`) ; test `pwa-chromium` hors ligne |
 | R2.6 | **Fait** | Rappels du jour filtrés par la règle pure `reminder_buckets`, libellé « Rappel du carnet », vues `faire`/`comparer` en liens, section « Sauvegarde et carnet de cultures » (`#sauvegarde`, même libellé que `/app`), index des copies après les rappels |
-| R2.7 | **Fait** | Trois pages : sélecteur → « Déclaré dans le carnet » → « Appliqué maintenant », « Comment cette valeur est choisie », indications de source ; Équipements : affectations en premier, catalogue replié ; Plages : cascade **complète** via `target_resolution` (`_feeding_at`, lecture bornée du magasin), et la page annonce exactement ce qu'un relevé recevra (test d'équivalence) ; Éclairage : lecture dédiée `light_rows` |
-| R2.8 | **Fait** | Une ligne par opération via `journal_entry`, détails repliés, recherche visible dans un **seul** formulaire GET, `retour` rejoué ; entrée 277 → 166 px à 390 px (−40 %) — l'audit ne consignant pas de nombre de lignes, la mesure par entrée est la référence publiée |
-| R3.1 | **Fait** | `fetchWithBudget` 8 s / 15 s, 5xx jamais mis en cache ni remplacé, précache parallèle et atomique, `Content-Length` assaini sur les copies réécrites ; tests Node exécutant le worker (`npm run test:js`, 9 tests), docs |
+| R2.7 | **Fait, acceptation partielle** | Trois pages : sélecteur → « Déclaré dans le carnet » → « Appliqué maintenant » sur Éclairage et Équipements, sélecteur → « Appliqué » → « Déclaré » sur Plages (conforme à la fiche) ; premier écran de Plages **avec** une cible consultée non mesuré (mesure faite sans cible) ; « Comment cette valeur est choisie », indications de source ; Équipements : affectations en premier, catalogue replié ; Plages : cascade **complète** via `target_resolution` (`_feeding_at`, lecture bornée du magasin), et la page annonce exactement ce qu'un relevé recevra (test d'équivalence) ; Éclairage : lecture dédiée `light_rows` |
+| R2.8 | **Fait, acceptation non vérifiable** | Une ligne par opération via `journal_entry`, détails repliés, recherche visible dans un **seul** formulaire GET, `retour` rejoué ; 115 px par entrée (`.ui-journal-entry`) à 390 px, référence publiée pour toute comparaison future — la réduction d'un tiers ne peut pas être vérifiée, l'audit ne consignant pas le nombre de lignes. La page complète passe de 1 250 à 2 797 px et l'index des copies repousse « Opérations du carnet » sous le premier écran (écart E5) |
+| R3.1 | **Fait** | `fetchWithBudget` 8 s / 15 s, 5xx jamais mis en cache ni remplacé, précache parallèle et atomique, `Content-Length` assaini sur les copies réécrites ; tests Node exécutant le worker à minuteur simulé (`npm run test:js`, 9 tests) à la place du test `pwa-chromium` prévu (aucun navigateur ne vérifie l'affichage entre 8 et 10 s), docs |
 | R3.2 | **Fait** | Rien de bloquant devant le poller, `observeRegistration` une seule fois, états lisibles (inscription échouée, installation incomplète, stockage refusé) ; tests `pwa-chromium` worker en 500 et IndexedDB neutralisée |
 | R3.3 | **Fait** | Pas de `skipWaiting` automatique, message `activer`, bannière unique, rechargement conditionné à `PhytoForms.isDirty()`, purge après `claim`, `visibilitychange` → `update()` ; test avec vrai worker (deux fenêtres, saisie conservée, ancienne page hors ligne sur ses caches) |
 | R3.4 | **Fait** | Brouillons IndexedDB (`data-culture-draft`, exclusions, 24 h, plafond 50, purge, anti-course, restauration explicite revalidée, clé d'idempotence régénérée) sur l'observation de fiche et l'observation d'espace, bannière hors du repli ; test par arrêt réel du navigateur (`launchPersistentContext`) |
-| R4.1 | **Fait** (appareils : opérateur) | Protocole Q01–Q15 avec table de correspondance test automatisé / appareil réel ; `qualification.spec.js` (recouvrement du focus mesuré, dialogue piégeant le focus, hors ligne, zoom 200 % sur profil `mobile-zoom`) ; VoiceOver/TalkBack, certificat, veille, mémoire restent à mener sur appareils |
-| R4.2 | **Non atteignable ici** | Outils prêts (`--base-url`, `PHYTO_UI_BASE_URL`, copie isolée via `scripts/restore-cultures.py`) ; la baseline Pi/téléphone/Wi-Fi de serre et les budgets définitifs sont un geste opérateur |
-| R4.3 | **Fait** (sessions : opérateur) | Protocole des dix tâches, mesures, objectifs chiffrés, options « préparées mais non activées » listées avec leur preuve attendue |
-| R5.1 | **Fait** | Visitor réservée à `.brand`, `.num` posé par le filtre `nombre`, les macros et les gabarits/JS ; captures dans `docs/images/remediation-…` |
-| R5.2 | **Fait** | Rapport de contrastes (0 paire sous seuil, deux thèmes), bordures de champs et onglet courant corrigés, palette de séries remaniée (ΔE ≥ 15 en deutéranopie et protanopie), marqueurs et tirets par série repris dans la légende, capture en niveaux de gris |
+| R4.1 | **Protocole livré** — grille à remplir (opérateur) | L'acceptation exige une grille remplie : `qualification-mobile-pwa.md` est entièrement « NE ». Protocole Q01–Q15 avec table de correspondance test automatisé / appareil réel ; `qualification.spec.js` (recouvrement du focus mesuré, dialogue piégeant le focus, hors ligne, zoom 200 % sur profil `mobile-zoom`) ; VoiceOver/TalkBack, certificat, veille, mémoire restent à mener sur appareils |
+| R4.2 | **Partiel** — baseline terrain : opérateur | Outils prêts (`--base-url`, `PHYTO_UI_BASE_URL`, copie isolée via `scripts/restore-cultures.py`) et baseline locale WSL publiée ; la baseline Pi/téléphone/Wi-Fi de serre, les budgets définitifs et la décision sur `/conf` sont un geste opérateur |
+| R4.3 | **Protocole livré** — sessions à mener (opérateur) | L'acceptation exige des résultats consignés : `validation-produit-protocole.md` est « Non exécuté ». Protocole des dix tâches, mesures, objectifs chiffrés, options « préparées mais non activées » listées avec leur preuve attendue |
+| R5.1 | **Fait, un reliquat** | Visitor réservée à `.brand`, `.num` posé par le filtre `nombre`, les macros et les gabarits/JS ; captures dans `docs/images/remediation-…`. `.actuator-group-title` repasse à 0,78 rem sous 700 px (`style.css:551`), sous le minimum de 0,85 rem (écart E1) |
+| R5.2 | **Fait** | Rapport de contrastes (0 paire sous seuil, deux thèmes), bordures de champs et onglet courant corrigés, palette de séries de l'Historique remaniée (ΔE ≥ 15 en deutéranopie et protanopie ; les encres du carnet descendent à 6,6, distinguées par forme et tracé), marqueurs et tirets par série repris dans la légende, capture en niveaux de gris |
 | R5.3 | **Fait** | `.action-link` 44 × 44 sur les actions autonomes (mesure d'une liste nommée : 0 échec), retirée des liens en phrase ; glossaire des sept termes et termes proscrits dans `contributing.md`, gabarits et JS alignés (« coupure », « copie datée », états traduits, pluriel français) |
 | R5.4 | **Fait** | `capture` jamais dans le HTML servi (boutons « Prendre une photo » / « Choisir une image existante » du socle), aperçu par contrôle, refus nommant la limite (413/415 traduits), clé d'idempotence par destination (reprise sans doublon testée) |
 | Docs | **Fait** | `CLAUDE.md`/`AGENTS.md` miroirs, `http-interface.md`, `cultures.md`, `cultures-api.md`, `contributing.md`, `pwa-local-tls.md`, `tasks/todo.md`, `tasks/lessons.md` |
 
-Reste hors de portée de ce dépôt, à mener par l'opérateur avec les protocoles livrés : R4.2 (Pi,
-téléphone, Wi-Fi de serre) et les parts « appareils réels » de R4.1 et « sessions » de R4.3.
-actualisés à la fin de la passe, avec la revue indépendante et les commits.
+**Commits de livraison** (11 septembre 2026, sur `8023123`) : `ada577f` (audit, plan, protocoles
+`qualification-mobile-pwa.md` et `validation-produit-protocole.md`), `6f39986` (lot 0), `f93e8cb`
+(lot 1), `d89c060` (R2.1–R2.3), `6562a2f` (carnet : R1.6, R1.8, R2.6–R2.8), `b801a8b` (PWA : R1.3,
+R1.5, R2.4, R2.5, lot 3, R5.4), `366e1a5` (documentation, suivi, leçons), `08a4815` (preuves de
+mesure).
+
+**Écarts résiduels relevés par la revérification du 11 septembre** (code, non corrigés à ce jour) :
+
+| Réf. | Fiche | Écart | Emplacement |
+| --- | --- | --- | --- |
+| E1 | R5.1 | `.actuator-group-title` à 0,78 rem sous 700 px, cible ≥ 0,85 rem | `network/web/static/css/style.css:551` |
+| E2 | R1.7 | Infobulle des points de Solutions : valeur brute `${p[metric]}` (et « null » si absente) au lieu de `formatNombre` | `network/web/static/js/culture_solutions.js:350` |
+| E3 | R2.5 | Formulaire GET Portée/Stade sans `data-offline-filter` (le discriminant de repli le rattrape) | `network/web/templates/culture_light.html:81` |
+| E4 | R2.4 | Aide d'installation sans la mention iOS 26 demandée par la cible | `network/web/templates/pwa.html`, `network/web/static/js/pwa.js` |
+| E5 | R2.8 | Index des copies placé avant « Opérations du carnet », repoussé sous le premier écran à 390 px | `network/web/templates/culture_journal.html` |
+| E6 | R1.8, R2.7 | Premier écran de la fiche et de Plages avec cible non mesuré | `tests/ui/measure_pages.js` (routes) |
+| E7 | R0.1 | Rejeu à ±2 % de la baseline de l'audit non démontré | `scripts/compare-measures.py` |
+
+**Restent à mener par l'opérateur**, avec les protocoles livrés : R4.2 (baseline Pi, téléphone et
+Wi-Fi de serre, budgets définitifs, décision sur `/conf`), la grille appareils réels de R4.1
+(Q01–Q15, VoiceOver/TalkBack) et les sessions P01–P10 de R4.3 avec leurs décisions. Tant que ces
+grilles ne sont pas remplies, R4.1 et R4.3 restent « protocole livré », pas « accepté ».

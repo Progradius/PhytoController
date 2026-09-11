@@ -919,9 +919,20 @@ Reprise du 10/09/2026 (orchestrateur garant, agents Opus par périmètre de fich
 - [x] Vérification lot 3 + CLAUDE.md/AGENTS.md (service worker, brouillons)
 
 ## Lot 4 — qualification
-- [x] R4.1 Protocole et grille appareils réels / VoiceOver / TalkBack / zoom / clavier virtuel (UX-16) — exécution par l'opérateur — protocole + `qualification.spec.js` livrés ; grille appareils réels à remplir par l'opérateur
+- [x] R4.1 Protocole Q01–Q15 et `qualification.spec.js` livrés (UX-16)
+- [ ] R4.1 Grille appareils réels / VoiceOver / TalkBack / zoom / clavier virtuel remplie — **opérateur** (`docs/development/qualification-mobile-pwa.md`, aujourd'hui entièrement « NE »)
 - [ ] R4.2 Baseline de performance sur Pi et téléphone, budgets, décision sur `/conf` (UX-17) — **opérateur** : outils prêts (`--base-url`, copie isolée), baseline Pi/téléphone à mener sur place
-- [x] R4.3 Protocole de validation produit (dix tâches, objectifs chiffrés) et décisions sur les options préparées — `docs/development/validation-produit-protocole.md` ; sessions à mener par l'opérateur
+- [x] R4.3 Protocole de validation produit (dix tâches, objectifs chiffrés) — `docs/development/validation-produit-protocole.md`
+- [ ] R4.3 Sessions P01–P10 avec deux opérateurs, résultats consignés, décisions sur les options préparées — **opérateur**
+
+## Écarts résiduels (revérification du 11/09/2026 — détail dans le plan, section « État d'avancement »)
+- [ ] E1 R5.1 `.actuator-group-title` à 0,78 rem sous 700 px (`style.css:551`)
+- [ ] E2 R1.7 infobulle des points de Solutions non formatée (`culture_solutions.js:350`)
+- [ ] E3 R2.5 `data-offline-filter` manquant sur le filtre Portée/Stade (`culture_light.html:81`)
+- [ ] E4 R2.4 mention iOS 26 absente de l'aide d'installation
+- [ ] E5 R2.8 index des copies repoussant « Opérations du carnet » sous le premier écran
+- [ ] E6 R1.8/R2.7 premier écran de la fiche et de Plages avec cible non mesuré
+- [ ] E7 R0.1 rejeu ±2 % de la baseline de l'audit non démontré
 
 ## Lot 5 — finitions
 - [x] R5.1 Visitor réservée à la marque, chiffres tabulaires (UX-18)
@@ -933,7 +944,7 @@ Reprise du 10/09/2026 (orchestrateur garant, agents Opus par périmètre de fich
 
 - pytest : **914 réussites** ; `npm run test:js` : 9 ; pyflakes propre sur les fichiers touchés ; `diff -u CLAUDE.md AGENTS.md` vide ; aucun octet nul.
 - Playwright : six profils (`desktop-chromium`, `mobile-chromium`, `mobile-etroit`, `mobile-paysage`, `pwa-chromium`, `mobile-zoom`), un worker, résultats consignés dans le plan (section « État d'avancement ») et le message de bilan.
-- Mesures « après » : `docs/images/remediation-web-mobile-pwa-2026-09-09/` (R1.2 2 514 px, R1.6 −40,1 %, R2.3 1 899 px, R2.8 −40 % par entrée ; 0 violation axe, 0 contraste sous seuil).
+- Mesures « après » : `docs/images/remediation-web-mobile-pwa-2026-09-09/` (R1.2 2 514 px, R1.6 1 881 px soit −42,3 %, R2.3 1 754 px, R2.8 115 px par entrée — réduction non vérifiable ; 0 violation axe sur 130 relevés, 0 contraste sous seuil ; chiffres finaux de `08a4815`, les valeurs intermédiaires −40,1 % / 1 899 px / −40 % sont périmées).
 - Sept défauts de fond trouvés par les revues et corrigés : rechargement réseau à chaque `resize`, `Content-Length` faux sur les copies hors ligne, minuteur effaçant un refus serveur, clé d'idempotence écrasée entre note et photo, page Plages annonçant une plage inatteignable, focus du champ refusé jamais posé sur `/conf`, harnais de test sans états d'actionneurs.
 - Reste à l'opérateur : R4.2 (Pi/téléphone), grille appareils réels de R4.1, sessions de R4.3.
 

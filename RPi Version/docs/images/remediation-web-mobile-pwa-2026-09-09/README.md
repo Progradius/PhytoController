@@ -64,7 +64,8 @@ de l'instrumentation initiale, pas un résultat.
 
 ## Accessibilité, contrastes et perception des couleurs
 
-* **axe** (`wcag2a`, `wcag2aa`, `wcag22aa`) : **0 violation** sur les 140 relevés.
+* **axe** (`wcag2a`, `wcag2aa`, `wcag22aa`) : **0 violation** sur les 130 relevés qui portent une analyse axe (les 10 autres
+  entrées — cibles nommées, temps locaux, menu — n'en portent pas).
 * **Contrastes** : **0 paire sous le seuil** dans les deux thèmes (138 paires distinctes en
   sombre, 135 en plein jour).
 * **Palette de séries de l'historique**, après remaniement (simulation Machado 2009,
