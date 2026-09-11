@@ -330,7 +330,10 @@ circle.culture-selected-point { stroke: currentColor; stroke-width: 3px; stroke-
 
 /* R2.7 : le sélecteur ouvre la page — espace/culture (ou cible, ou équipement) et date.
    Formulaire GET, en ligne dès qu'il y a la place, empilé sur un téléphone. */
-.culture-selector { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+/* `min(12rem, 100%)` et non `12rem` : la borne est en rem, donc au zoom 200 % de la police
+   elle valait 384 px et imposait une colonne plus large que l'écran d'un téléphone — le corps
+   de la page défilait horizontalement. La colonne ne dépasse plus jamais la place disponible. */
+.culture-selector { grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
   align-items: end; gap: .5rem .75rem; }
 .culture-selector label { display: flex; flex-direction: column; gap: .2rem; }
 .culture-selector .button { min-height: 44px; justify-self: start; }

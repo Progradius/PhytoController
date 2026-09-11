@@ -405,6 +405,54 @@ for (const route of ROUTES_ZOOM) {
   });
 }
 
+// Zoom **de la police** à 200 % : c'est le second geste de l'agrandissement, distinct du zoom
+// de page mesuré ci-dessus (`deviceScaleFactor` sur un viewport réduit). Il ne change pas la
+// largeur de la fenêtre, seulement la taille de tous les textes — donc tout ce qui est mesuré
+// en `rem` ou dicté par la taille minimale d'un contenu. C'est ce scénario qui a fait défiler
+// le tableau de bord horizontalement (465 px pour une fenêtre de 390) : le corps de la page ne
+// doit jamais défiler ainsi ; seuls un tableau, un diagramme ou un bloc de code débordent,
+// dans leur propre conteneur à défilement.
+const ROUTES_ZOOM_POLICE = ["/", "/alarms", "/history", "/conf", "/console", "/cultures",
+  "/cultures/solutions", "/cultures/cycles", "/cultures/targets", "/cultures/light",
+  "/cultures/equipment", "/cultures/journal", "/app", "/offline"];
+
+for (const route of ROUTES_ZOOM_POLICE) {
+  test(`zoom 200 % de la police · ${route} ne fait pas défiler le corps horizontalement`, async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile-zoom", "Mesure propre au profil de zoom.");
+    await page.goto(route);
+    await expect(page.locator("main")).toBeVisible();
+    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    await page.evaluate(() => document.fonts.ready.then(() => true));
+
+    const mesure = await page.evaluate(() => {
+      const limite = document.documentElement.clientWidth;
+      // Un conteneur à défilement propre a le droit de porter un contenu plus large que lui :
+      // ce qui est interdit, c'est que le **corps** défile.
+      const dansUnConteneurDefilant = node => {
+        for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+          if (["auto", "scroll"].includes(getComputedStyle(parent).overflowX)) return true;
+        }
+        return false;
+      };
+      const debordants = [...document.querySelectorAll("body *")]
+        .filter(node => {
+          const rect = node.getBoundingClientRect();
+          if (rect.width <= 0 || rect.right <= limite + 0.5) return false;
+          return !dansUnConteneurDefilant(node);
+        })
+        .map(node => `${node.tagName.toLowerCase()}.${String(node.className || "").trim().split(/\s+/)[0] || ""}`
+          + ` → ${Math.round(node.getBoundingClientRect().right)} px`);
+      return {scrollWidth: document.documentElement.scrollWidth, clientWidth: limite,
+        debordants: [...new Set(debordants)].slice(0, 8)};
+    });
+
+    expect(mesure.debordants, `${route} : éléments hors de la fenêtre au zoom 200 % de la police`).toEqual([]);
+    // Une tolérance d'un pixel absorbe les arrondis de rendu ; au-delà, la page déborde.
+    expect(mesure.scrollWidth, `${route} déborde horizontalement (zoom 200 % de la police)`)
+      .toBeLessThanOrEqual(mesure.clientWidth + 1);
+  });
+}
+
 test("zoom 200 % · le menu mobile « Plus » reste ouvrable et ses entrées atteignables", async ({page}, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-zoom", "Mesure propre au profil de zoom.");
   await page.goto("/");

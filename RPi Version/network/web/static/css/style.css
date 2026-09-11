@@ -40,6 +40,19 @@ button, input, select { font: inherit; }
 a { color: inherit; }
 h1, h2, h3, p { margin-top: 0; }
 h1, h2, h3 { line-height: 1.18; }
+/* Un mot plus long que la colonne se coupe au lieu de déborder. `break-word` ne change ni la
+   taille minimale de contenu des boîtes, ni la coupure des textes qui tiennent : il n'agit que
+   là où il n'y a aucune autre issue — un titre au zoom 200 % de la police sur un téléphone,
+   une adresse, un identifiant technique. Le corps de la page ne doit jamais défiler
+   horizontalement ; seuls un tableau, un diagramme ou un bloc de code débordent, dans leur
+   propre conteneur à défilement. */
+:where(p, li, dd, dt, label, summary, caption, figcaption, td, th, output, strong) { overflow-wrap: break-word; }
+/* Les titres vont plus loin : `anywhere` — seul mode qui réduit aussi la **taille minimale de
+   contenu** d'une boîte, donc le seul qui laisse son conteneur rétrécir. « Configuration » en
+   titre de page mesure 407 px au zoom 200 % de la police : avec `break-word` le mot se coupait
+   mais le bloc gardait sa largeur, et la page défilait toujours. Un titre est court et rendu
+   seul dans sa colonne : il n'y a rien à y perdre en découpe opportuniste. */
+:where(h1, h2, h3, h4) { overflow-wrap: anywhere; }
 h1 { margin-bottom: .55rem; font-size: clamp(2rem, 5vw, 3.7rem); letter-spacing: -.045em; }
 h2 { margin-bottom: .35rem; font-size: clamp(1.35rem, 2.5vw, 2rem); }
 h3 { margin-bottom: .35rem; font-size: 1.03rem; }
@@ -49,7 +62,13 @@ h3 { margin-bottom: .35rem; font-size: 1.03rem; }
 .skip-link:focus { transform: none; }
 .site-header, .page-shell, .site-footer { width: min(calc(100% - clamp(1rem, 5vw, 4rem)), var(--content)); margin-inline: auto; }
 .site-header { display: flex; align-items: center; justify-content: space-between; min-height: 72px; gap: 1rem; border-bottom: 1px solid var(--border); }
-.brand { display: flex; align-items: center; gap: .65rem; font-family: Visitor, ui-monospace, monospace; color: var(--green); font-size: 1.1rem; letter-spacing: .08em; text-decoration: none; }
+/* `min-width: 0` et `overflow-wrap: anywhere` : au zoom 200 % de la police, le nom de la
+   marque ne peut plus imposer sa largeur à l'en-tête. Le `<wbr>` de `base.html` lui donne sa
+   coupure préférée ; `anywhere` n'est que le filet à 320 px, où « CONTROLLER » seul dépasse
+   encore. Sans cela, toutes les pages faisaient défiler leur corps horizontalement, ce que le
+   plan interdit (seuls un tableau, un diagramme ou un bloc de code débordent, dans leur
+   propre conteneur). */
+.brand { min-width: 0; overflow-wrap: anywhere; display: flex; align-items: center; gap: .65rem; font-family: Visitor, ui-monospace, monospace; color: var(--green); font-size: 1.1rem; letter-spacing: .08em; text-decoration: none; }
 .brand-mark { font-size: 1.7rem; }
 .brand-dim { color: var(--muted); }
 .navbar { display: flex; gap: .25rem; overflow-x: auto; }
@@ -60,6 +79,11 @@ h3 { margin-bottom: .35rem; font-size: 1.03rem; }
 .theme-toggle:hover { border-color: var(--green); color: var(--text); }
 .page-shell { padding-block: clamp(1.4rem, 4vw, 3.5rem); }
 .site-footer { padding-block: 1.4rem 2.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .78rem; letter-spacing: .12em; }
+/* `min-width: 0` sur les deux colonnes du héros : un élément flex ne rétrécit pas sous la
+   taille minimale de son contenu tant qu'il garde `min-width: auto`, et au zoom 200 % de la
+   police un seul mot de titre (« Configuration » : 407 px) suffisait à faire défiler la page
+   horizontalement. Avec la coupure des mots longs ci-dessous, le titre se replie. */
+.hero > * { min-width: 0; }
 .hero { display: flex; align-items: end; justify-content: space-between; gap: var(--gap); margin-bottom: clamp(1.25rem, 3vw, 2.2rem); }
 .hero + section { margin-top: 0; }
 .hero.compact { align-items: center; }
@@ -138,12 +162,19 @@ progress::-webkit-progress-bar { background: var(--soft); } progress::-webkit-pr
 .config-toc a { display: inline-flex; align-items: center; padding: .4rem .75rem; border-radius: var(--radius-sm); color: var(--muted); text-decoration: none; white-space: nowrap; }
 .config-toc a:hover { background: var(--soft); color: var(--text); }
 .config-layout { display: grid; gap: clamp(2.2rem, 5vw, 4rem); }
+/* Les sections sont des éléments de grille : sans `min-width: 0`, chacune garde la taille
+   minimale de son contenu et déborde la colonne. Au zoom 200 % de la police, un champ d'heure
+   et ses marges latérales en rem dépassaient la fenêtre d'un téléphone, et la page défilait
+   horizontalement. */
+.config-layout > * { min-width: 0; }
 .config-layout > section { margin-top: 0; scroll-margin-top: 5rem; }
 .config-section { margin-top: .8rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: clip; scroll-margin-top: 5rem; }
 .config-section[open] { border-color: var(--border-strong); }
 .config-section > summary { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1.1rem; cursor: pointer; font-weight: 700; }
 .config-section > summary:hover { background: rgb(255 255 255 / 2%); }
-.config-section > form, .config-section > .notice, .config-section > .gpio-list { margin: 0 1.1rem 1.1rem; }
+/* Gouttières proportionnelles à la carte, plafonnées à leur valeur d'origine : en rem pures,
+   elles doublaient au zoom 200 % de la police et prenaient 70 px des 288 px disponibles. */
+.config-section > form, .config-section > .notice, .config-section > .gpio-list { margin: 0 clamp(.5rem, 4%, 1.1rem) 1.1rem; }
 .config-section > form { padding-top: .3rem; }
 .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; }
 .field { margin-bottom: 1rem; }
@@ -242,7 +273,10 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .override-inline p { margin: 0; }.override-normal { color: var(--muted); }.override-active { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .65rem; color: var(--amber); }.override-active .override-reason { flex-basis: 100%; margin: .15rem 0 0; }
 .equipment-details { margin-top: .75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgb(255 255 255 / 1.5%); overflow: clip; }
 .equipment-details[open] { border-color: var(--border-strong); }
-.equipment-details > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem .7rem; cursor: pointer; color: var(--text); font-size: .82rem; font-weight: 650; list-style: none; }
+/* La ligne du repli se replie plutôt que de déborder : « Afficher » et son chevron ne
+   rétrécissent pas (`flex: 0 0 auto`, et c'est voulu — une commande ne se coupe pas), donc au
+   zoom 200 % de la police c'est au titre de passer à la ligne. */
+.equipment-details > summary { flex-wrap: wrap; min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem .7rem; cursor: pointer; color: var(--text); font-size: .82rem; font-weight: 650; list-style: none; }
 .equipment-details > summary::-webkit-details-marker { display: none; }
 .equipment-details > summary:hover { background: var(--soft); }
 .equipment-details[open] > summary { border-bottom: 1px solid var(--border); background: rgb(255 255 255 / 2%); }
@@ -259,7 +293,10 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .sensor-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }.sensor-extremes { margin: .9rem 0 0; color: var(--muted); font-size: .82rem; }.sensor-details .button { width: 100%; margin-top: .6rem; }
 .preview-chart-card { padding: clamp(1rem, 2.5vw, 1.5rem); box-shadow: 0 12px 34px rgb(0 0 0 / 18%); }.preview-chart-card canvas { display: block; width: 100%; height: 180px; max-width: 100%; margin-top: .8rem; }.preview-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem; margin-top: 1rem; }.preview-kpis div { display: grid; gap: .15rem; padding: .75rem; border-left: 2px solid var(--green); background: var(--soft); }.preview-kpis span { color: var(--muted); font-size: .74rem; }.preview-kpis strong { overflow-wrap: anywhere; font-size: .92rem; }
 .maintenance-panel { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--amber); border-radius: var(--radius); background: rgb(245 189 79 / 6%); }.maintenance-panel h2 { margin-bottom: .35rem; }.maintenance-panel p:last-child { max-width: 66ch; margin-bottom: 0; color: var(--muted); }.maintenance-actions { display: flex; flex: 0 0 auto; gap: .65rem; }.maintenance-actions form { display: flex; }
-.administration-panel { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }.administration-panel > summary { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.2rem; cursor: pointer; color: var(--muted); }.administration-panel > summary span:first-child { display: grid; }.administration-panel > summary .eyebrow { margin-bottom: .15rem; }.administration-panel > summary strong { color: var(--text); font-size: 1.05rem; }.administration-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding: 0 1.2rem 1.2rem; }.administration-actions article { padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }.administration-actions p { color: var(--muted); }
+.administration-panel { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }/* Le résumé se replie plutôt que de déborder : au zoom 200 % de la police, « Redémarrage et
+   extinction » ne peut pas tenir à côté du titre, et un élément flex ne rétrécit pas sous son
+   contenu tant qu'il garde `min-width: auto`. */
+.administration-panel > summary { flex-wrap: wrap; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.2rem; cursor: pointer; color: var(--muted); }.administration-panel > summary > span { min-width: 0; }.administration-panel > summary span:first-child { display: grid; }.administration-panel > summary .eyebrow { margin-bottom: .15rem; }.administration-panel > summary strong { color: var(--text); font-size: 1.05rem; }.administration-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding: 0 1.2rem 1.2rem; }.administration-actions article { padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }.administration-actions p { color: var(--muted); }
 .override-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--gap); margin-bottom: 1.2rem; }
 .override-card.is-forced { border-color: var(--amber); }
 .override-card h3 { margin-bottom: .4rem; font-size: 1rem; }
@@ -369,6 +406,12 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   .site-header { min-height: 58px; padding-top: max(.7rem, env(safe-area-inset-top)); }
   .site-header .navbar { display: none; }
   .mobile-navbar { position: fixed; z-index: 110; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: calc(64px + env(safe-area-inset-bottom)); padding: 0 .3rem env(safe-area-inset-bottom); border-top: 1px solid var(--border-strong); background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(12px); }
+  /* Chaque destination est une colonne `minmax(0, 1fr)` : encore faut-il que l'élément posé
+     dedans accepte de rétrécir. `min-width: 0` n'était posé que sur les liens et sur le
+     `summary` de « Plus » — pas sur le `<details>` lui-même, qui est l'élément de grille. Au
+     zoom 200 % de la police, sa taille minimale de contenu élargissait la barre à 465 px pour
+     une fenêtre de 390 et faisait défiler la page. La règle vise donc tout enfant direct. */
+  .mobile-navbar > * { min-width: 0; }
   .mobile-navbar > a, .mobile-more > summary { position: relative; min-width: 0; min-height: 64px; display: flex; align-items: center; justify-content: center; gap: .25rem; padding: .45rem .25rem; color: var(--muted); font-size: .78rem; font-weight: 650; text-align: center; text-decoration: none; list-style: none; cursor: pointer; }
   .mobile-navbar > a[aria-current="page"], .mobile-more[data-current="true"] > summary { color: var(--green); }
   /* Plein jour : le vert courant tombait à 4,32:1 sur le fond translucide de la barre

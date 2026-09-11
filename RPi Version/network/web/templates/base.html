@@ -43,7 +43,11 @@
   <header class="site-header">
     <a class="brand" href="/" aria-label="PhytoController · tableau de bord">
       <span class="brand-mark" aria-hidden="true">⌁</span>
-      <span>PHYTO<span class="brand-dim">CONTROLLER</span></span>
+      {# `<wbr>` : « PHYTOCONTROLLER » est un seul mot, donc sans point de coupure. Au zoom
+         200 % de la police, ses 414 px débordaient la fenêtre d'un téléphone et faisaient
+         défiler le corps de la page entière, sur toutes les pages. La marque garde son texte,
+         elle gagne le droit de passer à la ligne entre ses deux moitiés. #}
+      <span>PHYTO<wbr><span class="brand-dim">CONTROLLER</span></span>
     </a>
     <nav class="navbar" aria-label="Navigation principale">
       <a href="/"{% if current_page == 'dashboard' %} aria-current="page"{% endif %}>Tableau de bord</a>
