@@ -1,5 +1,7 @@
 # Carnet de cultures — lot UI 4 : analyse et confort
 
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour.
+
 Implémentation du lot 4 de l’[audit du 8 septembre 2026](audit-ui-cultures-2026-09-08.md).
 
 La comparaison présente désormais une colonne par culture et des lignes communes :

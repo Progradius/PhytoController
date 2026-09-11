@@ -1,5 +1,8 @@
 # Plan de remédiation — lot UI 4 du carnet de cultures
 
+> Archivé le 11/09/2026 — plan livré et clos (commits `591520f..fc2a222`), conservé comme preuve ;
+> ne plus le mettre à jour.
+
 État des lieux du 9 septembre 2026, après livraison du lot 4 (`183189b`, rapport
 [cultures-ui-lot-4.md](cultures-ui-lot-4.md)) de l'[audit du 8 septembre 2026](audit-ui-cultures-2026-09-08.md).
 Ce document liste les écarts constatés et le correctif attendu pour chacun. Il ne modifie rien et
@@ -290,7 +293,7 @@ rejouée hors ligne. Aucun correctif ne demande de nouvelle persistance.
   dans le socle. À traiter dans une passe photos dédiée, pas ici.
   **Traité** par la passe photos du 9 septembre 2026 : l'aperçu est posé par `register` sur tout
   champ photo du carnet, et `submitBinary` passe par `XMLHttpRequest` avec une barre de
-  progression. Voir `docs/development/cultures-ui-photos.md`. Cette passe a aussi trouvé que
+  progression. Voir `docs/archive/development/cultures-ui-photos.md`. Cette passe a aussi trouvé que
   l'aperçu du lot 2 était bloqué par la politique de sécurité de contenu, faute de `blob:` dans
   `img-src` : la spec du lot 2 ne vérifiait que la visibilité de l'`<img>`, pas son décodage.
 - Alignement par âge du stade : l'audit propose « par indicateur ou par âge du stade » ; le lot

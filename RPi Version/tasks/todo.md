@@ -1,89 +1,8 @@
-# Suivi — rattrapage du carnet de cultures (plan `gestion_cultures_rattrapage_plan.md`)
-
-Orchestration : agents Opus 5 par lot, vérification et commits par l'orchestrateur.
-Baseline (8 septembre 2026, `58e97e6`) : 273 pytest, 92 Playwright, `git diff --check` propre.
-
-## Phase 0 — préparation
-- [x] Fixture Playwright partagée `tests/ui/culture_fixtures.js` (un spec par lot, sans conflit)
-- [x] Commit du plan de rattrapage et de la préparation
-- [x] Conception du schéma 4 (migrations lots D à H) avant toute évolution de schéma
-
-## Phase 1 — lots sans évolution de schéma (parallèle)
-- [x] Lot A — correction de relevés liés à une intervention ancienne (`2284074`)
-- [x] Lot B — cycles longs, agrégation bornée en magasin, PWA bornée (`1cdf87d`)
-- [x] Lot C — étapes rétrospectives d'un parcours repris (`e749c80`)
-- [x] Vérification phase 1 : 281 pytest, 107 Playwright sur 5 profils, pyflakes, octets nuls
-
-## Phase 2 — schéma 4 puis lots D à H
-- [x] Migration schéma 4 (une seule, sauvegarde `.before-v4.sqlite3`) — `ca865d0`, 287 pytest
-- [x] Pré-câblage partagé (scripts vides servis, motif service worker, liens de navigation)
-- [x] Lot D — vérifications déclaratives corrigibles (`f4a00cc`)
-- [x] Lot E — plages cibles pH/EC facultatives et historisées (`f51e619`)
-- [x] Lot G — affectations d'équipements datées (`d40a243`)
-- [x] Lot F — repères d'éclairage et état opérationnel (`8d7c9b5`)
-- [x] Lot H — journal transversal et observations d'espace (`a7d2eab`)
-- [x] Vérification phase 2 : 346 pytest, 135 Playwright sur 5 profils (fixture isolée par test, `d568ae2`)
-
-## Phase 3 — clôture (lot I)
-- [x] Suite pytest complète (357), Playwright complète 5 profils (135 réussis, 70 exclusions), pyflakes, octets nuls
-- [x] Migration 1/2/3 → 4, interruption, refus d'écriture, schéma futur, corruption (`tests/test_culture_schema_v4.py`, `tests/test_culture_cloture.py`)
-- [x] Sauvegarde/restauration ZIP sur copie isolée avec données anciennes et nouvelles
-- [x] Documentation (guide, contrat API, sauvegarde, roadmap, plan de référence), CLAUDE.md = AGENTS.md
-- [x] Tableau de traçabilité du plan (commit, tests, limites) par lot
-
-## Lot UI 1 (audit UI/UX) — corrections après revue externe du 8 septembre 2026
-- [x] A — « Vue globale » multi-cultures reste dans la rubrique courante ; libellé « Contexte de retour » sur
-      éclairage/équipements ; test paramétré sur `cycles`/`light`/`equipment`
-- [x] B — « Base SQLite seule (sans photos) » aussi sur l'accueil du carnet (`cultures.html`)
-- [x] C — audit et bilan indexés dans `docs/index.md` ; convention `culture_navigation.html` + `culture_section`
-      dans `CLAUDE.md`/`AGENTS.md` (diff vide)
-- [x] D — fragment tolérant à `selected=None` / `culture_subjects=None`, testé
-- [x] P1 « erreurs associées aux champs » rattaché au lot 2 dans le tableau des lots de l'audit
-- [x] pytest complet : 363 verts ; revue indépendante Opus des corrections
-- [x] Playwright carnet (lots B, C, D, F, H) relancé après corrections : 31 réussis, 24 exclusions de profil
-
-## Lot UI 2 (audit UI/UX) — parcours quotidiens (plan `~/.claude/plans/lucky-seeking-thacker.md`)
-Conception Opus challengée (10 objections) avant exécution ; agents Opus 5 par lot sur fichiers disjoints,
-orchestrateur garant (contrats, pytest, Playwright, diffs, revue indépendante, commits). Référence : 363 pytest.
-- [x] W1 backend — `CultureError(field, index)`, `error_response`, `allowed_actions`/`stage_options`/
-      `first_stage`/`creation_stages`/`fiche_actions` purs (équivalence avec le gabarit sur 126 états),
-      `reminder_buckets(rows, today, zone)`, `agenda` dans `_overview`, `reminders`/`media`/`actions` dans
-      `_detail`, `event_id` dans `mutate`, prévalidation `_create` (`62e29e7`, 589 pytest)
-- [x] W2 socle — `static/js/culture_forms.js` (register/submitJson/submitBinary/showError/clearErrors/status),
-      4 points d'enregistrement, adoption minimale dans targets/light/equipment/journal (`6e73b67`)
-- [x] W3 accueil « Aujourd'hui » (rappels actionnables), fiche (en-tête, triade, ancres, photos, bilan),
-      observation + photo en un parcours, échec partiel (595 pytest ; specs cultures/C/D vertes)
-- [x] W4 intentions visibles sur solutions, `?kind=…#saisie`, relevé depuis la fiche sans ressaisir la cible
-      (`9365ee6`) — specs A/E/G et « panne réseau » lisent `.culture-form-errors` (correction orchestrateur)
-- [x] Orchestrateur : `detail.stage_options` et contexte `creation` (premier stade, stades acceptés) exposés
-      depuis le modèle pur, écart signalé par W3
-- [x] W5 création « Je démarre » / « déjà en cours », frise, fixture Playwright mise à jour (`b2eca0f`,
-      597 pytest) — `stage_options_full` exposé et spec du lot C ajustée par l'orchestrateur
-- [x] W6a contrat API, guide « journée type », index, CLAUDE.md = AGENTS.md (`4030858`)
-- [x] W6b spec Playwright `tests/ui/cultures_ui_lot_2.spec.js` (10 scénarios, 5 profils) ; bilan
-      `docs/development/cultures-ui-lot-2-2026-09-08.md`
-- [x] Revue indépendante Opus du diff `2597e8f..HEAD` : 0 bloquant de sécurité, 8 importants (B1–B8) et
-      2 écarts de la spec (rappel hors écran à 393 px, 409 dans l'output) — tous corrigés par un agent dédié,
-      doc réalignée
-- [x] Vérification de sortie : 601 pytest ; Playwright carnet un worker par profil : bureau 36, mobile 31,
-      étroit 26, paysage 24, PWA 10, 0 échec ; 42 captures (7 états × 3 largeurs × 2 thèmes) dans le
-      scratchpad de session ; `git diff --check`, CLAUDE.md = AGENTS.md, schéma 4 et `param/` intacts,
-      aucun inline, aucun SQLite hors magasin, pyflakes propre
-- Hors lot, à consigner : `.gitattributes`/`.gitignore` à la racine étaient déjà modifiés avant le lot et
-  ne sont pas commités ici. Leçons : `tasks/lessons.md` (section du 8 septembre 2026, lot UI 2).
-
-## Revue
-- Organisation : un agent Opus par lot, sur des fichiers disjoints, avec un brief commun ; l'orchestrateur a
-  vérifié chaque rendu (suite complète, diffs des fichiers partagés, invariants) avant de committer.
-- Trois interventions de l'orchestrateur hors délégation : raccord des durées dans la comparaison des cycles,
-  remplacement de deux BOM littéraux par `"\ufeff"`, et isolation du carnet Playwright **par test** (deux specs
-  d'un même worker se disputaient l'espace 2, exclusif).
-- Erreurs corrigées en cours de route et consignées dans `tasks/lessons.md` : écrasement de ce fichier par `Write`,
-  trailers d'attribution refusés dans les messages de commit.
-- Limites résiduelles ouvertes (voir `docs/risk-register.md` R-CULT-01 à 03 et « Limites connues » du contrat
-  API) : table `requests` jamais purgée ; plafonds ZIP/médias ; `_solution_data` et `measures` non bornés ;
-  aucune capture d'écran des quatre nouvelles pages ; aucune qualification sur le Pi.
-
+> Les sections entièrement closes (rattrapage du carnet et lots UI 1 et 2, refonte de la
+> journalisation, remédiation du lot UI 4, données vivantes hors du répertoire Git) ont été
+> déplacées le 11/09/2026 dans
+> [`tasks/archive/todo-sections-closes-2026-09-11.md`](archive/todo-sections-closes-2026-09-11.md).
+> Ce fichier ne garde que les sections portant encore une case ouverte.
 
 # TODO — Déploiement et armement de la qualité des capteurs
 
@@ -91,18 +10,19 @@ orchestrateur garant (contrats, pytest, Playwright, diffs, revue indépendante, 
 `985e42d`** le 30 août 2026 à 19:07 UTC puis qualifié par une observation continue de 172 800 s :
 2 864 échantillons, zéro échec, zéro avertissement et les trois mesures BME280 `normal` pendant
 toute la fenêtre. Voir le
-[relevé de clôture](../docs/operations/jalon2-correctif-figement-observation-2026-09-01.md).
+[relevé de clôture](../docs/archive/operations/jalon2-correctif-figement-observation-2026-09-01.md).
 Lot non qualifié électriquement et mode `Sensor_Quality.mode = observe` à conserver jusqu'à
 validation complète.
 
 La fenêtre précédente, close le 30 août à 18:59:28 UTC en `accepted_with_warnings` — 172 800 s,
 2 864 échantillons, 0 échec, 835 avertissements de cause unique — a établi la continuité du contrôle
 et révélé le défaut de la politique de figement corrigé par `837f778`. Voir le
-[relevé de clôture](../docs/operations/jalon2-observation-operateur-2026-08-30.md).
+[relevé de clôture](../docs/archive/operations/jalon2-observation-operateur-2026-08-30.md).
 
-**Le correctif est déployé mais pas encore qualifié** : la mémoire qualité repart de zéro, donc
+~~**Le correctif est déployé mais pas encore qualifié** : la mémoire qualité repart de zéro, donc
 aucune mesure ne peut être déclarée figée avant 1 800 s. La preuve attendue est une nuit calme
-complète, période où l'ancien critère se déclenchait systématiquement.
+complète, période où l'ancien critère se déclenchait systématiquement.~~ Paragraphe périmé :
+qualification acquise le 1er septembre 2026 (voir l'état ci-dessus).
 
 Références :
 
@@ -142,7 +62,7 @@ Références :
       **Clôturée le 30 août 2026 à 18:59:28 UTC** : `status=accepted_with_warnings`, 172 800 s
       réelles, 2 864 échantillons, **0 échec**, 835 avertissements tous dus au même défaut de la
       politique de figement. Examen et décision dans le
-      [relevé de clôture](../docs/operations/jalon2-observation-operateur-2026-08-30.md) : fenêtre
+      [relevé de clôture](../docs/archive/operations/jalon2-observation-operateur-2026-08-30.md) : fenêtre
       acceptée comme preuve de continuité du contrôle, refusée comme qualification du figement
 - [ ] Laisser fonctionner le système en mode `observe` pendant plusieurs cycles jour/nuit et une
       durée représentative des périodes naturellement stables de la serre
@@ -301,100 +221,6 @@ boot ou une défaillance du Pi. Le thermostat ou fusible thermique indépendant 
 
 ---
 
-# TODO — Refonte de la journalisation (plan `tasks/logging_refonte_plan.md`)
-
-## P3 — Sécurité
-- [x] 3.1 Credentials Influx hors de l'URL (`requests.post(params=…)`), messages d'erreur limités à
-      `host:port/db` + classe d'exception
-- [x] 3.2 `utils/log_dedup.py` (`StateLogger`) appliqué à Influx, capteurs, `config.load()`, `SensorStats`
-- [ ] 3.3 *(hors code : à faire sur le Pi — `journalctl --vacuum-size=200M`, `journald.conf`,
-      changement du mot de passe InfluxDB)*
-
-## P1 — Cœur de logging
-- [x] 1.1 `utils/logger.py` supprimé + `CLAUDE.md` mis à jour (nouvelle section « Logging »)
-- [x] 1.2 `debug()`/`critical()`/`exception()`, remap des niveaux (`action`/`clock` → DEBUG),
-      filtre unique console+fichier, section `Log_Settings` (Pydantic + `param.json`),
-      priorité `PHYTO_LOG_LEVEL` > `param.json` > INFO, application au boot et sur POST `/conf`
-- [x] 1.3 Format `%(asctime)s [%(levelname)s] [%(name)s] %(message)s`, paramètre `name=`,
-      `box()`/`title()` sur une seule ligne côté fichier et soumis au filtre, horodatage console en
-      mode rich, plus d'émojis dans le fichier, messages uniformisés en français
-
-## P2 — Transitions plutôt qu'états
-- [x] 2.1 `Component.set_state()` et `Motor._set_pin()` ne journalisent qu'un changement réel
-- [x] 2.2 Boucles périodiques : ticks en DEBUG, évènements en INFO (cyclic/daily/heater/motor/influx/http)
-- [x] 2.3 Capteurs : état actif/inactif journalisé une fois à l'init, lectures en DEBUG,
-      échecs dédupliqués
-
-## P4 — Couverture
-- [x] 4.1 PuppetMaster : traceback complète, tâches nommées + références conservées,
-      `add_done_callback` qui signale toute terminaison
-- [x] 4.2 `main.py` : plus aucun `print()`, `traceback.print_exc()` → `exception()`
-- [x] 4.3 `except: pass` supprimés (dailytimer → ERROR, stats → WARNING dédupliqué, VL53 → DEBUG)
-- [x] 4.4 `config.load()/save()`, `SensorStats._dump()`, GPIO `(RuntimeError, ValueError, OSError)`,
-      I2C `PermissionError/OSError`, HTTP (headers, `IncompleteReadError`, 404, `int()/float()`),
-      code retour de `reboot`/`shutdown`, `reload_sensor_handler()` protégé à l'import
-
-## P5 — `/console` sans PTY
-- [x] `utils/log_stream.py` : handler mémoire (deque 1000) + queues SSE du processus courant
-- [x] PTY / second `main.py` supprimés, `wait_closed()`, désabonnement idempotent, découpage SSE
-- [x] xterm.js vendoré dans `network/web/static/{js,css}`
-
-## P6 — Rétention
-- [x] `TimedRotatingFileHandler` (minuit) + archives gzip + `retention_days`
-- [x] Anciens `phyto.log.N` sortis de git, supprimés du Pi, `logs/` ajouté au `.gitignore`
-- [x] **Rotation quotidienne vérifiée en conditions réelles le 26/08/2026 à 00:18.**
-      `logs/phyto.log.2026-08-25.gz` (4,6 Kio) contient l'intégralité de la journée,
-      `logs/phyto.log` repart à la ligne 1, aucune erreur de rotation dans le fichier ni dans
-      `journalctl -u phyto`.
-      **Enseignement** : à 00:17, aucune archive n'existait encore. `TimedRotatingFileHandler`
-      ne bascule pas sur une minuterie mais sur la **première écriture après minuit** ; les
-      boucles journalisant leurs ticks en DEBUG, un contrôleur calme n'écrit rien pendant des
-      dizaines de minutes. La bascule s'est produite immédiatement à l'émission d'une ligne
-      provoquée. Ne pas diagnostiquer une panne de rotation sur la seule absence d'archive.
-
----
-
-## Revue
-
-**Vérifications effectuées** (pas de suite de tests dans ce dépôt — scripts jetables sous
-`/tmp/claude-1000/phyto/`, venv avec pydantic/jinja2 + stubs `RPi.GPIO`/`smbus2`) :
-
-1. Façade de log : DEBUG filtré en niveau INFO (console **et** fichier), `box()` écrit
-   `ligne1 | ligne2` sur une seule ligne, `StateLogger` produit exactement 2 lignes pour 5 échecs
-   suivis d'un rétablissement, `apply_log_settings()` ajuste niveau et `backupCount` à chaud,
-   `PHYTO_LOG_LEVEL` reste prioritaire sur `param.json`.
-2. Rotation : `doRollover()` produit bien `phyto.log.<date>.gz` relisible.
-3. `param.json` : round-trip `load()`/`save()` conserve les booléens `"enabled"/"disabled"` et la
-   section `Log_Settings` ; section absente → défauts INFO/14 ; JSON corrompu → 1 seule ERREUR.
-4. GPIO (stubs) : `Component` actif-LOW inchangé (`set_state(1)` → LOW), 3 appels dont un no-op →
-   2 lignes ; `Motor` actif-HIGH avec exactement une pin HIGH pour la vitesse 2, tout LOW en 0.
-5. `temp_control` en mode hiver : 1 ligne INFO à la transition, silence sur les ticks suivants,
-   1 ligne à la bascule « sécurité haute T ».
-6. PuppetMaster : une tâche qui `return` → ERREUR « terminée alors qu'elle ne devrait jamais
-   s'arrêter », une tâche qui lève → ERREUR + traceback complète.
-7. Flux SSE : message émis dans le processus courant reçu par la queue et présent dans l'historique.
-
-**Reste à faire sur le Pi** (P3.3 / P6, hors dépôt) : vacuum de journald, `SystemMaxUse=200M`,
-changement du mot de passe InfluxDB (à reporter dans `param.json` local), suppression des vieux
-`phyto.log.N` et de `~/app.log`.
-
-**Corrections issues de l'observation en production (25/08/2026, Pi)** :
-- La console web affichait `\r\n` en clair (double échappement dans le template) et débordait sur
-  mobile (grille 80 colonnes de xterm.js) : remplacée par un afficheur natif HTML/CSS, coloré par
-  niveau, sans dépendance JS (xterm.js vendoré supprimé).
-- Un POST `/conf` instanciait **deux** `SensorController` (donc deux `/dev/i2c-1` jamais refermés),
-  et un troisième était créé à l'import d'`influx_handler` : `reload_sensor_handler()` accepte
-  désormais un handler existant, l'init à l'import est supprimée et PuppetMaster partage l'instance
-  unique. Un boot = une ouverture du bus.
-- Le formulaire postant tous les champs, « Configuration sauvegardée » listait 7 modifications pour
-  un seul changement réel : seuls les écarts sont désormais journalisés.
-
-**Point d'attention** : `logs/phyto.log.1` … `.5` sont **suivis par git** (héritage de l'ancienne
-rotation). Ils ne contiennent pas de credentials (vérifié), mais mériteraient un
-`git rm --cached logs/phyto.log*` + une entrée `.gitignore` — non fait, hors périmètre du plan.
-
----
-
 # TODO — Sortir la vitesse moteur 4 de GPIO 1 (`ID_SC`)
 
 **Contexte** : diagnostic du 25/08/2026. `motor_pin4` est câblé sur **BCM 1 = `ID_SC`**, broche
@@ -466,11 +292,18 @@ de `GENERIC_SAFE_PINS` dans `main.py`.
 
 ## Reste à faire
 
-- [ ] Commiter, déployer sur le Pi et relever le comportement réel (`/health/ready`, console SSE,
-      sauvegarde d'une section, bascule capteur)
+- [x] Commiter, déployer sur le Pi et relever le comportement réel (`/health/ready`, console SSE,
+      sauvegarde d'une section) — commits `7d455e4`/`ad39de2`, déployés le 25 août 2026 ;
+      `/health/ready` 200, flux SSE reçu, `POST /conf/logs` et `/conf/heater` enregistrés, rejet 422
+      sans écart de `param.json` (relevé `docs/archive/operations/web-baseline-2026-08-25.md`)
+- [ ] Relever sur le Pi une bascule capteur réelle (`reconfigure()` avec le matériel) — non exercée
+      par le relevé du 25 août ; suivie par M-CONF-03 dans `docs/risk-register.md`
 - [x] `scripts/deploy.sh` : qualifier service, liveness, readiness, contrôle, commit, alarmes critiques
       et stabilité continue avant succès ou après rollback
-- [ ] Transformer le harnais de fumigation HTTP en vérification reproductible
+- [x] Transformer le harnais de fumigation HTTP en vérification reproductible — remplacé par
+      `tests/test_http_server.py` (`f8a181d`, 26 août 2026), aiohttp `TestClient` sur loopback : Host
+      étranger 421, CSRF/Origin 403, rejet sans écriture, secret vide conservé, horaires, erreurs HTML
+      ou texte, remise à zéro de statistique
 - [ ] Sortir les commandes système (`nmcli`, `ping`, `timedatectl`, reboot) de l'event loop
 - [ ] Contraintes GPIO (unicité, broches réservées) — dépend du `PinRegistry` du lot 3
 
@@ -537,7 +370,7 @@ harnais `/tmp/claude-1000/phyto/test_fixes.py`, **21 contrôles, aucun échec**)
 
 **État : code et HTTPS `:443` déployés ; transport TLS vérifié le 28 août 2026, qualification complète
 sur Chrome Android et essais de dégradation encore ouverts.** Relevé :
-[`docs/operations/pwa-tls-activation-2026-08-28.md`](../docs/operations/pwa-tls-activation-2026-08-28.md).
+[`docs/archive/operations/pwa-tls-activation-2026-08-28.md`](../docs/archive/operations/pwa-tls-activation-2026-08-28.md).
 
 Procédure de référence : [`docs/operations/pwa-local-tls.md`](../docs/operations/pwa-local-tls.md).
 HTTP `:8123` doit rester la voie de compatibilité et de récupération pendant toute la qualification.
@@ -545,8 +378,11 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 
 ## 1. Préparer et activer TLS
 
-- [ ] Créer l'autorité privée sur le poste d'administration, dans un emplacement protégé situé hors
-      du dépôt ; conserver et sauvegarder `phyto-root-ca.key` hors du Raspberry Pi et d'Android
+- [x] Créer l'autorité privée sur le poste d'administration, dans un emplacement protégé situé hors
+      du dépôt — faite le 28 août 2026 (répertoire `0700`, clés `0600`, clé racine jamais transférée
+      au Pi, au dépôt ni au client ; relevé d'activation TLS, « Autorité et certificat créés hors du Pi »)
+- [ ] Sauvegarder `phyto-root-ca.key` hors du Raspberry Pi et d'Android, sur un support chiffré ou
+      amovible protégé, et vérifier qu'une restauration est possible — encore ouvert au relevé du 28 août
 - [x] Générer le certificat serveur avec `deploy/pwa-tls-server.ext`, puis vérifier sa chaîne, son
       échéance, l'usage `TLS Web Server Authentication` et les SAN `phytocontroller.local`,
       `phytocontroller` et `10.42.0.1`
@@ -554,8 +390,11 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 - [x] Installer sur le Pi uniquement `server.crt`, `server.key` et le certificat public de la racine,
       avec les propriétaires et modes documentés ; confirmer que la clé privée est lisible par
       `progradius` mais pas par les autres utilisateurs
-- [ ] Installer le drop-in `deploy/phyto.service.d/pwa-tls.conf`, exécuter `daemon-reload`, puis
-      planifier le redémarrage comme une opération de production avec vérification des états GPIO sûrs
+- [x] Installer le drop-in `deploy/phyto.service.d/pwa-tls.conf`, exécuter `daemon-reload`, puis
+      redémarrer le service — fait le 28 août 2026 à 20:36:18 CEST, `NRestarts=0`,
+      `CAP_NET_BIND_SERVICE` acquis, `control_healthy=true`, zéro alarme critique (relevé d'activation TLS)
+- [ ] Consigner la vérification des états GPIO sûrs autour de ce redémarrage — absente du relevé du
+      28 août, qui ne publie que la santé du contrôle et les alarmes
 - [x] Vérifier que `:8123` et `:443` écoutent simultanément, que `/health/ready` répond sur HTTP et que
       `/health/live` répond en HTTPS avec validation complète de la chaîne et du nom d'hôte
 - [x] Vérifier dans `/api/v1/state` que `web.https.configured=true`, `ready=true` et `port=443`, sans
@@ -705,10 +544,19 @@ Une panne TLS ou PWA ne doit jamais dégrader la régulation, `control_healthy()
 
 ## Vérification (identique pour les trois commits)
 
-- [ ] `python -m pyflakes` sur tout l'arbre — 0 « undefined name » (leçon du 26 août 2026)
-- [ ] `python3 -m pytest` vert, sortie conservée dans un fichier temporaire
-- [ ] Aucun secret dans le HTML rendu ni dans les journaux
-- [ ] `diff -u CLAUDE.md AGENTS.md` vide si l'un des deux change
+*Preuve rétrospective du 11/09/2026* : les quatre commits `5c4256a`, `ee42a78`, `f9e7273` et
+`054e173` extraits par `git archive` (sans checkout) et rejoués un par un.
+
+- [x] `python -m pyflakes` sur tout l'arbre — 0 « undefined name » (leçon du 26 août 2026) — 0 sur
+      chacun des quatre commits (hors `lib/`)
+- [x] `python3 -m pytest` vert, sortie conservée dans un fichier temporaire — 131, 135, 140 et
+      141 réussites, zéro échec
+- [x] Aucun secret dans le HTML rendu — `test_pages_dynamiques_et_secrets_absents`,
+      `test_saisie_refusee_est_reaffichee_sans_secret` et
+      `test_previsualisation_ne_renvoie_jamais_un_secret`, verts sur `054e173`
+- [ ] Aucun secret dans les journaux — aucun test ne l'établit ; relève de la vérification sur le Pi
+      ci-dessous (refus des sections `wifi` et `influx`)
+- [x] `diff -u CLAUDE.md AGENTS.md` vide si l'un des deux change — vide sur chacun des quatre commits
 
 ## Revue — Jalon 3 livré le 28 août 2026
 
@@ -738,7 +586,11 @@ bien le message sous le champ.
 
 **Reste à faire avant de déclarer le jalon vérifié** (hors portée d'une session sans matériel) :
 
-- [ ] Déploiement via `scripts/deploy.sh`, puis vérification HTTP et états GPIO
+- [x] Déploiement via `scripts/deploy.sh`, puis vérification HTTP et états GPIO — les quatre commits
+      sont ancêtres de `985e42d` (déployé le 30 août 2026 à 19:07 UTC : santé complète, HTTP et HTTPS
+      à 200, six actionneurs en `tracking=ok`) et de `2ecefb1` (déployé le 1er septembre, niveaux GPIO
+      relevés en référence dans `docs/archive/operations/jalon4-deploiement-2026-09-02.md`) ;
+      `git merge-base --is-ancestor` vérifié le 11/09/2026
 - [ ] Essai navigateur réel du sélecteur Simple / Avancé, du `beforeunload` et de l'annulation
 - [ ] Vérifier sur le Pi qu'aucun secret n'apparaît dans `logs/phyto.log` après un refus de la
       section `wifi` et de la section `influx`
@@ -804,7 +656,7 @@ effectif pendant qu'un forçage empêche de ventiler.
 - [x] Aucun octet nul dans les fichiers texte (leçon du 28 août 2026)
 - [x] `diff -u CLAUDE.md AGENTS.md` vide
 - [x] Déploiement `scripts/deploy.sh` commit par commit, vérification HTTP et états GPIO sur le Pi
-      (2 septembre 2026 — voir `docs/operations/jalon4-deploiement-2026-09-02.md`)
+      (2 septembre 2026 — voir `docs/archive/operations/jalon4-deploiement-2026-09-02.md`)
 - [x] Verrou moteur absolu qualifié sur matériel : mode manuel vitesse 2 → quatre broches LOW,
       puis retour à la vitesse 2 à la levée
 - [x] Expiration automatique et reprise après redémarrage qualifiées sur le Pi
@@ -820,26 +672,6 @@ La **coupure sur faute** est sortie du périmètre du jalon 4 (arbitrage du 2 se
 jalon ne touche pas au chemin `energized()`, sa moitié logicielle est couverte par la suite de
 tests, et sa moitié électrique appartient à `docs/development/hardware-validation.md`, où elle
 était déjà inscrite (« Relais actifs-BAS » étapes 4-5, « Supervision et arrêt » étape 1).
-
-## Remédiation du lot UI 4 du carnet (9 septembre 2026)
-
-Plan : `docs/development/remediation-ui-cultures-lot-4-2026-09-09.md` (état des lieux, R1.1 à
-R4.4, lots A à E). Aucun P0. Déroulé le 9 septembre 2026, commits `591520f..fc2a222`.
-
-- [x] Lot A — explorateur, galerie, CSS (R1.1, R1.3, R1.4, R1.6, R2.4, R3.2, R3.6) — `2ff0180`
-- [x] Lot B — magasin cycles/solutions, pagination, banc, mutation « avant » (R1.2, R2.1–R2.3, R3.7, R4.1) — `1dc848d`
-- [x] Lot C — légende, synthèse, lien de contexte, archives (R1.5, R3.1, R3.3, R3.5) — `932b2fc`
-- [x] Lot D — recherche et filtres rapides du journal (R3.4) — `c7ddf8c`
-- [x] Lot E — spec du lot 4, fixture `/tmp`, documentation (R4.2–R4.4) — `d78f805`
-- [x] Banc rejoué sur le Pi, rapport du lot 4 mis à jour — `017605b` (1 721 ms → 721 ms à 4 cultures, même semis)
-- [x] Revue indépendante du diff (3 P1, 9 P2) et corrections en worktree — `fc2a222`
-- [x] Validation de sortie : 820 pytest ; suite Playwright complète 284 / 111 exclusions / 0 échec ;
-      specs du lot 4 11/11 sur quatre profils après fusion ; garde externe 61 exclusions
-
-Revue : bilan et reliquats dans la section finale du plan. Reliquats hors lot à arbitrer :
-aperçu photo avant envoi, progression d'envoi, comparaison par âge du stade, légende des
-solutions calculée sur tous les points d'une figure, `webServer` de Playwright encore
-producteur de `/tmp/phyto-ui-*`.
 
 ## Lot F et lot « photos » du carnet (9 septembre 2026)
 
@@ -857,7 +689,7 @@ Suite des reliquats de la remédiation du lot UI 4. Point de départ `641a7ef`.
 - [x] Revue indépendante du lot photos (2 à corriger, 0 bloquant) et corrections (région atomique,
       aperçu par champ, barre dans les gardes, T7 avec mutation prouvée) — `ca91af6`
 - [x] Validation de sortie : 823 pytest ; suite Playwright complète 306 / 124 exclusions / 0 échec ;
-      garde externe 340 exclusions ; bilan `docs/development/lot-f-photos-cultures-2026-09-09.md` ;
+      garde externe 340 exclusions ; bilan `docs/archive/development/lot-f-photos-cultures-2026-09-09.md` ;
       `tasks/lessons.md`
 - [ ] À demander à l'utilisateur : suppression des 196 `/tmp/phyto-ui-*` accumulés (16,5 Mio)
 
@@ -948,49 +780,16 @@ Reprise du 10/09/2026 (orchestrateur garant, agents Opus par périmètre de fich
 - Sept défauts de fond trouvés par les revues et corrigés : rechargement réseau à chaque `resize`, `Content-Length` faux sur les copies hors ligne, minuteur effaçant un refus serveur, clé d'idempotence écrasée entre note et photo, page Plages annonçant une plage inatteignable, focus du champ refusé jamais posé sur `/conf`, harnais de test sans états d'actionneurs.
 - Reste à l'opérateur : R4.2 (Pi/téléphone), grille appareils réels de R4.1, sessions de R4.3.
 
-# Données vivantes hors du répertoire de travail Git (incident du 08/09/2026)
+# Écarts résiduels, documentation et archivage (11/09/2026)
 
-Cause établie : un `git checkout master` lancé à la main sur le Pi a matérialisé le `param.json`
-du commit `e93644a` par-dessus la configuration vivante — la branche déployée ne suivait pas le
-fichier, la révision visée le suivait encore. 26 h 21 sans Éclairage 2 ni cycle 2, 6 h
-d'Éclairage 1 perdues, chauffage réactivé à tort 22 min.
+Suite de la revérification commitée en `e29bf96`. Agents sur fichiers disjoints, orchestrateur garant
+(pytest complet et Playwright ciblé à chaque rendu, commit par liste de fichiers, revue indépendante).
 
-- [x] `utils/runtime_paths.py` : `data_dir()` / `data_file()` purs et mémoïsés, `ensure_data_dir()`
-      qui échoue bruyamment, défaut inchangé sur `param/`
-- [x] `tests/test_runtime_paths.py` : défaut, surcharge, variable vide, chemin relatif, mémoïsation,
-      absence de création, mode 0700, échec sans repli
-- [x] Huit ancrages reroutés : `param/config.py`, `param/equipment_metadata.py`,
-      `model/SensorStats.py`, `utils/csrf.py`, `utils/state_store.py`, `utils/operator_history.py`,
-      `utils/culture_store.py`, `utils/pretty_console.py`
-- [x] `main.py` : `ensure_data_dir()` avant le verrou d'instance et tout accès fichier
-- [x] `scripts/deploy.sh` : répertoire lu dans l'unité systemd (`systemctl show`), gardes et
-      validation Pydantic sur le chemin résolu
-- [x] `deploy/phyto.service` : `Environment=PHYTO_DATA_DIR=/home/progradius/phyto-data`
-- [x] `tests/test_deploy_safety.py` : sonde en interpréteur neuf, aucun des 8 chemins dans le dépôt
-- [x] Documentation : `docs/operations/migration-donnees-vivantes.md`, `README.md`,
-      `docs/operations/install-raspberry-pi.md`, miroirs `CLAUDE.md` / `AGENTS.md`
-- [x] Migration sur le Pi le 10/09/2026 (fenêtre d'arrêt de ~2 min, sauvegarde
-      `~/phyto-backups/20260910-075633-avant-migration`)
-- [x] Preuve de non-régression : checkout vers `e93644a` dans un clone jetable — le commit
-      matérialise bien `param.json` (3106 o, la taille exacte du fichier écrasé le 08/09) dans
-      l'arbre de travail, et l'empreinte SHA-256 de la configuration vivante est inchangée
-
-## Revue
-
-`python3 -m pytest` : 835 passed. `diff -u CLAUDE.md AGENTS.md` vide.
-Le défaut `param/` est inchangé, donc développement, tests et Docker ne bougent pas ; seul le Pi,
-dont l'unité pose `PHYTO_DATA_DIR`, sort du répertoire de travail Git.
-Point à ne jamais relâcher : aucun repli silencieux vers `param/` dans `ensure_data_dir()`, sans
-quoi le processus se remettrait à écrire dans le dépôt sans que personne ne le voie.
-
-### Sortie de migration (10/09/2026)
-
-`~/phyto-data` porte les 8 entrées vivantes ; `param/` ne contient plus que du versionné et
-`git status` du dépôt est vide. Les descripteurs ouverts du processus pointent bien vers
-`~/phyto-data` (les deux SQLite), `runtime_state.json` et `sensor_stats.json` y sont réécrits,
-et `.csrf_token` a gardé son horodatage du 25/08 — il a été relu, pas régénéré, donc aucune page
-ouverte n'a été invalidée.
-
-Configuration : aucun écart avec la référence du 03/09. GPIO inchangés, chauffage désactivé,
-`max_speed` à 2. Intégrité SQLite `ok` sur les deux bases (21 et 5 tables). `/health/ready`
-`{"ready": true}`, et `/`, `/history`, `/alarms`, `/cultures`, `/conf`, `/health/live` en 200.
+- [ ] Lot A — code E1 à E5 (CSS, infobulle Solutions, filtre Éclairage, aide iOS 26, ordre du journal)
+- [ ] Lot B — outillage de mesure : E6 (premier écran fiche et Plages avec cible), E7 (rejeu de la
+      baseline `8023123` à ±2 %), capture en niveaux de gris hors fichier versionné, remesure finale
+- [ ] Lot C — docs d'exploitation et de référence : chemins `PHYTO_DATA_DIR`, routes et schéma d'état
+      manquants, 11 jobs, procédures de jalons sorties vers l'archive
+- [ ] Lot D — archivage (`docs/archive/`, `tasks/archive/`), suppressions (`notes`, images non
+      référencées, plan de journalisation, script jalon 1), roadmap, registre, index, CHANGELOG
+- [ ] Revue indépendante du diff complet, correctifs, bilan dans le plan de remédiation

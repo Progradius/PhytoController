@@ -2,7 +2,7 @@
 
 **Statut** : HTTPS déployé et vérifié sur le Raspberry Pi de production le 28 août 2026 ;
 qualification PWA complète sur Android encore ouverte. Le relevé d'installation et ses limites sont
-conservés dans [Activation TLS du 28 août 2026](pwa-tls-activation-2026-08-28.md).
+conservés dans [Activation TLS du 28 août 2026](../archive/operations/pwa-tls-activation-2026-08-28.md) (archive).
 
 **Origine canonique** : `https://phytocontroller.local/`.
 

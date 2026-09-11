@@ -1,13 +1,15 @@
 # Baseline web du 25 août 2026
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour.
+
 **Nature** : relevé de vérification après déploiement, en lecture seule sauf mention contraire.
 **Commit déployé** : `ad39de2`. **Service démarré** : 25 août 2026 à 23:36:07 CEST.
 **Méthode** : commandes exécutées sur le Pi via le pont SSH (`scripts/phyto-ssh.sh`).
 **Valeurs sensibles** : aucune n'est reproduite ici.
 
 Ce document est daté : il constate un état, il ne décrit pas le comportement courant. La
-référence vivante reste [l'interface HTTP](../reference/http-interface.md) et le
-[registre des risques](../risk-register.md).
+référence vivante reste [l'interface HTTP](../../reference/http-interface.md) et le
+[registre des risques](../../risk-register.md).
 
 ## Service et supervision
 

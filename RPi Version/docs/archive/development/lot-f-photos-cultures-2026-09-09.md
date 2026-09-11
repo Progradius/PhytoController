@@ -1,6 +1,8 @@
 # Carnet de cultures — lot F et passe « photos », bilan du 9 septembre 2026
 
-Suite de la remédiation du lot UI 4 (`docs/development/remediation-ui-cultures-lot-4-2026-09-09.md`,
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour.
+
+Suite de la remédiation du lot UI 4 (`docs/archive/development/remediation-ui-cultures-lot-4-2026-09-09.md`,
 section « Reliquats »). Point de départ `641a7ef`, arbre propre, 820 tests pytest, suite Playwright
 284 réussites / 111 exclusions. Six commits, `9136e40..88a6a05` (le dernier étant ce bilan).
 
@@ -60,7 +62,7 @@ profils Chromium (T3 et T7 bureau seulement) ; spec du lot 2 19 / 19.
 Constat démenti : sous `page.route`, Chromium n'émet aucun événement `xhr.upload` — T4 assert
 l'état indéterminé (`position === -1`), jamais un pourcentage. Le pourcentage réel et le flux
 d'annonces d'un lecteur d'écran restent non observables par le banc (dit dans
-`docs/development/cultures-ui-photos.md`, « Limites assumées »).
+`docs/archive/development/cultures-ui-photos.md`, « Limites assumées »).
 
 ## Validation de sortie
 
@@ -78,5 +80,5 @@ d'annonces d'un lecteur d'écran restent non observables par le banc (dit dans
 - les pages appellent `status(form, …)` avant `submitBinary` : un second envoi refusé par `busy`
   efface la barre de l'envoi en vol (défaut des trois appelants, pas du socle) ;
 - comparaison des cycles par âge du stade : décision produit, hors périmètre ;
-- `docs/development/remediation-ui-cultures-lot-4-2026-09-09.md` ligne P1.1 décrit encore
+- `docs/archive/development/remediation-ui-cultures-lot-4-2026-09-09.md` ligne P1.1 décrit encore
   `chart_sources` sous sa forme plate ; rapport daté, laissé tel quel.

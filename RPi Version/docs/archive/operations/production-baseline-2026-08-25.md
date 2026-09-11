@@ -1,5 +1,7 @@
 # Baseline de production — 25 août 2026
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour.
+
 **Méthode** : relevé SSH Windows en lecture seule.
 **Secrets** : aucune valeur de `param.json`, adresse réseau ou credential reproduit.
 **Commit exécuté sur le Pi** : `61a5d7d`.

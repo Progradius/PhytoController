@@ -1,6 +1,10 @@
 # TODO — Audit 2026-08-25, Phase 0 (garde-fous immédiats)
 
-Plan source : `AUDIT-2026-08-25.md` § 8.
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour. Les restes
+> ouverts (rotation des secrets) sont suivis par la [roadmap](../../docs/roadmap.md) et
+> [`tasks/todo.md`](../todo.md).
+
+Plan source : `docs/archive/AUDIT-2026-08-25.md` § 8.
 
 **Statut : phase 0 terminée, déployée et vérifiée sur le matériel** (commit `649eb20`, Pi sur `master`,
 déploiement du 2026-08-25 ~20:54 via `scripts/deploy.sh`). Détail des preuves en fin de fichier.
@@ -90,7 +94,7 @@ démarrage suivant. C'est le mode de panne le plus coûteux de la phase 0.
 ## Suite
 
 Phase 1 (« état sûr » structurel : PinRegistry, superviseur de tâches,
-`energized()`, watchdog par heartbeats) — voir `AUDIT-2026-08-25.md` § 8.
+`energized()`, watchdog par heartbeats) — voir `docs/archive/AUDIT-2026-08-25.md` § 8.
 **Des travaux de phase 1 sont en cours dans l'arbre de travail** (`utils/supervisor.py`,
 `beat()`/`hb_sleep()` dans les handlers, `Component.energized()`) : non commités
 au moment de la rédaction de ce bilan, donc non vérifiés ici.

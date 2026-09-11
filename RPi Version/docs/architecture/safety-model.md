@@ -3,7 +3,7 @@
 **Public** : toute personne modifiant ou exploitant les GPIO, relais, timers, moteur, chauffage, arrêt ou watchdog.
 **Référence** : commit `61ad3df`.
 **Dernière vérification du code** : 25 août 2026.
-**Dernière preuve matérielle citée** : arrêt contrôlé vérifié le 25 août 2026, détaillé dans `tasks/audit_phase0_todo.md`.
+**Dernière preuve matérielle citée** : arrêt contrôlé vérifié le 25 août 2026, détaillé dans `tasks/archive/audit_phase0_todo.md`.
 
 ## Principe
 

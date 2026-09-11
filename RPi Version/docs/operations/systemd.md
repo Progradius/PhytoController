@@ -45,6 +45,12 @@ il réénumère explicitement les trois capacités après remise à zéro de la 
 [PWA locale et TLS](pwa-local-tls.md). systemd tient parallèlement le watchdog matériel avec
 `RuntimeWatchdogSec=15`; l'application utilise donc la voie de notification systemd.
 
+Ce watchdog matériel se règle dans `/etc/systemd/system.conf` (section `[Manager]`), pas dans l'unité :
+`RuntimeWatchdogSec=15`, valeur relevée sur le Pi le 25 août 2026. L'ancien fichier `notes` (supprimé le
+11/09/2026) prévoyait aussi `RebootWatchdogSec=2min`, valeur jamais relevée sur le Pi. La modification
+prend effet au redémarrage du Pi ; la vérifier avec
+`systemctl show -p RuntimeWatchdogUSec -p RebootWatchdogUSec`.
+
 ## Contrôles
 
 ```bash

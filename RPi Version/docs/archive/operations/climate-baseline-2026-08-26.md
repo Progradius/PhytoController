@@ -1,5 +1,7 @@
 # Relevé de l'arbitre thermique — 26 août 2026
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour.
+
 **Objet** : vérification du déploiement de la phase 2 (arbitre thermique unifié) sur le Pi de
 production. **Commit déployé** : `a04abbd` (contient `e93644a`). **Service démarré** :
 26 août 2026, 00:48:31 CEST. **Méthode** : lecture seule via le pont SSH Windows, plus une
@@ -131,5 +133,5 @@ suivi demandé/réel des sorties ; elle ne qualifie pas une régulation qui n'é
   de déshumidification se consommer, se borner puis se réarmer ;
 - la concordance entre décision publiée, état logique et niveau électrique réel des GPIO.
 
-Ce TODO est également suivi dans la [roadmap](../roadmap.md#arbitre-thermique) et dans le
-[registre des risques](../risk-register.md).
+Ce TODO est également suivi dans la [roadmap](../../roadmap.md#arbitre-thermique) et dans le
+[registre des risques](../../risk-register.md).

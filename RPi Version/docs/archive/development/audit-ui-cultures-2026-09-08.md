@@ -1,5 +1,8 @@
 # Audit UI/UX du carnet de cultures — 8 septembre 2026
 
+> Archivé le 11/09/2026 — audit clos (lots UI 1 à 4 et remédiations livrés), conservé comme preuve ;
+> ne plus le mettre à jour.
+
 L'enjeu principal est de transformer un ensemble de formulaires métier en un carnet
 qui aide à comprendre la situation et à réaliser la prochaine action. La couverture
 fonctionnelle est riche ; la hiérarchie, la continuité du contexte et la simplicité

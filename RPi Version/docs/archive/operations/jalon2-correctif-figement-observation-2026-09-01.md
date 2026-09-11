@@ -1,5 +1,7 @@
 # Observation du correctif de figement — clôture du 1er septembre 2026
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour.
+
 **Objet** : clôturer la nouvelle fenêtre de 172 800 s lancée après le déploiement du correctif de
 figement `985e42d`. **Décision** : observation acceptée sans anomalie ; le correctif de figement est
 qualifié en mode `observe`.

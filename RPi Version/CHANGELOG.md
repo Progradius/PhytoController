@@ -1,10 +1,77 @@
 # Changelog
 
-Ce changelog commence avec la consolidation documentaire du 25 août 2026. L'historique antérieur reste disponible dans Git et dans `AUDIT-2026-08-25.md`.
+Ce changelog commence avec la consolidation documentaire du 25 août 2026. L'historique antérieur reste disponible dans Git et dans `docs/archive/AUDIT-2026-08-25.md`.
 
 Les mentions **code**, **déployé** et **vérifié matériellement** sont distinctes.
 
 ## Non publié
+
+### Archivage documentaire (11 septembre 2026)
+
+- Relevés de production datés, bilans des lots UI du carnet et audit du 25 août déplacés sous
+  `docs/archive/` ; plans livrés et sections closes de `tasks/todo.md` sous `tasks/archive/`, chacun
+  avec une ligne d'archive en tête et ses liens entrants mis à jour.
+- Supprimés : le fichier racine `notes` (bloc `gpio=N=op,dh` faux et dangereux, contenu utile reporté
+  dans l'installation et systemd), `tasks/logging_refonte_plan.md` (doublon livré en `fb26cd2`),
+  `scripts/observe-jalon1-watchdog.sh` (jalon clos, récupérable depuis `bb9462e`), captures non
+  référencées du lot UI 1 ; `docs/development/release-process.md` fusionné dans
+  `docs/operations/deployment-and-rollback.md`.
+- Roadmap et registre deviennent les seuls suivis d'avancement ; risque R-OPS-04 ajouté.
+
+### Remédiation web, mobile et PWA
+
+**Code `6f39986` à `08a4815` (11 septembre 2026), état revérifié en `e29bf96` ; déploiement sur le Pi
+non consigné, qualifications sur appareils réels (R4.1 à R4.3) ouvertes.** Audit du 9 septembre en
+`ada577f`, plan dans `docs/development/remediation-web-mobile-pwa-2026-09-09.md`.
+
+- Outillage : mesure versionnée des pages (`tests/ui/measure_pages.js`), banc de performance
+  `scripts/benchmark-web-pages.py`, huit macros de présentation partagées (`6f39986`).
+- Lecture et urgence : alarmes avant notifications, tableau de bord compact, barre mobile avec
+  Cultures, console accessible, pages d'erreur à retour contextuel et réessai GET, filtre `nombre` à
+  chiffres tabulaires (`f93e8cb`).
+- Configuration par groupes avec barre de modifications non masquante, historique à indicateurs et
+  détail tactile sous le graphique (`d89c060`).
+- Carnet sur mobile : vues Saisir / Relevés / Analyser et À faire / Comparer par `?view=`, fiche à
+  synthèse en tête, journal à une ligne par opération (`6562a2f`).
+- PWA : page `/app` par appareil, lecture hors ligne déclarative, budgets d'attente du service worker,
+  mise à jour explicite sans `skipWaiting` spontané, brouillons locaux du carnet sans rejeu (`b801a8b`).
+- Verdict « HORS LIGNE » à propriétaire unique (`8023123`, 10 septembre).
+
+### Données vivantes hors du répertoire de travail Git
+
+**Code `fd632bf` (10 septembre 2026) ; migration exécutée sur le Pi le 10 septembre (`eefa74c`).**
+
+- Incident du 8 septembre : un `git checkout master` manuel sur le Pi a matérialisé l'ancien
+  `param.json` de `e93644a` par-dessus la configuration vivante (26 h 21 sans Éclairage 2 ni cycle 2).
+- `utils/runtime_paths.py` résout un répertoire unique (`PHYTO_DATA_DIR`, défaut `param/`) pour les
+  huit fichiers écrits à l'exécution ; `main.py` s'arrête sans repli silencieux si le répertoire posé
+  est inutilisable, avant toute broche.
+- `deploy/phyto.service` pose `PHYTO_DATA_DIR=/home/progradius/phyto-data` ; `scripts/deploy.sh` lit
+  ce chemin dans l'unité systemd, jamais dans son environnement.
+- Preuve : checkout vers `e93644a` dans un clone jetable sans effet sur la configuration vivante.
+  Procédure : `docs/operations/migration-donnees-vivantes.md`.
+
+### Carnet de cultures
+
+**Code du 7 au 9 septembre 2026 ; en service sur le Pi au plus tard le 10 septembre (constaté à la
+sortie de migration), commit exact non consigné ; aucune qualification fonctionnelle sur le Pi.**
+Aucune commande matérielle, aucune dépendance de la régulation ni du watchdog envers SQLite.
+
+- Schéma 1 (`3ac74e5`, 7 septembre) : mères, lots multi-origines, stades et occupation datés,
+  récolte/séchage, journal corrigible, archives, export et restauration sur copie.
+- Schéma 2 (`f845293`, 8 septembre) : solutions structurées, recettes versionnées, préparations,
+  arrosages multi-mères, pH/EC, courbes et export CSV.
+- Schéma 3 (`58e97e6`) : photos bornées, rappels, vérifications, synthèses climatiques horaires
+  durables, comparaison, consultation PWA et sauvegarde ZIP.
+- Schéma 4 (`ca865d0`) et rattrapage A à I (`2284074` … `b628cf5`) : vérifications corrigibles,
+  plages cibles pH/EC, repères d'éclairage, affectations d'équipements datées, journal transversal et
+  observations d'espace.
+- Lots UI : audit (`bcb0a48`), lot 1 navigation commune (`cc59e48`), lot 2 parcours quotidiens et
+  socle des formulaires (`62e29e7` … `c879d51`), lot 3 assistance contextuelle (`d9d3dfd` …
+  `0665d80`), remédiation 2-3 (`719ebd8` … `78f568b`), lot 4 comparaison et exploration
+  (`183189b`), remédiation du lot 4 (`591520f` … `641a7ef`), lot F et passe « photos » avec aperçu
+  local et progression d'envoi (`9136e40` … `1b31d82`).
+- Limites résiduelles : risques R-CULT-01 à 03.
 
 ### Finition et lecture opérationnelle de l'interface web
 
@@ -92,7 +159,8 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 
 ### PWA locale
 
-**Implémentée, non déployée et non encore qualifiée sur Android.**
+**Implémentée ; HTTPS `:443` activé sur le Pi le 28 août 2026
+(`docs/archive/operations/pwa-tls-activation-2026-08-28.md`) ; non encore qualifiée sur Android.**
 
 - Second point d'écoute HTTPS aiohttp optionnel, en parallèle du HTTP historique `:8123` ; une panne
   TLS reste auxiliaire et ne coupe ni l'IHM HTTP, ni le contrôle.
@@ -108,7 +176,7 @@ Les mentions **code**, **déployé** et **vérifié matériellement** sont disti
 ### Arbitre thermique unifié (audit — phase 2)
 
 **Code `e93644a` ; déployé et vérifié sur le Pi le 26 août 2026** (`a04abbd`) — relevé dans
-`docs/operations/climate-baseline-2026-08-26.md`. Vérifié par rejeu de 35 scénarios sur la fonction
+`docs/archive/operations/climate-baseline-2026-08-26.md`. Vérifié par rejeu de 35 scénarios sur la fonction
 de décision pure (banc hors dépôt), rendu des pages, aller-retour `save()`/`load()`, puis en
 production : huit travaux sains, cohérence entre l'état publié et `pinctrl`, état persisté,
 rechargement à chaud sans coupure de sortie.
@@ -152,7 +220,7 @@ rechargement à chaud sans coupure de sortie.
 
 **Code `7d455e4` et `ad39de2` ; déployé et vérifié matériellement le 25 août 2026.** Vérifié en
 local par fumigation HTTP (aiohttp `TestClient`, stubs GPIO/I²C) puis sur le Pi — relevé dans
-`docs/operations/web-baseline-2026-08-25.md`.
+`docs/archive/operations/web-baseline-2026-08-25.md`.
 
 - Serveur `aiohttp` à routes explicites en remplacement du serveur artisanal : jeton CSRF,
   contrôle d'`Origin`, validation du `Host` (DNS rebinding fermé), corps limité à 64 Kio,

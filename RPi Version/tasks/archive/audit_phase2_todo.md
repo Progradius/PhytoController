@@ -1,6 +1,10 @@
 # Audit — Phase 2 : chantier « thermique unifié »
 
-Branche : `audit-phase2-thermique` · Base : `ad39de2` · Référence : `AUDIT-2026-08-25.md` §8 Phase 2.
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour. Les restes
+> ouverts (essai thermique sur plages limites, R-SAFE-06) sont suivis par la
+> [roadmap](../../docs/roadmap.md) et le [registre des risques](../../docs/risk-register.md).
+
+Branche : `audit-phase2-thermique` · Base : `ad39de2` · Référence : `docs/archive/AUDIT-2026-08-25.md` §8 Phase 2.
 
 **Findings couverts** : C8, C9, C10, E8, E9, E10, M11, M13, M14 (+ E6 pour la persistance de la
 phase séquentielle).
@@ -166,7 +170,7 @@ menées hors dépôt, dans le scratchpad de session :
 Déployé (`a04abbd`) et vérifié sur le Pi : huit travaux sains sans redémarrage, cohérence complète
 entre l'état publié et `pinctrl`, `runtime_state.json` créé avec ses deux sections, rechargement à
 chaud sans coupure de sortie, journal muet (65 lignes en 3 min, aucune erreur). Relevé détaillé :
-`docs/operations/climate-baseline-2026-08-26.md`.
+`docs/archive/operations/climate-baseline-2026-08-26.md`.
 
 **Deux défauts trouvés par ce relevé, corrigés depuis :**
 

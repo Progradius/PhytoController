@@ -1,5 +1,7 @@
 # Carnet de cultures — lot UI 2, parcours quotidiens
 
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour.
+
 Réalisation du lot 2 de l’audit UI du 8 septembre 2026. Le périmètre est celui des parcours
 quotidiens : accueil « Aujourd’hui », fiche complète, saisie guidée, création et reprise,
 observation et photo, erreurs associées aux champs. Aucune migration, aucune persistance

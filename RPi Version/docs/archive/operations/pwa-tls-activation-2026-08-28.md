@@ -1,5 +1,8 @@
 # Activation TLS de production — 28 août 2026
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour. Les actions
+> restées ouvertes (fin du document) sont suivies dans `tasks/todo.md`, section PWA.
+
 **Nature** : changement d'exploitation réellement exécuté sur le Raspberry Pi de production.
 **Application déployée** : commit `5520850c09ae478806a145a7ce389bf5cd89666c`.
 **Origine canonique** : `https://phytocontroller.local/`.
@@ -7,7 +10,7 @@
 **Valeurs sensibles** : aucune clé privée ni aucun secret n'est reproduit dans ce document.
 
 Ce relevé est daté. Il prouve l'état observé pendant l'activation ; la procédure vivante reste
-[PWA locale et autorité TLS privée](pwa-local-tls.md).
+[PWA locale et autorité TLS privée](../../operations/pwa-local-tls.md).
 
 ## État initial
 
@@ -108,7 +111,7 @@ prévu. Juste avant celui-ci, arrêter proprement l'observateur actuel par `SIGT
 de son résumé interrompu, redéployer, valider le service, nettoyer ou archiver uniquement cette
 preuve invalidée, puis lancer une nouvelle fenêtre complète avec les références du nouveau
 déploiement. La séquence générique est décrite dans
-[Déploiement et rollback](deployment-and-rollback.md#redéployer-pendant-une-observation-jalon-2).
+[Procédures d'observation des jalons 1 et 2](procedures-observation-jalons-1-2.md#redéployer-pendant-une-observation-jalon-2).
 
 ### Suite exécutée après le redéploiement
 

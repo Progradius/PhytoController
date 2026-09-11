@@ -1,5 +1,7 @@
 # Plan de remédiation — lots UI 2 et 3 du carnet de cultures
 
+> Archivé le 11/09/2026 — plan livré et clos, conservé comme preuve ; ne plus le mettre à jour.
+
 État des lieux du 9 septembre 2026, après livraison des lots 2 (`62e29e7..c879d51`) et 3
 (`d9d3dfd..0665d80`) de l'[audit du 8 septembre 2026](audit-ui-cultures-2026-09-08.md).
 Ce document liste les écarts constatés et le correctif attendu pour chacun. Il ne modifie rien

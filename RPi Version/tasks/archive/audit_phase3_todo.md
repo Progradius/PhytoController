@@ -1,6 +1,10 @@
 # Phase 3 — Chantier « configuration »
 
-Référence : `AUDIT-2026-08-25.md` § 8, Phase 3. Findings visés : **C5, C7, E7, M4-références, F3**.
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour. Le reste
+> reporté (sortie et rotation des secrets, E14) est suivi par la [roadmap](../../docs/roadmap.md)
+> (lot 4) et le risque R-CONF-02 du [registre](../../docs/risk-register.md).
+
+Référence : `docs/archive/AUDIT-2026-08-25.md` § 8, Phase 3. Findings visés : **C5, C7, E7, M4-références, F3**.
 Le second point de la phase (**sortie des secrets**, finding E14) est **explicitement reporté** à la
 demande de l'utilisateur — voir « Reste à faire » en fin de document.
 

@@ -3,7 +3,7 @@
 **Date d'analyse** : 2026-08-26 · **Branche d'analyse** : `audit-phase2-thermique` (base `ad39de2`)
 **Périmètre** : `RPi Version/` — l'intégralité de l'arbre Python (8 286 lignes, 45 fichiers), les
 gabarits web, la configuration, les scripts de déploiement et la documentation.
-**Référence amont** : `AUDIT-2026-08-25.md` (sûreté électrique / robustesse) — le présent plan ne le
+**Référence amont** : `docs/archive/AUDIT-2026-08-25.md` (sûreté électrique / robustesse) — le présent plan ne le
 remplace pas, il traite ce que l'audit ne couvrait pas : la **structure**, la **duplication** et le
 **code mort**.
 
@@ -909,7 +909,7 @@ supprimées au Lot 3). Retirer `/status` tue la classe entière, ainsi que le pa
 
 #### Actions
 
-1. **Fixer une date de retrait** et l'annoncer. `docs/operations/web-baseline-2026-08-25.md` existe
+1. **Fixer une date de retrait** et l'annoncer. `docs/archive/operations/web-baseline-2026-08-25.md` (archivé le 11/09/2026) existe
    déjà : y ajouter une section « Surface historique — retrait prévu le AAAA-MM-JJ ».
 2. Avant retrait : vérifier qu'aucun script d'exploitation ne consomme `/status`
    (`grep -rn "status" scripts/ deploy/ docs/operations/`) — le runbook et la doc de monitoring en
@@ -965,7 +965,14 @@ utiles : pourquoi la zone morte est calculée plutôt que validée, pourquoi le 
 sinon supprimer. Le présent plan (`tasks/plan_dette_technique.md`) suivra le même chemin une fois
 exécuté.
 
+**Exécuté le 11/09/2026** : bilans et plans livrés déplacés sous `tasks/archive/` (et l'audit sous
+`docs/archive/`) plutôt que `docs/decisions/`, sections closes de `todo.md` archivées,
+`logging_refonte_plan.md` supprimé.
+
 #### 12.c — Le fichier `notes`
+
+**Exécuté le 11/09/2026** : fichier supprimé ; contenu utile reporté dans
+`docs/operations/install-raspberry-pi.md` et `docs/operations/systemd.md`.
 
 165 lignes, dont un bloc **dangereux** annoté `⛔ NE PAS RECOPIER LE BLOC CI-DESSOUS TEL QUEL ⛔`
 (les lignes `gpio=N=op,dh`, fausses pour les broches moteur actives-HAUT, et de toute façon ignorées

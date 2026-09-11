@@ -18,7 +18,7 @@ service worker à fraîcheur dominante, formulaires du carnet sur `culture_forms
 - **Baseline à figer avant le lot 1.** L'arbre porte des modifications non commitées (lot F photos,
   documentation, `cultures.css`, `culture_forms.js`, `tests/ui/cultures_ui_photos.spec.js`). Le plan
   démarre après leur commit ; le commit de départ, le nombre de tests pytest et Playwright par profil
-  sont notés en tête de `tasks/todo.md`.
+  sont notés dans la section « Suivi — remédiation web, mobile et PWA » de `tasks/todo.md`.
 - **Orchestration.** Un agent par lot, une seule tâche par agent ; l'orchestrateur relit chaque
   changement, lance les vérifications et commite. Playwright s'exécute **un profil à la fois**.
 - **Vérification de chaque lot** (aucune exception) :

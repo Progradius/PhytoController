@@ -1,5 +1,7 @@
 # Carnet de cultures — lot UI 1, cohérence et défauts
 
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour.
+
 Réalisation du lot 1 de l’audit UI du 8 septembre 2026. Le périmètre est celui de
 la navigation et de la présentation ; aucune migration, règle de culture,
 commande d’équipement ou donnée de production n’est modifiée.

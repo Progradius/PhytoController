@@ -9,7 +9,8 @@
 - Identifier les deux polarités dans le [modèle de sûreté](../architecture/safety-model.md).
 - Vérifier le câblage contre la [matrice GPIO](../hardware/gpio-matrix.md).
 - Prévoir les protections externes avant une exploitation sans surveillance.
-- Ne jamais réutiliser les exemples historiques `gpio=N=op,dh` du fichier `notes`.
+- Ne jamais réintroduire les lignes historiques `gpio=N=op,dh` de l'ancien fichier `notes` (supprimé le
+  11/09/2026) : elles commandaient les relais moteur actifs-HAUT au boot.
 
 ## Paquets et interfaces
 
@@ -26,6 +27,11 @@ Le système utilise au minimum :
 - `curl`, Git et les outils usuels d'exploitation.
 
 Le Pi observé possède `/dev/gpiomem`, `/dev/i2c-1` et les modules `i2c_bcm2835`, `i2c_dev`, `w1_gpio` et `w1_therm`. `/boot/firmware/config.txt` active `dtparam=i2c_arm=on` et `dtoverlay=w1-gpio`. Le `Dockerfile` ne doit pas être utilisé comme liste d'installation de production.
+
+Si NetworkManager manque (image minimale), l'installer avec `sudo apt-get install network-manager`.
+Pour 1-Wire, passer par `raspi-config` ou ajouter `dtoverlay=w1-gpio` à `/boot/firmware/config.txt` :
+sous Bookworm, `/boot/config.txt` est ignoré. Les dépendances Python viennent de `requirements.txt`,
+jamais d'un `pip install` isolé.
 
 Versions Python observées le 25 août 2026 : Pydantic 2.11.3, requests 2.32.3, RPi.GPIO 0.7.1, smbus2 0.5.0, aiohttp 3.11.18, Jinja2 3.1.6 et Rich 14.0.0. Elles constituent un relevé, pas encore un lock de dépendances.
 

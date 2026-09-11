@@ -1,5 +1,9 @@
 # Plan — Expérience opérateur « maintenant, pourquoi, ensuite » (v2, après revue contradictoire)
 
+> Archivé le 11/09/2026 — plan livré (jalons 1 à 4) et clos, conservé comme preuve ; ne plus le
+> mettre à jour. Les qualifications restant à mener sur le Pi (jalons 3 et 4, PWA) sont suivies
+> dans [`tasks/todo.md`](../todo.md).
+
 ## Objectif et livraison
 
 Transformer l'interface locale en poste de conduite explicable : état réel et demandé des équipements,

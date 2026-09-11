@@ -4,7 +4,7 @@
 si les trois variables TLS sont valides, HTTPS `0.0.0.0:443` dans le même processus.
 **Contrainte** : LAN de confiance uniquement, aucune authentification.
 **Statut** : implémenté, **déployé et vérifié sur le Pi** le 25 août 2026 (commit `ad39de2`) —
-relevé dans [Baseline web du 25 août 2026](../operations/web-baseline-2026-08-25.md).
+relevé dans [Baseline web du 25 août 2026](../archive/operations/web-baseline-2026-08-25.md).
 
 ## Routes
 

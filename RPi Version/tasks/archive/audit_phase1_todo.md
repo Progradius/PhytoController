@@ -1,6 +1,10 @@
 # TODO — Audit 2026-08-25, Phase 1 (chantier « état sûr », structurel)
 
-Plan source : `AUDIT-2026-08-25.md` § 8. Périmètre **volontairement réduit** :
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour. Les restes
+> ouverts (`PinRegistry`, migration des broches moteur dont la vitesse 4, garde-fous matériels) sont
+> suivis par la [roadmap](../../docs/roadmap.md) (lot 3) et [`tasks/todo.md`](../todo.md).
+
+Plan source : `docs/archive/AUDIT-2026-08-25.md` § 8. Périmètre **volontairement réduit** :
 le PinRegistry central et la migration des broches moteur sont relogés plus bas
 (décision du 25/08/2026 : pas de changement de brochage maintenant).
 

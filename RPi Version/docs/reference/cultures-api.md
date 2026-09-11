@@ -1143,7 +1143,7 @@ le banc du 9 septembre 2026 (44 cultures, 12 001 relevés, 31 810 agrégats hora
 **438 414 octets** à quatre cultures et 134 736 octets à une seule. La page reste sous le
 plafond de 4 Mio par page de la PWA. Ces valeurs ne qualifient pas les performances sur le
 Raspberry Pi ; les mesures correspondantes sont dans
-[cultures-ui-lot-4-mesures.json](../development/cultures-ui-lot-4-mesures.json).
+[cultures-ui-lot-4-mesures.json](../archive/development/cultures-ui-lot-4-mesures.json).
 
 ## Assistance éphémère et prévalidation (lot UI 3)
 

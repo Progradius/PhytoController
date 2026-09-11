@@ -2,7 +2,7 @@
 
 **Statut** : accepté. **Date** : 26 août 2026. **Commit** : `e93644a`.
 **Déploiement** : exercé et vérifié sur le Pi le 26 août 2026 (`a04abbd`) —
-[relevé](../operations/climate-baseline-2026-08-26.md).
+[relevé](../archive/operations/climate-baseline-2026-08-26.md).
 
 ## Contexte
 

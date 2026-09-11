@@ -1,9 +1,13 @@
 # Observation watchdog du jalon 1 — clôture du 28 août 2026
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour.
+
 **Objet** : qualification continue du découplage entre santé globale et santé du contrôle avant le
 déploiement du jalon opérateur suivant. **Commit observé** : `e91b021`. **Watchdog systemd** : armé à
 600 s par dérogation opérateur documentée. **Méthode** : lecture seule par
-`scripts/observe-jalon1-watchdog.sh`, une sonde par minute pendant 48 h.
+`scripts/observe-jalon1-watchdog.sh`, une sonde par minute pendant 48 h (script supprimé le
+11/09/2026, récupérable par
+`git show bb9462e:"RPi Version/scripts/observe-jalon1-watchdog.sh"`).
 
 ## Résultat formel
 
@@ -38,11 +42,11 @@ strictement constante.
 Le chauffage est resté désactivé et le moteur en mode manuel à la vitesse 2. Cette observation valide
 la continuité du contrôle, les minuteries, l'acquisition et le suivi demandé/réel ; elle ne qualifie
 pas les règles thermiques dynamiques. Leur essai est reporté au TODO d'activation consigné dans la
-[roadmap](../roadmap.md#arbitre-thermique).
+[roadmap](../../roadmap.md#arbitre-thermique).
 
 ## Décision de passage
 
 La condition documentaire « ne pas déployer le jalon 2 avant une fenêtre jalon 1 terminée et
 acceptée » est satisfaite. Le lot suivant peut être déployé en conservant `Sensor_Quality.mode =
 observe`, puis doit suivre la surveillance décrite dans
-[Déploiement et rollback](deployment-and-rollback.md#observation-du-lot-opérateur-pwa-et-qualité-capteurs).
+[Procédures d'observation des jalons 1 et 2](procedures-observation-jalons-1-2.md#observation-du-lot-opérateur-pwa-et-qualité-capteurs).

@@ -58,7 +58,7 @@ Moteur vitesses 1–4  : LOW  = OFF
 HC-SR04 trigger      : LOW  = repos
 ```
 
-Les lignes historiques `gpio=N=op,dh` présentes dans `notes` ne doivent pas être copiées. Elles forceraient notamment HIGH les sorties moteur actives-HAUT et commanderaient les relais. De plus, sous Raspberry Pi OS Bookworm, la configuration active se trouve normalement dans `/boot/firmware/config.txt`, pas dans l'ancien `/boot/config.txt`.
+Les lignes historiques `gpio=N=op,dh` de l'ancien fichier `notes` (supprimé le 11/09/2026) ne doivent jamais être réintroduites. Elles forçaient notamment HIGH les sorties moteur actives-HAUT et commandaient les relais ; une configuration de boot correcte se génère depuis le registre des broches (`op,dh` pour les actifs-BAS, `op,dl` pour le moteur), chantier du lot 3 de la roadmap. De plus, sous Raspberry Pi OS Bookworm, la configuration active se trouve normalement dans `/boot/firmware/config.txt`, pas dans l'ancien `/boot/config.txt`.
 
 ## Checklist avant modification d'une broche
 

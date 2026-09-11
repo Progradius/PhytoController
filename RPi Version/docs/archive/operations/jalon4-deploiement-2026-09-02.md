@@ -1,5 +1,7 @@
 # Jalon 4 — déploiement et qualification sur le Pi de production (2 septembre 2026)
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour.
+
 Trois commits poussés et déployés **un par un** sur `feature/qol-operator-experience`, chacun
 qualifié avant le suivant. Pi `phytocontroller`, service `phyto`, déploiement par
 `scripts/deploy.sh` (sauvegarde de la config vivante, `compileall` avant coupure, sonde de santé
@@ -113,7 +115,7 @@ La moitié logicielle est déjà prouvée par la suite, avec un faux GPIO :
 `test_energized_coupe_sur_sortie_normale_et_exception`, `test_energized_coupe_sur_annulation`,
 `test_crash_applique_etat_sur_avant_relance` et
 `test_tache_bloquee_est_annulee_mise_en_securite_et_relancee`. La moitié électrique était déjà
-inscrite dans [`../development/hardware-validation.md`](../development/hardware-validation.md), où
+inscrite dans [`docs/development/hardware-validation.md`](../../development/hardware-validation.md), où
 elle reste : « Relais actifs-BAS » étapes 4 et 5, et « Supervision et arrêt » étape 1.
 
 Le jalon 4 n'y touche pas : le chemin `energized()` est inchangé, les forçages ne font que

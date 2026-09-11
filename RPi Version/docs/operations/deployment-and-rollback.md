@@ -134,6 +134,38 @@ de la qualité capteurs hors du mode `observe`. La PWA sur Chrome Android, les c
 les notifications, la calibration par instrument de référence et l'armement `enforce` restent des
 qualifications manuelles distinctes suivies dans `tasks/todo.md`.
 
+## Processus de release
+
+*(Repris le 11/09/2026 de l'ancien `docs/development/release-process.md`, supprimé.)*
+
+**Préparation.**
+
+1. Définir le contenu de la release et les risques associés dans le
+   [registre des risques](../risk-register.md).
+2. Vérifier la compatibilité de la configuration (`param/param.example.json` fait foi pour le schéma,
+   la configuration vivante n'étant jamais versionnée) et des dépendances.
+3. Mettre à jour documentation, roadmap, registre et changelog.
+4. Exécuter `python3 -m pytest`, puis les vérifications matérielles proportionnées de
+   [`hardware-validation.md`](../development/hardware-validation.md) si le changement touche les
+   sorties, la supervision ou l'arrêt.
+5. Préparer le rollback et, si nécessaire, une fenêtre d'intervention matérielle.
+
+**Livraison.** Branche ou commit poussé sur le dépôt distant ; sauvegarde hors Pi pour une migration
+sensible ; déploiement par `scripts/deploy.sh` uniquement (jamais de checkout de branche sur le Pi) ;
+qualification automatique décrite ci-dessus, pas seulement une réponse HTTP ; contrôle physique des
+charges ; observation des logs et compteurs ; consignation du commit réellement déployé.
+
+**Stabilisation.** Surveiller au minimum une période représentative des fonctions modifiées. Pour un
+minuteur journalier ou une rotation de log, cela peut imposer d'attendre l'échéance réelle ; pour le
+thermique, vérifier les seuils et transitions, pas seulement le démarrage.
+
+**Déclencheurs de rollback** : boot impossible, santé fausse persistante, sortie incohérente, erreur
+de schéma ou métrique de sécurité dégradée, en plus des critères ci-dessus. Une migration matérielle
+exige un plan de retour du câblage et de la configuration, pas seulement un retour Git.
+
+**Versionnement.** Le dépôt n'utilise ni tags ni SemVer documentés : jusqu'à décision, le commit Git
+est l'identifiant de release, et le changelog distingue dépôt, déploiement et vérification matérielle.
+
 ## Rollback manuel d'urgence
 
 Ne pas improviser un `git reset --hard`. Avant une action manuelle :

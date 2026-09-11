@@ -1,5 +1,9 @@
 # Plan — Compléments et corrections du carnet de cultures après audit
 
+> Archivé le 11/09/2026 — plan livré (lots A à I) et clos, conservé comme preuve ; ne plus le mettre
+> à jour. Les limites résiduelles sont suivies par les risques R-CULT-01 à 03 du
+> [registre](../../docs/risk-register.md).
+
 Date : 8 septembre 2026.
 Statut : lots A à I livrés et validés hors matériel le 8 septembre 2026 (voir le tableau de
 suivi en fin de document) ; aucune autorisation de déploiement.

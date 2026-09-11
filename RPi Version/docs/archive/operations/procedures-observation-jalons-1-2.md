@@ -27,7 +27,8 @@ filet de récupération automatique d'une serre déjà en fonctionnement et impo
 supplémentaire. Cette décision déroge au protocole initial ci-dessus ; elle est acceptée à condition
 que tout redémarrage ou faux négatif de `control_healthy` reste explicitement observable.
 
-La preuve est recueillie pendant 48 h par `scripts/observe-jalon1-watchdog.sh`, sans commande GPIO,
+La preuve est recueillie pendant 48 h par `scripts/observe-jalon1-watchdog.sh` (script supprimé le
+11/09/2026, récupérable par `git show bb9462e:"RPi Version/scripts/observe-jalon1-watchdog.sh"`), sans commande GPIO,
 mutation de configuration ni redémarrage de service. Le script exige un watchdog armé, fixe comme
 références le PID, le compteur systemd `NRestarts`, le `boot_id` et `WatchdogUSec`, puis contrôle toutes
 les minutes :
@@ -63,7 +64,7 @@ fiable produit un avertissement à examiner, sans masquer l'état du contrôle. 
 
 **Clôture du 28 août 2026** : la fenêtre a produit `status=accepted` après 172 800 s et 2 868
 échantillons, sans échec ni avertissement. La preuve complète et sa limite thermique sont consignées
-dans le [relevé de clôture](../../operations/jalon1-watchdog-observation-2026-08-28.md). Le prérequis de passage au
+dans le [relevé de clôture](jalon1-watchdog-observation-2026-08-28.md). Le prérequis de passage au
 jalon 2 est donc satisfait.
 
 ### Observation du lot opérateur, PWA et qualité capteurs
@@ -106,12 +107,12 @@ cat ~/phyto-observations/latest-jalon2-operateur-qualite.txt
 après 172 800 s et 2 864 échantillons, **sans un seul échec**, mais avec 835 avertissements de cause
 unique. Elle qualifie la continuité du contrôle et invalide la politique de figement des capteurs. La
 preuve complète, l'analyse et la décision sont consignées dans le
-[relevé de clôture](../../operations/jalon2-observation-operateur-2026-08-30.md). Le correctif a été déployé le même
+[relevé de clôture](jalon2-observation-operateur-2026-08-30.md). Le correctif a été déployé le même
 soir au commit `985e42d`, avec des contrôles après déploiement tous conformes. La nouvelle fenêtre
 s'est close le 1er septembre 2026 à 19:09:11 UTC avec `status=accepted`, 172 800 s, 2 864
 échantillons, zéro échec et zéro avertissement. Elle qualifie le correctif de figement en mode
 `observe` ; calibration, armement et repli matériel restent à qualifier. Voir le
-[relevé de clôture corrective](../../operations/jalon2-correctif-figement-observation-2026-09-01.md).
+[relevé de clôture corrective](jalon2-correctif-figement-observation-2026-09-01.md).
 
 L'observabilité des seuils effectifs a été déployée séparément après cette clôture, le 1er septembre
 à 19:47 UTC au commit `2ecefb1`. Le contrôle post-déploiement a confirmé le mode `observe`, les trois

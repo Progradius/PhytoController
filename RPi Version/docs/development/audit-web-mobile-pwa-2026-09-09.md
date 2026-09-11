@@ -60,7 +60,8 @@ par l'audit ; la suite pytest complète n'a pas été relancée.
 Preuves : [mesures des 36 visites](../images/audit-web-mobile-pwa-2026-09-09/measures.json),
 [scénarios avec données](../images/audit-web-mobile-pwa-2026-09-09/scenarios.json),
 [vérifications complémentaires](../images/audit-web-mobile-pwa-2026-09-09/finalchecks.json),
-[journal des tests ciblés](../images/audit-web-mobile-pwa-2026-09-09/tests-dashboard.log).
+et le journal des tests ciblés (`tests-dashboard.log`, journal local non versionné : ignoré par Git,
+absent de tout clone).
 Le libellé `history-rempli` dans `scenarios.json` correspond à une première interception neutralisée par
 le service worker : cet état était encore indisponible. La mesure valide de l'historique rempli est
 dans `finalchecks.json`, réalisée dans un contexte séparé sans service worker ; la capture a été remplacée.

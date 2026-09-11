@@ -1,5 +1,7 @@
 # Observation du lot opérateur, PWA et qualité capteurs — clôture du 30 août 2026
 
+> Archivé le 11/09/2026 — relevé clos, conservé comme preuve ; ne plus le mettre à jour.
+
 **Objet** : qualifier en continu le lot alarmes/historique, PWA et qualité capteurs déployé en mode
 `Sensor_Quality.mode = observe`. **Commit observé** : `b26d2b1`. **Watchdog systemd** : armé à 600 s,
 par la même dérogation opérateur que le jalon 1. **Méthode** : lecture seule par
@@ -97,7 +99,7 @@ propriété d'invariance par cadence.
 
 Conditions de reprise, dans cet ordre :
 
-1. déployer le commit corrigé selon [Déploiement et rollback](deployment-and-rollback.md) — aucun
+1. déployer le commit corrigé selon [Déploiement et rollback](../../operations/deployment-and-rollback.md) — aucun
    observateur ne tourne, la fenêtre s'est close d'elle-même, il n'y a donc pas de `SIGTERM` à
    envoyer ;
 2. vérifier après redémarrage que les deux alarmes `sensor_quality` latchées ont disparu : le
@@ -106,7 +108,7 @@ Conditions de reprise, dans cet ordre :
 3. relancer une fenêtre complète de 172 800 s au commit corrigé ;
 4. n'envisager l'armement `enforce` qu'après cette fenêtre, et après les étapes de calibration,
    d'identités DS18B20, de redondance et de qualification matérielle listées dans
-   [`tasks/todo.md`](../../tasks/todo.md).
+   [`tasks/todo.md`](../../../tasks/todo.md).
 
 ## Suite donnée le 30 août 2026
 

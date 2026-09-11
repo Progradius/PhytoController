@@ -1,5 +1,7 @@
 # Carnet de cultures — passe « photos » (9 septembre 2026)
 
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour.
+
 Reliquat de la ligne « Photos » de l'audit, laissé de côté par les lots UI 2 et 4 et explicitement
 renvoyé à une passe dédiée par le plan de remédiation du lot 4. Deux manques : l'aperçu local avant
 envoi n'existait que sur la fiche, et la progression d'un envoi binaire se réduisait à un texte

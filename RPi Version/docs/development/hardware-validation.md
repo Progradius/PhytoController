@@ -30,8 +30,9 @@ Daily 1/2, Cyclic 1/2, chauffage : HIGH = OFF (actif-BAS)
 Moteur vitesses 1 à 4             : LOW  = OFF (actif-HAUT)
 ```
 
-Ne jamais appeler `GPIO.cleanup()` : il rendrait les broches flottantes. Ne jamais recopier les lignes
-historiques `gpio=N=op,dh` de `notes`, dangereuses pour les relais moteur actifs-HAUT.
+Ne jamais appeler `GPIO.cleanup()` : il rendrait les broches flottantes. Ne jamais réintroduire les lignes
+historiques `gpio=N=op,dh` de l'ancien fichier `notes` (supprimé le 11/09/2026), dangereuses pour les
+relais moteur actifs-HAUT.
 
 Si une seule broche n'est pas dans l'état attendu, interrompre la procédure, maintenir les charges
 consignées et traiter l'écart avant tout ordre ON.

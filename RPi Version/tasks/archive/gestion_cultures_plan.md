@@ -1,5 +1,10 @@
 # Plan — Gestion des cultures et carnet d'exploitation
 
+> Archivé le 11/09/2026 — plan livré et clos, conservé comme preuve ; ne plus le mettre à jour. Les
+> limites résiduelles sont suivies par les risques R-CULT-01 à 03 du
+> [registre](../../docs/risk-register.md) et les « Limites connues » du
+> [contrat API](../../docs/reference/cultures-api.md#limites-connues).
+
 Date : 7 septembre 2026.
 Statut : besoin validé avec l'exploitant ; livraisons 1 à 3 implémentées sur
 `feature/gestion-cultures`, vérifiées hors matériel, non déployées. Clôture initiale du jalon 3
@@ -462,7 +467,7 @@ autorisation de déploiement : validations hors matériel uniquement.
 - [x] Fixture navigateur : un serveur de carnet par test, l'espace 2 étant exclusif (`d568ae2`).
 
 Les limites résiduelles sont consignées dans le tableau de traçabilité du plan de rattrapage et
-regroupées dans le [contrat API](../docs/reference/cultures-api.md#limites-connues). Volumétrie
+regroupées dans le [contrat API](../../docs/reference/cultures-api.md#limites-connues). Volumétrie
 mesurée hors matériel avec 12 000 agrégats horaires : page des cycles 258 217 octets, JSON
 178 966 octets ; ces chiffres ne qualifient pas les performances sur le Raspberry Pi.
 

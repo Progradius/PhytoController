@@ -108,8 +108,10 @@ to `PuppetMaster`.
   would fall back to `param/` after migration and back up a directory the service no longer uses.
   Procedure and proof: `docs/operations/migration-donnees-vivantes.md`.
 - `controllers/PuppetMaster.py` — the only orchestrator. It no longer creates tasks itself: it *registers*
-  one supervised job per concern (2 daily timers, 2 cyclic timers, the `climate_control` thermal arbiter,
-  shared sensor snapshot, Influx push, HTTP server) with `utils/supervisor.TaskSupervisor`, starts the watchdog loop, calls
+  one supervised job per concern with `utils/supervisor.TaskSupervisor` — eleven jobs: 2 daily timers,
+  2 cyclic timers, the `climate_control` thermal arbiter and the shared `sensor_snapshot` (the only ones
+  with `gates_watchdog=True`), then `influx_push`, `culture_service`, `http_server`, `time_monitor` and
+  `operator_service`, all auxiliary. It starts the watchdog loop, calls
   `sd_notify(READY=1)`, then awaits the supervisor. Its asyncio exception handler logs and keeps the loop
   alive on purpose — a crashing task must never take the greenhouse down.
 - `utils/supervisor.py` — **the reason a dead control loop can no longer go unnoticed.** Every job runs
@@ -505,9 +507,12 @@ all nine pins still read `op` with generics `hi` and motor `lo`. Releasing the p
 acceptable if external resistors guarantee the safe state (pull-up on active-LOW inputs, pull-down on
 motor inputs) — a **hardware** dependency, not a software option.
 
-⚠️ The `gpio=N=op,dh` block in `notes` is **wrong and dangerous** — see the header added there. Under
-Bookworm the boot partition is `/boot/firmware/config.txt` and `/boot/config.txt` is ignored, so nothing
-protects the power-on window today. Generating those lines from `param.json` is Phase 1 of the audit.
+⚠️ The fixed `gpio=N=op,dh` block that lived in the old root file `notes` (deleted on 11/09/2026) was
+**wrong and dangerous**: `dh` is the safe level of the active-LOW outputs but the *command* level of the
+active-HIGH motor, so it closed a speed relay at power-on. Never reintroduce such a hand-written list.
+Under Bookworm the boot partition is `/boot/firmware/config.txt` and `/boot/config.txt` is ignored, so
+nothing protects the power-on window today. Generating those lines from the validated pin registry
+(`op,dh` for active-LOW, `op,dl` for the motor) is Phase 1 of the audit (roadmap, lot 3).
 
 ## Run modes
 

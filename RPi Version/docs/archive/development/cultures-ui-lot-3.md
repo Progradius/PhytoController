@@ -1,5 +1,7 @@
 # Lot UI 3 — Assistance contextuelle
 
+> Archivé le 11/09/2026 — bilan clos, conservé comme preuve ; ne plus le mettre à jour.
+
 Réalisation du lot 3 de l’[audit du 8 septembre 2026](audit-ui-cultures-2026-09-08.md).
 Le carnet reste au schéma 4 ; aucune intervention matérielle ou en production.
 
