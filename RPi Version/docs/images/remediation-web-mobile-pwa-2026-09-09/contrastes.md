@@ -1,6 +1,6 @@
 # Rapport de contrastes et de perception des couleurs (R5.2)
 
-Produit par `npm run measure:ui` le 2026-09-11T09:40:37.771Z.
+Produit par `npm run measure:ui` le 2026-09-11T10:13:37.783Z.
 
 Seuils : 4,5:1 pour le texte courant, 3:1 pour le grand texte (≥ 24 px, ou ≥ 18,66 px en gras)
 et pour la limite visible des composants de saisie contre la surface qui les entoure
