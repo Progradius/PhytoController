@@ -1191,7 +1191,9 @@ existantes (`/cultures/solutions#saisie`, `/cultures/solutions?target=<réservoi
 renseignée (pH, EC) et aucune pour une mesure absente. La plage est résolue à la date effective de
 la saisie par l'ordre strict du carnet (cible directe → sujet alimenté → réservoir), sans fusion ni
 rétroactivité. Forme : `Plage applicable pH 5,80–6,40 (source : …, plage du 2026-08-01) ; écart :
-+0,10.` (nombres au format de la règle unique `model/nombre.py`, deux décimales) ; à l'intérieur des bornes : `écart : aucun, la mesure est dans la plage`. Sans plage
++0,10.` (nombres au format de la règle unique `model/nombre.py`, deux décimales ; un écart
+plus fin que les bornes garde ses chiffres — `écart : +0,003` pour 1803 µS/cm face à une borne
+à 1,80 mS/cm — parce qu'un écart réel ne peut pas s'afficher comme nul) ; à l'intérieur des bornes : `écart : aucun, la mesure est dans la plage`. Sans plage
 applicable : `Aucune plage applicable à cette cible à cette date (pH).` Aucune ligne ne préremplit
 un champ.
 

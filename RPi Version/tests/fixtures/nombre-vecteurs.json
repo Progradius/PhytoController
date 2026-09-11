@@ -1,0 +1,212 @@
+{
+ "titre": "Vecteurs partagés de la règle d'arrondi d'affichage (fiche R1.7)",
+ "lus_par": [
+  "tests/test_nombre.py",
+  "tests/js/nombre_format.test.cjs"
+ ],
+ "regle": "Virgule française, décimales fixes bornées à 0–6, pas de séparateur de milliers, « — » pour une absence ou un non-fini. Les milieux sont arrondis à l'écart de zéro depuis la représentation décimale courte : c'est le comportement de Intl.NumberFormat (halfExpand) que model/nombre.py reproduit avec Decimal(repr(x)).quantize(..., ROUND_HALF_UP). Un cas en x,xx5 ou en multiple de 0,0625 (DS18B20) sépare cette règle de f\"{x:.2f}\", qui arrondit le binaire au pair.",
+ "champs": {
+  "valeur": "nombre, chaîne ou null",
+  "special": "nan | inf | -inf, quand JSON ne peut pas porter la valeur",
+  "decimales": "entier, borné à 0–6 par la règle elle-même",
+  "unite": "unité optionnelle, ajoutée après une espace",
+  "attendu": "texte rendu",
+  "portee": "python quand le cas n'a pas de sens côté navigateur"
+ },
+ "cas": [
+  {
+   "valeur": 6.1,
+   "decimales": 2,
+   "attendu": "6,10"
+  },
+  {
+   "valeur": 1.4500000000000002,
+   "decimales": 2,
+   "attendu": "1,45"
+  },
+  {
+   "valeur": 12.125,
+   "decimales": 1,
+   "attendu": "12,1"
+  },
+  {
+   "valeur": 0.015,
+   "decimales": 2,
+   "attendu": "0,02"
+  },
+  {
+   "valeur": 0.025,
+   "decimales": 2,
+   "attendu": "0,03"
+  },
+  {
+   "valeur": 1.005,
+   "decimales": 2,
+   "attendu": "1,01"
+  },
+  {
+   "valeur": 2.675,
+   "decimales": 2,
+   "attendu": "2,68"
+  },
+  {
+   "valeur": 21.125,
+   "decimales": 2,
+   "attendu": "21,13"
+  },
+  {
+   "valeur": 21.0625,
+   "decimales": 2,
+   "attendu": "21,06"
+  },
+  {
+   "valeur": 21.1875,
+   "decimales": 2,
+   "attendu": "21,19"
+  },
+  {
+   "valeur": 2.5,
+   "decimales": 0,
+   "attendu": "3"
+  },
+  {
+   "valeur": 3.5,
+   "decimales": 0,
+   "attendu": "4"
+  },
+  {
+   "valeur": -2.5,
+   "decimales": 0,
+   "attendu": "-3"
+  },
+  {
+   "valeur": -0.015,
+   "decimales": 2,
+   "attendu": "-0,02"
+  },
+  {
+   "valeur": -0.001,
+   "decimales": 2,
+   "attendu": "-0,00"
+  },
+  {
+   "valeur": 0,
+   "decimales": 2,
+   "attendu": "0,00"
+  },
+  {
+   "valeur": 0,
+   "decimales": 0,
+   "attendu": "0"
+  },
+  {
+   "valeur": 12345.678,
+   "decimales": 2,
+   "attendu": "12345,68"
+  },
+  {
+   "valeur": -12345.678,
+   "decimales": 2,
+   "attendu": "-12345,68"
+  },
+  {
+   "valeur": 0.3333333333333333,
+   "decimales": 9,
+   "attendu": "0,333333"
+  },
+  {
+   "valeur": 1.6,
+   "decimales": -1,
+   "attendu": "2"
+  },
+  {
+   "valeur": 0.30000000000000004,
+   "decimales": 2,
+   "attendu": "0,30"
+  },
+  {
+   "valeur": 999.999,
+   "decimales": 2,
+   "attendu": "1000,00"
+  },
+  {
+   "valeur": 1e-07,
+   "decimales": 6,
+   "attendu": "0,000000"
+  },
+  {
+   "valeur": 5e-07,
+   "decimales": 6,
+   "attendu": "0,000001"
+  },
+  {
+   "valeur": 1.8,
+   "decimales": 2,
+   "unite": "mS/cm",
+   "attendu": "1,80 mS/cm"
+  },
+  {
+   "valeur": 6.404,
+   "decimales": 2,
+   "attendu": "6,40"
+  },
+  {
+   "valeur": 1.803,
+   "decimales": 4,
+   "attendu": "1,8030"
+  },
+  {
+   "valeur": 0.003,
+   "decimales": 2,
+   "attendu": "0,00"
+  },
+  {
+   "valeur": null,
+   "decimales": 2,
+   "attendu": "—",
+   "note": "une absence n'est jamais un zéro"
+  },
+  {
+   "special": "nan",
+   "decimales": 2,
+   "attendu": "—"
+  },
+  {
+   "special": "inf",
+   "decimales": 2,
+   "attendu": "—"
+  },
+  {
+   "special": "-inf",
+   "decimales": 2,
+   "attendu": "—"
+  },
+  {
+   "valeur": "abc",
+   "decimales": 2,
+   "attendu": "—",
+   "note": "texte non numérique"
+  },
+  {
+   "valeur": "5,8",
+   "decimales": 2,
+   "attendu": "5,80",
+   "portee": "python",
+   "note": "saisie réaffichée après refus : la virgule française est relue côté serveur ; le navigateur, lui, ne reçoit que des nombres"
+  },
+  {
+   "valeur": " 1.25 ",
+   "decimales": 1,
+   "attendu": "1,3",
+   "portee": "python",
+   "note": "milieu arrondi à l'écart de zéro, comme le navigateur"
+  },
+  {
+   "valeur": "",
+   "decimales": 2,
+   "attendu": "—",
+   "portee": "python",
+   "note": "Number('') vaut 0 en JavaScript : ce cas ne peut pas être partagé"
+  }
+ ]
+}

@@ -155,13 +155,39 @@ def previous_reading(command, rows, at):
 MEASURES = (("ph", "pH", ""), ("ec", "EC", " mS/cm"))
 
 
+# Décimales des bornes affichées : celles du carnet (pH 2, EC 2). Un **écart** peut être plus
+# fin qu'elles : il en reçoit autant qu'il en faut pour ne pas s'écrire « 0,00 », dans la limite
+# de la règle d'affichage (6).
+DECIMALES = 2
+ECART_DECIMALES_MAX = 6
+
+
 def decimal(value):
     """Nombre lisible : la règle française unique, deux décimales comme pH et EC partout.
 
     Une règle à part (quatre décimales, zéros retirés) écrivait « 5,8–6,4 » ici quand la page
     des plages écrit « 5,80 à 6,40 », et pouvait sortir un écart « 0,0833 ».
     """
-    return nombre_texte(value, 2)
+    return nombre_texte(value, DECIMALES)
+
+
+def ecart_decimal(value):
+    """Écart non nul : jamais « 0,00 ».
+
+    Les bornes gardent deux décimales, mais un écart, lui, peut être plus petit qu'un
+    centième : une EC saisie en µS/cm est divisée par 1000 (1803 µS/cm = 1,803 mS/cm, soit
+    0,003 au-dessus d'une borne à 1,80), et un pH corrigé se lit à 6,404. Arrondi à deux
+    décimales, cet écart s'écrivait « +0,00 » : la phrase disait « hors plage » et affichait
+    zéro — le contraire de ce qu'elle constate. La précision est donc étendue **au seul
+    écart**, et seulement jusqu'à ce qu'un chiffre significatif apparaisse : l'opérateur lit
+    « +0,003 », pas une fausse précision sur toutes les lignes. En deçà du dernier rang
+    affichable, la phrase le dit au lieu d'inventer un chiffre.
+    """
+    for places in range(DECIMALES, ECART_DECIMALES_MAX + 1):
+        texte = nombre_texte(value, places)
+        if any(chiffre in texte for chiffre in "123456789"):
+            return texte
+    return None
 
 
 def range_text(resolved, metric):
@@ -185,7 +211,10 @@ def gap_text(value, resolved, metric):
         delta = value - low
     else:
         return "écart : aucun, la mesure est dans la plage"
-    return f"écart : {'+' if delta > 0 else '-'}{decimal(abs(delta))}"
+    texte = ecart_decimal(abs(delta))
+    if texte is None:
+        return f"écart : moins de {nombre_texte(10 ** -ECART_DECIMALES_MAX, ECART_DECIMALES_MAX)}"
+    return f"écart : {'+' if delta > 0 else '-'}{texte}"
 
 
 def range_lines(values, resolved, source_name="", start_label=""):

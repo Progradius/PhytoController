@@ -246,6 +246,34 @@ async def test_http_assistance_version_inchangee_et_fiche_inconnue(web_context):
     assert (await client.get("/api/v1/cultures/assistance/inconnu?version=1")).status == 404
 
 
+def test_un_ecart_reel_ne_s_affiche_jamais_comme_nul():
+    """Un écart plus fin que les bornes garde ses chiffres (régression de la règle unique).
+
+    Les bornes s'écrivent à deux décimales, mais un écart peut être plus petit qu'un
+    centième : une EC saisie en µS/cm est divisée par 1000 par `measurements`, et un pH
+    corrigé se lit à 6,404. Arrondi comme une borne, l'écart s'écrivait « +0,00 » : la phrase
+    disait « hors plage » et affichait zéro.
+    """
+    from model.culture_assistance import gap_text
+    from model.culture_solution import measurements
+
+    # 1803 µS/cm = 1,803 mS/cm, soit 0,003 au-dessus d'une borne à 1,80.
+    mesures = measurements({"ec": "1803", "ec_unit": "µS/cm"})
+    assert mesures["ec"] == pytest.approx(1.803)
+    assert gap_text(mesures["ec"], {"ec_min": 1.2, "ec_max": 1.8}, "ec") == "écart : +0,003"
+    assert gap_text(6.404, {"ph_min": 5.5, "ph_max": 6.4}, "ph") == "écart : +0,004"
+    # Sous la borne, le signe reste celui du franchissement.
+    # (1,1975 - 1,2 vaut -0,0024999999999999467 en binaire : trois décimales suffisent à
+    # montrer un chiffre, et la précision s'arrête là.)
+    assert gap_text(1.1975, {"ec_min": 1.2, "ec_max": 1.8}, "ec") == "écart : -0,002"
+    # Un écart franc garde les deux décimales des bornes : pas de fausse précision partout.
+    assert gap_text(6.5, {"ph_min": 5.5, "ph_max": 6.0}, "ph") == "écart : +0,50"
+    # Dans la plage, l'écart est nul et le dit — c'est le seul cas où rien n'est chiffré.
+    assert gap_text(5.7, {"ph_min": 5.5, "ph_max": 6.0}, "ph") == "écart : aucun, la mesure est dans la plage"
+    # En deçà du dernier rang affichable, la phrase le dit au lieu d'inventer un chiffre.
+    assert gap_text(1.8000000001, {"ec_min": 1.2, "ec_max": 1.8}, "ec") == "écart : moins de 0,000001"
+
+
 async def test_plages_applicables_ordre_strict_ecart_et_absence(cultures):
     """Une ligne par mesure renseignée, la source nommée, l'absence dite (R3.4).
 

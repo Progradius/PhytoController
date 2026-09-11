@@ -12,6 +12,7 @@ présentation seulement. Côté navigateur, la réplique alignée est `formatNom
 from __future__ import annotations
 
 import math
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 ABSENCE = "—"
 
@@ -25,6 +26,17 @@ def nombre_texte(value, decimals, unit=None) -> str:
     alors la virgule française et est relue comme telle — la rejeter afficherait « — » à la
     place de ce que l'opérateur vient de taper, exactement quand il relit sa saisie. Le
     nombre de décimales est borné à 0–6 ; pas de séparateur de milliers.
+
+    **L'arrondi est celui du navigateur**, et non celui de `f"{x:.2f}"`. `format` arrondit le
+    binaire au pair : `0,015` s'écrivait « 0,01 » ici et « 0,02 » dans l'infobulle du même
+    point (`toLocaleString`, arrondi à l'écart depuis la représentation décimale courte), et
+    `2,5` à zéro décimale « 2 » contre « 3 ». Sur 1 400 valeurs en `x,xx5`, la moitié
+    divergeait ; une température DS18B20 (multiples de 0,0625) comme 21,125 s'écrivait 21,12
+    dans un tableau serveur et 21,13 dans l'infobulle de la même mesure. `repr(float(...))`
+    donne la représentation décimale courte — celle que le navigateur arrondit —, et
+    `ROUND_HALF_UP` arrondit les milieux à l'écart de zéro, comme `halfExpand`, le mode par
+    défaut d'`Intl.NumberFormat`. Les vecteurs partagés `tests/fixtures/nombre-vecteurs.json`
+    confrontent les deux implémentations.
     """
     if value is None:
         return ABSENCE
@@ -37,5 +49,9 @@ def nombre_texte(value, decimals, unit=None) -> str:
             return ABSENCE
     except (TypeError, ValueError):
         return ABSENCE
-    result = f"{number:.{places}f}".replace(".", ",")
+    try:
+        arrondi = Decimal(repr(number)).quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+    except InvalidOperation:  # nombre gigantesque : le format brut reste plus juste qu'une absence
+        arrondi = Decimal(f"{number:.{places}f}")
+    result = f"{arrondi:f}".replace(".", ",")
     return f"{result} {unit}" if unit else result
