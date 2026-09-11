@@ -40,6 +40,18 @@ module.exports = defineConfig({
   outputDir: dossierDeSortie(),
   timeout: 20_000,
   forbidOnly: true,
+  // Les tests d'un même fichier se répartissent entre workers : le fichier le plus long ne borne
+  // plus le temps mural. Sûr parce que chaque test a son propre serveur (`tests/ui/serveurs.js`) —
+  // tant qu'un serveur partagé existait, son limiteur de prévisualisation opposait deux tests.
+  fullyParallel: true,
+  // La suite est limitée par le CPU (Chromium, axe). Mesures du 11 septembre 2026 sur 16 cœurs, suite
+  // complète, mêmes conditions : 6 workers → 572 s, CPU 64 %, 0 échec ; 8 (le défaut, 50 %) → 512 s,
+  // CPU 82 %, 2 échecs ; 12 → 470 s, CPU 89 %, 9 échecs. Passé ~70 % d'occupation, les délais de
+  // test et d'assertion cèdent au hasard : 40 % des cœurs garde une marge. Elle ne protège pas d'une
+  // charge extérieure à la suite (autres sessions sur le même poste), qui fait encore céder de rares
+  // budgets — voir `docs/development/audit-duree-playwright-2026-09-11.md`, « Bilan ».
+  // `--workers=N` reste disponible pour une exécution ciblée ou une machine au repos.
+  workers: "40%",
   retries: 0,
   reporter: "line",
   // Aucune `baseURL` ici ni `webServer` : chaque test reçoit son propre serveur, ou la cible

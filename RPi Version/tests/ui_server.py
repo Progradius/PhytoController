@@ -345,6 +345,10 @@ def zygote() -> None:
                 demande = json.loads(ligne)
                 if demande["op"] == "demarrer":
                     _verifier_fork_sur()
+                    # Un tampon non vidé au moment du fork serait réécrit par l'enfant : un journal
+                    # d'import apparaîtrait une fois par serveur dans les diagnostics.
+                    sys.stdout.flush()
+                    sys.stderr.flush()
                     pid = os.fork()
                     if pid == 0:
                         selecteur.close()

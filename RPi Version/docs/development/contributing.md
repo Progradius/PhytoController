@@ -47,8 +47,9 @@ chargement de la spec (`npm run test:js` couvre ces règles).
 un port choisi par le noyau (`tests/ui/serveurs.js`). Un spec importe donc `test` depuis
 `./serveurs` (ou `./culture_fixtures`, `./fixtures`), jamais depuis `@playwright/test`, sans quoi
 il n'aurait aucune `baseURL`. Il n'y a plus de `webServer` partagé : aucun état de processus
-(carnet, overrides, limiteur de prévisualisation de `/conf`) ne relie deux tests, et deux
-exécutions de la suite peuvent tourner en même temps sur la même machine (ports libres, dossier de résultats par exécution —
+(carnet, overrides, limiteur de prévisualisation de `/conf`) ne relie deux tests, `fullyParallel`
+répartit les tests d'un même fichier entre workers, et deux exécutions de la suite peuvent tourner
+en même temps sur la même machine (ports libres, dossier de résultats par exécution —
 `tests/ui/sortie.js`). Aucun verrou `flock` ni `--workers=1` n'est nécessaire pour cela.
 
 Ces serveurs ne coûtent pas un interpréteur chacun : chaque worker garde un **zygote**
@@ -71,6 +72,14 @@ PHYTO_TEST_PYTHON=~/.venvs/phyto/bin/python npm run test:ui
 
 Un clone de travail sous `~/` (ext4) apporte le reste du gain, si l'outillage Windows n'exige pas
 les fichiers sous `C:`.
+
+Deux règles tirées des échecs sous charge du 11 septembre 2026 :
+
+- un parcours dont la durée **au repos** dépasse la moitié du délai global (20 s) porte son propre
+  budget (`test.setTimeout`) — le délai global cède sinon dès que la machine est chargée ;
+- après une action qui fait naviguer la page elle-même (un enregistrement du carnet se termine par
+  `location.assign`), attendre cette navigation (`page.waitForURL`) avant tout `page.goto` :
+  supplanté, le `goto` reste suspendu sans lever d'erreur, et un `try/catch` ne le rattrape pas.
 
 ## Style
 
