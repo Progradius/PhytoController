@@ -14,7 +14,8 @@ fait `scripts/deploy.sh` :
 
 ```bash
 DONNEES="$(systemctl show phyto -p Environment --value | tr ' ' '\n' | sed -n 's/^PHYTO_DATA_DIR=//p' | tail -n 1)"
-test -d "$DONNEES" && echo "Données vivantes : $DONNEES" || echo "ARRÊT : PHYTO_DATA_DIR absente de l'unité ou répertoire introuvable"
+[ -n "$DONNEES" ] && [ -d "$DONNEES" ] || { echo "ARRÊT : PHYTO_DATA_DIR absente de l'unité ou répertoire introuvable"; return 1 2>/dev/null || exit 1; }
+echo "Données vivantes : $DONNEES"
 ```
 
 Ne rien enchaîner après un « ARRÊT ». Si l'unité ne pose pas la variable (installation non encore

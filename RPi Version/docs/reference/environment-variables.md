@@ -36,6 +36,7 @@ Variables des scripts d'exploitation :
 | `PHYTO_DEPLOY_HEALTH_VALIDATOR` | `scripts/deploy.sh` | Chemin interne de la copie sous `/tmp` de `utils/deployment_health.py`, qualifiant la santé après redémarrage ; posé par le script lui-même, jamais à la main |
 | `PHYTO_UI_BASE_URL` | `scripts/benchmark-web-pages.py` | Origine visée par défaut (même validation que l'option en ligne de commande) |
 | `PHYTO_OBSERVATION_SERVICE`, `PHYTO_OBSERVATION_API_BASE`, `PHYTO_OBSERVATION_SECONDS`, `PHYTO_OBSERVATION_INTERVAL_SECONDS`, `PHYTO_OBSERVATION_DIR` | `scripts/observe-jalon2-operator-quality.sh` | Service, API, durée (172 800 s), période (60 s) et répertoire de preuve (`~/phyto-observations`) de l'observateur de 48 h des jalons clos (l'observateur du jalon 1, qui lisait les mêmes variables, a été supprimé le 11/09/2026) |
+| `PHYTO_OBSERVATION_APP_DIR` | `scripts/observe-jalon2-operator-quality.sh` | Variable interne : le script se la passe à lui-même pour sa sonde Influx, jamais à la main. Cette sonde lit encore `<checkout>/param/param.json` et **ignore `PHYTO_DATA_DIR`** : après migration, elle ne voit plus la configuration vivante (à corriger avant la prochaine fenêtre d'observation) |
 | `PHYTO_OBSERVATION_PROBE_INTERVAL_SECONDS`, `PHYTO_OBSERVATION_EXPECTED_COMMIT` | `scripts/observe-jalon2-operator-quality.sh` | Période des sondes lentes (600 s) et commit attendu (défaut : `HEAD`) |
 
 Les procédures qui utilisent ces observateurs sont archivées :

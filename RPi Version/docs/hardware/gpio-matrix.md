@@ -14,7 +14,7 @@
 | DS18B20 | `ds18_pin` | 4 | 7 | Entrée 1-Wire | Pull-up 4,7 kΩ normalement requis | Désactivé |
 | HC-SR04 trigger | `hcsr_trigger_pin` | 26 | 37 | Sortie | Repos LOW attendu | Désactivé |
 | HC-SR04 echo | `hcsr_echo_pin` | 27 | 13 | Entrée | Niveau d'entrée à adapter au Pi | Désactivé |
-| Daily timer 1 | `dailytimer1_pin` | 5 | 29 | Sortie | Actif-BAS, sûr HIGH | — |
+| Daily timer 1 | `dailytimer1_pin` | 5 | 29 | Sortie | Actif-BAS, sûr HIGH | BCM 17 abandonné : broche HS sous charge, canal migré vers BCM 5 |
 | Daily timer 2 | `dailytimer2_pin` | 18 | 12 | Sortie | Actif-BAS, sûr HIGH | — |
 | Cyclic timer 1 | `cyclic1_pin` | 27 | 13 | Sortie | Actif-BAS, sûr HIGH | — |
 | Cyclic timer 2 | `cyclic2_pin` | 22 | 15 | Sortie | Actif-BAS, sûr HIGH | — |

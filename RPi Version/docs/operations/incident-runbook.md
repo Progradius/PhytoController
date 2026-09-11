@@ -204,6 +204,9 @@ imprimer les valeurs, depuis `RPi Version/` :
 DONNEES="$(systemctl show phyto -p Environment --value | tr ' ' '\n' | sed -n 's/^PHYTO_DATA_DIR=//p' | tail -n 1)"
 if [ -n "$DONNEES" ] && [ -d "$DONNEES" ]; then
   echo "Données vivantes : $DONNEES"
+  # Deux causes bien distinctes : un fichier qu'on ne peut pas lire (droits, disparition) n'est
+  # pas une configuration refusée par le schéma, et la conduite à tenir n'est pas la même.
+  [ -r "$DONNEES/param.json" ] || echo "param.json absent ou non lisible par cet utilisateur"
   PHYTO_CONFIG_A_VALIDER="$DONNEES/param.json" venv/bin/python3 -c \
     'import json, os; from pathlib import Path; from param.config import AppConfig; AppConfig.model_validate(json.loads(Path(os.environ["PHYTO_CONFIG_A_VALIDER"]).read_text(encoding="utf-8")))' \
     >/dev/null 2>&1 && echo "configuration valide" || echo "configuration INVALIDE ou illisible"

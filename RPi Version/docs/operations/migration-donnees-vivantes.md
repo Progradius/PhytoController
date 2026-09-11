@@ -100,14 +100,25 @@ Vérifier enfin dans le journal que la configuration chargée est la bonne (hora
 
 ## Preuve de non-régression
 
-Sur une copie du dépôt, hors production, le scénario d'origine ne doit plus rien casser :
+Le scénario d'origine — un `git checkout` sur une révision qui suit encore `param.json` — ne doit
+plus rien casser. Il se rejoue **dans un clone jetable**, jamais dans le checkout servi par le
+service : c'est précisément le geste proscrit plus bas, et le faire ici rendrait la preuve
+dangereuse au lieu de rassurante.
 
 ```bash
+COPIE="$(mktemp -d)"
+git clone --no-local "$HOME/PhytoController" "$COPIE/depot"
 AVANT="$(stat -c '%s %Y' "$HOME/phyto-data/param.json") $(sha256sum < "$HOME/phyto-data/param.json")"
-git checkout e93644a          # une révision qui suit encore param.json
+git -C "$COPIE/depot" checkout e93644a   # une révision qui suit encore param.json
 APRES="$(stat -c '%s %Y' "$HOME/phyto-data/param.json") $(sha256sum < "$HOME/phyto-data/param.json")"
 [ "$AVANT" = "$APRES" ] && echo "param.json intact" || echo "ÉCART : param.json modifié"
+rm -rf "$COPIE"
 ```
+
+Le clone prouve ce qui compte : cette révision **matérialise** encore
+`RPi Version/param/param.json` (`git ls-tree e93644a "RPi Version/param/"`), et elle l'écrit dans
+sa propre copie de travail sans jamais atteindre `~/phyto-data`. Le checkout de production, lui,
+n'est pas touché : il reste détaché sur la révision déployée.
 
 La preuve compare taille, date de modification et empreinte SHA-256 : elle n'imprime aucune valeur
 du fichier, qui contient des secrets. Ne jamais l'afficher avec `cat`, `less` ou
