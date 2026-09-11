@@ -1,5 +1,6 @@
 // Lot C : compléter dans le navigateur un parcours repris en cours de cycle.
 const {test, expect, AxeBuilder} = require("./culture_fixtures");
+const {pour} = require("./profils");
 
 // Dates choisies après la libération de l'espace 2 des autres scénarios du même carnet.
 const ORIGIN = "2026-09-01";
@@ -7,8 +8,7 @@ const MOVE = "2026-09-02";
 const STAGE = "2026-09-03";
 const CURRENT = "2026-09-07";
 
-test("reprise en floraison : étapes et occupation passées complétées", async ({page}, testInfo) => {
-  test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name), "Reprise exercée sur deux formats.");
+test("reprise en floraison : étapes et occupation passées complétées", pour("Reprise exercée sur deux formats.", "desktop-chromium", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(45000);
   // Écritures réellement acceptées : un refus (400) vient de la mutation elle-même, qui
   // n'écrit rien ; compter les requêtes émises confondrait refus et écriture.

@@ -1,5 +1,6 @@
 "use strict";
 const {test, expect, createMother, AxeBuilder} = require("./culture_fixtures");
+const {sauf} = require("./profils");
 
 // Comptage des envois : un `POST` vers le carnet est une transaction sur son thread unique.
 // La prévalidation ne doit rien écrire, et elle n'est plus rejouée à chaque enregistrement.
@@ -11,8 +12,7 @@ const countPosts = page => {
   return posts;
 };
 
-test("prévalidation sans écriture, relevé ressemblant confirmé et aides périmées retirées", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("prévalidation sans écriture, relevé ressemblant confirmé et aides périmées retirées", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const posts = countPosts(page);
   const id = await createMother(page, "Mère assistance");
@@ -55,8 +55,7 @@ test("prévalidation sans écriture, relevé ressemblant confirmé et aides pér
   await expect(page.locator("[data-culture-assistance]")).toBeHidden();
 });
 
-test("une saisie modifiée pendant la prévalidation n’est pas envoyée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("une saisie modifiée pendant la prévalidation n’est pas envoyée", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère concurrence");
   await page.goto(`/cultures/solutions?target=${id}&kind=reading&view=saisir#saisie`);
@@ -81,8 +80,7 @@ test("une saisie modifiée pendant la prévalidation n’est pas envoyée", asyn
 
 // Une vérification est une aide, pas un verrou : le carnet occupé ne doit pas empêcher
 // d'enregistrer, la mutation refaisant de toute façon toutes les validations.
-test("une vérification indisponible n’empêche pas l’enregistrement", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("une vérification indisponible n’empêche pas l’enregistrement", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère carnet occupé");
   await page.goto(`/cultures/solutions?target=${id}&kind=reading&view=saisir#saisie`);

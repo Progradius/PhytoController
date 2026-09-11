@@ -3,6 +3,7 @@
 // Lot H : journal transversal filtrable, observations d'espace corrigibles et
 // consultation datée en lecture seule des pages conservées par la PWA.
 const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
+const {pour, sauf} = require("./profils");
 
 const observe = async (page, {space = "Espace 2", note}) => {
   const details = page.locator("details").filter({hasText: "Enregistrer une observation d’espace"}).first();
@@ -14,8 +15,7 @@ const observe = async (page, {space = "Espace 2", note}) => {
   await expect(page.getByText(note, {exact: false}).first()).toBeVisible();
 };
 
-test("journal : observation d’un espace vide, filtre et correction tracée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
+test("journal : observation d’un espace vide, filtre et correction tracée", sauf("Parcours hors ligne exercé séparément.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const mother = await createMother(page, "Mère journal lot H");
   await page.goto("/cultures/journal");
@@ -66,8 +66,7 @@ test("journal : observation d’un espace vide, filtre et correction tracée", a
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("journal : un filtre refusé conserve les champs saisis", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
+test("journal : un filtre refusé conserve les champs saisis", sauf("Parcours hors ligne exercé séparément.", "pwa-chromium"), async ({page}, testInfo) => {
   // Dates en dur assumées : elles ne filtrent aucune saisie de la spec et ne sont jamais
   // comparées au jour courant. Seul compte leur ordre — la fin précède le début —, qui est
   // vrai à toute date, et leur restitution telle quelle dans les champs après le refus.
@@ -80,8 +79,7 @@ test("journal : un filtre refusé conserve les champs saisis", async ({page}, te
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("journal : consultation datée hors ligne, sans mutation rejouée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "pwa-chromium", "Le service worker est réservé au profil PWA.");
+test("journal : consultation datée hors ligne, sans mutation rejouée", pour("Le service worker est réservé au profil PWA.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   await createMother(page, "Mère hors ligne lot H");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });

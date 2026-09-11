@@ -16,6 +16,7 @@ const {test: testCarnet, expect: expectCarnet, createMother} = require("./cultur
 const {testAlarmeCritique} = require("./fixtures");
 const crypto = require("node:crypto");
 const AxeBuilder = require("@axe-core/playwright").default;
+const {pour} = require("./profils");
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 // Hauteur retranchée au viewport pour simuler l'apparition d'un clavier virtuel. Un vrai
@@ -115,8 +116,7 @@ const TEMOINS = [
 ];
 
 for (const temoin of TEMOINS) {
-  test(`R0.3 · ${temoin.macro} : page témoin ${temoin.route} verte à axe`, async ({page}, testInfo) => {
-    test.skip(testInfo.project.name !== "desktop-chromium", "Une cible suffit pour le contrat des macros.");
+  test(`R0.3 · ${temoin.macro} : page témoin ${temoin.route} verte à axe`, pour("Une cible suffit pour le contrat des macros.", "desktop-chromium"), async ({page}, testInfo) => {
     await page.goto(temoin.route);
     await verifierTemoin(page, expect, temoin);
   });
@@ -125,16 +125,14 @@ for (const temoin of TEMOINS) {
 // `alarm_summary` ne rend **que** devant une alarme : sur le serveur nominal, `/alarms` est
 // une page vide et chercher la macro n'y prouverait rien. Serveur dédié au scénario
 // d'alarme critique de `tests/ui_server.py`.
-testAlarmeCritique("R0.3 · alarm_summary : page témoin /alarms verte à axe", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Une cible suffit pour le contrat des macros.");
+testAlarmeCritique("R0.3 · alarm_summary : page témoin /alarms verte à axe", pour("Une cible suffit pour le contrat des macros.", "desktop-chromium"), async ({page}, testInfo) => {
   await page.goto("/alarms");
   await verifierTemoin(page, expect, {macro: "alarm_summary", route: "/alarms", classe: ".ui-alarm-summary"});
 });
 
 // `journal_entry` ne rend que s'il existe une opération dans le carnet. Un serveur par
 // test : le carnet est muté ici, et l'espace 2 est exclusif.
-testCarnet("R0.3 · journal_entry : page témoin /cultures/journal verte à axe", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Une cible suffit pour le contrat des macros.");
+testCarnet("R0.3 · journal_entry : page témoin /cultures/journal verte à axe", pour("Une cible suffit pour le contrat des macros.", "desktop-chromium"), async ({page}, testInfo) => {
   const subject = await createMother(page, "Mère journal témoin");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
   // Un relevé suffit à peupler la vue `culture_journal` : une ligne par opération.
@@ -324,8 +322,7 @@ test("le dialogue de coupure est vert à axe et piège le focus", async ({page})
 // Q08 — bannière hors ligne et lecture seule (profil `pwa-chromium`)
 // ---------------------------------------------------------------------------
 
-test("hors ligne : la bannière est visible et l’interface passe en lecture seule", async ({page, context}, testInfo) => {
-  test.skip(testInfo.project.name !== "pwa-chromium", "Un service worker est nécessaire pour servir la copie.");
+test("hors ligne : la bannière est visible et l’interface passe en lecture seule", pour("Un service worker est nécessaire pour servir la copie.", "pwa-chromium"), async ({page, context}, testInfo) => {
   test.skip(Boolean(process.env.PHYTO_UI_BASE_URL), "Aucune coupure provoquée sur une cible externe.");
   test.setTimeout(120_000);
 
@@ -366,8 +363,7 @@ test("hors ligne : la bannière est visible et l’interface passe en lecture se
 const ROUTES_ZOOM = ["/", "/alarms", "/conf", "/cultures", "/history"];
 
 for (const route of ROUTES_ZOOM) {
-  test(`zoom 200 % · ${route} ne défile pas horizontalement et garde ses cibles ≥ 24 px`, async ({page}, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile-zoom", "Mesure propre au profil de zoom.");
+  test(`zoom 200 % · ${route} ne défile pas horizontalement et garde ses cibles ≥ 24 px`, pour("Mesure propre au profil de zoom.", "mobile-zoom"), async ({page}, testInfo) => {
     await page.goto(route);
     await expect(page.locator("main")).toBeVisible();
 
@@ -417,8 +413,7 @@ const ROUTES_ZOOM_POLICE = ["/", "/alarms", "/history", "/conf", "/console", "/c
   "/cultures/equipment", "/cultures/journal", "/app", "/offline"];
 
 for (const route of ROUTES_ZOOM_POLICE) {
-  test(`zoom 200 % de la police · ${route} ne fait pas défiler le corps horizontalement`, async ({page}, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile-zoom", "Mesure propre au profil de zoom.");
+  test(`zoom 200 % de la police · ${route} ne fait pas défiler le corps horizontalement`, pour("Mesure propre au profil de zoom.", "mobile-zoom"), async ({page}, testInfo) => {
     await page.goto(route);
     await expect(page.locator("main")).toBeVisible();
     await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
@@ -453,8 +448,7 @@ for (const route of ROUTES_ZOOM_POLICE) {
   });
 }
 
-test("zoom 200 % · le menu mobile « Plus » reste ouvrable et ses entrées atteignables", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-zoom", "Mesure propre au profil de zoom.");
+test("zoom 200 % · le menu mobile « Plus » reste ouvrable et ses entrées atteignables", pour("Mesure propre au profil de zoom.", "mobile-zoom"), async ({page}, testInfo) => {
   await page.goto("/");
   const plus = page.locator(".mobile-more > summary");
   await expect(plus).toBeVisible();

@@ -23,6 +23,26 @@ sous `tmp_path`, tout GPIO est un faux explicite et toute commande système est 
 Une modification matérielle exige en plus le protocole de
 [`hardware-validation.md`](hardware-validation.md).
 
+### Suite navigateur (Playwright)
+
+Un test choisit ses profils **à sa déclaration**, jamais dans son corps :
+
+```js
+const {pour, sauf} = require("./profils");
+
+test("titre", pour("Deux formats suffisent.", "desktop-chromium", "mobile-chromium"), async ({page}) => {…});
+test("titre", sauf("Parcours hors service worker.", "pwa-chromium"), async ({page}) => {…});
+```
+
+`tests/ui/profils.js` pose des étiquettes que le `grepInvert` de chaque projet évalue avant toute
+fixture : un test exclu d'un profil n'y est ni planifié ni instancié. Un
+`test.skip(testInfo.project.name …)` dans le corps arrive au contraire **après** les fixtures — le
+navigateur et, pour le carnet, un serveur Python complet ont déjà été démarrés pour rien. La raison
+du choix est conservée en annotation `profils`. `test.skip` reste réservé à ce qui dépend d'une
+donnée d'exécution (largeur de fenêtre, variable d'environnement) et à la garde « cible externe »
+du carnet. Les noms de profils n'existent qu'une fois, dans `PROFILS` : un nom inconnu casse le
+chargement de la spec (`npm run test:js` couvre ces règles).
+
 ## Style
 
 - Code, commentaires, messages et logs en français.

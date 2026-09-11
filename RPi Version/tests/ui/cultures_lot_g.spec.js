@@ -1,5 +1,6 @@
 // Lot G : affectations d'équipements datées, changement d'usage de cyclic_2 et contexte résolu.
 const {test, expect, AxeBuilder} = require("./culture_fixtures");
+const {pour} = require("./profils");
 
 const START = "2026-06-01";
 const SWITCH = "2026-07-01";
@@ -60,8 +61,7 @@ const showDay = async (page, day) => {
   return page.locator("article.solution-journal").first();
 };
 
-test("changement d'usage de cyclic_2 : périodes successives et contexte résolu à la date", async ({page}, testInfo) => {
-  test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name), "Affectations exercées sur deux formats.");
+test("changement d'usage de cyclic_2 : périodes successives et contexte résolu à la date", pour("Affectations exercées sur deux formats.", "desktop-chromium", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const first = `Irrigation ${testInfo.project.name}`;
   const second = `Brumisation ${testInfo.project.name}`;
@@ -126,8 +126,7 @@ test("changement d'usage de cyclic_2 : périodes successives et contexte résolu
   await release(page, "cyclic_2");
 });
 
-test("une intervention affiche le contexte d'équipement résolu à sa propre date", async ({page}, testInfo) => {
-  test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name), "Contexte exercé sur deux formats.");
+test("une intervention affiche le contexte d'équipement résolu à sa propre date", pour("Contexte exercé sur deux formats.", "desktop-chromium", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const usage = `Renouvellement ${testInfo.project.name}`;
   // Date propre au format : deux renouvellements au même instant sont refusés à dessein.

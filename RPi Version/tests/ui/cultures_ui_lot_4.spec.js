@@ -1,5 +1,6 @@
 "use strict";
 const {test, expect, createMother, AxeBuilder} = require("./culture_fixtures");
+const {sauf} = require("./profils");
 
 // R2.3 : sous 48 rem, l'exploration d'une figure arrive repliée — curseur, boutons, sortie
 // et tableau équivalent, soit 366 px par figure sur un écran de 390 px. Rien n'est retiré :
@@ -36,8 +37,7 @@ const mesureReelle = async (page, id) => {
   expect(response.ok(), await response.text()).toBeTruthy();
 };
 
-test("comparaison alignée, recherche et bilan sans données inventées", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations et interception HTTP, hors service worker.");
+test("comparaison alignée, recherche et bilan sans données inventées", sauf("Parcours avec mutations et interception HTTP, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const first = await createMother(page, "Mère Alpha");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
@@ -71,8 +71,7 @@ test("comparaison alignée, recherche et bilan sans données inventées", async 
   await expect(page.locator('[data-comparison-selection] input:checked')).toHaveCount(1);
 });
 
-test("courbes explorables au clavier et au toucher, tableau équivalent et lacunes", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations et interception HTTP, hors service worker.");
+test("courbes explorables au clavier et au toucher, tableau équivalent et lacunes", sauf("Parcours avec mutations et interception HTTP, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère courbes");
   await mesureReelle(page, id);
@@ -134,8 +133,7 @@ test("courbes explorables au clavier et au toucher, tableau équivalent et lacun
   expect(tableMs).toBeLessThan(15000);
 });
 
-test("galerie : suivant, précédent, Échap et retour au contexte", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations et interception HTTP, hors service worker.");
+test("galerie : suivant, précédent, Échap et retour au contexte", sauf("Parcours avec mutations et interception HTTP, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère galerie");
   await page.route(`**/cultures/${id}`, async route => {
@@ -177,8 +175,7 @@ test("galerie : suivant, précédent, Échap et retour au contexte", async ({pag
   await dialog.press("Escape"); await expect(dialog).toBeHidden(); await expect(link).toBeFocused();
 });
 
-test("explorateur : bornage sans désactivation, tap borné et tableau structuré", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec interception HTTP, hors service worker.");
+test("explorateur : bornage sans désactivation, tap borné et tableau structuré", sauf("Parcours avec interception HTTP, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère explorateur");
   await mesureReelle(page, id);
@@ -279,8 +276,7 @@ test("explorateur : bornage sans désactivation, tap borné et tableau structur�
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("courbe climatique : lacune sélectionnée visible et dessin sans l’explorateur", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec interception HTTP, hors service worker.");
+test("courbe climatique : lacune sélectionnée visible et dessin sans l’explorateur", sauf("Parcours avec interception HTTP, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère climat");
   const climate = [0, 1, 2].map(i => ({sensor: "temperature", label: "Température", unit: "°C",
@@ -336,8 +332,7 @@ test("courbe climatique : lacune sélectionnée visible et dessin sans l’explo
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1sAAAAASUVORK5CYII=";
 
-test("galerie : le lien de contexte focalise l’ancre, jamais la vignette", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations et interception HTTP, hors service worker.");
+test("galerie : le lien de contexte focalise l’ancre, jamais la vignette", sauf("Parcours avec mutations et interception HTTP, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère contexte");
   const detail = await (await page.request.get(`/api/v1/cultures/${id}`)).json();
@@ -384,8 +379,7 @@ test("galerie : le lien de contexte focalise l’ancre, jamais la vignette", asy
   await expect(link).toBeFocused();
 });
 
-test("courbes de solutions : légende par source et synthèse textuelle", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+test("courbes de solutions : légende par source et synthèse textuelle", sauf("Parcours avec mutations, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère légende");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
@@ -468,8 +462,7 @@ test("courbes de solutions : légende par source et synthèse textuelle", async 
   await page.screenshot({path: testInfo.outputPath("legende-courbes-plein-jour.png"), fullPage: true});
 });
 
-test("archives : occupation persistante signalée et durées par stade", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+test("archives : occupation persistante signalée et durées par stade", sauf("Parcours avec mutations, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/cultures");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
@@ -499,8 +492,7 @@ test("archives : occupation persistante signalée et durées par stade", async (
 // filtre local qui masque sans recharger, et pagination des choix. Le carnet est semé par
 // l'API : quarante-cinq saisies au formulaire ne mesureraient que la vitesse du formulaire,
 // et c'est la restitution qui est en cause ici.
-test("sélecteur de comparaison : plafond de quatre, filtre local et pagination des choix", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+test("sélecteur de comparaison : plafond de quatre, filtre local et pagination des choix", sauf("Parcours avec mutations, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(180000);
   await page.goto("/cultures");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
@@ -596,8 +588,7 @@ test("sélecteur de comparaison : plafond de quatre, filtre local et pagination 
 // R1.7 : la fixture nommée par la fiche. `1.4 + 0.05` vaut exactement 1,45 en binaire64 ;
 // la décomposition qui produit réellement l'artefact est `1.1 + 0.35` = 1.4500000000000002.
 // C'est cette valeur-là que la page ne doit jamais montrer, et que l'API doit rendre intacte.
-test("R1.7 : la page affiche 1,45 quand la valeur persistée reste 1.4500000000000002", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("R1.7 : la page affiche 1,45 quand la valeur persistée reste 1.4500000000000002", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const mesure = 1.1 + 0.35;
   expect(String(mesure)).toBe("1.4500000000000002");

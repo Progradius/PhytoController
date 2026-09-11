@@ -1,5 +1,6 @@
 // Fixture partagée : serveur de carnet temporaire par test, aides de création.
 const {test, expect, AxeBuilder, dates, createMother} = require("./culture_fixtures");
+const {pour, sauf} = require("./profils");
 
 // Échéances de rappel relatives au jour courant. Elles étaient écrites en dur
 // (2026-09-10, 2026-09-12) : futures le jour où la spec a été écrite, en retard ensuite,
@@ -33,8 +34,7 @@ const ouvrirSaisie = async page => {
   await expect(saisie.locator("[data-solution-entry]").first()).toBeVisible();
 };
 
-test("lot multi-mères, carnet et correction sur téléphone et bureau", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours PWA exercé séparément.");
+test("lot multi-mères, carnet et correction sur téléphone et bureau", sauf("Parcours PWA exercé séparément.", "pwa-chromium"), async ({page}, testInfo) => {
   const suffix = `${testInfo.project.name}-${Date.now()}`;
   const motherA = await createMother(page, `Mère A ${suffix}`);
   const motherB = await createMother(page, `Mère B ${suffix}`);
@@ -79,8 +79,7 @@ test("lot multi-mères, carnet et correction sur téléphone et bureau", async (
   await expect(page.getByRole("link", {name: `Boutures ${suffix}`})).toHaveAttribute("href", new URL(lotUrl).pathname);
 });
 
-test("un échec conserve la note et la nouvelle tentative garde sa clé", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Une vérification réseau suffit.");
+test("un échec conserve la note et la nouvelle tentative garde sa clé", pour("Une vérification réseau suffit.", "desktop-chromium"), async ({page}, testInfo) => {
   await createMother(page, `Mère réseau ${Date.now()}`);
   const note = page.locator("form[data-culture-observation]");
   await note.locator("..").locator("summary").click();
@@ -109,8 +108,7 @@ test("vue cultures sans débordement et accessible", async ({page}, testInfo) =>
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("semis, correction d’effectif, transfert, récolte et libération", async ({page}, testInfo) => {
-  test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name), "Cycle complet sur deux formats.");
+test("semis, correction d’effectif, transfert, récolte et libération", pour("Cycle complet sur deux formats.", "desktop-chromium", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(45000);
   const name = `Semis cycle ${testInfo.project.name} ${Date.now()}`;
   await page.goto("/cultures");
@@ -170,9 +168,8 @@ test("semis, correction d’effectif, transfert, récolte et libération", async
   await expect(page.getByRole("link", {name, exact: true})).toBeVisible();
 });
 
-test("solutions : recette, renouvellement, relevé et correction accessibles", async ({page}, testInfo) => {
+test("solutions : recette, renouvellement, relevé et correction accessibles", sauf("Mutations exercées sur profils sans service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(45000);
-  test.skip(testInfo.project.name === "pwa-chromium", "Mutations exercées sur profils sans service worker.");
   await page.goto("/cultures/solutions?target=reservoir_2&view=saisir");
   await expect(page.getByRole("heading", {level: 1})).toHaveText("Solutions et relevés");
   const recipeDetails = page.locator("details").filter({has: page.getByText("Créer une recette", {exact: true})});
@@ -229,8 +226,7 @@ test("solutions : recette, renouvellement, relevé et correction accessibles", a
   await page.screenshot({path: `/tmp/phyto-solutions-${testInfo.project.name}.png`, fullPage: true});
 });
 
-test("solutions : panne réseau, conservation des champs et idempotence", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Une vérification réseau suffit.");
+test("solutions : panne réseau, conservation des champs et idempotence", pour("Une vérification réseau suffit.", "desktop-chromium"), async ({page}, testInfo) => {
   await page.goto("/cultures/solutions?target=cuttings_1&view=saisir");
   await ouvrirSaisie(page);
   const form = page.locator("[data-solution-entry]").first();
@@ -262,8 +258,7 @@ test("solutions : panne réseau, conservation des champs et idempotence", async 
   expect(bodies).toHaveLength(2);
 });
 
-test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau", async ({page}, testInfo) => {
-  test.skip(!["desktop-chromium", "mobile-etroit"].includes(testInfo.project.name), "Deux formats pour le parcours complet.");
+test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau", pour("Deux formats pour le parcours complet.", "desktop-chromium", "mobile-etroit"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const mother = await createMother(page, `Mère carnet ${testInfo.project.name}`);
   const photoForm = page.locator("[data-photo-form]").first();
@@ -316,8 +311,7 @@ test("cycles : photo, rappel récurrent et comparaison sur téléphone et bureau
   await page.screenshot({path: `/tmp/phyto-cycles-${testInfo.project.name}.png`, fullPage: true});
 });
 
-test("cycles : PWA datée en lecture seule et aucune mutation rejouée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "pwa-chromium", "Le service worker est réservé au profil PWA.");
+test("cycles : PWA datée en lecture seule et aucune mutation rejouée", pour("Le service worker est réservé au profil PWA.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const mother = await createMother(page, "Mère PWA carnet");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });

@@ -1,6 +1,7 @@
 const {test, expect} = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
 const {historyFixture, testAlarmeCritique, testServeurJetable} = require("./fixtures");
+const {pour, sauf} = require("./profils");
 
 test("le tableau de bord reste compact et navigable", async ({page}) => {
   await page.goto("/");
@@ -214,8 +215,7 @@ test("un service partiellement indisponible ne simule pas une coupure réseau", 
   expect(rendu.couperActive).toBe(true);
 });
 
-test("les commandes restent repérables avec les couleurs système forcées", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Contrôle ciblé du rendu Windows à contraste élevé.");
+test("les commandes restent repérables avec les couleurs système forcées", pour("Contrôle ciblé du rendu Windows à contraste élevé.", "desktop-chromium"), async ({page}, testInfo) => {
   await page.emulateMedia({forcedColors: "active"});
   await page.goto("/");
   const action = page.getByRole("button", {name: "Couper"}).first();
@@ -246,8 +246,7 @@ test("les compteurs d’alarme suivent le flux vivant", async ({page}) => {
   expect(chrome.title).toMatch(/^\(1\)/);
 });
 
-test("l’historique produit un bilan métier et expose les notes", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Le service worker réseau-seulement ne doit pas être court-circuité par une fixture HTTP.");
+test("l’historique produit un bilan métier et expose les notes", sauf("Le service worker réseau-seulement ne doit pas être court-circuité par une fixture HTTP.", "pwa-chromium"), async ({page}, testInfo) => {
   await page.route("**/api/v1/history?hours=24", (route) => route.fulfill({contentType: "application/json", body: JSON.stringify(historyFixture())}));
   await page.goto("/history");
   await page.evaluate(() => {
@@ -305,8 +304,7 @@ test("le rafraîchissement d’une alarme conserve la saisie et le focus", async
   await expect(page.locator('[data-alarm-id="test-focus"] .alarm-severity')).toHaveText("Critique");
 });
 
-test("la coque PWA reste consultable hors ligne sans mettre les API en cache", async ({page, context}, testInfo) => {
-  test.skip(testInfo.project.name !== "pwa-chromium", "Projet avec service worker uniquement.");
+test("la coque PWA reste consultable hors ligne sans mettre les API en cache", pour("Projet avec service worker uniquement.", "pwa-chromium"), async ({page, context}, testInfo) => {
   await page.goto("/");
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
@@ -347,8 +345,7 @@ const SQUELETTE = (node) => {
   return parts.join("\n");
 };
 
-testAlarmeCritique("l’alarme critique est en tête, développée et actionnable sans défilement", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Scénario mobile de la fiche : 390 × 844.");
+testAlarmeCritique("l’alarme critique est en tête, développée et actionnable sans défilement", pour("Scénario mobile de la fiche : 390 × 844.", "mobile-chromium"), async ({page}, testInfo) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto("/alarms");
 
@@ -430,9 +427,7 @@ testServeurJetable("une coupure active rend sa ligne ouverte", async ({page}) =>
   expect(html).toContain('data-equipment="motor" open>');
 });
 
-test("un rafraîchissement qui apporte une anomalie ouvre la ligne", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium",
-            "Le service worker réseau-seulement ne doit pas être court-circuité par une fixture HTTP.");
+test("un rafraîchissement qui apporte une anomalie ouvre la ligne", sauf("Le service worker réseau-seulement ne doit pas être court-circuité par une fixture HTTP.", "pwa-chromium"), async ({page}, testInfo) => {
   let anomalie = false;
   // L'état est normalisé de bout en bout : sans boucle métier, le serveur de test ne
   // publie aucun actionneur, donc toutes les lignes arrivent déjà ouvertes (« état non
@@ -460,8 +455,7 @@ test("un rafraîchissement qui apporte une anomalie ouvre la ligne", async ({pag
   await expect(ligne).toHaveAttribute("open", "", {timeout: 15000});
 });
 
-test("le premier écran du tableau porte état, fraîcheur, climat et alarme", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Scénario mobile de la fiche : 390 × 844.");
+test("le premier écran du tableau porte état, fraîcheur, climat et alarme", pour("Scénario mobile de la fiche : 390 × 844.", "mobile-chromium"), async ({page}, testInfo) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto("/");
   for (const selecteur of ["#overview-title", "#freshness", '[data-climate-summary="temperature"]',
@@ -483,8 +477,7 @@ test("les rappels du jour du carnet ne restent jamais « en cours de lecture »"
 // R1.3 — Navigation mobile.
 // ---------------------------------------------------------------------------
 
-test("aller-retour Tableau → Cultures → Solutions → retour à 320 px", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-etroit", "Garde-fou propre au plus petit écran.");
+test("aller-retour Tableau → Cultures → Solutions → retour à 320 px", pour("Garde-fou propre au plus petit écran.", "mobile-etroit"), async ({page}, testInfo) => {
   const barre = page.getByRole("navigation", {name: "Navigation mobile"});
 
   await page.goto("/");
@@ -510,9 +503,7 @@ test("aller-retour Tableau → Cultures → Solutions → retour à 320 px", asy
   expect(debordement).toBeLessThanOrEqual(1);
 });
 
-test("barre de saisie et barre basse laissent plus de la moitié de la hauteur utile", async ({page}, testInfo) => {
-  test.skip(!["mobile-etroit", "mobile-paysage"].includes(testInfo.project.name),
-            "Garde-fou mesuré à 320 × 568 et 568 × 320.");
+test("barre de saisie et barre basse laissent plus de la moitié de la hauteur utile", pour("Garde-fou mesuré à 320 × 568 et 568 × 320.", "mobile-etroit", "mobile-paysage"), async ({page}, testInfo) => {
   await page.goto("/conf#life");
   const champ = page.locator("#life input[name=stage]");
   await champ.fill(`${await champ.inputValue()} test`);
@@ -557,8 +548,7 @@ test("sans presse-papiers, la console sélectionne le texte et renvoie vers Expo
   expect(selection).toEqual({plages: 1, surLeJournal: true});
 });
 
-test("les outils de console sont visibles sans JavaScript sur poste", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Contrat propre au rendu de poste.");
+test("les outils de console sont visibles sans JavaScript sur poste", pour("Contrat propre au rendu de poste.", "desktop-chromium"), async ({page}, testInfo) => {
   await page.goto("/console");
   await expect(page.locator("#console-level")).toBeVisible();
   await expect(page.locator("#console-search")).toBeVisible();

@@ -2,9 +2,9 @@
 
 // Lot B : synthèse de cycle bornée, détail horaire paginé et consultation hors ligne datée.
 const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
+const {pour, sauf} = require("./profils");
 
-test("cycles : synthèse bornée, granularité affichée et détail horaire séparé", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
+test("cycles : synthèse bornée, granularité affichée et détail horaire séparé", sauf("Parcours hors ligne exercé séparément.", "pwa-chromium"), async ({page}, testInfo) => {
   const mother = await createMother(page, "Mère cycles longs");
   // R2.6 : le panneau « Comparer » de /cultures/cycles est servi mais `hidden` tant que
   // `view=comparer` n'est pas demandé — hors de l'arbre d'accessibilité sans lui.
@@ -26,8 +26,7 @@ test("cycles : synthèse bornée, granularité affichée et détail horaire sép
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("cycles : comparaison de plusieurs cycles bornée sans détail horaire", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
+test("cycles : comparaison de plusieurs cycles bornée sans détail horaire", sauf("Parcours hors ligne exercé séparément.", "pwa-chromium"), async ({page}, testInfo) => {
   const first = await createMother(page, "Mère comparée A");
   const second = await createMother(page, "Mère comparée B");
   // R2.6 : le panneau « Comparer » de /cultures/cycles est servi mais `hidden` tant que
@@ -41,8 +40,7 @@ test("cycles : comparaison de plusieurs cycles bornée sans détail horaire", as
   await expect(page.getByRole("link", {name: "Ouvrir le détail horaire de Mère comparée A"})).toBeVisible();
 });
 
-test("cycles : synthèse datée hors ligne, détail non conservé signalé, aucune mutation rejouée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "pwa-chromium", "Le service worker est réservé au profil PWA.");
+test("cycles : synthèse datée hors ligne, détail non conservé signalé, aucune mutation rejouée", pour("Le service worker est réservé au profil PWA.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const mother = await createMother(page, "Mère hors ligne lot B");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });

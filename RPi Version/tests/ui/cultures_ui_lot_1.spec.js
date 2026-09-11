@@ -2,6 +2,7 @@
 
 const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
 const {randomUUID} = require("node:crypto");
+const {sauf} = require("./profils");
 
 const navigation = page => page.getByRole("navigation", {name: "Navigation du carnet", exact: true});
 
@@ -125,8 +126,7 @@ test("lot UI 1 : lecture compacte, graduations et plein jour", async ({page}, te
   }
 });
 
-test("lot UI 1 : climat renseigné et lacune restent lisibles après rotation", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "La substitution HTML du jeu fictif exige un navigateur sans service worker.");
+test("lot UI 1 : climat renseigné et lacune restent lisibles après rotation", sauf("La substitution HTML du jeu fictif exige un navigateur sans service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const id = await createMother(page, "Mère climat fictif");
   // Jeu de présentation synthétique : aucun historique matériel n'est fabriqué en base.

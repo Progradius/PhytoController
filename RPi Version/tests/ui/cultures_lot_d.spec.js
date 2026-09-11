@@ -3,6 +3,7 @@
 // Lot D : une case cochée par erreur se corrige puis s'annule sans perdre l'historique,
 // un onglet périmé reçoit un conflit et une correction rétrospective du parcours est signalée.
 const {test, expect, AxeBuilder} = require("./culture_fixtures");
+const {pour} = require("./profils");
 
 // Dates locales relatives au jour courant : le carnet refuse toute date future et la
 // vérification ne peut pas précéder le début du stade en cours.
@@ -44,9 +45,7 @@ const reveal = async (page, form) => {
   }
 };
 
-test("vérifications : correction, annulation, historique, conflit d'onglet et de parcours", async ({page}, testInfo) => {
-  test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name),
-    "Vérifications corrigibles exercées sur deux formats.");
+test("vérifications : correction, annulation, historique, conflit d'onglet et de parcours", pour("Vérifications corrigibles exercées sur deux formats.", "desktop-chromium", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   const name = `Vérifications ${testInfo.project.name} ${Date.now()}`;
   await page.goto("/cultures");

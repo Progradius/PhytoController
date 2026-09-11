@@ -34,8 +34,9 @@ PHYTO_UI_BASE_URL=http://127.0.0.1:9 PATH="$PWD/.venv/bin:$PATH" \
   tests/ui/cultures*.spec.js
 ```
 
-Attendu : 100 % d'exclusions (41 au 9 septembre 2026), aucune réussite, aucun échec, aucune requête
-sortante. Une seule tentative de `page.goto` signifie que la garde a été déplacée hors de la fixture.
+Attendu : 100 % d'exclusions (68 au 11 septembre 2026 — seuls les tests que `pour()`/`sauf()`
+destinent au profil bureau sont planifiés), aucune réussite, aucun échec, aucune requête sortante.
+Une seule tentative de `page.goto` signifie que la garde a été déplacée hors de la fixture.
 
 ## Niveaux
 

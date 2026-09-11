@@ -16,6 +16,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {chromium} = require("@playwright/test");
 const {test: cultureTest, expect: cultureExpect, createMother} = require("./culture_fixtures");
+const {pour} = require("./profils");
 
 const PWA = "pwa-chromium";
 
@@ -58,8 +59,7 @@ const versionEnAttente = (page) => page.evaluate(async () => {
   return Boolean(registration && registration.waiting);
 });
 
-cultureTest("mise à jour : la fenêtre sale garde sa saisie, la fenêtre propre recharge", async ({page, context}, testInfo) => {
-  cultureTest.skip(testInfo.project.name !== PWA, "Un vrai service worker est réservé au profil PWA.");
+cultureTest("mise à jour : la fenêtre sale garde sa saisie, la fenêtre propre recharge", pour("Un vrai service worker est réservé au profil PWA.", PWA), async ({page, context}, testInfo) => {
   cultureTest.setTimeout(120_000);
 
   // Fenêtre A : une fiche de culture avec une saisie non enregistrée.
@@ -112,8 +112,7 @@ cultureTest("mise à jour : la fenêtre sale garde sa saisie, la fenêtre propre
     .toBeGreaterThan(avant);
 });
 
-cultureTest("hors ligne : l’ancienne page vit sur ses caches tant que la version attend", async ({page, context}, testInfo) => {
-  cultureTest.skip(testInfo.project.name !== PWA, "Un vrai service worker est réservé au profil PWA.");
+cultureTest("hors ligne : l’ancienne page vit sur ses caches tant que la version attend", pour("Un vrai service worker est réservé au profil PWA.", PWA), async ({page, context}, testInfo) => {
   cultureTest.setTimeout(120_000);
 
   await page.goto("/");
@@ -148,8 +147,7 @@ cultureTest("hors ligne : l’ancienne page vit sur ses caches tant que la versi
 // neuve, où IndexedDB est vide par construction : réutiliser un `storageState` ne
 // transporte que les cookies et le stockage local, jamais IndexedDB. Ici le processus est
 // réellement arrêté puis relancé sur le même profil sur disque.
-cultureTest("brouillon : survit à la fermeture du navigateur, restauration explicite", async ({page, cultureBaseURL}, testInfo) => {
-  cultureTest.skip(testInfo.project.name !== PWA, "Acceptation R3.4 : profil PWA.");
+cultureTest("brouillon : survit à la fermeture du navigateur, restauration explicite", pour("Acceptation R3.4 : profil PWA.", PWA), async ({page, cultureBaseURL}, testInfo) => {
   cultureTest.setTimeout(180_000);
   const mother = await createMother(page, "Mère brouillon");
 

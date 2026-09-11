@@ -3,6 +3,7 @@ const AxeBuilder = require("@axe-core/playwright").default;
 const fs = require("fs");
 const path = require("path");
 const {historyFixture} = require("./fixtures");
+const {pour} = require("./profils");
 
 // Acceptation des fiches R2.2 (exploration tactile de l'historique), R2.3 (légende courte puis
 // « Légende complète ») et R5.2 (séries distinguables sans la couleur).
@@ -40,8 +41,7 @@ const outputPlace = (page) => page.evaluate(() => {
   return {parent: node.parentElement.className, index: [...node.parentElement.children].indexOf(node)};
 });
 
-test("le point choisi survit au redimensionnement et garde le même horodatage", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Acceptation tactile de la fiche R2.2.");
+test("le point choisi survit au redimensionnement et garde le même horodatage", pour("Acceptation tactile de la fiche R2.2.", "mobile-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   const canvas = page.locator("#temperature-chart");
   await expect(canvas).toBeVisible();
@@ -69,15 +69,13 @@ test("le point choisi survit au redimensionnement et garde le même horodatage",
   await expect(detailTitle(page)).toHaveText(chosen);
 });
 
-test("le défilement vertical reste possible pendant un toucher sur le graphique", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Garde-fou tactile de la fiche R2.2.");
+test("le défilement vertical reste possible pendant un toucher sur le graphique", pour("Garde-fou tactile de la fiche R2.2.", "mobile-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   const touchAction = await page.locator("#temperature-chart").evaluate((node) => getComputedStyle(node).touchAction);
   expect(touchAction).toBe("pan-y");
 });
 
-test("la région vivante du détail n’est jamais déplacée dans le DOM", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Acceptation de la fiche R2.2.");
+test("la région vivante du détail n’est jamais déplacée dans le DOM", pour("Acceptation de la fiche R2.2.", "mobile-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   const before = await outputPlace(page);
   const box = await chartBox(page, "#temperature-chart");
@@ -90,8 +88,7 @@ test("la région vivante du détail n’est jamais déplacée dans le DOM", asyn
   expect(await outputPlace(page)).toEqual(before);
 });
 
-test("le sélecteur d’indicateur ne laisse qu’un tracé à la fois sous 700 px", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Comportement propre au téléphone (fiche R2.2).");
+test("le sélecteur d’indicateur ne laisse qu’un tracé à la fois sous 700 px", pour("Comportement propre au téléphone (fiche R2.2).", "mobile-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   expect(page.viewportSize().width).toBeLessThan(700);
   const picker = page.locator("[data-history-view-picker]");
@@ -111,8 +108,7 @@ test("le sélecteur d’indicateur ne laisse qu’un tracé à la fois sous 700 
   await expect(page.locator(".chart-card:has(#humidity-chart)")).toBeVisible();
 });
 
-test("les indicateurs résumés précèdent les tracés et n’inventent aucune valeur", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Acceptation de la fiche R2.2.");
+test("les indicateurs résumés précèdent les tracés et n’inventent aucune valeur", pour("Acceptation de la fiche R2.2.", "mobile-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   const grid = page.locator("#history-metrics-grid");
   await expect(grid.locator(".history-insight")).toHaveCount(3);
@@ -135,8 +131,7 @@ test("les indicateurs résumés précèdent les tracés et n’inventent aucune 
   expect(order).toBe("avant");
 });
 
-test("la légende reste courte et renvoie ses sources dans « Légende complète »", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Acceptation de la fiche R2.3.");
+test("la légende reste courte et renvoie ses sources dans « Légende complète »", pour("Acceptation de la fiche R2.3.", "mobile-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   const short = page.locator("#temperature-legend");
   await expect(short).toContainText("Température air · °C");
@@ -157,8 +152,7 @@ test("la légende reste courte et renvoie ses sources dans « Légende complète
   await expect(short.locator("button[data-series-key]")).toHaveAttribute("aria-label", /marqueur (disque|carré|triangle|losange|croix|hexagone)/);
 });
 
-test("un survol n’arme aucune annonce et ne devient pas une sélection", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Le survol n'existe qu'au pointeur fin.");
+test("un survol n’arme aucune annonce et ne devient pas une sélection", pour("Le survol n'existe qu'au pointeur fin.", "desktop-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   const canvas = page.locator("#temperature-chart");
   const box = await chartBox(page, "#temperature-chart");
@@ -186,8 +180,7 @@ test("un survol n’arme aucune annonce et ne devient pas une sélection", async
   await expect(detailTitle(page)).toContainText("Point sélectionné :");
 });
 
-test("la légende des hachures reste hors du repli, comme description des chronologies", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Contrôle de balisage, indépendant de la largeur.");
+test("la légende des hachures reste hors du repli, comme description des chronologies", pour("Contrôle de balisage, indépendant de la largeur.", "desktop-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   // Cible d'`aria-describedby` des deux chronologies : elle doit être lisible sans déplier quoi
   // que ce soit — un contenu de `<details>` fermé n'est pas restitué.
@@ -201,16 +194,14 @@ test("la légende des hachures reste hors du repli, comme description des chrono
   }
 });
 
-test("l’historique rendu ne présente pas de violation d’accessibilité détectable", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Un profil suffit pour l'axe de la page rendue.");
+test("l’historique rendu ne présente pas de violation d’accessibilité détectable", pour("Un profil suffit pour l'axe de la page rendue.", "mobile-chromium"), async ({page}, testInfo) => {
   await prepare(page);
   const results = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(results.violations, results.violations.map((item) => `${item.id} (${item.nodes.length})`).join(", ")).toEqual([]);
 });
 
-test("capture des séries en niveaux de gris", async ({page}, testInfo) => {
+test("capture des séries en niveaux de gris", pour("Une largeur de référence suffit.", "mobile-chromium"), async ({page}, testInfo) => {
   test.skip(!process.env.PHYTO_CAPTURE, "Capture de preuve : lancer avec PHYTO_CAPTURE=1.");
-  test.skip(testInfo.project.name !== "mobile-chromium", "Une largeur de référence suffit.");
   await prepare(page);
   await page.locator("[data-history-view-picker]").selectOption("all");
   await expect(page.locator(".chart-card:has(#temperature-chart)")).toBeVisible();

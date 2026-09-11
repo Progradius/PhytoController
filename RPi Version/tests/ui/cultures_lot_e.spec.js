@@ -1,6 +1,7 @@
 // Lot E : plages cibles pH/EC facultatives, historisées et contextualisées.
 const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
 const {randomUUID} = require("node:crypto");
+const {pour, sauf} = require("./profils");
 
 const post = async (page, path, csrf, command) => {
   const response = await page.request.post(path, {
@@ -11,9 +12,8 @@ const post = async (page, path, csrf, command) => {
   return response.json();
 };
 
-test("plages cibles : saisie facultative, historique et contexte des relevés", async ({page}, testInfo) => {
+test("plages cibles : saisie facultative, historique et contexte des relevés", sauf("Mutations exercées sur profils sans service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(120000);
-  test.skip(testInfo.project.name === "pwa-chromium", "Mutations exercées sur profils sans service worker.");
   await page.goto("/cultures/targets");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
   await expect(page.getByRole("heading", {level: 1})).toHaveText("Plages cibles pH et EC");
@@ -146,8 +146,7 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
 // premier écran — la fenêtre moins la barre basse fixe, comme dans `measure_pages.js`. Ils
 // étaient à y = 857, 888 et 914, sous la barre. La portée, qui ne filtre que la liste, vit
 // désormais avec elle : son filtre reconduit la cible et la date, et inversement.
-test("plages cibles : la plage appliquée et sa source dans le premier écran d’un téléphone", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Critère de premier écran à 390 × 844, mesuré sur le profil mobile de référence.");
+test("plages cibles : la plage appliquée et sa source dans le premier écran d’un téléphone", pour("Critère de premier écran à 390 × 844, mesuré sur le profil mobile de référence.", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const subject = await createMother(page, "Mère premier écran");
   await page.goto("/cultures/targets");

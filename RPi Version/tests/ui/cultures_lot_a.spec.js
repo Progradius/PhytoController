@@ -1,6 +1,7 @@
 // Lot A : correction d'un relevé dont l'intervention est devenue ancienne.
 const {test, expect, AxeBuilder} = require("./culture_fixtures");
 const {randomUUID} = require("node:crypto");
+const {sauf} = require("./profils");
 
 const post = async (page, csrf, command) => {
   const response = await page.request.post("/api/v1/cultures/solutions", {
@@ -11,9 +12,8 @@ const post = async (page, csrf, command) => {
   return response.json();
 };
 
-test("relevé ancien : lien conservé, recherche bornée et refus sans doublon", async ({page}, testInfo) => {
+test("relevé ancien : lien conservé, recherche bornée et refus sans doublon", sauf("Mutations exercées sur profils sans service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(180000);
-  test.skip(testInfo.project.name === "pwa-chromium", "Mutations exercées sur profils sans service worker.");
   await page.goto("/cultures/solutions");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
   const renewal = await post(page, csrf, {operation: "entry", kind: "renewal", reservoir_id: "reservoir_2",

@@ -6,6 +6,7 @@
 // Rien ici ne touche un GPIO, un réglage, un override ou le watchdog ; l'aperçu, en
 // particulier, n'émet aucune requête.
 const {test, expect, AxeBuilder, createMother, PNG_1x1} = require("./culture_fixtures");
+const {pour, sauf} = require("./profils");
 
 const photo = name => ({name, mimeType: "image/png", buffer: PNG_1x1});
 
@@ -64,8 +65,7 @@ const expectDecoded = async locator => {
 // T1. Envoi réel d'une photo par la route binaire, depuis le journal
 // ---------------------------------------------------------------------------
 
-test("photos : une photo part réellement par la route binaire depuis le journal", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("photos : une photo part réellement par la route binaire depuis le journal", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos T1");
   await observe(page, "Bac rincé avant bouturage");
@@ -88,8 +88,7 @@ test("photos : une photo part réellement par la route binaire depuis le journal
 // T2. Aperçu local sur les trois formulaires photo, sans le moindre envoi
 // ---------------------------------------------------------------------------
 
-test("photos : l’aperçu local s’affiche sur les trois formulaires sans rien envoyer", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("photos : l’aperçu local s’affiche sur les trois formulaires sans rien envoyer", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const mother = await createMother(page, "Mère photos T2");
   await observe(page, "Observation à illustrer");
@@ -125,8 +124,7 @@ test("photos : l’aperçu local s’affiche sur les trois formulaires sans rien
 // T3. Changer de fichier remplace l'aperçu au lieu de l'empiler
 // ---------------------------------------------------------------------------
 
-test("photos : changer de fichier remplace l’aperçu", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Règle de rendu sans dépendance au gabarit.");
+test("photos : changer de fichier remplace l’aperçu", pour("Règle de rendu sans dépendance au gabarit.", "desktop-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos T3");
   await observe(page, "Observation à réillustrer");
@@ -158,8 +156,7 @@ test("photos : changer de fichier remplace l’aperçu", async ({page}, testInfo
   })).toBe(true);
 });
 
-test("photos : caméra, image existante et reprise pilotent le même champ", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Contrat du socle, une cible suffit.");
+test("photos : caméra, image existante et reprise pilotent le même champ", pour("Contrat du socle, une cible suffit.", "desktop-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos choix");
   await observe(page, "Observation avec choix de source");
@@ -197,8 +194,7 @@ test("photos : caméra, image existante et reprise pilotent le même champ", asy
 // T8. Reprise sans doublon : la clé d'idempotence survit au changement de photo
 // ---------------------------------------------------------------------------
 
-test("photos : reprendre la photo ne crée ni seconde note ni seconde clé", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Contrat du socle, une cible suffit.");
+test("photos : reprendre la photo ne crée ni seconde note ni seconde clé", pour("Contrat du socle, une cible suffit.", "desktop-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const mother = await createMother(page, "Mère photos reprise");
   await page.goto(`/cultures/${mother}`);
@@ -246,8 +242,7 @@ test("photos : reprendre la photo ne crée ni seconde note ni seconde clé", asy
 // T9. Refus de taille : le message nomme la limite
 // ---------------------------------------------------------------------------
 
-test("photos : une photo trop lourde est refusée par un message qui nomme la limite", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("photos : une photo trop lourde est refusée par un message qui nomme la limite", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos refus");
   await observe(page, "Observation dont la photo est trop lourde");
@@ -271,8 +266,7 @@ test("photos : une photo trop lourde est refusée par un message qui nomme la li
 // T4. Progression réelle pendant un envoi retenu
 // ---------------------------------------------------------------------------
 
-test("photos : la progression d’envoi s’affiche puis disparaît", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("photos : la progression d’envoi s’affiche puis disparaît", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos T4");
   await observe(page, "Observation avec envoi retenu");
@@ -310,8 +304,7 @@ test("photos : la progression d’envoi s’affiche puis disparaît", async ({pa
 // T5. Échec réseau : refus annoncé, saisie conservée, formulaire réutilisable
 // ---------------------------------------------------------------------------
 
-test("photos : un échec réseau conserve la saisie et rend le formulaire", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("photos : un échec réseau conserve la saisie et rend le formulaire", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos T5");
   await observe(page, "Observation dont la photo échoue");
@@ -338,8 +331,7 @@ test("photos : un échec réseau conserve la saisie et rend le formulaire", asyn
 // T6. Accessibilité de la page pendant un aperçu et un envoi en cours
 // ---------------------------------------------------------------------------
 
-test("photos : aperçu affiché et envoi en cours ne créent aucune violation d’accessibilité", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("photos : aperçu affiché et envoi en cours ne créent aucune violation d’accessibilité", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos T6");
   await observe(page, "Observation auditée");
@@ -367,8 +359,7 @@ test("photos : aperçu affiché et envoi en cours ne créent aucune violation d�
 // T7. Un second envoi pendant le premier ne crée pas de seconde barre
 // ---------------------------------------------------------------------------
 
-test("photos : un second envoi pendant le premier ne crée pas de seconde barre", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Règle du socle, indépendante du profil.");
+test("photos : un second envoi pendant le premier ne crée pas de seconde barre", pour("Règle du socle, indépendante du profil.", "desktop-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère photos T7");
   await observe(page, "Observation à double envoi");

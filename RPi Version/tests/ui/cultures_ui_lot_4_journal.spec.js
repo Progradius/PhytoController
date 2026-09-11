@@ -5,6 +5,7 @@
 // aucune règle métier en JS — les deux fenêtres sont calculées par le serveur à partir de
 // l'unique date du carnet.
 const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
+const {pour, sauf} = require("./profils");
 
 const observe = async (page, note, space = "Espace 2") => {
   const details = page.locator("details").filter({hasText: "Enregistrer une observation d’espace"}).first();
@@ -30,8 +31,7 @@ const shift = (day, days) => {
   return moment.toISOString().slice(0, 10);
 };
 
-test("journal : recherche insensible aux accents, bornée et combinée aux filtres", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+test("journal : recherche insensible aux accents, bornée et combinée aux filtres", sauf("Parcours avec mutations, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Épinard géant");
   await page.goto("/cultures/journal");
@@ -106,8 +106,7 @@ test("journal : recherche insensible aux accents, bornée et combinée aux filtr
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("journal : filtres rapides 7 et 30 jours calculés sur la date du carnet", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours avec mutations, hors service worker.");
+test("journal : filtres rapides 7 et 30 jours calculés sur la date du carnet", sauf("Parcours avec mutations, hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/cultures/journal");
   await observe(page, "Épinard tacheté sur le bac de droite");
@@ -150,8 +149,7 @@ test("journal : filtres rapides 7 et 30 jours calculés sur la date du carnet", 
 // recherche visible en tête et le titre « Opérations du carnet » y tiennent tous deux ; l'index
 // des copies hors ligne — fragment partagé — reste présent, mais après les opérations. Placé
 // avant, il repoussait le titre à y ≈ 865, sous la ligne de flottaison.
-test("journal : les opérations commencent dans le premier écran d’un téléphone", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Critère de premier écran à 390 × 844, mesuré sur le profil mobile de référence.");
+test("journal : les opérations commencent dans le premier écran d’un téléphone", pour("Critère de premier écran à 390 × 844, mesuré sur le profil mobile de référence.", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère premier écran");
   await page.setViewportSize({width: 390, height: 844});

@@ -5,6 +5,7 @@
 // scénarios ne peuvent pas partager une base. Aucune de ces vérifications ne touche un
 // GPIO, un réglage ou le watchdog : le carnet est déclaratif.
 const {test, expect, AxeBuilder, createMother, PNG_1x1} = require("./culture_fixtures");
+const {pour, sauf} = require("./profils");
 
 // Dates locales : le carnet refuse toute date future, et un rappel « en retard » se
 // fabrique avec une échéance d'hier, pas avec une date figée qui vieillirait mal.
@@ -70,8 +71,7 @@ test("lot UI 2 : un carnet vide guide vers la première culture sans inventer de
 // 2. Accueil renseigné : un rappel en retard se traite sur place
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : un rappel en retard précède l'occupation, se reporte et se termine depuis l'accueil", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : un rappel en retard précède l'occupation, se reporte et se termine depuis l'accueil", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   // Un éventuel confirm() ne doit pas figer le parcours ; aucun n'est attendu ici.
   page.on("dialog", dialog => dialog.accept());
@@ -120,8 +120,7 @@ test("lot UI 2 : un rappel en retard précède l'occupation, se reporte et se te
 // que le hero de l'accueil en occupait 276. Les rappels passent donc avant les raccourcis
 // dans `#agenda`, et `cultures.css` resserre hero, navigation et raccourcis sous 30 rem.
 // La carte doit tenir **entière** sous la ligne de flottaison, pas seulement y commencer.
-test("lot UI 2 : un rappel en retard est visible sans défilement à 393 px", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Contrainte de hauteur propre au 393 px.");
+test("lot UI 2 : un rappel en retard est visible sans défilement à 393 px", pour("Contrainte de hauteur propre au 393 px.", "mobile-chromium"), async ({page}, testInfo) => {
   const id = await createMother(page, "Mère au-dessus de la ligne");
   const created = await mutate(page, "/api/v1/cultures/cycles", {
     operation: "reminder", target: id, title: "Contrôler la mère", due_date: day(1), interval_days: 0,
@@ -136,8 +135,7 @@ test("lot UI 2 : un rappel en retard est visible sans défilement à 393 px", as
 // 3. Fiche renseignée
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : la fiche montre l'essentiel et l'observation revient sur son entrée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : la fiche montre l'essentiel et l'observation revient sur son entrée", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère fiche dossier");
   const head = page.locator(".ui-compact-header");
@@ -184,8 +182,7 @@ test("lot UI 2 : la fiche montre l'essentiel et l'observation revient sur son en
 // 4. Observation + photo, et échec partiel de la seule photo
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : une photo refusée laisse l'observation enregistrée et se rejoue sans doublon", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : une photo refusée laisse l'observation enregistrée et se rejoue sans doublon", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère photo");
 
@@ -241,8 +238,7 @@ test("lot UI 2 : une photo refusée laisse l'observation enregistrée et se rejo
 // 5. Un refus se lit à côté du champ
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : une date future est refusée au champ, avec résumé, focus et effacement", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : une date future est refusée au champ, avec résumé, focus et effacement", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await createMother(page, "Mère refus daté");
   const form = await openObservation(page);
@@ -277,8 +273,7 @@ test("lot UI 2 : une date future est refusée au champ, avec résumé, focus et 
 // 6. Conflit de version
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : un conflit de version conserve la saisie et n'écrit aucun doublon", async ({page, context}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Un second onglet suffit sur un seul format.");
+test("lot UI 2 : un conflit de version conserve la saisie et n'écrit aucun doublon", pour("Un second onglet suffit sur un seul format.", "desktop-chromium"), async ({page, context}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère conflit");
   const stale = await context.newPage();
@@ -333,8 +328,7 @@ test("lot UI 2 : un conflit 409 s'affiche dans le résumé d'erreur du formulair
 // 7. Fiche archivée
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : une fiche archivée ne propose plus de progression, seulement la libération", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : une fiche archivée ne propose plus de progression, seulement la libération", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   // Un pied mère archivé : plus aucune action de parcours. L'archivage libère l'espace
   // dans le même événement (`model/culture.py:345-350`), une mère archivée n'a donc jamais
@@ -393,8 +387,7 @@ test("lot UI 2 : une fiche archivée ne propose plus de progression, seulement l
 // 8. Solutions : intention visible et refus rattaché au champ
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : une intention de saisie ouvre et présélectionne le formulaire des solutions", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : une intention de saisie ouvre et présélectionne le formulaire des solutions", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   // Un renouvellement vise un réservoir : c'est la cible que la page présélectionne.
   await page.goto("/cultures/solutions?target=reservoir_2&kind=renewal&view=saisir#saisie");
@@ -434,8 +427,7 @@ test("lot UI 2 : une intention de saisie ouvre et présélectionne le formulaire
 // 9. Création : « Je démarre » ou « déjà en cours »
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : « Je démarre » déduit stade et dates, « déjà en cours » les rend indépendants", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : « Je démarre » déduit stade et dates, « déjà en cours » les rend indépendants", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/cultures");
   const details = page.locator("#creer-lot");
@@ -488,9 +480,7 @@ test("lot UI 2 : « Je démarre » déduit stade et dates, « déjà en cours »
 // 10. Accessibilité, absence de débordement, thèmes et captures
 // ---------------------------------------------------------------------------
 
-test("lot UI 2 : accueil, fiche, archives, solutions et état d'erreur restent accessibles", async ({page}, testInfo) => {
-  test.skip(!["desktop-chromium", "mobile-chromium"].includes(testInfo.project.name),
-    "Axe et captures sur un format bureau et un format téléphone.");
+test("lot UI 2 : accueil, fiche, archives, solutions et état d'erreur restent accessibles", pour("Axe et captures sur un format bureau et un format téléphone.", "desktop-chromium", "mobile-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère accessible");
   const detail = await detailOf(page, id);
@@ -539,8 +529,7 @@ test("lot UI 2 : accueil, fiche, archives, solutions et état d'erreur restent a
 // Le clone d'une ligne d'origine héritait du message de refus de la ligne modèle : deux
 // éléments portaient le même identifiant, la nouvelle ligne s'affichait refusée sans
 // l'être, et sa première saisie effaçait le message de l'ancienne.
-test("lot UI 2 : une origine ajoutée après un refus est vierge et n'emporte aucun message", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : une origine ajoutée après un refus est vierge et n'emporte aucun message", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/cultures");
   const details = page.locator("details.culture-create").filter({hasText: "Créer un lot"});
@@ -582,8 +571,7 @@ test("lot UI 2 : une origine ajoutée après un refus est vierge et n'emporte au
 
 // Un refus calculé dans le navigateur se lit comme un refus du serveur : au champ, avec
 // le focus, y compris dans un repli qu'il faut ouvrir pour le rendre visible.
-test("lot UI 2 : un poids invalide est marqué au champ, dans son repli, sans rien envoyer", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : un poids invalide est marqué au champ, dans son repli, sans rien envoyer", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/cultures");
   const lot = await mutate(page, "/api/v1/cultures", {
@@ -638,8 +626,7 @@ test("lot UI 2 : un poids invalide est marqué au champ, dans son repli, sans ri
 
 // Le chemin nominal ne prévalide plus : chaque saisie coûtait deux transactions
 // complètes au thread unique du carnet.
-test("lot UI 2 : un enregistrement nominal n'envoie qu'une seule requête", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : un enregistrement nominal n'envoie qu'une seule requête", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const posts = [];
   page.on("request", request => {
@@ -676,8 +663,7 @@ const countPosts = page => {
   return posts;
 };
 
-test("lot UI 2 : « Fait » se clique une fois, « Reporter » ouvre sa date puis envoie", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : « Fait » se clique une fois, « Reporter » ouvre sa date puis envoie", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère deux gestes");
   const make = async title => {
@@ -720,8 +706,7 @@ test("lot UI 2 : « Fait » se clique une fois, « Reporter » ouvre sa date pui
   expect(posts.preview).toHaveLength(0);
 });
 
-test("lot UI 2 : Entrée dans la nouvelle échéance reporte, elle ne clôt jamais le rappel", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : Entrée dans la nouvelle échéance reporte, elle ne clôt jamais le rappel", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère touche Entrée");
   const created = await mutate(page, "/api/v1/cultures/cycles", {
@@ -751,8 +736,7 @@ test("lot UI 2 : Entrée dans la nouvelle échéance reporte, elle ne clôt jama
   await expect(page.getByRole("heading", {name: "Terminés aujourd’hui"})).toHaveCount(0);
 });
 
-test("lot UI 2 : une transition guidée se vérifie avant d'écrire et atterrit sur les vérifications", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : une transition guidée se vérifie avant d'écrire et atterrit sur les vérifications", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/cultures");
   const lot = await mutate(page, "/api/v1/cultures", {
@@ -792,8 +776,7 @@ test("lot UI 2 : une transition guidée se vérifie avant d'écrire et atterrit 
   await expect(page.locator("#verifications")).toBeVisible();
 });
 
-test("lot UI 2 : la récolte annonce sa date de séchage dans la vérification", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : la récolte annonce sa date de séchage dans la vérification", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/cultures");
   const lot = await mutate(page, "/api/v1/cultures", {
@@ -820,8 +803,7 @@ test("lot UI 2 : la récolte annonce sa date de séchage dans la vérification",
   await expect(page.locator(".ui-compact-header")).toContainText("Séchage");
 });
 
-test("lot UI 2 : la recherche de l'accueil est un formulaire GET qui va au-delà de la page", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("lot UI 2 : la recherche de l'accueil est un formulaire GET qui va au-delà de la page", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(120000);
   await page.goto("/cultures");
   const oldest = await mutate(page, "/api/v1/cultures", {
@@ -858,8 +840,7 @@ test("lot UI 2 : la recherche de l'accueil est un formulaire GET qui va au-delà
   await expect(page.locator("#liste")).toContainText("Aucune culture ne porte « introuvable »");
 });
 
-test("R1.8 : le retour à la liste repose sur l'élément d'origine, filtres rejoués", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours mutateur exercé hors service worker.");
+test("R1.8 : le retour à la liste repose sur l'élément d'origine, filtres rejoués", sauf("Parcours mutateur exercé hors service worker.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(90000);
   const id = await createMother(page, "Mère retour");
   await createMother(page, "Mère voisine");

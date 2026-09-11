@@ -5,6 +5,7 @@
 // mesurent des délais réels, `page.clock` fausserait aussi les délais de garde de `fetchWithTimeout`.
 const {test, expect} = require("@playwright/test");
 const {test: testCarnet, expect: expectCarnet, createMother} = require("./culture_fixtures");
+const {pour} = require("./profils");
 
 const CIBLE = "desktop-chromium";
 
@@ -30,8 +31,7 @@ const CIBLE_PWA = "pwa-chromium";
 // **entière** reste là. Compter les sections ne prouvait rien (le compte suit le gabarit
 // et changeait à chaque ajout de rubrique) ; ce qui compte est que chacune des cinq
 // rubriques ait rendu son contenu et qu'aucune n'ait été remplacée par un état d'erreur.
-test("l’état PWA préserve la page quand le stockage local est refusé", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE_PWA, "Acceptation R3.2 : profil PWA.");
+test("l’état PWA préserve la page quand le stockage local est refusé", pour("Acceptation R3.2 : profil PWA.", CIBLE_PWA), async ({page}, testInfo) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, "indexedDB", {configurable: true, get() { throw new Error("refusé"); }});
   });
@@ -53,8 +53,7 @@ test("l’état PWA préserve la page quand le stockage local est refusé", asyn
 });
 
 // R3.2 — worker refusé par le serveur : l'interface connectée doit rester entière.
-test("un service worker en 500 ne retient ni le poller ni les contrôles", async ({page, context}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE_PWA, "Acceptation R3.2 : profil PWA.");
+test("un service worker en 500 ne retient ni le poller ni les contrôles", pour("Acceptation R3.2 : profil PWA.", CIBLE_PWA), async ({page, context}, testInfo) => {
   test.setTimeout(45_000);
   // `context.route` et non `page.route` : le script du worker est demandé par le navigateur
   // pour le **contexte**, pas par la page. Vérifié : posée sur la page, l'interception est
@@ -103,8 +102,7 @@ for (const cas of [
     attendu: "Installer l’application", absent: "Partager",
   },
 ]) {
-  test(`sans invite d’installation, l’aide ${cas.nom} reste visible`, async ({browser}, testInfo) => {
-    test.skip(testInfo.project.name !== CIBLE, "Contrat de rendu, une cible suffit.");
+  test(`sans invite d’installation, l’aide ${cas.nom} reste visible`, pour("Contrat de rendu, une cible suffit.", CIBLE), async ({browser}, testInfo) => {
     // Contexte dédié : l'agent utilisateur ne se change pas sur un contexte déjà ouvert.
     const context = await browser.newContext({
       userAgent: cas.userAgent,
@@ -134,8 +132,7 @@ for (const cas of [
 // R1.5 — la fonction de libellé est pure : trois agents utilisateur réels et le repli
 // générique, lus dans la page. Une inversion de branche ou une chaîne devenue
 // inatteignable est visible ici, ce qu'aucune lecture du source ne montrait.
-test("l’aide de refus des notifications s’adapte au navigateur", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Fonction pure, une cible suffit.");
+test("l’aide de refus des notifications s’adapte au navigateur", pour("Fonction pure, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   await page.goto("/app");
   const libelle = (userAgent, platform, touches) => page.evaluate(
     ([ua, plateforme, points]) => window.PhytoPwa.notificationDenialHelp(ua, plateforme, points),
@@ -158,8 +155,7 @@ test("l’aide de refus des notifications s’adapte au navigateur", async ({pag
 // R2.4 — l'aide d'installation est, elle aussi, une fonction pure : chaque branche se lit
 // ici, y compris l'iPad « MacIntel » et le contexte non sécurisé, qu'aucun agent
 // utilisateur simulé du test de rendu ne couvre.
-test("l’aide d’installation s’adapte à la plateforme sans rien promettre de plus", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Fonction pure, une cible suffit.");
+test("l’aide d’installation s’adapte à la plateforme sans rien promettre de plus", pour("Fonction pure, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   await page.goto("/app");
   const aide = (userAgent, platform, touches, secure = true) => page.evaluate(
     ([ua, plateforme, points, sur]) => window.PhytoPwa.installationHelp(ua, plateforme, points, sur),
@@ -184,8 +180,7 @@ test("l’aide d’installation s’adapte à la plateforme sans rien promettre 
     .toBe("Ouvrez l’adresse HTTPS du contrôleur et approuvez son certificat local avant l’installation.");
 });
 
-test("un raté isolé ne bascule pas l’interface en lecture seule", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Scénario temporel, une cible suffit.");
+test("un raté isolé ne bascule pas l’interface en lecture seule", pour("Scénario temporel, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   test.setTimeout(45_000);
   await guetterHorsLigne(page);
   const rates = {state: 0, alarms: 0};
@@ -207,8 +202,7 @@ test("un raté isolé ne bascule pas l’interface en lecture seule", async ({pa
   expect(await horsLigneVu(page)).toBe(false);
 });
 
-test("une vraie coupure est annoncée après une vingtaine de secondes", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Scénario temporel, une cible suffit.");
+test("une vraie coupure est annoncée après une vingtaine de secondes", pour("Scénario temporel, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   test.setTimeout(60_000);
   const etat = {panne: false};
   await page.route("**/api/v1/**", async (route) => {
@@ -238,8 +232,7 @@ test("une vraie coupure est annoncée après une vingtaine de secondes", async (
   await expect(page.getByRole("button", {name: "Couper"}).first()).toBeDisabled();
 });
 
-test("la sonde de joignabilité ne retire jamais la bannière", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Scénario temporel, une cible suffit.");
+test("la sonde de joignabilité ne retire jamais la bannière", pour("Scénario temporel, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   test.setTimeout(60_000);
   const etat = {panne: false, sondes: 0};
   await page.route("**/api/v1/**", async (route) => {
@@ -266,8 +259,7 @@ test("la sonde de joignabilité ne retire jamais la bannière", async ({page}, t
   await expect(page.locator("body")).toHaveClass(/is-offline/);
 });
 
-test("le retour du contrôleur retire la bannière en quelques secondes", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Scénario temporel, une cible suffit.");
+test("le retour du contrôleur retire la bannière en quelques secondes", pour("Scénario temporel, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   test.setTimeout(60_000);
   const etat = {panne: false};
   await page.route("**/api/v1/**", async (route) => {
@@ -289,8 +281,7 @@ test("le retour du contrôleur retire la bannière en quelques secondes", async 
   expect(Date.now() - repriseA).toBeLessThan(10_000);
 });
 
-test("une reprise de l’application réveille immédiatement les boucles", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Scénario temporel, une cible suffit.");
+test("une reprise de l’application réveille immédiatement les boucles", pour("Scénario temporel, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   test.setTimeout(60_000);
   const etat = {panne: false, appels: 0};
   await page.route("**/api/v1/state**", async (route) => {
@@ -317,8 +308,7 @@ test("une reprise de l’application réveille immédiatement les boucles", asyn
   await expect.poll(() => etat.appels, {timeout: 2_000}).toBeGreaterThan(avant);
 });
 
-test("une reprise après un long silence ne peint pas l’interface en rouge", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Scénario temporel, une cible suffit.");
+test("une reprise après un long silence ne peint pas l’interface en rouge", pour("Scénario temporel, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   test.setTimeout(75_000);
   await guetterHorsLigne(page);
   const etat = {panne: false};
@@ -349,8 +339,7 @@ test("une reprise après un long silence ne peint pas l’interface en rouge", a
   await expect(page.locator("#pwa-connection-banner")).toBeVisible({timeout: 20_000});
 });
 
-test("une source dégradée le reste tant qu’elle n’a pas répondu", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== CIBLE, "Scénario temporel, une cible suffit.");
+test("une source dégradée le reste tant qu’elle n’a pas répondu", pour("Scénario temporel, une cible suffit.", CIBLE), async ({page}, testInfo) => {
   test.setTimeout(45_000);
   // L'historique auxiliaire répond 503 — une panne prévue par l'architecture, qui ne dégrade pas le
   // contrôle. Les alarmes, elles, répondent parfaitement toutes les cinq secondes.
@@ -380,8 +369,7 @@ test("une source dégradée le reste tant qu’elle n’a pas répondu", async (
   await expect(page.locator("body")).not.toHaveClass(/is-offline/);
 });
 
-testCarnet("une page du carnet servie du cache ne recharge jamais d’elle-même", async ({page}, testInfo) => {
-  testCarnet.skip(testInfo.project.name !== "pwa-chromium", "Le service worker est réservé au profil PWA.");
+testCarnet("une page du carnet servie du cache ne recharge jamais d’elle-même", pour("Le service worker est réservé au profil PWA.", "pwa-chromium"), async ({page}, testInfo) => {
   testCarnet.setTimeout(60_000);
   await createMother(page, "Mère reprise PWA");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
@@ -430,8 +418,7 @@ const attendreCopie = (page, chemin) => expectCarnet.poll(() => page.evaluate(as
   return false;
 }, chemin), {timeout: 20000}).toBe(true);
 
-testCarnet("hors ligne : explorateur vivant, filtre expliqué, envoi refusé", async ({page}, testInfo) => {
-  testCarnet.skip(testInfo.project.name !== "pwa-chromium", "Le service worker est réservé au profil PWA.");
+testCarnet("hors ligne : explorateur vivant, filtre expliqué, envoi refusé", pour("Le service worker est réservé au profil PWA.", "pwa-chromium"), async ({page}, testInfo) => {
   testCarnet.setTimeout(120_000);
   const mother = await createMother(page, "Mère hors ligne");
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");

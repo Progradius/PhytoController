@@ -3,6 +3,7 @@
 // Lot F : repères d'éclairage informatifs, écart aux horaires configurés,
 // équipement désactivé, état opérationnel indisponible et consultation hors ligne.
 const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
+const {pour, sauf} = require("./profils");
 
 // Chaque scénario vise une cible distincte : deux repères de même portée, même cible
 // et même stade se chevaucheraient, et le carnet du worker est partagé entre les tests.
@@ -18,8 +19,7 @@ const enregistrer = async (page, {label, minutes, scope, space, stage}) => {
   await form.getByRole("button", {name: "Enregistrer le repère"}).click();
 };
 
-test("repères : écart informatif, minuterie désactivée et horaires inchangés", async ({page, request}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
+test("repères : écart informatif, minuterie désactivée et horaires inchangés", sauf("Parcours hors ligne exercé séparément.", "pwa-chromium"), async ({page, request}, testInfo) => {
   await createMother(page, "Mère repères éclairage");
   const before = (await (await request.get("/api/v1/state")).json());
   await page.goto("/cultures/light");
@@ -60,8 +60,7 @@ test("repères : écart informatif, minuterie désactivée et horaires inchangé
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
-test("repères : état opérationnel nommé et correction tracée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name === "pwa-chromium", "Parcours hors ligne exercé séparément.");
+test("repères : état opérationnel nommé et correction tracée", sauf("Parcours hors ligne exercé séparément.", "pwa-chromium"), async ({page}, testInfo) => {
   await createMother(page, "Mère correction repère");
   await page.goto("/cultures/light");
   // `tests/ui_server.py` publie désormais l'état des six équipements : le serveur de test
@@ -88,8 +87,7 @@ test("repères : état opérationnel nommé et correction tracée", async ({page
   await expect(historique).toContainText("720 min d’éclairage");
 });
 
-test("repères : consultation datée hors ligne, aucune mutation rejouée", async ({page}, testInfo) => {
-  test.skip(testInfo.project.name !== "pwa-chromium", "Le service worker est réservé au profil PWA.");
+test("repères : consultation datée hors ligne, aucune mutation rejouée", pour("Le service worker est réservé au profil PWA.", "pwa-chromium"), async ({page}, testInfo) => {
   test.setTimeout(60000);
   await createMother(page, "Mère hors ligne lot F");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
