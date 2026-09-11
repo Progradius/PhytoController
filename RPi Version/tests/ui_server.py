@@ -17,7 +17,7 @@ from param.equipment_metadata import default_catalog
 from utils.culture_store import CultureStore
 from utils.operational_state import publish as publish_state
 from utils.time_reliability import time_reliability
-from tests.test_http_server import (
+from tests.fakes.http_server import (
     CSRF_TOKEN,
     FakeEquipmentStore,
     FakeSensors,
