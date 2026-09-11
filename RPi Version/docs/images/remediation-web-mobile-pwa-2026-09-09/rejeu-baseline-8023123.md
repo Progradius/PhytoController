@@ -10,9 +10,9 @@ Acceptation de la fiche R0.1 : « rejouer le script sur la baseline reproduit le
 `aria-prohibited-attr`).
 
 * Mesures du rejeu : `rejeu-baseline-8023123.json` (72 entrées : 12 pages × 3 largeurs × 2 thèmes).
-* Exécuté le 11 septembre 2026 à 08 h 22, sous WSL2, Chromium de Playwright, avec l'outil de
-  l'arbre de travail (`tests/ui/measure_pages.js`, non commité à cette date) servant une
-  extraction de `8023123` **non modifiée**.
+* Exécuté le 11 septembre 2026 à 08 h 22, sous WSL2, Chromium de Playwright, avec
+  `tests/ui/measure_pages.js` (commité depuis en `7fb722b`) servant une extraction de
+  `8023123` **non modifiée**.
 
 ## Reproduire
 
@@ -20,7 +20,8 @@ Acceptation de la fiche R0.1 : « rejouer le script sur la baseline reproduit le
 git worktree add --detach <dossier> 8023123
 PHYTO_TEST_PYTHON=.venv/bin/python PHYTO_MEASURE_ROOT="<dossier>/RPi Version" \
   PHYTO_MEASURE_PERIMETRE=audit PHYTO_MEASURE_DIR=<sortie> npm run measure:ui
-npm run measure:compare -- docs/images/audit-web-mobile-pwa-2026-09-09/measures.json <sortie>/measures.json
+npm run measure:compare -- --fenetres-audit \
+  docs/images/audit-web-mobile-pwa-2026-09-09/measures.json <sortie>/measures.json
 git worktree remove <dossier>
 ```
 
@@ -119,6 +120,7 @@ prouvées par des rejeux de contrôle sur la même baseline :
    les fenêtres de l'audit et consigne la sienne dans `viewport`.
 
 `scripts/compare-measures.py` compare par défaut la passe au carnet vide (`--carnet`), déclare
-**non comparable** une ligne dont les deux fenêtres consignées diffèrent, et signale les entrées
-qui ne consignent ni carnet ni fenêtre — le fichier de l'audit, et `measures-apres-final.json`,
-produit avant ces clés.
+**non comparable** une ligne dont les fenêtres diffèrent ou n'est consignée que d'un côté, et
+refuse une entrée sans carnet consigné hors de `--carnet vide`. Le fichier de l'audit ne
+consigne ni l'un ni l'autre : `--fenetres-audit` déclare l'hypothèse qui le rend comparable,
+et le rapport l'écrit.

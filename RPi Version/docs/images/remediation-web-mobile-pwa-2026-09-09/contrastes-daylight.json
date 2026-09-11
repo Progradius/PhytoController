@@ -124,7 +124,7 @@
       "threshold": 4.5,
       "ratio": 16.6,
       "approximate": true,
-      "count": 45,
+      "count": 41,
       "pass": true
     },
     {
@@ -329,7 +329,7 @@
       "text": "Climat",
       "color": "#4f685a",
       "background": "#f4f8f5",
-      "fontPx": 12.5,
+      "fontPx": 13.6,
       "bold": true,
       "threshold": 4.5,
       "ratio": 5.66,
@@ -348,7 +348,7 @@
       "threshold": 4.5,
       "ratio": 16.6,
       "approximate": false,
-      "count": 19,
+      "count": 18,
       "pass": true
     },
     {
@@ -362,7 +362,7 @@
       "threshold": 4.5,
       "ratio": 16.6,
       "approximate": false,
-      "count": 50,
+      "count": 46,
       "pass": true
     },
     {
@@ -390,7 +390,7 @@
       "threshold": 4.5,
       "ratio": 6.07,
       "approximate": false,
-      "count": 60,
+      "count": 55,
       "pass": true
     },
     {
@@ -628,7 +628,7 @@
       "threshold": 4.5,
       "ratio": 16.6,
       "approximate": false,
-      "count": 36,
+      "count": 32,
       "pass": true
     },
     {
@@ -642,7 +642,7 @@
       "threshold": 3,
       "ratio": 4.15,
       "approximate": false,
-      "count": 36,
+      "count": 32,
       "pass": true
     },
     {
@@ -698,7 +698,7 @@
       "threshold": 4.5,
       "ratio": 16.6,
       "approximate": false,
-      "count": 54,
+      "count": 50,
       "pass": true
     },
     {
@@ -824,13 +824,13 @@
       "threshold": 4.5,
       "ratio": 16.6,
       "approximate": false,
-      "count": 24,
+      "count": 23,
       "pass": true
     },
     {
       "kind": "texte",
       "tag": "p",
-      "text": "Carnet actualisé à 00:19:25",
+      "text": "Carnet actualisé à 11:38:31",
       "color": "#4f685a",
       "background": "#f4f8f5",
       "fontPx": 12,
@@ -1048,7 +1048,7 @@
       "threshold": 4.5,
       "ratio": 15.49,
       "approximate": true,
-      "count": 28,
+      "count": 27,
       "pass": true
     },
     {
@@ -1076,7 +1076,7 @@
       "threshold": 4.5,
       "ratio": 5.66,
       "approximate": true,
-      "count": 17,
+      "count": 16,
       "pass": true
     },
     {
@@ -1118,7 +1118,7 @@
       "threshold": 3,
       "ratio": 4.15,
       "approximate": false,
-      "count": 79,
+      "count": 72,
       "pass": true
     },
     {
@@ -1146,7 +1146,7 @@
       "threshold": 3,
       "ratio": 5.3,
       "approximate": false,
-      "count": 17,
+      "count": 16,
       "pass": true
     },
     {
@@ -1244,7 +1244,7 @@
       "threshold": 4.5,
       "ratio": 5.66,
       "approximate": true,
-      "count": 21,
+      "count": 19,
       "pass": true
     },
     {
@@ -1272,7 +1272,7 @@
       "threshold": 3,
       "ratio": 4.94,
       "approximate": true,
-      "count": 6,
+      "count": 7,
       "pass": true
     },
     {
@@ -1384,7 +1384,7 @@
       "threshold": 4.5,
       "ratio": 16.6,
       "approximate": false,
-      "count": 193,
+      "count": 176,
       "pass": true
     },
     {
@@ -1398,7 +1398,7 @@
       "threshold": 3,
       "ratio": 4.15,
       "approximate": false,
-      "count": 88,
+      "count": 81,
       "pass": true
     },
     {
@@ -1510,7 +1510,7 @@
       "threshold": 4.5,
       "ratio": 15.49,
       "approximate": true,
-      "count": 12,
+      "count": 11,
       "pass": true
     },
     {
@@ -1622,7 +1622,7 @@
       "threshold": 4.5,
       "ratio": 15.49,
       "approximate": true,
-      "count": 87,
+      "count": 84,
       "pass": true
     },
     {
@@ -1636,7 +1636,7 @@
       "threshold": 4.5,
       "ratio": 15.49,
       "approximate": true,
-      "count": 56,
+      "count": 53,
       "pass": true
     },
     {
@@ -1656,7 +1656,7 @@
     {
       "kind": "texte",
       "tag": "span",
-      "text": "6,10",
+      "text": "6,30",
       "color": "#4f685a",
       "background": "#ffffff",
       "fontPx": 13.4,
@@ -1664,7 +1664,7 @@
       "threshold": 4.5,
       "ratio": 6.07,
       "approximate": false,
-      "count": 9,
+      "count": 10,
       "pass": true
     },
     {
@@ -1748,7 +1748,7 @@
       "threshold": 3,
       "ratio": 4.15,
       "approximate": false,
-      "count": 12,
+      "count": 11,
       "pass": true
     },
     {
@@ -1818,7 +1818,7 @@
       "threshold": 4.5,
       "ratio": 15.49,
       "approximate": true,
-      "count": 14,
+      "count": 13,
       "pass": true
     },
     {
@@ -1880,7 +1880,7 @@
     {
       "kind": "texte",
       "tag": "time",
-      "text": "09/08/2026",
+      "text": "07/08/2026",
       "color": "#102219",
       "background": "#f4f8f5",
       "fontPx": 16,
@@ -1888,7 +1888,7 @@
       "threshold": 4.5,
       "ratio": 15.49,
       "approximate": true,
-      "count": 10,
+      "count": 9,
       "pass": true
     }
   ],

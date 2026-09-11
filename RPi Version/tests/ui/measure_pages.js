@@ -799,7 +799,9 @@ async function localTimings(page, subject, width, results) {
  * aucun sélecteur n'est donné). Trois constats distincts, jamais confondus :
  *
  * * `present` — dans le document ;
- * * `rendu` — avec une boîte non nulle (un `<details>` fermé ou `hidden` n'en a pas) ;
+ * * `rendu` — réellement visible : boîte de plus de 2 px de côté, ni `visibility: hidden`, ni
+ *   `display: none`, ni `clip-path` (un `<details>` fermé ou `hidden` n'a pas de boîte, et un
+ *   texte `.visually-hidden` en a une de 1 × 1 px, qui ne se voit pas) ;
  * * `dansPremierEcran` — sa boîte **entière** tient dans la zone utile de la fenêtre, à la
  *   position de défilement d'arrivée : la fenêtre moins les barres fixes ou collantes qui la
  *   recouvrent en haut et en bas (barre de navigation mobile, bandeau hors ligne). Une barre
@@ -821,10 +823,16 @@ const LOCATE_SCRIPT = ({items}) => {
     if (r.top <= 1) barres.push({node, bord: "haut", limite: r.bottom});
     else if (r.bottom >= vh - 1) barres.push({node, bord: "bas", limite: r.top});
   }
+  // « Rendu » ne peut pas se contenter d'une boîte non nulle : le dépôt masque des textes
+  // destinés aux seules aides techniques par `.visually-hidden` (1 × 1 px, `clip`/`clip-path`),
+  // qui reste une boîte positive dans le coin haut de l'écran. Les compter ferait passer un
+  // libellé invisible pour un élément « dans le premier écran » — le constat le plus favorable
+  // possible, et faux. Seuil à 2 px : aucune cible lisible ne mesure moins.
   const rendu = node => {
     const r = node.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) return false;
+    if (r.width <= 2 || r.height <= 2) return false;
     const style = getComputedStyle(node);
+    if (style.clipPath && style.clipPath !== "none") return false;
     return style.visibility !== "hidden" && style.display !== "none";
   };
   const texte = node => (node.textContent || "").replace(/\s+/g, " ").trim();
@@ -900,6 +908,22 @@ async function namedTargets(page, subject, width, results, scenario = "nominal")
 // L'acceptation se lit à 390 × 844 ; les autres largeurs sont relevées pour information.
 const PREMIER_ECRAN_LARGEUR_ACCEPTATION = 390;
 const PREMIER_ECRAN = [
+  // R1.2 : « état, fraîcheur, T/RH et alarme visibles sans défilement » sur le tableau de bord.
+  {fiche: "R1.2", route: "/", elements: [
+    {nom: "état de conduite", selector: "#overview-title"},
+    {nom: "fraîcheur de l'état", selector: "#freshness"},
+    {nom: "température", selector: ".climate-summary-item", index: 0},
+    {nom: "humidité", selector: ".climate-summary-item", index: 1},
+    {nom: "alarmes actives", selector: "[data-priority-alarms]"},
+  ]},
+  // R2.8 et écart E5 : « recherche visible sans défilement », et « Opérations du carnet » que
+  // l'index des copies hors ligne repoussait sous le premier écran. La hauteur d'une entrée
+  // (`h` de la première `.ui-journal-entry`) est la référence de toute comparaison future.
+  {fiche: "R2.8", route: "/cultures/journal", elements: [
+    {nom: "recherche du journal", selector: "[name=\"q\"]"},
+    {nom: "titre « Opérations du carnet »", selector: "h2", label: "Opérations du carnet"},
+    {nom: "première entrée du journal", selector: ".ui-journal-entry", index: 0},
+  ]},
   // R1.8 : « nom, espace, stade, âge ; puis les deux actions principales ». Les faits sont les
   // trois premiers `li` de l'en-tête compact de la fiche, dans cet ordre (`cultures.html`).
   {fiche: "R1.8", route: "/cultures/:subject", elements: [
@@ -920,6 +944,18 @@ const PREMIER_ECRAN = [
   ]},
 ];
 
+// R1.1 : « la première alarme critique et son action sont visibles sans défilement ». Ce
+// scénario n'existe que devant une alarme : il est relevé sur le serveur `critical`, jamais
+// sur le serveur nominal, où la liste est vide.
+const PREMIER_ECRAN_CRITIQUE = [
+  {fiche: "R1.1", route: "/alarms", elements: [
+    {nom: "alarme la plus grave", selector: ".alarm-card .ui-alarm-summary h2"},
+    {nom: "action conseillée", selector: ".alarm-card .ui-alarm-summary p", index: 1},
+    {nom: "action « Diagnostiquer »", label: "Diagnostiquer"},
+    {nom: "action « Acquitter »", label: "Acquitter"},
+  ]},
+];
+
 /**
  * Plage cible directe sur la mère, pour le scénario R2.7. Posée **après** les deux passes de
  * pages : les créer avant changerait la hauteur nominale de `/cultures/targets` et de la fiche,
@@ -936,21 +972,29 @@ async function declareTarget(page, subject) {
   if (!response.ok()) throw new Error(`Plage cible refusée : ${await response.text()}`);
 }
 
-/** Présence dans le premier écran des éléments nommés par R1.8 et R2.7, à une largeur. */
-async function firstScreen(page, subject, width, results) {
-  for (const scenario of PREMIER_ECRAN) {
-    const route = scenario.route.replace(":subject", encodeURIComponent(subject));
+/** Présence dans le premier écran des éléments nommés par une acceptation, à une largeur. */
+async function firstScreen(page, subject, width, results, scenarios = PREMIER_ECRAN, carnet = "rempli") {
+  for (const scenario of scenarios) {
+    const route = subject ? scenario.route.replace(":subject", encodeURIComponent(subject)) : scenario.route;
     await page.goto(route);
     await page.locator("main").waitFor({state: "visible"});
     await page.evaluate(() => document.fonts.ready.then(() => true));
     const elements = await page.evaluate(LOCATE_SCRIPT, {items: scenario.elements});
+    // Défilement d'arrivée : une ancre, un `autofocus` ou une restauration de position
+    // donneraient un « premier écran » qui n'en est pas un — la page serait déjà défilée. Il
+    // entre donc dans les échecs, au même titre qu'un élément hors zone utile.
+    const defilement = await page.evaluate(() => Math.round(scrollY));
     results.push({
       width, state: "premier_ecran", fiche: scenario.fiche, route, viewport: page.viewportSize(),
-      carnet: "rempli", acceptation: width === PREMIER_ECRAN_LARGEUR_ACCEPTATION, elements,
-      // Un élément absent, replié ou hors du premier écran est consigné tel quel.
-      failures: elements.filter(item => !item.dansPremierEcran).map(item => `${item.nom} (${!item.present
-        ? "absent du document" : !item.rendu ? "présent mais non affiché"
-          : `y ${item.premierEcran.haut}–${item.premierEcran.bas}, zone utile ${item.premierEcran.zone.haut}–${item.premierEcran.zone.bas}`})`),
+      carnet, acceptation: width === PREMIER_ECRAN_LARGEUR_ACCEPTATION, elements, defilement,
+      // Un élément absent, replié, masqué aux yeux ou hors du premier écran est consigné tel
+      // quel, et une page déjà défilée à l'arrivée l'est aussi.
+      failures: [
+        ...(defilement ? [`page défilée de ${defilement} px à l'arrivée : le premier écran mesuré n'est pas celui de l'arrivée`] : []),
+        ...elements.filter(item => !item.dansPremierEcran).map(item => `${item.nom} (${!item.present
+          ? "absent du document" : !item.rendu ? "présent mais non affiché"
+            : `y ${item.premierEcran.haut}–${item.premierEcran.bas}, zone utile ${item.premierEcran.zone.haut}–${item.premierEcran.zone.bas}`})`),
+      ],
     });
   }
 }
@@ -1063,9 +1107,11 @@ async function main() {
       }
 
       await namedTargets(page, subject, width, results);
+      // `formStates` n'écrit rien : sa saisie est **refusée**. « Temps locaux », lui,
+      // enregistre un relevé : il est repoussé après les pages de **toutes** les largeurs,
+      // sans quoi le relevé écrit à 320 px grossirait le journal mesuré à 390 px.
       if (!external) {
         await formStates(page, width, errors, results);
-        if (subject) await localTimings(page, subject, width, results);
       } else {
         for (const state of ["formulaire_releve_ouvert", "formulaire_releve_refuse", "temps_locaux"]) {
           results.push({width, state, skipped: "cible externe en lecture seule"});
@@ -1097,6 +1143,15 @@ async function main() {
       // provoquée sur le Pi ne serait plus une lecture.
       if (!external) await offlineState(browser, baseURL, external, width, results);
       else results.push({width, state: "banniere_hors_ligne", skipped: "cible externe : aucune installation de service worker"});
+    }
+
+    // Temps d'interaction locaux : un relevé y est **enregistré**, donc après les pages.
+    if (!external && subject && PERIMETRE === "complet") {
+      for (const width of widths()) {
+        const {context, page} = await openContext(width);
+        await localTimings(page, subject, width, results);
+        await context.close();
+      }
     }
 
     // Passe 3 — premier écran des fiches R1.8 et R2.7 (écart E6), sur le carnet rempli
@@ -1142,6 +1197,8 @@ async function main() {
         // « Acquitter » n'existe que devant une alarme : c'est ici, et nulle part ailleurs,
         // qu'elle peut être mesurée.
         await namedTargets(page, null, width, results, "critical");
+        // R1.1 : premier écran de l'alarme la plus grave, ici aussi et nulle part ailleurs.
+        await firstScreen(page, null, width, results, PREMIER_ECRAN_CRITIQUE, "vide");
         await context.close();
       }
     }
