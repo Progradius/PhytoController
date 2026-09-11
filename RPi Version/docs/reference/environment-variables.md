@@ -35,7 +35,7 @@ Variables des scripts d'exploitation :
 | `PHYTO_DEPLOY_REEXEC` | `scripts/deploy.sh` | Garde interne : `1` dans la copie ré-exécutée depuis `/tmp` |
 | `PHYTO_DEPLOY_HEALTH_VALIDATOR` | `scripts/deploy.sh` | Chemin interne de la copie sous `/tmp` de `utils/deployment_health.py`, qualifiant la santé après redémarrage ; posé par le script lui-même, jamais à la main |
 | `PHYTO_UI_BASE_URL` | `scripts/benchmark-web-pages.py` | Origine visée par défaut (même validation que l'option en ligne de commande) |
-| `PHYTO_OBSERVATION_SERVICE`, `PHYTO_OBSERVATION_API_BASE`, `PHYTO_OBSERVATION_SECONDS`, `PHYTO_OBSERVATION_INTERVAL_SECONDS`, `PHYTO_OBSERVATION_DIR` | `scripts/observe-jalon1-watchdog.sh`, `scripts/observe-jalon2-operator-quality.sh` | Service, API, durée (172 800 s), période (60 s) et répertoire de preuve (`~/phyto-observations`) des observateurs de 48 h des jalons clos |
+| `PHYTO_OBSERVATION_SERVICE`, `PHYTO_OBSERVATION_API_BASE`, `PHYTO_OBSERVATION_SECONDS`, `PHYTO_OBSERVATION_INTERVAL_SECONDS`, `PHYTO_OBSERVATION_DIR` | `scripts/observe-jalon2-operator-quality.sh` | Service, API, durée (172 800 s), période (60 s) et répertoire de preuve (`~/phyto-observations`) de l'observateur de 48 h des jalons clos (l'observateur du jalon 1, qui lisait les mêmes variables, a été supprimé le 11/09/2026) |
 | `PHYTO_OBSERVATION_PROBE_INTERVAL_SECONDS`, `PHYTO_OBSERVATION_EXPECTED_COMMIT` | `scripts/observe-jalon2-operator-quality.sh` | Période des sondes lentes (600 s) et commit attendu (défaut : `HEAD`) |
 
 Les procédures qui utilisent ces observateurs sont archivées :
@@ -54,7 +54,11 @@ contrôleur :
 | `PHYTO_MEASURE_WIDTHS` | Largeurs mesurées, séparées par des virgules (défaut `320,390,1440`) |
 | `PHYTO_MEASURE_DIR` | Répertoire des résultats de mesure (défaut `test-results/measure-ui`) |
 | `PHYTO_MEASURE_SCREENSHOTS` | `1` enregistre les captures pendant la mesure |
+| `PHYTO_MEASURE_HEIGHT` | Hauteur de fenêtre imposée à toutes les largeurs (défaut : fenêtres de l'audit, 844 px à 320 et 390, 900 px à 1440) |
+| `PHYTO_MEASURE_PERIMETRE` | `audit` ne joue que les 36 visites de l'audit sur un carnet vide (rejeu d'une révision ancienne) ; défaut `complet` |
+| `PHYTO_MEASURE_ROOT` | Arbre servi par `tests/ui_server.py` pendant la mesure (défaut : répertoire courant) ; sert au rejeu d'une extraction, sans rien y recopier |
 | `PHYTO_CAPTURE` | Active la capture de preuve de `tests/ui/history.spec.js`, ignorée sinon |
+| `PHYTO_CAPTURE_DIR` | Répertoire où cette capture est écrite (défaut : dossier de résultats Playwright, jamais `docs/`) ; `npm run measure:capture-gris` le pose pour régénérer volontairement la capture publiée |
 
 Ne pas placer de secret directement dans une commande shell enregistrée. La future séparation des secrets devra utiliser un `EnvironmentFile` protégé, sans exposer les valeurs dans la documentation ni dans `systemctl status`.
 
