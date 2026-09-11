@@ -36,7 +36,7 @@ attribuaient à « deux carnets différents » étaient un défaut de l'outil.
 
 ## Traçabilité
 
-* Commit mesuré : **`90d06c3`**, arbre propre.
+* Commit mesuré : **`d9289e2`**, arbre propre.
 * Mesure exécutée le **11 septembre 2026**, sous WSL2, Chromium de Playwright, un seul processus.
 * Baseline de comparaison : `8023123` ; mesures de l'audit : `../audit-web-mobile-pwa-2026-09-09/`.
 
@@ -44,22 +44,26 @@ attribuaient à « deux carnets différents » étaient un défaut de l'outil.
 
 | Fiche | Acceptation | Passe et fenêtre | Mesure | Verdict |
 | --- | --- | --- | ---: | --- |
-| R1.2 | tableau de bord : hauteur de la fixture **divisée par deux au moins** (audit 5 035 px → ≤ 2 517,5 px) | `rempli`, 390 × 844 | **2 520 px** (−49,9 %) | ❌ **manquée de 2,5 px** |
-| R1.2 | idem, carnet vide | `vide`, 390 × 844 | **2 496 px** (−50,4 %) | ✅ atteinte |
+| R1.2 | tableau de bord : hauteur de la fixture **divisée par deux au moins** (audit 5 035 px → ≤ 2 517,5 px) | `rempli`, 390 × 844 | **2 517 px** (−50,0 %) | ✅ atteinte, **0,5 px** de marge — voir la réserve ci-dessous |
+| R1.2 | idem, carnet vide | `vide`, 390 × 844 | **2 493 px** (−50,5 %) | ✅ atteinte, 24,5 px de marge |
 | R1.6 | relevés à six entrées réduits d'au moins 40 % (audit : 7 001 px, `scenarios.json`, une mère et six relevés) | `rempli`, 390 × 844, `?view=releves` | **1 754 px** (−74,9 %) | ✅ atteinte |
 | R2.3 | vue Analyser avec six relevés < 2 000 px | `rempli`, 390 × 844, `?view=analyser` | **1 779 px** | ✅ atteinte |
 | R2.8 | journal à 20 lignes réduit d'un tiers | `rempli`, 390 × 844 | **115 px** par entrée ; page entière 2 651 px | ⚠️ **non vérifiable** |
 
-**R1.2, franchie de 2,5 px sur la passe remplie, et dite telle quelle.** La mesure du
-11 septembre à 16 h donnait 2 517 px, soit 0,5 px sous le plafond. Le correctif du défilement
-horizontal au zoom 200 % (`90d06c3`, E11 : `<wbr>` dans la marque, `min-width` sur la barre
-mobile, repli de `.hero` et de `.config-layout`) ajoute **3 px** au tableau de bord — 2 520 px —
-et fait franchir le plafond de 2,5 px, soit **0,1 %**. Sur le carnet vide, la page tient
-(2 496 px). Aucune de ces deux lignes n'est arrondie en sa faveur : « divisée par deux » se
-lit ici sur une page dont la hauteur dépend de la fixture d'équipements, et l'écart est du
-même ordre qu'une ligne de texte qui se replie. C'est un dépassement réel, pas une régression
-d'ergonomie ; le rendre acceptable demanderait soit de retirer 3 px à la page, soit de
-constater que le plafond exact (5 035 / 2) n'est plus le bon repère.
+**R1.2, tenue de 0,5 px, et ce que vaut cette marge.** Historique : 2 517 px sur `28cc412`,
+puis 2 520 px sur `90d06c3` (le correctif du zoom, E11, avait ajouté une règle `flex-wrap`
+superflue au résumé « Redémarrage et extinction », qui coûtait 3 px en rendu normal) — le
+plafond était alors **franchi de 2,5 px** —, puis de nouveau 2 517 px sur `d9289e2`, qui retire
+cette règle sans rendre le débordement au zoom (voir plus bas).
+
+**Réserve.** Le plafond de 2 517,5 px dérive d'un « avant » mesuré sur le carnet **vide** de
+l'audit, alors que la passe `rempli` porte une mère et six relevés : la comparaison n'est
+exacte qu'à quelques dizaines de pixels près (la passe vide d'aujourd'hui mesure 24 px de
+moins que la passe remplie). Une marge de 0,5 px est donc **plus petite que l'incertitude** de
+la comparaison : elle dit « au niveau du plafond », pas « nettement dessous ». Si une évolution
+normale de la page devait le faire franchir, la réponse honnête serait de **rebaser** le
+plafond sur une mesure « avant » du carnet actuel, en le disant, plutôt que de sacrifier une
+correction pour tenir un chiffre.
 
 **R1.6, la base du calcul.** L'acceptation compare « avec six relevés » : la seule mesure de
 l'audit dans cet état est `solutions-remplies` de `scenarios.json`, 7 001 px à 390 px, relevée
@@ -103,7 +107,7 @@ n'affiche qu'un état vide, et la mesure ne dirait rien de l'acceptation.
 
 | Page | Audit (carnet vide) | Après, `vide` | Écart | Après, `rempli` |
 | --- | ---: | ---: | ---: | ---: |
-| Tableau de bord (`/`) | 5 035 | **2 496** | −50,4 % | 2 520 |
+| Tableau de bord (`/`) | 5 035 | **2 493** | −50,5 % | 2 517 |
 | Alarmes (`/alarms`) | 1 414 | 844 | −40,3 % | 844 |
 | Historique (`/history`) | 844 | 844 | +0,0 % | 844 |
 | Configuration (`/conf`) | 3 662 | 3 829 | +4,6 % | 3 829 |
@@ -156,12 +160,12 @@ acceptations : aucune fiche ne fixe de plafond sur ces quatre pages.
   trois largeurs ; texte « HORS LIGNE — Données datant au mieux de … · non actualisées · lecture
   seule ».
 * **Temps locaux** (poste de développement, pas le Pi) : première interaction sur graphique
-  5 à 7 ms ; retour après enregistrement 207 ms à 1 592 ms.
+  8 à 9 ms ; retour après enregistrement 565 ms à 1 616 ms.
 * **Zoom 200 % de la police** : plus aucun débordement horizontal. Le `scrollWidth` vaut
   **exactement la largeur de la fenêtre** aux trois largeurs (320, 390 et 1 440 px), dans les
-  deux thèmes. La mesure précédente relevait 464 px sur le tableau de bord à 320 et 390 px : le
-  correctif `90d06c3` (écart E11) l'a supprimé, au prix de +3 px de hauteur sur cette page et de
-  −25 px sur la Configuration.
+  deux thèmes, sur `d9289e2` comme sur `90d06c3`. La mesure de `28cc412` relevait 464 px sur le
+  tableau de bord à 320 et 390 px : le correctif E11 l'a supprimé, et la Configuration y a
+  gagné 25 px (3 854 → 3 829 px à 390 px).
 * **Zoom 200 % à l'échelle** (`deviceScaleFactor: 2`, fenêtre CSS divisée par deux) : le
   document mesure 280 px pour 160 et 195 px de fenêtre. C'est le plancher `body { min-width:
   280px }` de `style.css`, franchi par construction sous 280 px de fenêtre CSS : on y mesure ce
