@@ -58,6 +58,15 @@ system_value() {
     systemctl show "$SERVICE_NAME" --value -p "$1" 2>/dev/null || true
 }
 
+# Répertoire des données vivantes, résolu comme dans scripts/deploy.sh : la
+# source de vérité est l'unité systemd, qui pose PHYTO_DATA_DIR pour le
+# service. Cette variable n'est pas dans l'environnement de l'observateur ; un
+# `${PHYTO_DATA_DIR:-...}` du shell retomberait sur param/ après la migration
+# et la sonde Influx lirait une configuration que le service n'utilise plus.
+DATA_DIR="$(system_value Environment | tr ' ' '\n' \
+    | sed -n 's/^PHYTO_DATA_DIR=//p' | tail -n 1)"
+[[ -n "$DATA_DIR" ]] || DATA_DIR="$APP_DIR/param"
+
 BASE_BOOT_ID="$(tr -d '\r\n' < /proc/sys/kernel/random/boot_id 2>/dev/null || true)"
 BASE_PID="$(system_value MainPID)"
 BASE_NRESTARTS="$(system_value NRestarts)"
@@ -80,6 +89,7 @@ intervalle_secondes=$INTERVAL_SECONDS
 intervalle_sondes_auxiliaires_secondes=$PROBE_INTERVAL_SECONDS
 service=$SERVICE_NAME
 api=$API_BASE
+donnees=$DATA_DIR
 commit=$BASE_COMMIT
 commit_label=$BASE_COMMIT_LABEL
 boot_id=$BASE_BOOT_ID
@@ -95,6 +105,7 @@ info "Intervalle : $INTERVAL_SECONDS s"
 info "Sondes aux.: $PROBE_INTERVAL_SECONDS s"
 info "Watchdog   : $BASE_WATCHDOG_USEC (armé)"
 info "Commit     : $BASE_COMMIT_LABEL"
+info "Données    : $DATA_DIR"
 info "Preuves    : $RUN_DIR"
 
 sample_count=0
@@ -130,7 +141,7 @@ while (( $(date +%s) < END_EPOCH )) && (( STOP_REQUESTED == 0 )); do
             -w '%{http_code}' "$API_BASE/service-worker.js" 2>/dev/null || true)"
         OFFLINE_CODE="$(curl -sS --max-time 5 -o /dev/null \
             -w '%{http_code}' "$API_BASE/offline" 2>/dev/null || true)"
-        INFLUX_PROBE_JSON="$(PHYTO_OBSERVATION_APP_DIR="$APP_DIR" python3 - <<'PY'
+        INFLUX_PROBE_JSON="$(PHYTO_OBSERVATION_DATA_DIR="$DATA_DIR" python3 - <<'PY'
 import json
 import os
 import urllib.parse
@@ -142,9 +153,7 @@ def result(payload):
 
 
 try:
-    config_path = os.path.join(
-        os.environ["PHYTO_OBSERVATION_APP_DIR"], "param", "param.json"
-    )
+    config_path = os.path.join(os.environ["PHYTO_OBSERVATION_DATA_DIR"], "param.json")
     with open(config_path, "r", encoding="utf-8") as source:
         network = json.load(source)["Network_Settings"]
     if str(network.get("host_machine_state", "offline")).lower() != "online":

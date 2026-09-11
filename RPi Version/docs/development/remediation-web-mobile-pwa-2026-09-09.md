@@ -943,8 +943,9 @@ réels corrigés :
 `pwa.js`/`alarms.js` (« 1.5 h ») gardent le point décimal. Le premier est un invariant
 documenté, identique au `toFixed` de `dashboard.js` : le passer à la virgule touche le JS du
 tableau et demande une décision. La sonde Influx de `scripts/observe-jalon2-operator-quality.sh`
-lit encore `param/` du checkout et ignore `PHYTO_DATA_DIR` : à corriger avant la prochaine
-fenêtre d'observation.
+lisait encore `param/` du checkout et ignorait `PHYTO_DATA_DIR` — **corrigé le 11/09/2026** :
+elle lit le répertoire déclaré par l'unité systemd, comme `scripts/deploy.sh`
+(`tests/test_observation_script.py`).
 
 **Restent à mener par l'opérateur**, avec les protocoles livrés : R4.2 (baseline Pi, téléphone et
 Wi-Fi de serre, budgets définitifs, décision sur `/conf`), la grille appareils réels de R4.1

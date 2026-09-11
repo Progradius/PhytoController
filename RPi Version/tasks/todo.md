@@ -770,7 +770,7 @@ Reprise du 10/09/2026 (orchestrateur garant, agents Opus par périmètre de fich
 - [x] E10 R1.7 règle d'arrondi serveur unique (`model/nombre.py`) — `28cc412`, écart nul et alignement Python/JS `c0cd8f0`
 - [x] E11 défilement horizontal au zoom 200 % de la police, 14 pages — `90d06c3`, `d9289e2`
 - [ ] Filtre `mesure` du tableau de bord et durées « 1.5 h » (`pwa.js`, `alarms.js`) au point décimal — décision à prendre (invariant `toFixed` de `dashboard.js`)
-- [ ] Sonde Influx de `scripts/observe-jalon2-operator-quality.sh` : lit `param/` du checkout, ignore `PHYTO_DATA_DIR` — avant la prochaine observation
+- [x] Sonde Influx de `scripts/observe-jalon2-operator-quality.sh` : lisait `param/` du checkout, ignorait `PHYTO_DATA_DIR` — résout désormais le répertoire depuis l'unité systemd comme `deploy.sh`, consigné dans `metadata.txt` (`donnees=`), test `tests/test_observation_script.py`
 
 ## Lot 5 — finitions
 - [x] R5.1 Visitor réservée à la marque, chiffres tabulaires (UX-18)
