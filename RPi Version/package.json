@@ -5,7 +5,8 @@
     "test:js": "node --test tests/js/*.test.cjs",
     "test:ui": "playwright test",
     "measure:ui": "node tests/ui/measure_pages.js",
-    "measure:compare": "python3 scripts/compare-measures.py"
+    "measure:compare": "python3 scripts/compare-measures.py",
+    "measure:capture-gris": "PHYTO_CAPTURE=1 PHYTO_CAPTURE_DIR=docs/images/remediation-web-mobile-pwa-2026-09-09 playwright test tests/ui/history.spec.js --project=mobile-chromium --workers=1 -g \"niveaux de gris\""
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

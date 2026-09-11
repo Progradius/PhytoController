@@ -6,8 +6,16 @@
 // Format de sortie : chaque entrée conserve **exactement** les clés de l'audit
 // (`route`, `width`, `status`, `height`, `scrollWidth`, `dom`, `headings`, `smallTargets`,
 // `resources`, `axe`, `errors`) et n'ajoute que des clés supplémentaires (`state`, `theme`,
-// `mainVisibleMs`, `memory`, `actions`, `namedTargets`, `timings`). Aucune clé de l'audit
-// n'est renommée : `scripts/compare-measures.py` compare donc les deux fichiers directement.
+// `viewport`, `carnet`, `mainVisibleMs`, `memory`, `actions`, `namedTargets`, `timings`, et
+// les entrées `state: "premier_ecran"`). Aucune clé de l'audit n'est renommée :
+// `scripts/compare-measures.py` compare donc les deux fichiers directement, sur la passe au
+// carnet vide, la seule qui suit le protocole de l'audit (« Carnet des pages nominales »).
+//
+// Rejouer une révision ancienne (fiche R0.1, « rejouer le script sur la baseline ») :
+//
+//   git worktree add --detach <dossier> 8023123
+//   PHYTO_TEST_PYTHON=.venv/bin/python PHYTO_MEASURE_ROOT="<dossier>/RPi Version" \
+//     PHYTO_MEASURE_PERIMETRE=audit PHYTO_MEASURE_DIR=<sortie> npm run measure:ui
 //
 // Une cible fournie (`PHYTO_UI_BASE_URL`) reste strictement en lecture : les scénarios qui
 // ouvrent, refusent ou enregistrent une saisie sont alors omis, et toute méthode autre que
@@ -43,7 +51,40 @@ const THEMES = ["dark", "daylight"];
 // distinction le sélecteur en désigne sept et la mesure vise une correction au hasard.
 const SAISIE_FORM = "form[data-solution-entry]:not([data-id])";
 const widths = () => (process.env.PHYTO_MEASURE_WIDTHS || "320,390,1440").split(",").map(Number).filter(Number.isFinite);
-const viewportFor = width => ({width, height: width === 320 ? 568 : 844});
+// Fenêtres **de l'audit** (`docs/development/audit-web-mobile-pwa-2026-09-09.md`, « Trois
+// largeurs : 320 et 390 px, hauteur 844 px ; bureau 1440 × 900 »). La hauteur de fenêtre
+// n'est pas un détail de présentation : `height` vaut `scrollHeight`, qui ne descend jamais
+// sous la hauteur de la fenêtre, et la console se dimensionne sur elle. Sur la baseline,
+// 320 × 568 et 1440 × 844 donnaient `/history` à 736 et 844 px (audit : 844 et 900) et
+// `/console` à −13,7 % et −3,1 % — un écart de protocole, pas de page, qui interdisait tout
+// rejeu à ±2 %. Chaque entrée consigne désormais sa fenêtre (`viewport`).
+// `PHYTO_MEASURE_HEIGHT` impose une autre hauteur (ex. 568 pour un petit téléphone) : l'entrée
+// le dit, et le comparateur refuse de confronter deux fenêtres différentes.
+const AUDIT_HEIGHTS = {320: 844, 390: 844, 1440: 900};
+const viewportFor = width => ({width,
+  height: Number(process.env.PHYTO_MEASURE_HEIGHT) || AUDIT_HEIGHTS[width] || 844});
+// Carnet des pages nominales, consigné dans la clé `carnet` de chaque entrée `state: "page"` :
+//
+// * `vide` — le protocole des 36 visites de l'audit : un `tests/ui_server.py` neuf, sans aucune
+//   culture. Prouvé par le rejeu de la baseline (`rejeu-baseline-8023123.md` dans
+//   `docs/images/remediation-web-mobile-pwa-2026-09-09/`) : carnet vide, les 36 hauteurs sont
+//   reproduites à ±2 % ; avec une mère et six relevés, 12 d'entre elles s'écartent de 15 à 174 %.
+//   Seule cette passe se compare à l'audit.
+// * `rempli` — une mère et six relevés (fixture de la fiche R0.1), sur lesquels portent les
+//   vues d'acceptation, les états ouverts et les scénarios annexes.
+// * `externe` — cible `PHYTO_UI_BASE_URL`, dont le carnet n'est ni connu ni modifiable.
+//
+// Périmètre : `complet` (défaut) mesure les deux carnets, ou `audit`, qui ne rejoue **que** la
+// matrice des 36 visites sur le carnet vide (12 pages × 3 largeurs, deux thèmes), sans états
+// ouverts, contrastes ni scénarios annexes. C'est le mode du rejeu d'une révision ancienne : ses
+// gabarits ne portent pas les formulaires et les vues que les scénarios annexes supposent.
+const PERIMETRE = process.env.PHYTO_MEASURE_PERIMETRE || "complet";
+if (!["complet", "audit"].includes(PERIMETRE)) throw new Error("PHYTO_MEASURE_PERIMETRE vaut « complet » ou « audit ».");
+// Arbre servi : par défaut le répertoire courant. `PHYTO_MEASURE_ROOT` désigne un autre arbre
+// du dépôt — une extraction de la baseline, par exemple — dont `tests/ui_server.py` est lancé
+// tel quel, dans son propre répertoire : l'outil mesure ainsi une révision ancienne sans y
+// être recopié.
+const SERVED_ROOT = path.resolve(process.env.PHYTO_MEASURE_ROOT || process.cwd());
 
 // Actions fréquentes nommées (fiche R5.3). `:subject` est remplacé par la fiche créée par
 // les fabriques ; ces lignes sont donc omises sur une cible externe, où rien n'est créé.
@@ -92,7 +133,15 @@ function externalBaseURL() {
 // ---------------------------------------------------------------------------
 async function startServer(port, extraEnv) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "phyto-measure-"));
-  const child = spawn(process.env.PHYTO_TEST_PYTHON || "python3", ["tests/ui_server.py"], {
+  if (!fs.existsSync(path.join(SERVED_ROOT, "tests", "ui_server.py"))) {
+    throw new Error(`Aucun tests/ui_server.py sous ${SERVED_ROOT} (PHYTO_MEASURE_ROOT).`);
+  }
+  // Un interpréteur désigné par un chemin relatif (`.venv/bin/python`) l'est depuis le
+  // répertoire d'où l'outil est lancé, pas depuis l'arbre servi : il est donc résolu avant
+  // le changement de répertoire du serveur. Un nom nu (`python3`) reste cherché dans `PATH`.
+  const python = process.env.PHYTO_TEST_PYTHON || "python3";
+  const child = spawn(python.includes(path.sep) ? path.resolve(python) : python, ["tests/ui_server.py"], {
+    cwd: SERVED_ROOT,
     env: {...process.env, ...extraEnv, TMPDIR: scratch, PHYTO_UI_TEST_PORT: String(port)},
     stdio: ["ignore", "ignore", "inherit"],
   });
@@ -216,6 +265,9 @@ async function collect(page, entry, options = {}) {
     resources: measure.resources, axe: axe.violations, errors: entry.errors || [],
     // Ajouts hors format d'audit.
     state: entry.state, theme: entry.theme, mainVisibleMs: entry.mainVisibleMs ?? null,
+    // Fenêtre et carnet de la mesure : sans eux, deux hauteurs relevées selon deux protocoles
+    // différents se comparent sans que rien ne le signale.
+    viewport: page.viewportSize(), ...(entry.carnet ? {carnet: entry.carnet} : {}),
     memory, actions: measure.actions, wcagTargets: measure.wcagTargets,
     ...(options.extra || {}),
   };
@@ -738,6 +790,69 @@ async function localTimings(page, subject, width, results) {
   results.push({width, state: "temps_locaux", timings});
 }
 
+/**
+ * Localise des éléments dans la page **telle qu'elle s'affiche à l'arrivée** et dit s'ils
+ * tiennent dans le premier écran. Évalué dans la page : aucune variable de Node.
+ *
+ * Un élément se désigne par `selector` (et `index`, rang parmi les correspondances) et/ou par
+ * `label`, texte exact d'un contrôle (`a[href]`, `button`, `summary`, `[role="button"]` quand
+ * aucun sélecteur n'est donné). Trois constats distincts, jamais confondus :
+ *
+ * * `present` — dans le document ;
+ * * `rendu` — avec une boîte non nulle (un `<details>` fermé ou `hidden` n'en a pas) ;
+ * * `dansPremierEcran` — sa boîte **entière** tient dans la zone utile de la fenêtre, à la
+ *   position de défilement d'arrivée : la fenêtre moins les barres fixes ou collantes qui la
+ *   recouvrent en haut et en bas (barre de navigation mobile, bandeau hors ligne). Une barre
+ *   n'est retranchée que si elle ne contient pas l'élément lui-même. `premierEcran` détaille
+ *   la boîte, la zone utile et le recouvrement partiel.
+ */
+const LOCATE_SCRIPT = ({items}) => {
+  const vh = innerHeight;
+  const vw = innerWidth;
+  // Barres qui recouvrent le contenu : `fixed` ou `sticky`, au moins la moitié de la largeur,
+  // moins de la moitié de la hauteur, et collées au bord haut ou bas de la fenêtre.
+  const barres = [];
+  for (const node of document.querySelectorAll("body *")) {
+    const style = getComputedStyle(node);
+    if (style.position !== "fixed" && style.position !== "sticky") continue;
+    if (style.visibility === "hidden" || style.display === "none") continue;
+    const r = node.getBoundingClientRect();
+    if (r.width < vw / 2 || r.height <= 0 || r.height >= vh / 2 || r.bottom <= 0 || r.top >= vh) continue;
+    if (r.top <= 1) barres.push({node, bord: "haut", limite: r.bottom});
+    else if (r.bottom >= vh - 1) barres.push({node, bord: "bas", limite: r.top});
+  }
+  const rendu = node => {
+    const r = node.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    const style = getComputedStyle(node);
+    return style.visibility !== "hidden" && style.display !== "none";
+  };
+  const texte = node => (node.textContent || "").replace(/\s+/g, " ").trim();
+  return items.map(item => {
+    const candidats = [...document.querySelectorAll(item.selector || 'a[href], button, summary, [role="button"]')]
+      .filter(node => item.label === undefined || texte(node) === item.label);
+    const present = item.index === undefined ? candidats : candidats.slice(item.index, item.index + 1);
+    const shown = present.filter(rendu);
+    if (!present.length) return {...item, present: false, rendu: false, dansPremierEcran: false};
+    if (!shown.length) return {...item, present: true, rendu: false, count: present.length, dansPremierEcran: false};
+    const node = shown[0];
+    const r = node.getBoundingClientRect();
+    let haut = 0;
+    let bas = vh;
+    for (const barre of barres) {
+      if (barre.node.contains(node)) continue;
+      if (barre.bord === "haut") haut = Math.max(haut, barre.limite);
+      else bas = Math.min(bas, barre.limite);
+    }
+    const entier = r.top >= haut - 0.5 && r.bottom <= bas + 0.5 && r.left >= -0.5 && r.right <= vw + 0.5;
+    const partiel = Math.min(r.bottom, bas) > Math.max(r.top, haut) && Math.min(r.right, vw) > Math.max(r.left, 0);
+    return {...item, present: true, rendu: true, count: shown.length, texte: texte(node).slice(0, 80),
+      w: Math.round(r.width), h: Math.round(r.height), dansPremierEcran: entier,
+      premierEcran: {entier, partiel, haut: Math.round(r.top), bas: Math.round(r.bottom), defilement: Math.round(scrollY),
+        zone: {haut: Math.round(haut), bas: Math.round(bas)}}};
+  });
+};
+
 /** Cibles nommées de la fiche R5.3, confrontées au repère 44 px et au minimum WCAG 24 px. */
 async function namedTargets(page, subject, width, results, scenario = "nominal") {
   const measured = [];
@@ -750,27 +865,22 @@ async function namedTargets(page, subject, width, results, scenario = "nominal")
     const url = subject ? route.replace(":subject", encodeURIComponent(subject)) : route;
     await page.goto(url);
     await page.locator("main").waitFor({state: "visible"});
-    const labels = wanted.filter(item => item.route === route).map(item => item.label);
-    measured.push(...await page.evaluate(({labels, route, comfort, wcag}) => {
-      const nodes = [...document.querySelectorAll('a[href], button, summary, [role="button"]')];
-      return labels.map(label => {
-        const present = nodes.filter(node => (node.textContent || "").replace(/\s+/g, " ").trim() === label);
-        // « Absente du document » et « présente mais repliée » sont deux constats
-        // différents : les confondre ferait passer un panneau `details` fermé pour un
-        // libellé disparu, et inversement.
-        const shown = present.filter(node => {
-          const rect = node.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0;
-        });
-        if (!present.length) return {route, label, present: false, visible: false};
-        if (!shown.length) return {route, label, present: true, visible: false, count: present.length};
-        const rect = shown[0].getBoundingClientRect();
-        const w = Math.round(rect.width);
-        const h = Math.round(rect.height);
-        return {route, label, present: true, visible: true, count: shown.length, w, h,
-          confort44: w >= comfort && h >= comfort, wcag24: w >= wcag && h >= wcag};
-      });
-    }, {labels, route, comfort: COMFORT_TARGET_PX, wcag: WCAG_TARGET_PX}));
+    const items = wanted.filter(item => item.route === route).map(item => ({label: item.label}));
+    const located = await page.evaluate(LOCATE_SCRIPT, {items});
+    // Format historique conservé : `visible` signifie « rendu » (boîte non nulle), et non
+    // « dans la fenêtre » — c'est la clé que lisent les rapports déjà publiés. La présence
+    // dans le premier écran est une clé **à part**, `dansPremierEcran`, détaillée par
+    // `premierEcran`. « Absente du document » et « présente mais repliée » restent deux
+    // constats différents : les confondre ferait passer un `details` fermé pour un libellé
+    // disparu, et inversement.
+    measured.push(...located.map(item => {
+      if (!item.present) return {route, label: item.label, present: false, visible: false, dansPremierEcran: false};
+      if (!item.rendu) return {route, label: item.label, present: true, visible: false, count: item.count, dansPremierEcran: false};
+      return {route, label: item.label, present: true, visible: true, count: item.count, w: item.w, h: item.h,
+        confort44: item.w >= COMFORT_TARGET_PX && item.h >= COMFORT_TARGET_PX,
+        wcag24: item.w >= WCAG_TARGET_PX && item.h >= WCAG_TARGET_PX,
+        dansPremierEcran: item.dansPremierEcran, premierEcran: item.premierEcran};
+    }));
   }
   const describe = item => {
     if (!item.present) return "absente du document";
@@ -783,6 +893,66 @@ async function namedTargets(page, subject, width, results, scenario = "nominal")
     failures: measured.filter(item => !item.visible || !item.confort44)
       .map(item => `${item.route} · ${item.label} (${describe(item)})`),
   });
+}
+
+// Premier écran nommé par une acceptation (écart E6). Chaque scénario porte la fiche, la route
+// (`:subject` = la mère des fabriques) et les éléments qui doivent tenir dans le premier écran.
+// L'acceptation se lit à 390 × 844 ; les autres largeurs sont relevées pour information.
+const PREMIER_ECRAN_LARGEUR_ACCEPTATION = 390;
+const PREMIER_ECRAN = [
+  // R1.8 : « nom, espace, stade, âge ; puis les deux actions principales ». Les faits sont les
+  // trois premiers `li` de l'en-tête compact de la fiche, dans cet ordre (`cultures.html`).
+  {fiche: "R1.8", route: "/cultures/:subject", elements: [
+    {nom: "nom", selector: ".ui-compact-header h1"},
+    {nom: "espace", selector: ".ui-compact-header .ui-facts li", index: 0},
+    {nom: "stade", selector: ".ui-compact-header .ui-facts li", index: 1},
+    {nom: "âge", selector: ".ui-compact-header .ui-facts li", index: 2},
+    {nom: "action « Saisir un relevé »", label: "Saisir un relevé"},
+    {nom: "action « Observation / photo »", label: "Observation / photo"},
+  ]},
+  // R2.7 : « sur Plages, la plage applicable et sa source sont visibles dans le premier
+  // écran » — mesuré **avec** une cible consultée, qui porte une plage directe (fabrique
+  // `declareTarget`). Sans cible, la section n'affiche qu'un état vide.
+  {fiche: "R2.7", route: "/cultures/targets?target=:subject", elements: [
+    {nom: "titre « Appliqué maintenant »", selector: "#applique h2"},
+    {nom: "plage applicable", selector: "#applique [data-target-applied]"},
+    {nom: "source de la plage", selector: "#applique [data-target-source]"},
+  ]},
+];
+
+/**
+ * Plage cible directe sur la mère, pour le scénario R2.7. Posée **après** les deux passes de
+ * pages : les créer avant changerait la hauteur nominale de `/cultures/targets` et de la fiche,
+ * donc la comparabilité avec les mesures précédentes. Ouverte au 1er août, sans fin : elle
+ * s'applique à la date du jour du serveur quel que soit le jour d'exécution.
+ */
+async function declareTarget(page, subject) {
+  await page.goto("/cultures/targets");
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  const response = await page.request.post("/api/v1/cultures/targets", {headers: {"X-CSRF-Token": csrf}, data: {
+    operation: "target", request_id: crypto.randomUUID(), target: subject, label: "Plage de mesure",
+    start_at: "2026-08-01", ph_min: "5,8", ph_max: "6,4", ec_min: "1,2", ec_max: "1,8",
+  }});
+  if (!response.ok()) throw new Error(`Plage cible refusée : ${await response.text()}`);
+}
+
+/** Présence dans le premier écran des éléments nommés par R1.8 et R2.7, à une largeur. */
+async function firstScreen(page, subject, width, results) {
+  for (const scenario of PREMIER_ECRAN) {
+    const route = scenario.route.replace(":subject", encodeURIComponent(subject));
+    await page.goto(route);
+    await page.locator("main").waitFor({state: "visible"});
+    await page.evaluate(() => document.fonts.ready.then(() => true));
+    const elements = await page.evaluate(LOCATE_SCRIPT, {items: scenario.elements});
+    results.push({
+      width, state: "premier_ecran", fiche: scenario.fiche, route, viewport: page.viewportSize(),
+      carnet: "rempli", acceptation: width === PREMIER_ECRAN_LARGEUR_ACCEPTATION, elements,
+      // Un élément absent, replié ou hors du premier écran est consigné tel quel.
+      failures: elements.filter(item => !item.dansPremierEcran).map(item => `${item.nom} (${!item.present
+        ? "absent du document" : !item.rendu ? "présent mais non affiché"
+          : `y ${item.premierEcran.haut}–${item.premierEcran.bas}, zone utile ${item.premierEcran.zone.haut}–${item.premierEcran.zone.bas}`})`),
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -804,27 +974,47 @@ async function main() {
 
     const guard = context => guardContext(context, baseURL, external);
 
-    let subject = null;
-    for (const width of widths()) {
+    const openContext = async width => {
       const context = await browser.newContext({baseURL, viewport: viewportFor(width), serviceWorkers: "block"});
       await guard(context);
       const page = await context.newPage();
       const errors = [];
       page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
       page.on("pageerror", error => errors.push(String(error.message || error)));
-      if (!external && !subject) subject = await populate(page);
-
-      for (const route of ROUTES.concat(VUES_ACCEPTATION)) {
+      return {context, page, errors};
+    };
+    const measurePages = async (page, errors, routes, width, carnet) => {
+      for (const route of routes) {
         const opened = await openRoute(page, route, errors);
         for (const theme of THEMES) {
-          results.push(await collect(page, {route, width, theme, state: "page",
+          results.push(await collect(page, {route, width, theme, state: "page", carnet,
             status: opened.status, mainVisibleMs: opened.mainVisibleMs, errors: [...errors]}));
           if (process.env.PHYTO_MEASURE_SCREENSHOTS === "1") {
             const nom = route.replaceAll("/", "_").replaceAll("?", "-").replaceAll("=", "-") || "home";
-            await page.screenshot({path: path.join(output, `${width}-${theme}-${nom}.png`), fullPage: true});
+            const suffixe = carnet === "vide" ? "-carnet-vide" : "";
+            await page.screenshot({path: path.join(output, `${width}-${theme}-${nom}${suffixe}.png`), fullPage: true});
           }
         }
       }
+    };
+
+    // Passe 1 — la matrice de l'audit, sur le carnet **vide** d'un serveur neuf : c'est la
+    // seule passe comparable à `docs/images/audit-web-mobile-pwa-2026-09-09/measures.json`.
+    // Elle précède toute création de culture, sans quoi le carnet ne serait plus vide.
+    // Sur une cible externe, le carnet est celui du Pi : une seule passe, marquée `externe`.
+    for (const width of widths()) {
+      if (PERIMETRE === "complet" && external) break;
+      const {context, page, errors} = await openContext(width);
+      await measurePages(page, errors, ROUTES, width, external ? "externe" : "vide");
+      await context.close();
+    }
+
+    let subject = null;
+    // Passe 2 — carnet rempli, vues d'acceptation, états ouverts et scénarios annexes.
+    for (const width of PERIMETRE === "complet" ? widths() : []) {
+      const {context, page, errors} = await openContext(width);
+      if (!external && !subject) subject = await populate(page);
+      await measurePages(page, errors, ROUTES.concat(VUES_ACCEPTATION), width, external ? "externe" : "rempli");
 
       // Contrastes : relevés une seule fois, à la largeur mobile de référence, en
       // parcourant les douze pages pour couvrir les paires réellement rendues.
@@ -909,9 +1099,28 @@ async function main() {
       else results.push({width, state: "banniere_hors_ligne", skipped: "cible externe : aucune installation de service worker"});
     }
 
+    // Passe 3 — premier écran des fiches R1.8 et R2.7 (écart E6), sur le carnet rempli
+    // augmenté d'une plage cible directe (et des relevés que « temps locaux » a enregistrés,
+    // un par largeur : ils n'entrent pas dans l'en-tête de la fiche ni dans la section
+    // « Appliqué maintenant »). Rien n'est créé sur une cible externe.
+    if (PERIMETRE === "complet") {
+      if (external || !subject) {
+        for (const width of widths()) {
+          results.push({width, state: "premier_ecran", skipped: "cible externe : aucune fiche ni plage créée"});
+        }
+      } else {
+        for (const width of widths()) {
+          const {context, page} = await openContext(width);
+          if (width === widths()[0]) await declareTarget(page, subject);
+          await firstScreen(page, subject, width, results);
+          await context.close();
+        }
+      }
+    }
+
     // Scénario « alarme critique » (`tests/ui_server.py`). Le serveur nominal est arrêté
     // d'abord : `PHYTO_UI_MEASURE_SCENARIO` est lu au démarrage du processus serveur.
-    if (!external) {
+    if (!external && PERIMETRE === "complet") {
       await server.stop();
       server = await startServer(CRITICAL_PORT, {PHYTO_UI_MEASURE_SCENARIO: "critical"});
       const criticalURL = server.url;

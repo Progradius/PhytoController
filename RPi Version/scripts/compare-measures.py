@@ -11,7 +11,18 @@ Le code de retour est non nul dès qu'un écart dépasse la tolérance, ou dès 
 mesurée avant a disparu après : une page qui n'est plus mesurée n'est pas une page
 conforme.
 
-    scripts/compare-measures.py <avant.json> <après.json> [--tolerance 2] [--metric height]
+Deux mesures ne se comparent que si elles suivent le **même protocole** :
+
+* le **carnet** (`carnet` : `vide`, `rempli`, `externe`). `--carnet` choisit la passe
+  comparée, `vide` par défaut : c'est le protocole des 36 visites de l'audit, prouvé par le
+  rejeu de la baseline (`docs/images/remediation-web-mobile-pwa-2026-09-09/rejeu-baseline-8023123.md`).
+  Une entrée sans clé `carnet` (audit, fichiers antérieurs à cette clé) n'en consigne
+  aucun : elle est comparée telle quelle, et le rapport le dit ;
+* la **fenêtre** (`viewport`) : `height` vaut `scrollHeight`, qui ne descend jamais sous la
+  hauteur de la fenêtre. Deux fenêtres consignées et différentes rendent la ligne
+  **non comparable**, ce qui compte comme un échec ; une fenêtre non consignée est signalée.
+
+    scripts/compare-measures.py <avant.json> <après.json> [--tolerance 2] [--metric height] [--carnet vide]
     npm run measure:compare -- <avant.json> <après.json>
 """
 import argparse
@@ -21,24 +32,31 @@ from pathlib import Path
 
 # Métriques comparables : toutes des entiers positifs issus du même relevé.
 METRICS = ("height", "scrollWidth", "dom")
+CARNETS = ("vide", "rempli", "externe")
 
 
-def nominal(entry):
-    """Vrai pour une entrée de page nominale en thème sombre."""
+def nominal(entry, carnet="vide"):
+    """Vrai pour une entrée de page nominale en thème sombre, sur le carnet demandé.
+
+    Une entrée sans clé `carnet` n'en consigne aucun : elle est retenue quel que soit le
+    carnet demandé, faute de quoi le fichier de l'audit ne serait plus lisible.
+    """
     if not isinstance(entry, dict) or "route" not in entry or "width" not in entry:
         return False
     if entry.get("skipped"):
         return False
+    if entry.get("carnet", carnet) != carnet:
+        return False
     return entry.get("state", "page") == "page" and entry.get("theme", "dark") == "dark"
 
 
-def index(path):
+def index(path, carnet="vide"):
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         raise SystemExit(f"{path} : une liste d'entrées de mesure est attendue.")
     table = {}
     for entry in payload:
-        if not nominal(entry):
+        if not nominal(entry, carnet):
             continue
         key = (entry["route"], int(entry["width"]))
         # Une clé vue deux fois signale un fichier hétérogène : le dire plutôt que
@@ -47,8 +65,12 @@ def index(path):
             raise SystemExit(f"{path} : {key[0]} à {key[1]} px mesurée deux fois en état nominal.")
         table[key] = entry
     if not table:
-        raise SystemExit(f"{path} : aucune entrée nominale en thème sombre.")
+        raise SystemExit(f"{path} : aucune entrée nominale en thème sombre sur le carnet « {carnet} ».")
     return table
+
+
+def viewport_text(viewport):
+    return f"{viewport['width']}×{viewport['height']}"
 
 
 def compare(before, after, tolerance, metric):
@@ -64,6 +86,13 @@ def compare(before, after, tolerance, metric):
         if new is None:
             failures += 1
             rows.append((route, width, old.get(metric), None, None, "ABSENTE APRÈS"))
+            continue
+        # Deux fenêtres consignées et différentes : la hauteur de l'une ne dit rien de l'autre.
+        if old.get("viewport") and new.get("viewport") and old["viewport"] != new["viewport"]:
+            failures += 1
+            rows.append((route, width, old.get(metric), new.get(metric), None,
+                         f"NON COMPARABLE : fenêtres {viewport_text(old['viewport'])} "
+                         f"et {viewport_text(new['viewport'])}"))
             continue
         previous = old.get(metric)
         current = new.get(metric)
@@ -81,7 +110,22 @@ def compare(before, after, tolerance, metric):
     return rows, failures
 
 
-def render(rows, tolerance, metric):
+def protocol_notes(label, table, carnet):
+    """Ce que le fichier consigne — ou non — de son protocole, pour le pied du rapport."""
+    entries = list(table.values())
+    without_carnet = sum(1 for entry in entries if "carnet" not in entry)
+    without_viewport = sum(1 for entry in entries if not entry.get("viewport"))
+    notes = []
+    if without_carnet:
+        notes.append(f"{label} : {without_carnet} entrée(s) sans carnet consigné, comparée(s) "
+                     f"sans vérifier qu'elle(s) suive(nt) le carnet « {carnet} » demandé.")
+    if without_viewport:
+        notes.append(f"{label} : {without_viewport} entrée(s) sans fenêtre consignée, comparée(s) "
+                     "sans vérifier la fenêtre.")
+    return notes
+
+
+def render(rows, tolerance, metric, notes=()):
     lines = [
         f"| Route | Largeur | {metric} avant | {metric} après | Écart | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | --- |",
@@ -94,6 +138,9 @@ def render(rows, tolerance, metric):
         )
     lines.append("")
     lines.append(f"Tolérance appliquée : ±{tolerance:g} % sur `{metric}`.")
+    if notes:
+        lines.append("")
+        lines.extend(f"* {note}" for note in notes)
     return "\n".join(lines)
 
 
@@ -104,12 +151,17 @@ def main(argv=None):
     parser.add_argument("after", type=Path, help="measures.json produit par npm run measure:ui")
     parser.add_argument("--tolerance", type=float, default=2.0, help="écart accepté en %% (défaut : 2)")
     parser.add_argument("--metric", choices=METRICS, default="height", help="métrique comparée")
+    parser.add_argument("--carnet", choices=CARNETS, default="vide",
+                        help="passe comparée (défaut : vide, le protocole de l'audit)")
     args = parser.parse_args(argv)
 
-    rows, failures = compare(index(args.before), index(args.after), args.tolerance, args.metric)
+    before = index(args.before, args.carnet)
+    after = index(args.after, args.carnet)
+    rows, failures = compare(before, after, args.tolerance, args.metric)
+    notes = protocol_notes("Avant", before, args.carnet) + protocol_notes("Après", after, args.carnet)
     # Sortie standard volontairement en Markdown : le tableau est collé tel quel dans le
     # rapport de lot, sans reformatage manuel.
-    print(render(rows, args.tolerance, args.metric))
+    print(render(rows, args.tolerance, args.metric, notes))
     if failures:
         print(f"\n{failures} écart(s) au-delà de ±{args.tolerance:g} %.", file=sys.stderr)
     return 1 if failures else 0

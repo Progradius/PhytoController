@@ -1,0 +1,9692 @@
+[
+  {
+    "route": "/",
+    "width": 320,
+    "status": 200,
+    "height": 5162,
+    "scrollWidth": 320,
+    "dom": 750,
+    "headings": [
+      {
+        "text": "Tableau de bord",
+        "y": 116
+      },
+      {
+        "text": "Attention requise",
+        "y": 303
+      },
+      {
+        "text": "Climat actuel",
+        "y": 542
+      },
+      {
+        "text": "Actionneurs",
+        "y": 968
+      },
+      {
+        "text": "Capteurs actifs",
+        "y": 2880
+      },
+      {
+        "text": "Aperçu climatique",
+        "y": 3841
+      },
+      {
+        "text": "Maintenance de la serre",
+        "y": 4149
+      },
+      {
+        "text": "Cultures en cours",
+        "y": 4456
+      },
+      {
+        "text": "Couper Éclairage 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Éclairage 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Ventilation ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Chauffage ?",
+        "y": 0
+      },
+      {
+        "text": "Couper tous les équipements ?",
+        "y": 0
+      },
+      {
+        "text": "Redémarrer le Raspberry Pi ?",
+        "y": 0
+      },
+      {
+        "text": "Éteindre le Raspberry Pi ?",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/dashboard.js",
+        "size": 6409
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/equipment-icons.svg",
+        "size": 1065
+      },
+      {
+        "name": "/api/v1/state",
+        "size": 1946
+      },
+      {
+        "name": "/api/v1/cultures",
+        "size": 517
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 209.80000001192093,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/",
+    "width": 320,
+    "status": 200,
+    "height": 5162,
+    "scrollWidth": 320,
+    "dom": 750,
+    "headings": [
+      {
+        "text": "Tableau de bord",
+        "y": 116
+      },
+      {
+        "text": "Attention requise",
+        "y": 303
+      },
+      {
+        "text": "Climat actuel",
+        "y": 542
+      },
+      {
+        "text": "Actionneurs",
+        "y": 968
+      },
+      {
+        "text": "Capteurs actifs",
+        "y": 2880
+      },
+      {
+        "text": "Aperçu climatique",
+        "y": 3841
+      },
+      {
+        "text": "Maintenance de la serre",
+        "y": 4149
+      },
+      {
+        "text": "Cultures en cours",
+        "y": 4456
+      },
+      {
+        "text": "Couper Éclairage 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Éclairage 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Ventilation ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Chauffage ?",
+        "y": 0
+      },
+      {
+        "text": "Couper tous les équipements ?",
+        "y": 0
+      },
+      {
+        "text": "Redémarrer le Raspberry Pi ?",
+        "y": 0
+      },
+      {
+        "text": "Éteindre le Raspberry Pi ?",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/dashboard.js",
+        "size": 6409
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/equipment-icons.svg",
+        "size": 1065
+      },
+      {
+        "name": "/api/v1/state",
+        "size": 1946
+      },
+      {
+        "name": "/api/v1/cultures",
+        "size": 517
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 209.80000001192093,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/alarms",
+    "width": 320,
+    "status": 200,
+    "height": 1456,
+    "scrollWidth": 320,
+    "dom": 104,
+    "headings": [
+      {
+        "text": "Alarmes",
+        "y": 116
+      },
+      {
+        "text": "Notifications locales",
+        "y": 454
+      },
+      {
+        "text": "Aucune occurrence",
+        "y": 1198
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/alarms.js",
+        "size": 2964
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 60.39999997615814,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/alarms",
+    "width": 320,
+    "status": 200,
+    "height": 1456,
+    "scrollWidth": 320,
+    "dom": 104,
+    "headings": [
+      {
+        "text": "Alarmes",
+        "y": 116
+      },
+      {
+        "text": "Notifications locales",
+        "y": 454
+      },
+      {
+        "text": "Aucune occurrence",
+        "y": 1198
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/alarms.js",
+        "size": 2964
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 60.39999997615814,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/history",
+    "width": 320,
+    "status": 200,
+    "height": 844,
+    "scrollWidth": 320,
+    "dom": 142,
+    "headings": [
+      {
+        "text": "Historique",
+        "y": 116
+      },
+      {
+        "text": "Tendances locales",
+        "y": 271
+      },
+      {
+        "text": "Annoter l’historique",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 57.89999997615814,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/history",
+    "width": 320,
+    "status": 200,
+    "height": 844,
+    "scrollWidth": 320,
+    "dom": 142,
+    "headings": [
+      {
+        "text": "Historique",
+        "y": 116
+      },
+      {
+        "text": "Tendances locales",
+        "y": 271
+      },
+      {
+        "text": "Annoter l’historique",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 57.89999997615814,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/conf",
+    "width": 320,
+    "status": 200,
+    "height": 3870,
+    "scrollWidth": 320,
+    "dom": 2121,
+    "headings": [
+      {
+        "text": "Configuration",
+        "y": 116
+      },
+      {
+        "text": "Réglages essentiels",
+        "y": 431
+      },
+      {
+        "text": "Culture",
+        "y": 0
+      },
+      {
+        "text": "Équipements",
+        "y": 0
+      },
+      {
+        "text": "Planification",
+        "y": 0
+      },
+      {
+        "text": "Climat",
+        "y": 0
+      },
+      {
+        "text": "Capteurs",
+        "y": 0
+      },
+      {
+        "text": "Réseau et export",
+        "y": 0
+      },
+      {
+        "text": "Système",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/config.js",
+        "size": 6755
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/api/v1/config/preview",
+        "size": 860
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 147.5999999642372,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ]
+  },
+  {
+    "route": "/conf",
+    "width": 320,
+    "status": 200,
+    "height": 3870,
+    "scrollWidth": 320,
+    "dom": 2121,
+    "headings": [
+      {
+        "text": "Configuration",
+        "y": 116
+      },
+      {
+        "text": "Réglages essentiels",
+        "y": 431
+      },
+      {
+        "text": "Culture",
+        "y": 0
+      },
+      {
+        "text": "Équipements",
+        "y": 0
+      },
+      {
+        "text": "Planification",
+        "y": 0
+      },
+      {
+        "text": "Climat",
+        "y": 0
+      },
+      {
+        "text": "Capteurs",
+        "y": 0
+      },
+      {
+        "text": "Réseau et export",
+        "y": 0
+      },
+      {
+        "text": "Système",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/config.js",
+        "size": 6755
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/api/v1/config/preview",
+        "size": 860
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 147.5999999642372,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ]
+  },
+  {
+    "route": "/console",
+    "width": 320,
+    "status": 200,
+    "height": 1376,
+    "scrollWidth": 320,
+    "dom": 85,
+    "headings": [
+      {
+        "text": "Console",
+        "y": 116
+      },
+      {
+        "text": "Flux système",
+        "y": 273
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/console.js",
+        "size": 3128
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "pre",
+                  "messageKey": "noRoleSingular",
+                  "prohibited": [
+                    "aria-label"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-label attribute cannot be used on a pre with no valid role attribute."
+              }
+            ],
+            "impact": "serious",
+            "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+            "target": [
+              "#console-output"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a pre with no valid role attribute."
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 61.299999952316284,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/console",
+    "width": 320,
+    "status": 200,
+    "height": 1376,
+    "scrollWidth": 320,
+    "dom": 85,
+    "headings": [
+      {
+        "text": "Console",
+        "y": 116
+      },
+      {
+        "text": "Flux système",
+        "y": 273
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/console.js",
+        "size": 3128
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "pre",
+                  "messageKey": "noRoleSingular",
+                  "prohibited": [
+                    "aria-label"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-label attribute cannot be used on a pre with no valid role attribute."
+              }
+            ],
+            "impact": "serious",
+            "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+            "target": [
+              "#console-output"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a pre with no valid role attribute."
+          }
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=playwright",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#0b7c3d",
+                  "bgColor": "#e5e9e6",
+                  "contrastRatio": 4.32,
+                  "fontSize": "9.4pt (12.48px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<nav class=\"mobile-navbar\" aria-label=\"Navigation mobile\">",
+                    "target": [
+                      ".mobile-navbar"
+                    ]
+                  },
+                  {
+                    "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+                    "target": [
+                      "#console-output"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 4.32 (foreground color: #0b7c3d, background color: #e5e9e6, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<summary>Plus</summary>",
+            "target": [
+              "summary"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 4.32 (foreground color: #0b7c3d, background color: #e5e9e6, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 61.299999952316284,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures",
+    "width": 320,
+    "status": 200,
+    "height": 2344,
+    "scrollWidth": 320,
+    "dom": 275,
+    "headings": [
+      {
+        "text": "Cultures",
+        "y": 111
+      },
+      {
+        "text": "Aujourd’hui · 11/09/2026",
+        "y": 300
+      },
+      {
+        "text": "Espace 1",
+        "y": 1010
+      },
+      {
+        "text": "Espace 2",
+        "y": 1223
+      },
+      {
+        "text": "Lots et pieds mères",
+        "y": 1465
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Cultures actives",
+        "w": 118,
+        "h": 25
+      },
+      {
+        "text": "Archives",
+        "w": 63,
+        "h": 25
+      },
+      {
+        "text": "Réglages des équipements",
+        "w": 202,
+        "h": 25
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Exporter le journal CSV",
+        "w": 172,
+        "h": 25
+      },
+      {
+        "text": "Exporter toutes les données JSON",
+        "w": 253,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 137.60000002384186,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures",
+    "width": 320,
+    "status": 200,
+    "height": 2344,
+    "scrollWidth": 320,
+    "dom": 275,
+    "headings": [
+      {
+        "text": "Cultures",
+        "y": 111
+      },
+      {
+        "text": "Aujourd’hui · 11/09/2026",
+        "y": 300
+      },
+      {
+        "text": "Espace 1",
+        "y": 1010
+      },
+      {
+        "text": "Espace 2",
+        "y": 1223
+      },
+      {
+        "text": "Lots et pieds mères",
+        "y": 1465
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Cultures actives",
+        "w": 118,
+        "h": 25
+      },
+      {
+        "text": "Archives",
+        "w": 63,
+        "h": 25
+      },
+      {
+        "text": "Réglages des équipements",
+        "w": 202,
+        "h": 25
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Exporter le journal CSV",
+        "w": 172,
+        "h": 25
+      },
+      {
+        "text": "Exporter toutes les données JSON",
+        "w": 253,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 137.60000002384186,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/solutions",
+    "width": 320,
+    "status": 200,
+    "height": 3802,
+    "scrollWidth": 320,
+    "dom": 282,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 91
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 550
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 722
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 1012
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 3384
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Saisie",
+        "w": 41,
+        "h": 24
+      },
+      {
+        "text": "Réservoirs",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "text": "Courbes",
+        "w": 60,
+        "h": 24
+      },
+      {
+        "text": "Journal",
+        "w": 51,
+        "h": 24
+      },
+      {
+        "text": "Recettes",
+        "w": 61,
+        "h": 24
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "w": 242,
+        "h": 29
+      },
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_solutions.js",
+        "size": 8297
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 115.10000002384186,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      }
+    ]
+  },
+  {
+    "route": "/cultures/solutions",
+    "width": 320,
+    "status": 200,
+    "height": 3802,
+    "scrollWidth": 320,
+    "dom": 282,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 91
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 550
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 722
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 1012
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 3384
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Saisie",
+        "w": 41,
+        "h": 24
+      },
+      {
+        "text": "Réservoirs",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "text": "Courbes",
+        "w": 60,
+        "h": 24
+      },
+      {
+        "text": "Journal",
+        "w": 51,
+        "h": 24
+      },
+      {
+        "text": "Recettes",
+        "w": 61,
+        "h": 24
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "w": 242,
+        "h": 29
+      },
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_solutions.js",
+        "size": 8297
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 115.10000002384186,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      }
+    ]
+  },
+  {
+    "route": "/cultures/cycles",
+    "width": 320,
+    "status": 200,
+    "height": 2577,
+    "scrollWidth": 320,
+    "dom": 128,
+    "headings": [
+      {
+        "text": "Cycles et rappels",
+        "y": 91
+      },
+      {
+        "text": "Rappels dans le carnet",
+        "y": 500
+      },
+      {
+        "text": "Comparer les cycles",
+        "y": 863
+      },
+      {
+        "text": "Photos et sauvegarde complète",
+        "y": 1736
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rappels",
+        "w": 56,
+        "h": 24
+      },
+      {
+        "text": "Comparer",
+        "w": 72,
+        "h": 24
+      },
+      {
+        "text": "Photos et sauvegarde",
+        "w": 155,
+        "h": 24
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 106.19999998807907,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/cycles",
+    "width": 320,
+    "status": 200,
+    "height": 2577,
+    "scrollWidth": 320,
+    "dom": 128,
+    "headings": [
+      {
+        "text": "Cycles et rappels",
+        "y": 91
+      },
+      {
+        "text": "Rappels dans le carnet",
+        "y": 500
+      },
+      {
+        "text": "Comparer les cycles",
+        "y": 863
+      },
+      {
+        "text": "Photos et sauvegarde complète",
+        "y": 1736
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rappels",
+        "w": 56,
+        "h": 24
+      },
+      {
+        "text": "Comparer",
+        "w": 72,
+        "h": 24
+      },
+      {
+        "text": "Photos et sauvegarde",
+        "w": 155,
+        "h": 24
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 106.19999998807907,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/targets",
+    "width": 320,
+    "status": 200,
+    "height": 1203,
+    "scrollWidth": 320,
+    "dom": 136,
+    "headings": [
+      {
+        "text": "Plages cibles pH et EC",
+        "y": 91
+      },
+      {
+        "text": "Plages enregistrées",
+        "y": 500
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Plages enregistrées",
+        "w": 140,
+        "h": 24
+      },
+      {
+        "text": "Exporter les plages cibles CSV",
+        "w": 223,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_targets.js",
+        "size": 1859
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 86.80000001192093,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/targets",
+    "width": 320,
+    "status": 200,
+    "height": 1203,
+    "scrollWidth": 320,
+    "dom": 136,
+    "headings": [
+      {
+        "text": "Plages cibles pH et EC",
+        "y": 91
+      },
+      {
+        "text": "Plages enregistrées",
+        "y": 500
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Plages enregistrées",
+        "w": 140,
+        "h": 24
+      },
+      {
+        "text": "Exporter les plages cibles CSV",
+        "w": 223,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_targets.js",
+        "size": 1859
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 86.80000001192093,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/light",
+    "width": 320,
+    "status": 200,
+    "height": 2927,
+    "scrollWidth": 320,
+    "dom": 169,
+    "headings": [
+      {
+        "text": "Repères d’éclairage",
+        "y": 91
+      },
+      {
+        "text": "Horaires configurés et état opérationnel par espace",
+        "y": 658
+      },
+      {
+        "text": "Cultures en place, repère applicable et horaires configurés",
+        "y": 1507
+      },
+      {
+        "text": "Ventilation commune et règles jour/nuit",
+        "y": 1703
+      },
+      {
+        "text": "Repères enregistrés",
+        "y": 2170
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Repères enregistrés",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Réglages de la ventilation",
+        "w": 192,
+        "h": 25
+      },
+      {
+        "text": "Réglages jour/nuit",
+        "w": 139,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 1",
+        "w": 81,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 2",
+        "w": 81,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_light.js",
+        "size": 1927
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 85.5,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/light",
+    "width": 320,
+    "status": 200,
+    "height": 2927,
+    "scrollWidth": 320,
+    "dom": 169,
+    "headings": [
+      {
+        "text": "Repères d’éclairage",
+        "y": 91
+      },
+      {
+        "text": "Horaires configurés et état opérationnel par espace",
+        "y": 658
+      },
+      {
+        "text": "Cultures en place, repère applicable et horaires configurés",
+        "y": 1507
+      },
+      {
+        "text": "Ventilation commune et règles jour/nuit",
+        "y": 1703
+      },
+      {
+        "text": "Repères enregistrés",
+        "y": 2170
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Repères enregistrés",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Réglages de la ventilation",
+        "w": 192,
+        "h": 25
+      },
+      {
+        "text": "Réglages jour/nuit",
+        "w": 139,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 1",
+        "w": 81,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 2",
+        "w": 81,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_light.js",
+        "size": 1927
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 85.5,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/equipment",
+    "width": 320,
+    "status": 200,
+    "height": 3799,
+    "scrollWidth": 320,
+    "dom": 218,
+    "headings": [
+      {
+        "text": "Affectations d’équipements",
+        "y": 91
+      },
+      {
+        "text": "Catalogue courant, en lecture seule",
+        "y": 455
+      },
+      {
+        "text": "Contexte connu à une date",
+        "y": 1284
+      },
+      {
+        "text": "Périodes d’affectation par équipement",
+        "y": 1713
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Catalogue courant",
+        "w": 132,
+        "h": 24
+      },
+      {
+        "text": "Consulter une date",
+        "w": 136,
+        "h": 24
+      },
+      {
+        "text": "Périodes",
+        "w": 62,
+        "h": 24
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_equipment.js",
+        "size": 1419
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 85.30000001192093,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/equipment",
+    "width": 320,
+    "status": 200,
+    "height": 3799,
+    "scrollWidth": 320,
+    "dom": 218,
+    "headings": [
+      {
+        "text": "Affectations d’équipements",
+        "y": 91
+      },
+      {
+        "text": "Catalogue courant, en lecture seule",
+        "y": 455
+      },
+      {
+        "text": "Contexte connu à une date",
+        "y": 1284
+      },
+      {
+        "text": "Périodes d’affectation par équipement",
+        "y": 1713
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Catalogue courant",
+        "w": 132,
+        "h": 24
+      },
+      {
+        "text": "Consulter une date",
+        "w": 136,
+        "h": 24
+      },
+      {
+        "text": "Périodes",
+        "w": 62,
+        "h": 24
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_equipment.js",
+        "size": 1419
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 85.30000001192093,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/journal",
+    "width": 320,
+    "status": 200,
+    "height": 1310,
+    "scrollWidth": 320,
+    "dom": 153,
+    "headings": [
+      {
+        "text": "Journal du carnet",
+        "y": 91
+      },
+      {
+        "text": "Opérations du carnet",
+        "y": 652
+      },
+      {
+        "text": "Observer un espace",
+        "y": 887
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Observer un espace",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "7 jours",
+        "w": 51,
+        "h": 25
+      },
+      {
+        "text": "30 jours",
+        "w": 60,
+        "h": 25
+      },
+      {
+        "text": "Toute la période",
+        "w": 122,
+        "h": 25
+      },
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_journal.js",
+        "size": 2995
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 74,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/journal",
+    "width": 320,
+    "status": 200,
+    "height": 1310,
+    "scrollWidth": 320,
+    "dom": 153,
+    "headings": [
+      {
+        "text": "Journal du carnet",
+        "y": 91
+      },
+      {
+        "text": "Opérations du carnet",
+        "y": 652
+      },
+      {
+        "text": "Observer un espace",
+        "y": 887
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Observer un espace",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "7 jours",
+        "w": 51,
+        "h": 25
+      },
+      {
+        "text": "30 jours",
+        "w": 60,
+        "h": 25
+      },
+      {
+        "text": "Toute la période",
+        "w": 122,
+        "h": 25
+      },
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_journal.js",
+        "size": 2995
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 74,
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/",
+    "width": 390,
+    "status": 200,
+    "height": 5035,
+    "scrollWidth": 390,
+    "dom": 750,
+    "headings": [
+      {
+        "text": "Tableau de bord",
+        "y": 116
+      },
+      {
+        "text": "Attention requise",
+        "y": 303
+      },
+      {
+        "text": "Climat actuel",
+        "y": 514
+      },
+      {
+        "text": "Actionneurs",
+        "y": 941
+      },
+      {
+        "text": "Capteurs actifs",
+        "y": 2803
+      },
+      {
+        "text": "Aperçu climatique",
+        "y": 3764
+      },
+      {
+        "text": "Maintenance de la serre",
+        "y": 4072
+      },
+      {
+        "text": "Cultures en cours",
+        "y": 4329
+      },
+      {
+        "text": "Couper Éclairage 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Éclairage 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Ventilation ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Chauffage ?",
+        "y": 0
+      },
+      {
+        "text": "Couper tous les équipements ?",
+        "y": 0
+      },
+      {
+        "text": "Redémarrer le Raspberry Pi ?",
+        "y": 0
+      },
+      {
+        "text": "Éteindre le Raspberry Pi ?",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/dashboard.js",
+        "size": 6409
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/equipment-icons.svg",
+        "size": 1065
+      },
+      {
+        "name": "/api/v1/state",
+        "size": 1947
+      },
+      {
+        "name": "/api/v1/cultures",
+        "size": 517
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 116.39999997615814,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/",
+    "width": 390,
+    "status": 200,
+    "height": 5035,
+    "scrollWidth": 390,
+    "dom": 750,
+    "headings": [
+      {
+        "text": "Tableau de bord",
+        "y": 116
+      },
+      {
+        "text": "Attention requise",
+        "y": 303
+      },
+      {
+        "text": "Climat actuel",
+        "y": 514
+      },
+      {
+        "text": "Actionneurs",
+        "y": 941
+      },
+      {
+        "text": "Capteurs actifs",
+        "y": 2803
+      },
+      {
+        "text": "Aperçu climatique",
+        "y": 3764
+      },
+      {
+        "text": "Maintenance de la serre",
+        "y": 4072
+      },
+      {
+        "text": "Cultures en cours",
+        "y": 4329
+      },
+      {
+        "text": "Couper Éclairage 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Éclairage 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Ventilation ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Chauffage ?",
+        "y": 0
+      },
+      {
+        "text": "Couper tous les équipements ?",
+        "y": 0
+      },
+      {
+        "text": "Redémarrer le Raspberry Pi ?",
+        "y": 0
+      },
+      {
+        "text": "Éteindre le Raspberry Pi ?",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/dashboard.js",
+        "size": 6409
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/equipment-icons.svg",
+        "size": 1065
+      },
+      {
+        "name": "/api/v1/state",
+        "size": 1947
+      },
+      {
+        "name": "/api/v1/cultures",
+        "size": 517
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 460
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 116.39999997615814,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/alarms",
+    "width": 390,
+    "status": 200,
+    "height": 1410,
+    "scrollWidth": 390,
+    "dom": 104,
+    "headings": [
+      {
+        "text": "Alarmes",
+        "y": 116
+      },
+      {
+        "text": "Notifications locales",
+        "y": 429
+      },
+      {
+        "text": "Aucune occurrence",
+        "y": 1152
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/alarms.js",
+        "size": 2964
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 59.09999996423721,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/alarms",
+    "width": 390,
+    "status": 200,
+    "height": 1410,
+    "scrollWidth": 390,
+    "dom": 104,
+    "headings": [
+      {
+        "text": "Alarmes",
+        "y": 116
+      },
+      {
+        "text": "Notifications locales",
+        "y": 429
+      },
+      {
+        "text": "Aucune occurrence",
+        "y": 1152
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/alarms.js",
+        "size": 2964
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 59.09999996423721,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/history",
+    "width": 390,
+    "status": 200,
+    "height": 844,
+    "scrollWidth": 390,
+    "dom": 142,
+    "headings": [
+      {
+        "text": "Historique",
+        "y": 116
+      },
+      {
+        "text": "Tendances locales",
+        "y": 271
+      },
+      {
+        "text": "Annoter l’historique",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 56.90000003576279,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/history",
+    "width": 390,
+    "status": 200,
+    "height": 844,
+    "scrollWidth": 390,
+    "dom": 142,
+    "headings": [
+      {
+        "text": "Historique",
+        "y": 116
+      },
+      {
+        "text": "Tendances locales",
+        "y": 271
+      },
+      {
+        "text": "Annoter l’historique",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 56.90000003576279,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/conf",
+    "width": 390,
+    "status": 200,
+    "height": 3662,
+    "scrollWidth": 390,
+    "dom": 2121,
+    "headings": [
+      {
+        "text": "Configuration",
+        "y": 116
+      },
+      {
+        "text": "Réglages essentiels",
+        "y": 410
+      },
+      {
+        "text": "Culture",
+        "y": 0
+      },
+      {
+        "text": "Équipements",
+        "y": 0
+      },
+      {
+        "text": "Planification",
+        "y": 0
+      },
+      {
+        "text": "Climat",
+        "y": 0
+      },
+      {
+        "text": "Capteurs",
+        "y": 0
+      },
+      {
+        "text": "Réseau et export",
+        "y": 0
+      },
+      {
+        "text": "Système",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/config.js",
+        "size": 6755
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/config/preview",
+        "size": 860
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 85.69999998807907,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ]
+  },
+  {
+    "route": "/conf",
+    "width": 390,
+    "status": 200,
+    "height": 3662,
+    "scrollWidth": 390,
+    "dom": 2121,
+    "headings": [
+      {
+        "text": "Configuration",
+        "y": 116
+      },
+      {
+        "text": "Réglages essentiels",
+        "y": 410
+      },
+      {
+        "text": "Culture",
+        "y": 0
+      },
+      {
+        "text": "Équipements",
+        "y": 0
+      },
+      {
+        "text": "Planification",
+        "y": 0
+      },
+      {
+        "text": "Climat",
+        "y": 0
+      },
+      {
+        "text": "Capteurs",
+        "y": 0
+      },
+      {
+        "text": "Réseau et export",
+        "y": 0
+      },
+      {
+        "text": "Système",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/config.js",
+        "size": 6755
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/config/preview",
+        "size": 860
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 85.69999998807907,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ]
+  },
+  {
+    "route": "/console",
+    "width": 390,
+    "status": 200,
+    "height": 1356,
+    "scrollWidth": 390,
+    "dom": 85,
+    "headings": [
+      {
+        "text": "Console",
+        "y": 116
+      },
+      {
+        "text": "Flux système",
+        "y": 273
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/console.js",
+        "size": 3128
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "pre",
+                  "messageKey": "noRoleSingular",
+                  "prohibited": [
+                    "aria-label"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-label attribute cannot be used on a pre with no valid role attribute."
+              }
+            ],
+            "impact": "serious",
+            "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+            "target": [
+              "#console-output"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a pre with no valid role attribute."
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 52,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/console",
+    "width": 390,
+    "status": 200,
+    "height": 1356,
+    "scrollWidth": 390,
+    "dom": 85,
+    "headings": [
+      {
+        "text": "Console",
+        "y": 116
+      },
+      {
+        "text": "Flux système",
+        "y": 273
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/console.js",
+        "size": 3128
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "pre",
+                  "messageKey": "noRoleSingular",
+                  "prohibited": [
+                    "aria-label"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-label attribute cannot be used on a pre with no valid role attribute."
+              }
+            ],
+            "impact": "serious",
+            "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+            "target": [
+              "#console-output"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a pre with no valid role attribute."
+          }
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=playwright",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#0b7c3d",
+                  "bgColor": "#e5e9e6",
+                  "contrastRatio": 4.32,
+                  "fontSize": "9.4pt (12.48px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<nav class=\"mobile-navbar\" aria-label=\"Navigation mobile\">",
+                    "target": [
+                      ".mobile-navbar"
+                    ]
+                  },
+                  {
+                    "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+                    "target": [
+                      "#console-output"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 4.32 (foreground color: #0b7c3d, background color: #e5e9e6, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<summary>Plus</summary>",
+            "target": [
+              "summary"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 4.32 (foreground color: #0b7c3d, background color: #e5e9e6, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 52,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures",
+    "width": 390,
+    "status": 200,
+    "height": 2159,
+    "scrollWidth": 390,
+    "dom": 275,
+    "headings": [
+      {
+        "text": "Cultures",
+        "y": 111
+      },
+      {
+        "text": "Aujourd’hui · 11/09/2026",
+        "y": 277
+      },
+      {
+        "text": "Espace 1",
+        "y": 905
+      },
+      {
+        "text": "Espace 2",
+        "y": 1097
+      },
+      {
+        "text": "Lots et pieds mères",
+        "y": 1318
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Cultures actives",
+        "w": 118,
+        "h": 25
+      },
+      {
+        "text": "Archives",
+        "w": 63,
+        "h": 25
+      },
+      {
+        "text": "Réglages des équipements",
+        "w": 202,
+        "h": 25
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Exporter le journal CSV",
+        "w": 172,
+        "h": 25
+      },
+      {
+        "text": "Exporter toutes les données JSON",
+        "w": 253,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      },
+      {
+        "text": "Sauvegarde complète avec photos (ZIP)",
+        "w": 296,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 65,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures",
+    "width": 390,
+    "status": 200,
+    "height": 2159,
+    "scrollWidth": 390,
+    "dom": 275,
+    "headings": [
+      {
+        "text": "Cultures",
+        "y": 111
+      },
+      {
+        "text": "Aujourd’hui · 11/09/2026",
+        "y": 277
+      },
+      {
+        "text": "Espace 1",
+        "y": 905
+      },
+      {
+        "text": "Espace 2",
+        "y": 1097
+      },
+      {
+        "text": "Lots et pieds mères",
+        "y": 1318
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Cultures actives",
+        "w": 118,
+        "h": 25
+      },
+      {
+        "text": "Archives",
+        "w": 63,
+        "h": 25
+      },
+      {
+        "text": "Réglages des équipements",
+        "w": 202,
+        "h": 25
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Exporter le journal CSV",
+        "w": 172,
+        "h": 25
+      },
+      {
+        "text": "Exporter toutes les données JSON",
+        "w": 253,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      },
+      {
+        "text": "Sauvegarde complète avec photos (ZIP)",
+        "w": 296,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 65,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/solutions",
+    "width": 390,
+    "status": 200,
+    "height": 3306,
+    "scrollWidth": 390,
+    "dom": 282,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 91
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 511
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 657
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 897
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 2914
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Saisie",
+        "w": 41,
+        "h": 24
+      },
+      {
+        "text": "Réservoirs",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "text": "Courbes",
+        "w": 60,
+        "h": 24
+      },
+      {
+        "text": "Journal",
+        "w": 51,
+        "h": 24
+      },
+      {
+        "text": "Recettes",
+        "w": 61,
+        "h": 24
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "w": 242,
+        "h": 29
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "w": 330,
+        "h": 29
+      },
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      },
+      {
+        "text": "Exporter les relevés et interventions CSV du filtre",
+        "w": 365,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_solutions.js",
+        "size": 8297
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 64.60000002384186,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      }
+    ]
+  },
+  {
+    "route": "/cultures/solutions",
+    "width": 390,
+    "status": 200,
+    "height": 3306,
+    "scrollWidth": 390,
+    "dom": 282,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 91
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 511
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 657
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 897
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 2914
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Saisie",
+        "w": 41,
+        "h": 24
+      },
+      {
+        "text": "Réservoirs",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "text": "Courbes",
+        "w": 60,
+        "h": 24
+      },
+      {
+        "text": "Journal",
+        "w": 51,
+        "h": 24
+      },
+      {
+        "text": "Recettes",
+        "w": 61,
+        "h": 24
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "w": 242,
+        "h": 29
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "w": 330,
+        "h": 29
+      },
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      },
+      {
+        "text": "Exporter les relevés et interventions CSV du filtre",
+        "w": 365,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_solutions.js",
+        "size": 8297
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 64.60000002384186,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      }
+    ]
+  },
+  {
+    "route": "/cultures/cycles",
+    "width": 390,
+    "status": 200,
+    "height": 2275,
+    "scrollWidth": 390,
+    "dom": 128,
+    "headings": [
+      {
+        "text": "Cycles et rappels",
+        "y": 91
+      },
+      {
+        "text": "Rappels dans le carnet",
+        "y": 430
+      },
+      {
+        "text": "Comparer les cycles",
+        "y": 743
+      },
+      {
+        "text": "Photos et sauvegarde complète",
+        "y": 1534
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rappels",
+        "w": 56,
+        "h": 24
+      },
+      {
+        "text": "Comparer",
+        "w": 72,
+        "h": 24
+      },
+      {
+        "text": "Photos et sauvegarde",
+        "w": 155,
+        "h": 24
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 64.5,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/cycles",
+    "width": 390,
+    "status": 200,
+    "height": 2275,
+    "scrollWidth": 390,
+    "dom": 128,
+    "headings": [
+      {
+        "text": "Cycles et rappels",
+        "y": 91
+      },
+      {
+        "text": "Rappels dans le carnet",
+        "y": 430
+      },
+      {
+        "text": "Comparer les cycles",
+        "y": 743
+      },
+      {
+        "text": "Photos et sauvegarde complète",
+        "y": 1534
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rappels",
+        "w": 56,
+        "h": 24
+      },
+      {
+        "text": "Comparer",
+        "w": 72,
+        "h": 24
+      },
+      {
+        "text": "Photos et sauvegarde",
+        "w": 155,
+        "h": 24
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 64.5,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/targets",
+    "width": 390,
+    "status": 200,
+    "height": 999,
+    "scrollWidth": 390,
+    "dom": 136,
+    "headings": [
+      {
+        "text": "Plages cibles pH et EC",
+        "y": 91
+      },
+      {
+        "text": "Plages enregistrées",
+        "y": 438
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Plages enregistrées",
+        "w": 140,
+        "h": 24
+      },
+      {
+        "text": "Exporter les plages cibles CSV",
+        "w": 223,
+        "h": 25
+      },
+      {
+        "text": "Exporter les relevés avec leurs cibles résolues",
+        "w": 341,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_targets.js",
+        "size": 1859
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 52.39999997615814,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/targets",
+    "width": 390,
+    "status": 200,
+    "height": 999,
+    "scrollWidth": 390,
+    "dom": 136,
+    "headings": [
+      {
+        "text": "Plages cibles pH et EC",
+        "y": 91
+      },
+      {
+        "text": "Plages enregistrées",
+        "y": 438
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Plages enregistrées",
+        "w": 140,
+        "h": 24
+      },
+      {
+        "text": "Exporter les plages cibles CSV",
+        "w": 223,
+        "h": 25
+      },
+      {
+        "text": "Exporter les relevés avec leurs cibles résolues",
+        "w": 341,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_targets.js",
+        "size": 1859
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 52.39999997615814,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/light",
+    "width": 390,
+    "status": 200,
+    "height": 2762,
+    "scrollWidth": 390,
+    "dom": 169,
+    "headings": [
+      {
+        "text": "Repères d’éclairage",
+        "y": 91
+      },
+      {
+        "text": "Horaires configurés et état opérationnel par espace",
+        "y": 609
+      },
+      {
+        "text": "Cultures en place, repère applicable et horaires configurés",
+        "y": 1457
+      },
+      {
+        "text": "Ventilation commune et règles jour/nuit",
+        "y": 1628
+      },
+      {
+        "text": "Repères enregistrés",
+        "y": 2029
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Repères enregistrés",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Réglages de la ventilation",
+        "w": 192,
+        "h": 25
+      },
+      {
+        "text": "Réglages jour/nuit",
+        "w": 139,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 1",
+        "w": 81,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 2",
+        "w": 81,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_light.js",
+        "size": 1927
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 57.60000002384186,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/light",
+    "width": 390,
+    "status": 200,
+    "height": 2762,
+    "scrollWidth": 390,
+    "dom": 169,
+    "headings": [
+      {
+        "text": "Repères d’éclairage",
+        "y": 91
+      },
+      {
+        "text": "Horaires configurés et état opérationnel par espace",
+        "y": 609
+      },
+      {
+        "text": "Cultures en place, repère applicable et horaires configurés",
+        "y": 1457
+      },
+      {
+        "text": "Ventilation commune et règles jour/nuit",
+        "y": 1628
+      },
+      {
+        "text": "Repères enregistrés",
+        "y": 2029
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Repères enregistrés",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Réglages de la ventilation",
+        "w": 192,
+        "h": 25
+      },
+      {
+        "text": "Réglages jour/nuit",
+        "w": 139,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 1",
+        "w": 81,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 2",
+        "w": 81,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_light.js",
+        "size": 1927
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 57.60000002384186,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/equipment",
+    "width": 390,
+    "status": 200,
+    "height": 3313,
+    "scrollWidth": 390,
+    "dom": 218,
+    "headings": [
+      {
+        "text": "Affectations d’équipements",
+        "y": 91
+      },
+      {
+        "text": "Catalogue courant, en lecture seule",
+        "y": 390
+      },
+      {
+        "text": "Contexte connu à une date",
+        "y": 1170
+      },
+      {
+        "text": "Périodes d’affectation par équipement",
+        "y": 1548
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Catalogue courant",
+        "w": 132,
+        "h": 24
+      },
+      {
+        "text": "Consulter une date",
+        "w": 136,
+        "h": 24
+      },
+      {
+        "text": "Périodes",
+        "w": 62,
+        "h": 24
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_equipment.js",
+        "size": 1419
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 57.39999997615814,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/equipment",
+    "width": 390,
+    "status": 200,
+    "height": 3313,
+    "scrollWidth": 390,
+    "dom": 218,
+    "headings": [
+      {
+        "text": "Affectations d’équipements",
+        "y": 91
+      },
+      {
+        "text": "Catalogue courant, en lecture seule",
+        "y": 390
+      },
+      {
+        "text": "Contexte connu à une date",
+        "y": 1170
+      },
+      {
+        "text": "Périodes d’affectation par équipement",
+        "y": 1548
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Catalogue courant",
+        "w": 132,
+        "h": 24
+      },
+      {
+        "text": "Consulter une date",
+        "w": 136,
+        "h": 24
+      },
+      {
+        "text": "Périodes",
+        "w": 62,
+        "h": 24
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_equipment.js",
+        "size": 1419
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 57.39999997615814,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/journal",
+    "width": 390,
+    "status": 200,
+    "height": 1250,
+    "scrollWidth": 390,
+    "dom": 153,
+    "headings": [
+      {
+        "text": "Journal du carnet",
+        "y": 91
+      },
+      {
+        "text": "Opérations du carnet",
+        "y": 621
+      },
+      {
+        "text": "Observer un espace",
+        "y": 832
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Observer un espace",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "7 jours",
+        "w": 51,
+        "h": 25
+      },
+      {
+        "text": "30 jours",
+        "w": 60,
+        "h": 25
+      },
+      {
+        "text": "Toute la période",
+        "w": 122,
+        "h": 25
+      },
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_journal.js",
+        "size": 2995
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 58.09999996423721,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/journal",
+    "width": 390,
+    "status": 200,
+    "height": 1250,
+    "scrollWidth": 390,
+    "dom": 153,
+    "headings": [
+      {
+        "text": "Journal du carnet",
+        "y": 91
+      },
+      {
+        "text": "Opérations du carnet",
+        "y": 621
+      },
+      {
+        "text": "Observer un espace",
+        "y": 832
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Observer un espace",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "7 jours",
+        "w": 51,
+        "h": 25
+      },
+      {
+        "text": "30 jours",
+        "w": 60,
+        "h": 25
+      },
+      {
+        "text": "Toute la période",
+        "w": 122,
+        "h": 25
+      },
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_journal.js",
+        "size": 2995
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 58.09999996423721,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/",
+    "width": 1440,
+    "status": 200,
+    "height": 3246,
+    "scrollWidth": 1440,
+    "dom": 750,
+    "headings": [
+      {
+        "text": "Tableau de bord",
+        "y": 153
+      },
+      {
+        "text": "Attention requise",
+        "y": 332
+      },
+      {
+        "text": "Climat actuel",
+        "y": 545
+      },
+      {
+        "text": "Actionneurs",
+        "y": 798
+      },
+      {
+        "text": "Capteurs actifs",
+        "y": 1771
+      },
+      {
+        "text": "Aperçu climatique",
+        "y": 2230
+      },
+      {
+        "text": "Maintenance de la serre",
+        "y": 2544
+      },
+      {
+        "text": "Cultures en cours",
+        "y": 2744
+      },
+      {
+        "text": "Couper Éclairage 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Éclairage 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Ventilation ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Chauffage ?",
+        "y": 0
+      },
+      {
+        "text": "Couper tous les équipements ?",
+        "y": 0
+      },
+      {
+        "text": "Redémarrer le Raspberry Pi ?",
+        "y": 0
+      },
+      {
+        "text": "Éteindre le Raspberry Pi ?",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/dashboard.js",
+        "size": 6409
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/equipment-icons.svg",
+        "size": 1065
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/state",
+        "size": 1950
+      },
+      {
+        "name": "/api/v1/cultures",
+        "size": 517
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 135.80000001192093,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/",
+    "width": 1440,
+    "status": 200,
+    "height": 3246,
+    "scrollWidth": 1440,
+    "dom": 750,
+    "headings": [
+      {
+        "text": "Tableau de bord",
+        "y": 153
+      },
+      {
+        "text": "Attention requise",
+        "y": 332
+      },
+      {
+        "text": "Climat actuel",
+        "y": 545
+      },
+      {
+        "text": "Actionneurs",
+        "y": 798
+      },
+      {
+        "text": "Capteurs actifs",
+        "y": 1771
+      },
+      {
+        "text": "Aperçu climatique",
+        "y": 2230
+      },
+      {
+        "text": "Maintenance de la serre",
+        "y": 2544
+      },
+      {
+        "text": "Cultures en cours",
+        "y": 2744
+      },
+      {
+        "text": "Couper Éclairage 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Éclairage 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 1 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Sortie cyclique 2 ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Ventilation ?",
+        "y": 0
+      },
+      {
+        "text": "Couper Chauffage ?",
+        "y": 0
+      },
+      {
+        "text": "Couper tous les équipements ?",
+        "y": 0
+      },
+      {
+        "text": "Redémarrer le Raspberry Pi ?",
+        "y": 0
+      },
+      {
+        "text": "Éteindre le Raspberry Pi ?",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/dashboard.js",
+        "size": 6409
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/equipment-icons.svg",
+        "size": 1065
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/state",
+        "size": 1950
+      },
+      {
+        "name": "/api/v1/cultures",
+        "size": 517
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 135.80000001192093,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "0 alarmes",
+        "w": 60,
+        "h": 20
+      },
+      {
+        "text": "Historique indisponible",
+        "w": 143,
+        "h": 20
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      },
+      {
+        "text": "Saisir un relevé",
+        "w": 114,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/alarms",
+    "width": 1440,
+    "status": 200,
+    "height": 903,
+    "scrollWidth": 1440,
+    "dom": 104,
+    "headings": [
+      {
+        "text": "Alarmes",
+        "y": 153
+      },
+      {
+        "text": "Notifications locales",
+        "y": 380
+      },
+      {
+        "text": "Aucune occurrence",
+        "y": 657
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/alarms.js",
+        "size": 2964
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 60.80000001192093,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/alarms",
+    "width": 1440,
+    "status": 200,
+    "height": 903,
+    "scrollWidth": 1440,
+    "dom": 104,
+    "headings": [
+      {
+        "text": "Alarmes",
+        "y": 153
+      },
+      {
+        "text": "Notifications locales",
+        "y": 380
+      },
+      {
+        "text": "Aucune occurrence",
+        "y": 657
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/alarms.js",
+        "size": 2964
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 60.80000001192093,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/history",
+    "width": 1440,
+    "status": 200,
+    "height": 900,
+    "scrollWidth": 1440,
+    "dom": 142,
+    "headings": [
+      {
+        "text": "Historique",
+        "y": 153
+      },
+      {
+        "text": "Tendances locales",
+        "y": 330
+      },
+      {
+        "text": "Annoter l’historique",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 70.19999998807907,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/history",
+    "width": 1440,
+    "status": 200,
+    "height": 900,
+    "scrollWidth": 1440,
+    "dom": 142,
+    "headings": [
+      {
+        "text": "Historique",
+        "y": 153
+      },
+      {
+        "text": "Tendances locales",
+        "y": 330
+      },
+      {
+        "text": "Annoter l’historique",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/history.js",
+        "size": 13454
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 70.19999998807907,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/conf",
+    "width": 1440,
+    "status": 200,
+    "height": 2505,
+    "scrollWidth": 1440,
+    "dom": 2121,
+    "headings": [
+      {
+        "text": "Configuration",
+        "y": 153
+      },
+      {
+        "text": "Réglages essentiels",
+        "y": 427
+      },
+      {
+        "text": "Culture",
+        "y": 0
+      },
+      {
+        "text": "Équipements",
+        "y": 0
+      },
+      {
+        "text": "Planification",
+        "y": 0
+      },
+      {
+        "text": "Climat",
+        "y": 0
+      },
+      {
+        "text": "Capteurs",
+        "y": 0
+      },
+      {
+        "text": "Réseau et export",
+        "y": 0
+      },
+      {
+        "text": "Système",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/config.js",
+        "size": 6755
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/api/v1/config/preview",
+        "size": 860
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 86.20000004768372,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ]
+  },
+  {
+    "route": "/conf",
+    "width": 1440,
+    "status": 200,
+    "height": 2505,
+    "scrollWidth": 1440,
+    "dom": 2121,
+    "headings": [
+      {
+        "text": "Configuration",
+        "y": 153
+      },
+      {
+        "text": "Réglages essentiels",
+        "y": 427
+      },
+      {
+        "text": "Culture",
+        "y": 0
+      },
+      {
+        "text": "Équipements",
+        "y": 0
+      },
+      {
+        "text": "Planification",
+        "y": 0
+      },
+      {
+        "text": "Climat",
+        "y": 0
+      },
+      {
+        "text": "Capteurs",
+        "y": 0
+      },
+      {
+        "text": "Réseau et export",
+        "y": 0
+      },
+      {
+        "text": "Système",
+        "y": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/config.js",
+        "size": 6755
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/api/v1/config/preview",
+        "size": 860
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 86.20000004768372,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "source",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily1_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "daily2_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "intensity",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "season",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      },
+      {
+        "text": "heater_enabled",
+        "w": 1,
+        "h": 44
+      }
+    ]
+  },
+  {
+    "route": "/console",
+    "width": 1440,
+    "status": 200,
+    "height": 1245,
+    "scrollWidth": 1440,
+    "dom": 85,
+    "headings": [
+      {
+        "text": "Console",
+        "y": 153
+      },
+      {
+        "text": "Flux système",
+        "y": 332
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/console.js",
+        "size": 3128
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "pre",
+                  "messageKey": "noRoleSingular",
+                  "prohibited": [
+                    "aria-label"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-label attribute cannot be used on a pre with no valid role attribute."
+              }
+            ],
+            "impact": "serious",
+            "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+            "target": [
+              "#console-output"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a pre with no valid role attribute."
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 69.60000002384186,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/console",
+    "width": 1440,
+    "status": 200,
+    "height": 1245,
+    "scrollWidth": 1440,
+    "dom": 85,
+    "headings": [
+      {
+        "text": "Console",
+        "y": 153
+      },
+      {
+        "text": "Flux système",
+        "y": 332
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/console.js",
+        "size": 3128
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "pre",
+                  "messageKey": "noRoleSingular",
+                  "prohibited": [
+                    "aria-label"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-label attribute cannot be used on a pre with no valid role attribute."
+              }
+            ],
+            "impact": "serious",
+            "html": "<pre id=\"console-output\" class=\"console-output\" tabindex=\"0\" aria-label=\"Journal système en direct\"></pre>",
+            "target": [
+              "#console-output"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a pre with no valid role attribute."
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 69.60000002384186,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures",
+    "width": 1440,
+    "status": 200,
+    "height": 1692,
+    "scrollWidth": 1440,
+    "dom": 275,
+    "headings": [
+      {
+        "text": "Cultures",
+        "y": 153
+      },
+      {
+        "text": "Aujourd’hui · 11/09/2026",
+        "y": 400
+      },
+      {
+        "text": "Espace 1",
+        "y": 872
+      },
+      {
+        "text": "Espace 2",
+        "y": 872
+      },
+      {
+        "text": "Lots et pieds mères",
+        "y": 1070
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Cultures actives",
+        "w": 118,
+        "h": 25
+      },
+      {
+        "text": "Archives",
+        "w": 63,
+        "h": 25
+      },
+      {
+        "text": "Réglages des équipements",
+        "w": 202,
+        "h": 25
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Exporter le journal CSV",
+        "w": 172,
+        "h": 25
+      },
+      {
+        "text": "Exporter toutes les données JSON",
+        "w": 253,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      },
+      {
+        "text": "Sauvegarde complète avec photos (ZIP)",
+        "w": 296,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 62.90000003576279,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures",
+    "width": 1440,
+    "status": 200,
+    "height": 1692,
+    "scrollWidth": 1440,
+    "dom": 275,
+    "headings": [
+      {
+        "text": "Cultures",
+        "y": 153
+      },
+      {
+        "text": "Aujourd’hui · 11/09/2026",
+        "y": 400
+      },
+      {
+        "text": "Espace 1",
+        "y": 872
+      },
+      {
+        "text": "Espace 2",
+        "y": 872
+      },
+      {
+        "text": "Lots et pieds mères",
+        "y": 1070
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Cultures actives",
+        "w": 118,
+        "h": 25
+      },
+      {
+        "text": "Archives",
+        "w": 63,
+        "h": 25
+      },
+      {
+        "text": "Réglages des équipements",
+        "w": 202,
+        "h": 25
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Exporter le journal CSV",
+        "w": 172,
+        "h": 25
+      },
+      {
+        "text": "Exporter toutes les données JSON",
+        "w": 253,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      },
+      {
+        "text": "Sauvegarde complète avec photos (ZIP)",
+        "w": 296,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/js/cultures.js",
+        "size": 10567
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 62.90000003576279,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Créer un rappel",
+        "w": 117,
+        "h": 22
+      },
+      {
+        "text": "Rechercher une autre culture",
+        "w": 219,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 1",
+        "w": 140,
+        "h": 22
+      },
+      {
+        "text": "Régler l’éclairage 2",
+        "w": 140,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/solutions",
+    "width": 1440,
+    "status": 200,
+    "height": 2038,
+    "scrollWidth": 1440,
+    "dom": 282,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 128
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 440
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 440
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 684
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 1702
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Saisie",
+        "w": 41,
+        "h": 24
+      },
+      {
+        "text": "Réservoirs",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "text": "Courbes",
+        "w": 60,
+        "h": 24
+      },
+      {
+        "text": "Journal",
+        "w": 51,
+        "h": 24
+      },
+      {
+        "text": "Recettes",
+        "w": 61,
+        "h": 24
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "w": 359,
+        "h": 43
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "w": 488,
+        "h": 43
+      },
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      },
+      {
+        "text": "Exporter les relevés et interventions CSV du filtre",
+        "w": 365,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_solutions.js",
+        "size": 8297
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 63.30000001192093,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      }
+    ]
+  },
+  {
+    "route": "/cultures/solutions",
+    "width": 1440,
+    "status": 200,
+    "height": 2038,
+    "scrollWidth": 1440,
+    "dom": 282,
+    "headings": [
+      {
+        "text": "Solutions et relevés",
+        "y": 128
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "y": 440
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "y": 440
+      },
+      {
+        "text": "Journal et courbes",
+        "y": 684
+      },
+      {
+        "text": "Recettes réutilisables",
+        "y": 1702
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Saisie",
+        "w": 41,
+        "h": 24
+      },
+      {
+        "text": "Réservoirs",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "text": "Courbes",
+        "w": 60,
+        "h": 24
+      },
+      {
+        "text": "Journal",
+        "w": 51,
+        "h": 24
+      },
+      {
+        "text": "Recettes",
+        "w": 61,
+        "h": 24
+      },
+      {
+        "text": "Réservoir de l’espace 2",
+        "w": 359,
+        "h": 43
+      },
+      {
+        "text": "Bac de bouturage de l’espace 1",
+        "w": 488,
+        "h": 43
+      },
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      },
+      {
+        "text": "Exporter les relevés et interventions CSV du filtre",
+        "w": 365,
+        "h": 25
+      },
+      {
+        "text": "Base SQLite seule (sans photos)",
+        "w": 237,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_solutions.js",
+        "size": 8297
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 63.30000001192093,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "plages cibles",
+        "w": 81,
+        "h": 18
+      }
+    ]
+  },
+  {
+    "route": "/cultures/cycles",
+    "width": 1440,
+    "status": 200,
+    "height": 1810,
+    "scrollWidth": 1440,
+    "dom": 128,
+    "headings": [
+      {
+        "text": "Cycles et rappels",
+        "y": 128
+      },
+      {
+        "text": "Rappels dans le carnet",
+        "y": 467
+      },
+      {
+        "text": "Comparer les cycles",
+        "y": 730
+      },
+      {
+        "text": "Photos et sauvegarde complète",
+        "y": 1360
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rappels",
+        "w": 56,
+        "h": 24
+      },
+      {
+        "text": "Comparer",
+        "w": 72,
+        "h": 24
+      },
+      {
+        "text": "Photos et sauvegarde",
+        "w": 155,
+        "h": 24
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 53.89999997615814,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/cycles",
+    "width": 1440,
+    "status": 200,
+    "height": 1810,
+    "scrollWidth": 1440,
+    "dom": 128,
+    "headings": [
+      {
+        "text": "Cycles et rappels",
+        "y": 128
+      },
+      {
+        "text": "Rappels dans le carnet",
+        "y": 467
+      },
+      {
+        "text": "Comparer les cycles",
+        "y": 730
+      },
+      {
+        "text": "Photos et sauvegarde complète",
+        "y": 1360
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Rappels",
+        "w": 56,
+        "h": 24
+      },
+      {
+        "text": "Comparer",
+        "w": 72,
+        "h": 24
+      },
+      {
+        "text": "Photos et sauvegarde",
+        "w": 155,
+        "h": 24
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_cycles.js",
+        "size": 6103
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 53.89999997615814,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/targets",
+    "width": 1440,
+    "status": 200,
+    "height": 900,
+    "scrollWidth": 1440,
+    "dom": 136,
+    "headings": [
+      {
+        "text": "Plages cibles pH et EC",
+        "y": 128
+      },
+      {
+        "text": "Plages enregistrées",
+        "y": 475
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Plages enregistrées",
+        "w": 140,
+        "h": 24
+      },
+      {
+        "text": "Exporter les plages cibles CSV",
+        "w": 223,
+        "h": 25
+      },
+      {
+        "text": "Exporter les relevés avec leurs cibles résolues",
+        "w": 341,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_targets.js",
+        "size": 1859
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 68.39999997615814,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/targets",
+    "width": 1440,
+    "status": 200,
+    "height": 900,
+    "scrollWidth": 1440,
+    "dom": 136,
+    "headings": [
+      {
+        "text": "Plages cibles pH et EC",
+        "y": 128
+      },
+      {
+        "text": "Plages enregistrées",
+        "y": 475
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Plages enregistrées",
+        "w": 140,
+        "h": 24
+      },
+      {
+        "text": "Exporter les plages cibles CSV",
+        "w": 223,
+        "h": 25
+      },
+      {
+        "text": "Exporter les relevés avec leurs cibles résolues",
+        "w": 341,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_targets.js",
+        "size": 1859
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 68.39999997615814,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": []
+  },
+  {
+    "route": "/cultures/light",
+    "width": 1440,
+    "status": 200,
+    "height": 1738,
+    "scrollWidth": 1440,
+    "dom": 169,
+    "headings": [
+      {
+        "text": "Repères d’éclairage",
+        "y": 128
+      },
+      {
+        "text": "Horaires configurés et état opérationnel par espace",
+        "y": 487
+      },
+      {
+        "text": "Cultures en place, repère applicable et horaires configurés",
+        "y": 805
+      },
+      {
+        "text": "Ventilation commune et règles jour/nuit",
+        "y": 913
+      },
+      {
+        "text": "Repères enregistrés",
+        "y": 1112
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Repères enregistrés",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Réglages de la ventilation",
+        "w": 192,
+        "h": 25
+      },
+      {
+        "text": "Réglages jour/nuit",
+        "w": 139,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 1",
+        "w": 81,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 2",
+        "w": 81,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_light.js",
+        "size": 1927
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 63.40000003576279,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/light",
+    "width": 1440,
+    "status": 200,
+    "height": 1738,
+    "scrollWidth": 1440,
+    "dom": 169,
+    "headings": [
+      {
+        "text": "Repères d’éclairage",
+        "y": 128
+      },
+      {
+        "text": "Horaires configurés et état opérationnel par espace",
+        "y": 487
+      },
+      {
+        "text": "Cultures en place, repère applicable et horaires configurés",
+        "y": 805
+      },
+      {
+        "text": "Ventilation commune et règles jour/nuit",
+        "y": 913
+      },
+      {
+        "text": "Repères enregistrés",
+        "y": 1112
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Repères enregistrés",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Réglages de la ventilation",
+        "w": 192,
+        "h": 25
+      },
+      {
+        "text": "Réglages jour/nuit",
+        "w": 139,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 1",
+        "w": 81,
+        "h": 25
+      },
+      {
+        "text": "Éclairage 2",
+        "w": 81,
+        "h": 25
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_light.js",
+        "size": 1927
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 63.40000003576279,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Ouvrir les réglages de l’éclairage 1",
+        "w": 256,
+        "h": 22
+      },
+      {
+        "text": "Ouvrir les réglages de l’éclairage 2",
+        "w": 256,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/equipment",
+    "width": 1440,
+    "status": 200,
+    "height": 2391,
+    "scrollWidth": 1440,
+    "dom": 218,
+    "headings": [
+      {
+        "text": "Affectations d’équipements",
+        "y": 128
+      },
+      {
+        "text": "Catalogue courant, en lecture seule",
+        "y": 385
+      },
+      {
+        "text": "Contexte connu à une date",
+        "y": 865
+      },
+      {
+        "text": "Périodes d’affectation par équipement",
+        "y": 1162
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Catalogue courant",
+        "w": 132,
+        "h": 24
+      },
+      {
+        "text": "Consulter une date",
+        "w": 136,
+        "h": 24
+      },
+      {
+        "text": "Périodes",
+        "w": 62,
+        "h": 24
+      },
+      {
+        "text": "la configuration des équipements",
+        "w": 253,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_equipment.js",
+        "size": 1419
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 62.5,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "la configuration des équipements",
+        "w": 253,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/equipment",
+    "width": 1440,
+    "status": 200,
+    "height": 2391,
+    "scrollWidth": 1440,
+    "dom": 218,
+    "headings": [
+      {
+        "text": "Affectations d’équipements",
+        "y": 128
+      },
+      {
+        "text": "Catalogue courant, en lecture seule",
+        "y": 385
+      },
+      {
+        "text": "Contexte connu à une date",
+        "y": 865
+      },
+      {
+        "text": "Périodes d’affectation par équipement",
+        "y": 1162
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Catalogue courant",
+        "w": 132,
+        "h": 24
+      },
+      {
+        "text": "Consulter une date",
+        "w": 136,
+        "h": 24
+      },
+      {
+        "text": "Périodes",
+        "w": 62,
+        "h": 24
+      },
+      {
+        "text": "la configuration des équipements",
+        "w": 253,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_equipment.js",
+        "size": 1419
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 458
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 62.5,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "la configuration des équipements",
+        "w": 253,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      },
+      {
+        "text": "0 période(s)",
+        "w": 89,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/journal",
+    "width": 1440,
+    "status": 200,
+    "height": 1155,
+    "scrollWidth": 1440,
+    "dom": 153,
+    "headings": [
+      {
+        "text": "Journal du carnet",
+        "y": 128
+      },
+      {
+        "text": "Opérations du carnet",
+        "y": 670
+      },
+      {
+        "text": "Observer un espace",
+        "y": 819
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Observer un espace",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "7 jours",
+        "w": 51,
+        "h": 25
+      },
+      {
+        "text": "30 jours",
+        "w": 60,
+        "h": 25
+      },
+      {
+        "text": "Toute la période",
+        "w": 122,
+        "h": 25
+      },
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_journal.js",
+        "size": 2995
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "dark",
+    "mainVisibleMs": 56.5,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ]
+  },
+  {
+    "route": "/cultures/journal",
+    "width": 1440,
+    "status": 200,
+    "height": 1155,
+    "scrollWidth": 1440,
+    "dom": 153,
+    "headings": [
+      {
+        "text": "Journal du carnet",
+        "y": 128
+      },
+      {
+        "text": "Opérations du carnet",
+        "y": 670
+      },
+      {
+        "text": "Observer un espace",
+        "y": 819
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "⌁\n      PHYTOCONTROLLER",
+        "w": 214,
+        "h": 42
+      },
+      {
+        "text": "Observer un espace",
+        "w": 142,
+        "h": 24
+      },
+      {
+        "text": "7 jours",
+        "w": 51,
+        "h": 25
+      },
+      {
+        "text": "30 jours",
+        "w": 60,
+        "h": 25
+      },
+      {
+        "text": "Toute la période",
+        "w": 122,
+        "h": 25
+      },
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ],
+    "resources": [
+      {
+        "name": "/static/js/theme.js",
+        "size": 998
+      },
+      {
+        "name": "/static/css/cultures.css",
+        "size": 6501
+      },
+      {
+        "name": "/static/css/style.css",
+        "size": 9893
+      },
+      {
+        "name": "/static/js/pwa.js",
+        "size": 9705
+      },
+      {
+        "name": "/static/js/culture_analysis.js",
+        "size": 6215
+      },
+      {
+        "name": "/static/js/culture_forms.js",
+        "size": 13446
+      },
+      {
+        "name": "/static/js/culture_journal.js",
+        "size": 2995
+      },
+      {
+        "name": "/static/fonts/visitor1.ttf",
+        "size": 9738
+      },
+      {
+        "name": "/api/v1/alarms/active",
+        "size": 459
+      }
+    ],
+    "axe": [],
+    "errors": [],
+    "state": "page",
+    "theme": "daylight",
+    "mainVisibleMs": 56.5,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "carnet": "vide",
+    "memory": {
+      "bytes": 10000000,
+      "source": "performance.memory"
+    },
+    "actions": [],
+    "wcagTargets": [
+      {
+        "text": "Exporter ce filtre en CSV",
+        "w": 181,
+        "h": 22
+      }
+    ]
+  }
+]

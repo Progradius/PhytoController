@@ -218,9 +218,15 @@ test("capture des séries en niveaux de gris", async ({page}, testInfo) => {
   // sans `unsafe-inline`) refuse. La propriété CSSOM `style.filter` n'est pas soumise à cette
   // restriction et produit exactement le même rendu monochrome.
   await page.evaluate(() => { document.documentElement.style.filter = "grayscale(1)"; });
-  const directory = path.join(__dirname, "..", "..", "docs", "images", "remediation-web-mobile-pwa-2026-09-09");
-  fs.mkdirSync(directory, {recursive: true});
-  await page.locator(".chart-card:has(#temperature-chart)").screenshot({
-    path: path.join(directory, "history-niveaux-de-gris.png"), animations: "disabled",
-  });
+  // Sortie par défaut : le dossier de résultats de Playwright, non versionné. La capture
+  // **publiée** (`docs/images/remediation-web-mobile-pwa-2026-09-09/`) ne se réécrit que
+  // volontairement, par `npm run measure:capture-gris`, qui désigne son dossier par
+  // `PHYTO_CAPTURE_DIR` : un test qui écrit dans un fichier versionné salit l'arbre à chaque
+  // exécution et remplace une preuve sans que personne l'ait décidé.
+  const destination = process.env.PHYTO_CAPTURE_DIR
+    ? path.resolve(process.env.PHYTO_CAPTURE_DIR, "history-niveaux-de-gris.png")
+    : testInfo.outputPath("history-niveaux-de-gris.png");
+  fs.mkdirSync(path.dirname(destination), {recursive: true});
+  await page.locator(".chart-card:has(#temperature-chart)").screenshot({path: destination, animations: "disabled"});
+  await testInfo.attach("history-niveaux-de-gris", {path: destination, contentType: "image/png"});
 });
