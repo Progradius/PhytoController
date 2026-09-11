@@ -82,6 +82,7 @@ Une fonction implémentée n'est pas automatiquement déployée ; une fonction d
 
 - [AGENTS.md](../AGENTS.md), miroir exact de [CLAUDE.md](../CLAUDE.md)
 - [Contribuer : validation, style, mesures web et composants partagés](development/contributing.md)
+- [Cadre agents, chaîne de preuves et design system : état des lieux et plan proposé](development/harness-et-design-system-reference.md) — référence du 11 septembre 2026, implémentation future
 - [Checklist de changement sûr](development/safe-change-checklist.md)
 - [Stratégie de vérification](development/verification.md)
 - [Validation matérielle des sorties](development/hardware-validation.md)
