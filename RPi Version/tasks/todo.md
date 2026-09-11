@@ -758,13 +758,19 @@ Reprise du 10/09/2026 (orchestrateur garant, agents Opus par périmètre de fich
 - [ ] R4.3 Sessions P01–P10 avec deux opérateurs, résultats consignés, décisions sur les options préparées — **opérateur**
 
 ## Écarts résiduels (revérification du 11/09/2026 — détail dans le plan, section « État d'avancement »)
-- [ ] E1 R5.1 `.actuator-group-title` à 0,78 rem sous 700 px (`style.css:551`)
-- [ ] E2 R1.7 infobulle des points de Solutions non formatée (`culture_solutions.js:350`)
-- [ ] E3 R2.5 `data-offline-filter` manquant sur le filtre Portée/Stade (`culture_light.html:81`)
-- [ ] E4 R2.4 mention iOS 26 absente de l'aide d'installation
-- [ ] E5 R2.8 index des copies repoussant « Opérations du carnet » sous le premier écran
-- [ ] E6 R1.8/R2.7 premier écran de la fiche et de Plages avec cible non mesuré
-- [ ] E7 R0.1 rejeu ±2 % de la baseline de l'audit non démontré
+- [x] E1 R5.1 `.actuator-group-title` à 0,78 rem sous 700 px — `6955277`
+- [x] E2 R1.7 infobulle des points de Solutions non formatée — `6955277`
+- [x] E3 R2.5 `data-offline-filter` manquant sur le filtre Portée/Stade — `6955277`
+- [x] E4 R2.4 mention iOS 26 absente de l'aide d'installation — `6955277`, `99284f4`
+- [x] E5 R2.8 index des copies repoussant « Opérations du carnet » sous le premier écran — `6955277`
+- [x] E6 R1.8/R2.7 premier écran de la fiche et de Plages avec cible non mesuré — `7fb722b`
+- [x] E7 R0.1 rejeu ±2 % de la baseline de l'audit — 36/36 hauteurs, `7fb722b`
+- [x] E8 R2.7 « Appliqué maintenant » sous le premier écran de Plages — `99284f4`
+- [x] E9 R1.7 Cycles au point décimal — `99284f4`
+- [x] E10 R1.7 règle d'arrondi serveur unique (`model/nombre.py`) — `28cc412`, écart nul et alignement Python/JS `c0cd8f0`
+- [x] E11 défilement horizontal au zoom 200 % de la police, 14 pages — `90d06c3`, `d9289e2`
+- [ ] Filtre `mesure` du tableau de bord et durées « 1.5 h » (`pwa.js`, `alarms.js`) au point décimal — décision à prendre (invariant `toFixed` de `dashboard.js`)
+- [ ] Sonde Influx de `scripts/observe-jalon2-operator-quality.sh` : lit `param/` du checkout, ignore `PHYTO_DATA_DIR` — avant la prochaine observation
 
 ## Lot 5 — finitions
 - [x] R5.1 Visitor réservée à la marque, chiffres tabulaires (UX-18)
@@ -785,11 +791,14 @@ Reprise du 10/09/2026 (orchestrateur garant, agents Opus par périmètre de fich
 Suite de la revérification commitée en `e29bf96`. Agents sur fichiers disjoints, orchestrateur garant
 (pytest complet et Playwright ciblé à chaque rendu, commit par liste de fichiers, revue indépendante).
 
-- [ ] Lot A — code E1 à E5 (CSS, infobulle Solutions, filtre Éclairage, aide iOS 26, ordre du journal)
-- [ ] Lot B — outillage de mesure : E6 (premier écran fiche et Plages avec cible), E7 (rejeu de la
-      baseline `8023123` à ±2 %), capture en niveaux de gris hors fichier versionné, remesure finale
-- [ ] Lot C — docs d'exploitation et de référence : chemins `PHYTO_DATA_DIR`, routes et schéma d'état
-      manquants, 11 jobs, procédures de jalons sorties vers l'archive
-- [ ] Lot D — archivage (`docs/archive/`, `tasks/archive/`), suppressions (`notes`, images non
-      référencées, plan de journalisation, script jalon 1), roadmap, registre, index, CHANGELOG
-- [ ] Revue indépendante du diff complet, correctifs, bilan dans le plan de remédiation
+- [x] Lot A — code E1 à E5, puis E8 à E11 (`6955277`, `99284f4`, `28cc412`, `c0cd8f0`, `90d06c3`, `d9289e2`)
+- [x] Lot B — outillage de mesure : E6, E7 (rejeu 36/36 à ±2 %), capture en niveaux de gris hors
+      fichier versionné, remesures finales (`7fb722b`, `b379e72`, `680ef59` et la dernière sur `d9289e2`)
+- [x] Lot C — docs d'exploitation et de référence : chemins `PHYTO_DATA_DIR`, 90 routes, schéma
+      d'état, 11 jobs, procédures de jalons archivées (`301bef4`, `d9d79ca`)
+- [x] Lot D — archivage, suppressions, roadmap, registre, index, CHANGELOG, 0 lien cassé sur 248 (`95d97f5`)
+- [x] Revue indépendante du diff complet (code puis docs) : 4 défauts de code et 5 de docs corrigés
+      (`c0cd8f0`, `b379e72`, `a3fc7ad`), bilan dans le plan de remédiation
+- Suites finales : pytest 969, `npm run test:js` 11 ; Playwright par profil sur les specs touchées.
+- Incident de méthode : commits intermédiaires ayant embarqué l'index d'un agent voisin, reconstruits
+  avant publication — voir `tasks/lessons.md` (11/09/2026).

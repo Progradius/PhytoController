@@ -290,7 +290,9 @@ explicite, brouillons), `366e1a5` et `08a4815` (documentation et preuves de mesu
 en `e29bf96`. **Déploiement sur le Pi : à relever sur le Pi**, aucun relevé n'est consigné.
 
 - [x] Lots 0, 1, 2, 3 et 5 du plan, vérifiés hors matériel (pytest, Playwright par profil, mesures)
-- [ ] Écarts résiduels E1 à E7 de la revérification du 11 septembre (`tasks/todo.md`)
+- [x] Écarts résiduels E1 à E11 de la revérification du 11 septembre, corrigés le même jour avec la
+      revue indépendante qui a suivi (bilan : plan de remédiation, section « État d'avancement »)
+- [ ] Filtre `mesure` du tableau de bord et durées « 1.5 h » au point décimal : décision à prendre
 - [ ] R4.1 — grille appareils réels, VoiceOver, TalkBack, zoom et clavier virtuel : **opérateur**
       ([`qualification-mobile-pwa.md`](development/qualification-mobile-pwa.md))
 - [ ] R4.2 — baseline de performance sur le Pi et sur téléphone, décision sur `/conf` : **opérateur**
