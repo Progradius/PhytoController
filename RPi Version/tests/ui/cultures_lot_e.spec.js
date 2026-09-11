@@ -1,5 +1,5 @@
 // Lot E : plages cibles pH/EC facultatives, historisées et contextualisées.
-const {test, expect, AxeBuilder} = require("./culture_fixtures");
+const {test, expect, AxeBuilder, createMother} = require("./culture_fixtures");
 const {randomUUID} = require("node:crypto");
 
 const post = async (page, path, csrf, command) => {
@@ -45,8 +45,9 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await expect(again.getByLabel("pH minimum")).toHaveValue("6,0");
 
   // R2.7 : sélecteur d'abord, puis la plage applicable et sa source, puis le déclaré.
-  // La mesure « premier écran » appartient au script de mesure (`npm run measure:ui`) :
-  // cette spec tourne aussi à 196 px, où aucun seuil fixe ne voudrait dire la même chose.
+  // Le premier écran est vérifié à 390 × 844 par le test dédié en fin de fichier (et par
+  // `npm run measure:ui`) : ce scénario tourne sur tous les profils, où aucun seuil fixe ne
+  // voudrait dire la même chose.
   await page.goto("/cultures/targets?target=reservoir_2");
   const applique = page.locator("#applique");
   await expect(applique.getByRole("heading", {name: "Appliqué maintenant"})).toBeVisible();
@@ -137,5 +138,61 @@ test("plages cibles : saisie facultative, historique et contexte des relevés", 
   await expect(page.locator(".solution-journal").first()).toContainText("Aucune plage cible à cette date");
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+});
+
+// R2.7 (écart E8) : avec une cible consultée qui porte une plage directe, à 390 × 844, le titre
+// « Appliqué maintenant », la plage et sa source tiennent **entières** dans la zone utile du
+// premier écran — la fenêtre moins la barre basse fixe, comme dans `measure_pages.js`. Ils
+// étaient à y = 857, 888 et 914, sous la barre. La portée, qui ne filtre que la liste, vit
+// désormais avec elle : son filtre reconduit la cible et la date, et inversement.
+test("plages cibles : la plage appliquée et sa source dans le premier écran d’un téléphone", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Critère de premier écran à 390 × 844, mesuré sur le profil mobile de référence.");
+  test.setTimeout(90000);
+  const subject = await createMother(page, "Mère premier écran");
+  await page.goto("/cultures/targets");
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  await post(page, "/api/v1/cultures/targets", csrf, {operation: "target", target: subject, label: "Plage directe",
+    start_at: "2026-08-01", ph_min: "5,8", ph_max: "6,4", ec_min: "1,2", ec_max: "1,8"});
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto(`/cultures/targets?target=${encodeURIComponent(subject)}`);
+  await expect(page.locator("#applique [data-target-source]")).toHaveText("cible directe");
+  await page.evaluate(() => document.fonts.ready.then(() => true));
+  const mesure = await page.evaluate(() => {
+    const barres = [...document.querySelectorAll("body *")].filter(node => {
+      const style = getComputedStyle(node), r = node.getBoundingClientRect();
+      return (style.position === "fixed" || style.position === "sticky") && style.display !== "none"
+        && r.width >= innerWidth / 2 && r.height > 0 && r.height < innerHeight / 2 && r.bottom >= innerHeight - 1 && r.top < innerHeight;
+    });
+    const bas = Math.min(innerHeight, ...barres.map(node => node.getBoundingClientRect().top));
+    const boite = selector => {
+      const r = document.querySelector(selector).getBoundingClientRect();
+      return {haut: Math.round(r.top), bas: Math.round(r.bottom)};
+    };
+    return {defilement: scrollY, hauteur: innerHeight, zoneBas: Math.round(bas),
+      titre: boite("#applique h2"), plage: boite("#applique [data-target-applied]"), source: boite("#applique [data-target-source]")};
+  });
+  await testInfo.attach("premier-ecran-plages", {body: JSON.stringify(mesure), contentType: "application/json"});
+  expect(mesure.defilement).toBe(0);
+  expect(mesure.hauteur).toBe(844);
+  // La barre basse existe bien à cette largeur : sans elle, le critère serait trop facile.
+  expect(mesure.zoneBas).toBeLessThan(844);
+  for (const nom of ["titre", "plage", "source"]) {
+    expect(mesure[nom].haut, nom).toBeGreaterThanOrEqual(0);
+    expect(mesure[nom].bas, `${nom} : ${JSON.stringify(mesure)}`).toBeLessThanOrEqual(mesure.zoneBas);
+  }
+
+  // Rien n'a été retiré : la portée filtre toujours la liste, depuis la liste, en gardant la
+  // cible consultée ; et le sélecteur de tête reconduit la portée choisie.
+  const portee = page.locator("#plages form[method=\"get\"]");
+  await portee.getByLabel("Portée affichée").selectOption("reservoir");
+  await portee.getByRole("button", {name: "Filtrer la liste"}).click();
+  await expect(page).toHaveURL(/scope=reservoir/);
+  expect(new URL(page.url()).searchParams.get("target")).toBe(subject);
+  await expect(page.locator("#applique [data-target-source]")).toHaveText("cible directe");
+  await expect(page.locator(".target-item")).toHaveCount(0);
+  await expect(page.locator('#selection input[type="hidden"][name="scope"]')).toHaveValue("reservoir");
+  await page.locator("#selection").getByRole("button", {name: "Afficher"}).click();
+  expect(new URL(page.url()).searchParams.get("scope")).toBe("reservoir");
   expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });

@@ -136,6 +136,15 @@
     if (text !== undefined) el.textContent = text;
     return el;
   };
+  // Règle d'arrondi unique côté navigateur : `formatNombre` de `culture_analysis.js` (virgule
+  // française, décimales bornées, pas de séparateur de milliers). Le dessin ne dépend pourtant
+  // jamais de cet asset : s'il manque (précache partiel, 404 après déploiement), les textes du
+  // dessin reprennent **les mêmes options** `toLocaleString`, jamais la valeur brute.
+  const nombre = (value, decimals) => {
+    if (window.PhytoCultureAnalysis?.formatNombre) return window.PhytoCultureAnalysis.formatNombre(value, decimals);
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
+    return Number(value).toLocaleString("fr-FR", {useGrouping: false, minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+  };
   document.querySelectorAll("[data-climate-chart]").forEach(container => {
     const points = JSON.parse(container.dataset.climateChart), sensors = [...new Set(points.map(p => p.sensor))];
     const granularity = container.dataset.climateGranularity || "période";
@@ -151,16 +160,16 @@
       const columns = ["Date", "Valeur", "Unité", "Cible ou capteur", "Période", "Agrégats", "Lacune"];
       const cells = p => [
         p.at,
-        p.mean === null ? "mesure absente" : p.mean.toFixed(2),
+        p.mean === null ? "mesure absente" : nombre(p.mean, 2),
         p.unit,
         `${p.label} · commun à la serre`,
         `${p.span_hours} h`,
         p.mean === null
           ? "aucun agrégat"
-          : `min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables, couverture ${(p.coverage * 100).toFixed(0)} %`,
+          : `min ${nombre(p.minimum, 2)}, max ${nombre(p.maximum, 2)}, ${p.valid_count} valeurs fiables, couverture ${nombre(p.coverage * 100, 0)} %`,
         p.missing ? "oui" : "non",
       ];
-      const rows = all.map(p => ({cells: cells(p), text: `${p.at} · ${p.mean === null ? "Aucune valeur fiable — lacune" : `${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}`} · ${p.valid_count} valeurs fiables sur ${p.span_hours} h · couverture ${(p.coverage * 100).toFixed(0)} %`}));
+      const rows = all.map(p => ({cells: cells(p), text: `${p.at} · ${p.mean === null ? "Aucune valeur fiable — lacune" : `${nombre(p.mean, 2)} ${p.unit}, min ${nombre(p.minimum, 2)}, max ${nombre(p.maximum, 2)}`} · ${p.valid_count} valeurs fiables sur ${p.span_hours} h · couverture ${nombre(p.coverage * 100, 0)} %`}));
       // Le dessin ne dépend jamais de l'explorateur : un asset manquant ne doit pas
       // interrompre ce script, qui rend aussi l'inventaire hors ligne plus bas.
       const refreshSelection = window.PhytoCultureAnalysis?.chart?.(svg, rows, caption.textContent, columns) ?? (() => {});
@@ -173,7 +182,7 @@
         const min = Math.min(...valid.map(p => p.minimum)), max = Math.max(...valid.map(p => p.maximum));
         const x = p => 65 + (right - 65) * (end === start ? 0.5 : (p.hour - start) / (end - start));
         const y = value => 175 - 120 * (min === max ? 0.5 : (value - min) / (max - min));
-        svg.append(node("path", {d: `M65 30V185H${right}`, class: "solution-axis"}), node("text", {x: 0, y: 55}, max.toFixed(1)), node("text", {x: 0, y: 175}, min.toFixed(1)));
+        svg.append(node("path", {d: `M65 30V185H${right}`, class: "solution-axis"}), node("text", {x: 0, y: 55}, nombre(max, 1)), node("text", {x: 0, y: 175}, nombre(min, 1)));
         svg.append(node("text", {x: 65, y: 220}, new Date(start*1000).toLocaleDateString("fr-FR")), node("text", {x: right, y: 238, "text-anchor": "end"}, new Date(end*1000).toLocaleDateString("fr-FR")));
         // Les barres min/max et points moyens ne relient jamais une lacune. L'index vient
         // de la boucle : `all.indexOf(p)` coûtait un balayage complet par point dessiné.
@@ -182,7 +191,7 @@
           if (p.mean === null) return;
           const line = node("path", {d: `M${x(p)} ${y(p.minimum)}V${y(p.maximum)}`, class: "solution-range"});
           const dot = node("circle", {cx: x(p), cy: y(p.mean), r: 3, class: "solution-dot", "data-analysis-index": i});
-          dot.append(node("title", {}, `${p.at} : ${p.mean.toFixed(2)} ${p.unit}, min ${p.minimum}, max ${p.maximum}, ${p.valid_count} valeurs fiables sur ${p.span_hours} h de période, couverture ${(p.coverage*100).toFixed(0)} %`)); svg.append(line, dot);
+          dot.append(node("title", {}, `${p.at} : ${nombre(p.mean, 2)} ${p.unit}, min ${nombre(p.minimum, 2)}, max ${nombre(p.maximum, 2)}, ${p.valid_count} valeurs fiables sur ${p.span_hours} h de période, couverture ${nombre(p.coverage * 100, 0)} %`)); svg.append(line, dot);
           places[i] = {x: x(p), y: y(p.mean)};
         });
         // Une période sans agrégat reste une lacune signalée, jamais une valeur nulle tracée.

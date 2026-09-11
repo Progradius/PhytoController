@@ -266,9 +266,15 @@
   // Précision métier des deux mesures du carnet (fiche R1.7 : pH 2, EC 2). Tout nombre
   // **affiché** par ce script — phrase du curseur, tableau équivalent, infobulle d'un point
   // ou d'une plage, graduations — passe par `formatNombre`, l'unique règle d'arrondi côté
-  // navigateur. Les données `data-chart` restent brutes.
+  // navigateur. Les données `data-chart` restent brutes. Le dessin ne dépend pourtant jamais
+  // de l'explorateur : sans `culture_analysis.js`, les mêmes options `toLocaleString` sont
+  // appliquées — auparavant la page levait une exception et ne traçait aucune courbe.
   const DECIMALES = 2;
-  const nombre = value => window.PhytoCultureAnalysis.formatNombre(value, DECIMALES);
+  const nombre = value => {
+    if (window.PhytoCultureAnalysis?.formatNombre) return window.PhytoCultureAnalysis.formatNombre(value, DECIMALES);
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
+    return Number(value).toLocaleString("fr-FR", {useGrouping: false, minimumFractionDigits: DECIMALES, maximumFractionDigits: DECIMALES});
+  };
   // Une absence s'écrit comme partout ailleurs dans le carnet : jamais « null », jamais 0.
   const absente = value => value === null || value === undefined;
   const valeur = value => absente(value) ? "mesure absente" : nombre(value);

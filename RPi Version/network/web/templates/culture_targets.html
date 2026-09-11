@@ -39,14 +39,16 @@
 {% set culture_section = 'targets' %}{% include 'culture_navigation.html' %}
 {% if error %}<p role="alert" class="culture-warning">{{ error }}</p>{% else %}
 <nav class="culture-links culture-local-links" aria-label="Dans cette page"><a href="#applique">Appliqué maintenant</a><a href="#plages">Déclaré dans le carnet</a></nav>
-<p>Les plages pH/EC servent à lire les relevés. Elles sont facultatives et ne changent ni dosage, ni réglage, ni alarme.</p>
 {% if not data.clock_reliable %}<p role="alert" class="culture-warning">Horloge non synchronisée : vérifier les dates de validité avant de confirmer.</p>{% endif %}
-{# Sélecteur d'abord : la cible et la date décident de la plage résolue et de la liste
-   affichée. Formulaire GET, valeurs conservées, aucune commande derrière une lecture. #}
+{# Sélecteur d'abord : la cible et la date décident de la plage résolue. Formulaire GET,
+   valeurs conservées, aucune commande derrière une lecture. La portée, qui ne filtre que la
+   liste « Déclaré dans le carnet », est posée avec cette liste et reconduite ici en champ
+   caché : dans le sélecteur de tête, elle repoussait la plage appliquée et sa source sous la
+   barre basse à 390 × 844 (écart E8). #}
 <form method="get" id="selection" class="culture-form culture-selector" data-offline-filter aria-label="Cible et date consultées">
+<input type="hidden" name="scope" value="{{ filters.get('scope','') }}">
 <label>Cible consultée<select name="target"><option value="">Aucune cible choisie</option>{% for item in data.reservoirs + data.subjects %}<option value="{{ item.id }}"{% if filters.get('target') == item.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
 <label>Date consultée<input type="date" name="at" value="{{ filters.get('at') or data.today }}" required></label>
-<label>Portée affichée<select name="scope"><option value="">Toutes les portées</option>{% for key,label in (('reservoir','Réservoirs'),('subject','Cultures')) %}<option value="{{ key }}"{% if filters.get('scope') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <button class="button" type="submit">Afficher</button></form>
 {# La plage applicable en tête : c'est la réponse que l'on vient chercher. La règle qui la
    choisit est repliée juste dessous, l'indication de source reste collée à la valeur. #}
@@ -55,7 +57,9 @@
 {{ empty_state("Aucune cible consultée", "Choisir une cible et une date ci-dessus pour voir la plage qui s’y applique. Aucune cible n’est choisie par défaut, et aucune plage n’est supposée.") }}
 {% elif resolution.range %}
 <p class="culture-badge num" data-target-applied>{{ range_text(resolution.range) }}</p>
-<p>{{ target_name(resolution.range) }}{% if resolution.range.label %} · {{ resolution.range.label }}{% endif %} · <span class="culture-source" data-target-source="{{ resolution.range.source }}">{{ resolution.range.source_short }}</span></p>
+{# La source ouvre la ligne qui suit la valeur : collée à elle, elle reste lisible sans
+   défilement même quand le nom de la cible et l'intitulé replient la ligne. #}
+<p><span class="culture-source" data-target-source="{{ resolution.range.source }}">{{ resolution.range.source_short }}</span> · {{ target_name(resolution.range) }}{% if resolution.range.label %} · {{ resolution.range.label }}{% endif %}</p>
 <p class="num">{{ window_text(resolution.range) }} · résolue au {{ resolution.at|culture_date(data.timezone) }}</p>
 {% if resolution.range.multiple %}<p class="culture-warning">Plusieurs cibles applicables à cette date : la plage commencée le plus tard est retenue, sans fusion entre sources.</p>{% endif %}
 <p class="culture-links"><a href="#target-{{ resolution.range.id }}">Voir cette plage dans le carnet</a></p>
@@ -65,6 +69,13 @@
 {{ feeding_text() }}
 <details><summary>Comment cette valeur est choisie</summary><p>La plage retenue est celle dont la fenêtre de validité contient la date consultée. La priorité est stricte et sans mélange entre deux sources : <strong>cible directe</strong> du relevé, puis <strong>sujet alimenté</strong> par la solution à cette date, puis <strong>réservoir</strong> du relevé. Aucune plage n’est appliquée rétroactivement avant son début, et aucune plage par défaut n’existe.</p><p>Les sujets alimentés et le réservoir alimentant sont ceux que les associations du carnet déclarent <em>à cette date</em> : une association ouverte plus tard ne remonte pas le temps, et deux réservoirs déclarés au même instant ne sont pas départagés.</p></details></section>
 <section id="plages" class="culture-section"><h2>Déclaré dans le carnet</h2>
+{# Présentation des plages en tête de la liste qu'elle décrit, et non en tête de page :
+   la fiche R2.7 veut la plage applicable et sa source dans le premier écran, et ce
+   paragraphe les repoussait sous la barre basse à 390 × 844 (écart E8). #}
+<p>Les plages pH/EC servent à lire les relevés. Elles sont facultatives et ne changent ni dosage, ni réglage, ni alarme.</p>
+<form method="get" class="culture-form culture-selector" data-offline-filter aria-label="Portée des plages déclarées"><input type="hidden" name="target" value="{{ filters.get('target','') }}"><input type="hidden" name="at" value="{{ filters.get('at','') }}">
+<label>Portée affichée<select name="scope"><option value="">Toutes les portées</option>{% for key,label in (('reservoir','Réservoirs'),('subject','Cultures')) %}<option value="{{ key }}"{% if filters.get('scope') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<button class="button" type="submit">Filtrer la liste</button></form>
 <details class="culture-section card culture-new-entry"><summary>Enregistrer une plage cible</summary>
 <p class="card-meta">La plage s’applique aux mesures dont la date tombe dans sa fenêtre de validité. Elle n’est jamais appliquée rétroactivement aux mesures antérieures à son début. Résolution : cibles directes du relevé, puis sujets alimentés par la solution à cette date, puis réservoir du relevé — priorité stricte, sans mélange entre deux sources.</p>
 {{ target_form() }}</details>

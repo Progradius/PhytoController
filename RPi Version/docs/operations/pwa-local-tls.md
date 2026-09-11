@@ -120,7 +120,15 @@ Une panne TLS doit laisser HTTP `:8123` et le contrôle actifs. `/api/v1/state` 
 2. Ouvrir le fichier pour installer le profil, puis activer explicitement sa confiance dans
    Réglages → Général → Informations → Réglages des certificats.
 3. Ouvrir `https://phytocontroller.local/` dans Safari et vérifier l’absence d’avertissement TLS.
-4. Utiliser Partager → « Sur l’écran d’accueil », puis ouvrir l’application depuis son icône.
+4. Utiliser Partager (ou menu ⋯ → Partager) → « Sur l’écran d’accueil », puis ouvrir
+   l’application depuis son icône.
+
+Depuis iOS et iPadOS 26, un site ajouté à l’écran d’accueil s’ouvre comme une web app, sans la
+barre de Safari. C’est le texte affiché par l’aide d’installation de la page « Application sur ce
+téléphone » (`installationHelp` dans `network/web/static/js/pwa.js`). Cette mention reprend le
+comportement annoncé du système : elle n’est **pas encore qualifiée sur appareil**. Sa
+vérification, et celle de l’emplacement du bouton Partager, relèvent de la grille R4.1
+(`docs/development/qualification-mobile-pwa.md`).
 
 Firefox et les autres navigateurs peuvent ne pas proposer l’installation complète. La page
 « Application sur ce téléphone » affiche alors l’aide disponible pour le navigateur détecté sans

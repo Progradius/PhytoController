@@ -295,6 +295,19 @@ async def test_page_des_plages_met_la_plage_applicable_et_sa_source_en_tete(web_
     assert "Du 01/06/2026" in applique and "toujours en vigueur" in applique
     # La plage applicable est bien avant la liste des plages déclarées.
     assert applique.index("data-target-applied") < applique.index("<h2>Déclaré dans le carnet</h2>")
+    # Écart E8 : entre le sélecteur de tête (cible, date) et la plage appliquée, plus rien ne
+    # la repousse. La portée, qui ne filtre que la liste, et la présentation des plages vivent
+    # avec la liste ; la portée est reconduite par le sélecteur en champ caché, et le filtre de
+    # portée reconduit à son tour la cible et la date. La source suit la valeur.
+    selection = applique[applique.index('id="selection"'):]
+    selection = selection[:selection.index("</form>")]
+    assert '<select name="scope"' not in selection and 'type="hidden" name="scope"' in selection
+    liste = applique[applique.index("<h2>Déclaré dans le carnet</h2>"):]
+    portee = liste[:liste.index("</form>")]
+    assert "servent à lire les relevés" in portee and '<select name="scope"' in portee
+    assert 'name="target" value="reservoir_2"' in portee and "data-offline-filter" in portee
+    assert applique.count("servent à lire les relevés") == 1
+    assert '<p><span class="culture-source" data-target-source="reservoir">' in applique
 
     # Aucune rétroactivité : avant son début, la plage ne s'applique pas.
     avant = await (await client.get("/cultures/targets?target=reservoir_2&at=2026-05-01")).text()

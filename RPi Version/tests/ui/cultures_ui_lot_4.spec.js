@@ -49,7 +49,10 @@ test("comparaison alignée, recherche et bilan sans données inventées", async 
   await page.goto(`/cultures/cycles?subject=${first}&subject=${second}&view=comparer#comparaison`);
   const table = page.locator(".culture-comparison");
   await expect(table).toContainText("Mère Alpha"); await expect(table).toContainText("Mère Bêta");
-  await expect(table).toContainText("0.00 / 0.00 / 0.00");
+  // R1.7 (écart E9) : un pH mesuré à zéro s'écrit « 0,00 », distinct de « Aucune mesure », et
+  // en décimales françaises par le filtre serveur `nombre_texte` — jamais « 0.00 ».
+  await expect(table).toContainText("0,00 / 0,00 / 0,00");
+  await expect(table).not.toContainText("0.00");
   await expect(table).toContainText("Aucune mesure"); await expect(table).toContainText("Non renseigné");
   await page.getByLabel("Filtrer les choix affichés").fill("inconnue");
   await expect(page.locator('[data-comparison-selection] input:checked')).toHaveCount(2);
@@ -313,11 +316,18 @@ test("courbe climatique : lacune sélectionnée visible et dessin sans l’explo
   // Le rayon d'un cercle est posé en attribut, pas par la propriété CSS `r`.
   await slider.press("ArrowLeft");
   await expect(figure.locator("circle.culture-selected-point")).toHaveAttribute("r", "5");
+  // R1.7 (écart E9) : infobulles, curseur et graduations passent par la règle unique
+  // `formatNombre` — virgule française, jamais `toFixed` ni la donnée brute.
+  await expect(figure.locator("circle > title").first()).toContainText(" : 21,00 °C, min 20,00, max 22,00, ");
+  await expect(figure.locator(".culture-analysis-output")).toContainText("21,00 °C, min 20,00, max 22,00");
   // R1.4 : sans l'explorateur, les courbes sont dessinées quand même.
   await page.route("**/culture_analysis.js*", route => route.fulfill({status: 404, body: ""}));
   await page.reload();
   await expect(figure.locator("circle")).toHaveCount(2);
   await expect(figure.locator("path.climate-gap")).toHaveCount(1);
+  // Sans l'explorateur, le dessin garde la même règle d'arrondi : aucune valeur brute.
+  await expect(figure.locator("circle > title").first()).toContainText(" : 21,00 °C, min 20,00, max 22,00, ");
+  expect((await figure.locator("svg text").allTextContents()).join(" | ")).not.toMatch(/\d\.\d/);
   await expect(page.locator(".culture-chart-explorer")).toHaveCount(0);
 });
 
@@ -631,4 +641,11 @@ test("R1.7 : la page affiche 1,45 quand la valeur persistée reste 1.45000000000
   const infobullePh = page.locator('svg[data-metric="ph"] circle > title');
   await expect(infobullePh).toHaveCount(1);
   await expect(infobullePh.first()).toHaveText(/^[^:]+ : 6,10 · /);
+  // Le dessin ne dépend pas de l'explorateur : sans `culture_analysis.js`, les courbes sont
+  // tracées et gardent la même règle d'arrondi (auparavant, aucune courbe n'était tracée).
+  await page.route("**/culture_analysis.js*", route => route.fulfill({status: 404, body: ""}));
+  await page.reload();
+  await expect(page.locator(".culture-chart-explorer")).toHaveCount(0);
+  await expect(infobulles).toHaveCount(1);
+  await expect(infobulles.first()).toHaveText(/^[^:]+ : 1,45 mS\/cm · /);
 });
